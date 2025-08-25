@@ -39,6 +39,32 @@ function App() {
     }
   };
 
+  const [isMobile, setIsMobile] = useState(false);
+
+  let renderedContent;
+  if (isMobile) {
+    renderedContent = (
+          <div className="flex-1 flex flex-col">
+            <div className="flex-1 overflow-auto">
+              {renderPage()}
+            </div>
+          </div>
+        );
+  } 
+  else {
+    renderedContent = (
+        <div className="lg:flex lg:flex-1 lg:flex-col lg:ml-64">
+          <div className="flex items-center justify-end px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+            <SignOutButton />
+          </div>
+          
+          <div className="flex-1 overflow-auto">
+            {renderPage()}
+          </div>
+        </div>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Unauthenticated>
@@ -63,24 +89,7 @@ function App() {
         {/* <div className="flex h-screen"> */}
 				<div className="flex flex-col lg:flex-row h-screen">
           <Navigation currentPage={currentPage} onPageChange={setCurrentPage} />
-          
-          {/* Mobile Layout */}
-          <div className="flex-1 flex flex-col lg:hidden">
-            <div className="flex-1 overflow-auto">
-              {renderPage()}
-            </div>
-          </div>
-          
-          {/* Desktop Layout */}
-          <div className="hidden lg:flex lg:flex-1 lg:flex-col lg:ml-64">
-            <div className="flex items-center justify-end px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-              <SignOutButton />
-            </div>
-            
-            <div className="flex-1 overflow-auto">
-              {renderPage()}
-            </div>
-          </div>
+          {renderedContent}
         </div>
       </Authenticated>
       

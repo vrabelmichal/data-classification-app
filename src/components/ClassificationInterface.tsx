@@ -7,7 +7,11 @@ import { ProgressBar } from "./ProgressBar";
 import { ImageViewer } from "./ImageViewer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 
+// let lastSelectedMorphology: number | null = null;
+
 export function ClassificationInterface() {
+  const [isMobile, setIsMobile] = useState(false);
+
   const [lsbClass, setLsbClass] = useState<number | null>(null);
   const [morphology, setMorphology] = useState<number | null>(null);
   const [awesomeFlag, setAwesomeFlag] = useState(false);
@@ -32,6 +36,20 @@ export function ClassificationInterface() {
   const generateSequence = useMutation(api.galaxies.generateUserSequence);
   const navigateToGalaxy = useMutation(api.galaxies.navigateToGalaxy);
 
+    console.log("Calling the ClassificationInterface component");
+
+  // Track screen size changes
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 1024); // lg breakpoint is 1024px in Tailwind
+    };
+
+    checkScreenSize(); // Check on mount
+    window.addEventListener('resize', checkScreenSize);
+
+    return () => window.removeEventListener('resize', checkScreenSize);
+  }, []);
+
   // Update current galaxy when galaxy changes
   useEffect(() => {
     if (galaxy) {
@@ -52,19 +70,35 @@ export function ClassificationInterface() {
 
   // Reset form when new galaxy loads
   useEffect(() => {
+    console.log("Resetting form for new galaxy:", currentGalaxy?.id);
     if (currentGalaxy) {
-      setLsbClass(null);
-      setMorphology(null);
-      setAwesomeFlag(false);
-      setValidRedshift(false);
-      setComments("");
-      setQuickInput("");
+      // preload existing classification or reset to defaults
+      console.log("Current galaxy data:", currentGalaxy);
+      if (currentGalaxy.lsb_class !== undefined) {
+        setLsbClass(currentGalaxy.lsb_class);
+        setMorphology(currentGalaxy.morphology);
+        setAwesomeFlag(currentGalaxy.awesome_flag);
+        setValidRedshift(currentGalaxy.valid_redshift);
+        setComments(currentGalaxy.comments || "");
+        setQuickInput(
+          buildQuickInputString(
+            currentGalaxy.lsb_class,
+            currentGalaxy.morphology,
+            currentGalaxy.awesome_flag,
+            currentGalaxy.valid_redshift
+          )
+        );
+      } else {
+        setLsbClass(null);
+        setMorphology(null);
+        setAwesomeFlag(false);
+        setValidRedshift(false);
+        setComments("");
+        setQuickInput("");
+      }
       setStartTime(Date.now());
-      
       // Auto-focus on quick input field
-      setTimeout(() => {
-        quickInputRef.current?.focus();
-      }, 100);
+      setTimeout(() => quickInputRef.current?.focus(), 100);
     }
   }, [currentGalaxy?.id]);
 
@@ -296,6 +330,21 @@ export function ClassificationInterface() {
     toast.info(`Contrast: ${contrast === 1.0 ? 1.5 : contrast === 1.5 ? 2.0 : contrast === 2.0 ? 0.5 : 1.0}x`);
   };
 
+  // after parseQuickInput, add helper:
+  const buildQuickInputString = (
+    lsb: number | null,
+    morph: number | null,
+    awesome: boolean,
+    redshift: boolean
+  ) => {
+    let str = "";
+    if (lsb !== null) str += lsb === -1 ? "-" : lsb.toString();
+    if (morph !== null) str += morph === -1 ? "-" : morph.toString();
+    if (redshift) str += "r";
+    if (awesome) str += "a";
+    return str;
+  };
+
   if (currentGalaxy === undefined && galaxy === undefined) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
@@ -350,7 +399,10 @@ export function ClassificationInterface() {
 
   // Handler for morphology radio button clicks
   const handleMorphologyChange = (value: number) => {
+    console.log(`Morphology changed to: ${value}`);
     setMorphology(value);
+    setQuickInput(buildQuickInputString(lsbClass, value, awesomeFlag, validRedshift));
+    // lastSelectedMorphology = value;
   };
 
   const canSubmit = lsbClass !== null && morphology !== null;
@@ -365,33 +417,11 @@ export function ClassificationInterface() {
     { name: "Zoomed out", url: displayGalaxy.imageUrl },
   ];
 
-  return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
-      {/* Header with keyboard shortcuts button */}
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Galaxy: {displayGalaxy.id}
-          </h1>
-          {navigation && (
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              Position: {navigation.currentIndex + 1} of {navigation.totalGalaxies}
-            </div>
-          )}
-        </div>
-        <button
-          onClick={() => setShowKeyboardHelp(true)}
-          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          title="Keyboard shortcuts (?)"
-        >
-          <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
-            ?
-          </kbd>
-        </button>
-      </div>
 
-      {/* Mobile Layout */}
-      <div className="block lg:hidden space-y-6">
+  let mainContentToRender;
+  if (isMobile) {
+    mainContentToRender = (
+      <div className="block space-y-6">
         {/* Classification Form - Mobile (Above Images) */}
         <div className="space-y-6">
           {/* LSB Classification */}
@@ -407,7 +437,17 @@ export function ClassificationInterface() {
                     name="lsb-mobile"
                     value={option.value}
                     checked={lsbClass === option.value}
-                    onChange={() => setLsbClass(option.value)}
+                    onChange={() => {
+                      setLsbClass(option.value);
+                      setQuickInput(
+                        buildQuickInputString(
+                          option.value,
+                          morphology,
+                          awesomeFlag,
+                          validRedshift
+                        )
+                      );
+                    }}
                     className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                   />
                   <div className="ml-3 flex items-center space-x-2">
@@ -426,7 +466,7 @@ export function ClassificationInterface() {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Morphology Type
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-3" key={isMobile ? "mobile" : "desktop"}>
               {morphologyOptions.map((option) => (
                 <label key={option.value} className="flex items-center cursor-pointer">
                   <input
@@ -562,7 +602,17 @@ export function ClassificationInterface() {
                 <input
                   type="checkbox"
                   checked={awesomeFlag}
-                  onChange={(e) => setAwesomeFlag(e.target.checked)}
+                  onChange={(e) => {
+                    setAwesomeFlag(e.target.checked);
+                    setQuickInput(
+                      buildQuickInputString(
+                        lsbClass,
+                        morphology,
+                        e.target.checked,
+                        validRedshift
+                      )
+                    );
+                  }}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Awesome</span>
@@ -572,7 +622,17 @@ export function ClassificationInterface() {
                 <input
                   type="checkbox"
                   checked={validRedshift}
-                  onChange={(e) => setValidRedshift(e.target.checked)}
+                  onChange={(e) => {
+                    setValidRedshift(e.target.checked);
+                    setQuickInput(
+                      buildQuickInputString(
+                        lsbClass,
+                        morphology,
+                        awesomeFlag,
+                        e.target.checked
+                      )
+                    );
+                  }}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Valid redshift</span>
@@ -595,7 +655,7 @@ export function ClassificationInterface() {
           </div>
 
           {/* Quick Input - Mobile */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
               Input by typing
             </h4>
@@ -611,12 +671,14 @@ export function ClassificationInterface() {
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               Format: [LSB: -/0/1] [Morph: -/0/1/2] (add "r" for redshift, "a" for awesome). Press Enter to submit.
             </p>
-          </div>
+          </div> */}
         </div>
       </div>
-
-      {/* Desktop Layout */}
-      <div className="hidden lg:grid lg:grid-cols-3 gap-8">
+    );
+  }
+  else {
+    mainContentToRender = (
+      <div className="lg:grid lg:grid-cols-3 gap-8">
         {/* Left Panel - Images */}
         <div className="lg:col-span-2 space-y-6">
           {/* Image Grid */}
@@ -678,6 +740,26 @@ export function ClassificationInterface() {
 
         {/* Right Panel - Classification Form */}
         <div className="space-y-6">
+
+          {/* Quick Input - Desktop */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+              Input by typing
+            </h4>
+            <input
+              ref={quickInputRef}
+              type="text"
+              value={quickInput}
+              onChange={(e) => handleQuickInputChange(e.target.value)}
+              onKeyDown={handleQuickInputKeyDown}
+              placeholder="Example: -1 or 1- or 0r (with a for awesome)"
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+            />
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Format: [LSB: -/0/1] [Morph: -/0/1/2] (add "r" for redshift, "a" for awesome). Press Enter to submit.
+            </p>
+          </div>
+
           {/* LSB Classification */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
@@ -691,7 +773,17 @@ export function ClassificationInterface() {
                     name="lsb"
                     value={option.value}
                     checked={lsbClass === option.value}
-                    onChange={() => setLsbClass(option.value)}
+                    onChange={() => {
+                      setLsbClass(option.value);
+                      setQuickInput(
+                        buildQuickInputString(
+                          option.value,
+                          morphology,
+                          awesomeFlag,
+                          validRedshift
+                        )
+                      );
+                    }}
                     className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                   />
                   <div className="ml-3 flex items-center space-x-2">
@@ -710,7 +802,7 @@ export function ClassificationInterface() {
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Morphology Type
             </h3>
-            <div className="space-y-3">
+            <div className="space-y-3" key={isMobile ? "mobile" : "desktop"}>
               {morphologyOptions.map((option) => (
                 <label key={option.value} className="flex items-center cursor-pointer">
                   <input
@@ -718,6 +810,7 @@ export function ClassificationInterface() {
                     name="morphology"
                     value={option.value}
                     checked={morphology === option.value}
+                    // checked={lastSelectedMorphology === option.value}
                     onChange={() => handleMorphologyChange(option.value)}
                     className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                   />
@@ -785,7 +878,17 @@ export function ClassificationInterface() {
                 <input
                   type="checkbox"
                   checked={awesomeFlag}
-                  onChange={(e) => setAwesomeFlag(e.target.checked)}
+                  onChange={(e) => {
+                    setAwesomeFlag(e.target.checked);
+                    setQuickInput(
+                      buildQuickInputString(
+                        lsbClass,
+                        morphology,
+                        e.target.checked,
+                        validRedshift
+                      )
+                    );
+                  }}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Awesome</span>
@@ -795,7 +898,17 @@ export function ClassificationInterface() {
                 <input
                   type="checkbox"
                   checked={validRedshift}
-                  onChange={(e) => setValidRedshift(e.target.checked)}
+                  onChange={(e) => {
+                    setValidRedshift(e.target.checked);
+                    setQuickInput(
+                      buildQuickInputString(
+                        lsbClass,
+                        morphology,
+                        awesomeFlag,
+                        e.target.checked
+                      )
+                    );
+                  }}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Valid redshift</span>
@@ -817,26 +930,39 @@ export function ClassificationInterface() {
             />
           </div>
 
-          {/* Quick Input - Desktop */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-              Input by typing
-            </h4>
-            <input
-              ref={quickInputRef}
-              type="text"
-              value={quickInput}
-              onChange={(e) => handleQuickInputChange(e.target.value)}
-              onKeyDown={handleQuickInputKeyDown}
-              placeholder="Example: -1 or 1- or 0r (with a for awesome)"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            />
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-              Format: [LSB: -/0/1] [Morph: -/0/1/2] (add "r" for redshift, "a" for awesome). Press Enter to submit.
-            </p>
-          </div>
         </div>
       </div>
+    );
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+      {/* Header with keyboard shortcuts button */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex items-center space-x-4">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            Galaxy: {displayGalaxy.id}
+          </h1>
+          {navigation && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              Position: {navigation.currentIndex + 1} of {navigation.totalGalaxies}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={() => setShowKeyboardHelp(true)}
+          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          title="Keyboard shortcuts (?)"
+        >
+          <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
+            ?
+          </kbd>
+        </button>
+      </div>
+
+      {/* Main Content */}
+      <p>Is Mobile: {isMobile ? "Yes" : "No"}; Morphology: {morphology}</p>
+      {mainContentToRender}
 
       {/* Progress Bar at Bottom */}
       <div className="mt-8">
