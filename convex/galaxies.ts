@@ -21,50 +21,31 @@ export const getNextGalaxy = query({
     // Handle new format (array of galaxy IDs)
     if (sequence.galaxyIds && sequence.galaxyIds.length > 0) {
       for (const galaxyId of sequence.galaxyIds) {
-      // Check if already classified
-      const existingClassification = await ctx.db
-        .query("classifications")
-        .withIndex("by_user_and_galaxy", (q) => 
-          q.eq("userId", userId).eq("galaxyId", galaxyId)
-        )
-        .unique();
+        // Check if already classified
+        const existingClassification = await ctx.db
+          .query("classifications")
+          .withIndex("by_user_and_galaxy", (q) => 
+            q.eq("userId", userId).eq("galaxyId", galaxyId)
+          )
+          .unique();
 
-      // Check if skipped
-      const isSkipped = await ctx.db
-        .query("skippedGalaxies")
-        .withIndex("by_user_and_galaxy", (q) => 
-          q.eq("userId", userId).eq("galaxyId", galaxyId)
-        )
-        .unique();
+        // Check if skipped
+        const isSkipped = await ctx.db
+          .query("skippedGalaxies")
+          .withIndex("by_user_and_galaxy", (q) => 
+            q.eq("userId", userId).eq("galaxyId", galaxyId)
+          )
+          .unique();
 
-      if (!existingClassification && !isSkipped) {
-        const galaxy = await ctx.db.get(galaxyId);
-        return galaxy;
+        if (!existingClassification && !isSkipped) {
+          const galaxy = await ctx.db.get(galaxyId);
+          return galaxy;
+        }
       }
-    }
 
       return null; // All galaxies in new format sequence are done
     }
-
-    // Handle legacy format
-    if (sequence.galaxyId) {
-      const entries = await ctx.db
-        .query("galaxySequences")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .collect();
-
-      for (const entry of entries.sort((a, b) => (a.sequenceOrder || 0) - (b.sequenceOrder || 0))) {
-        if (!entry.galaxyId) continue;
-        const galaxy = await ctx.db.query("galaxies").withIndex("by_external_id", (q) => q.eq("id", entry.galaxyId!)).unique();
-        if (!galaxy) continue;
-        
-        const classified = await ctx.db.query("classifications").withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", entry.galaxyId!)).unique();
-        const skipped = await ctx.db.query("skippedGalaxies").withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", entry.galaxyId!)).unique();
-        
-        if (!classified && !skipped) return galaxy;
-      }
-    }
-
+    
     return null;
   },
 });
@@ -134,7 +115,7 @@ export const getGalaxyNavigation = query({
   },
 });
 
-// Navigate to specific galaxy in sequence
+// Navigate to specific galaxy in sequence  // TODO: investigate if this can be query
 export const navigateToGalaxy = mutation({
   args: {
     direction: v.union(v.literal("next"), v.literal("previous")),
@@ -567,30 +548,18 @@ export const getProgress = query({
       }
       
       const total = sequence.galaxyIds.length;
-    const completed = classified + skipped;
+      const completed = classified + skipped;
 
-    return {
-      classified,
-      skipped,
-      total,
-      completed,
-      remaining: total - completed,
-      percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
-    };
+      return {
+        classified,
+        skipped,
+        total,
+        completed,
+        remaining: total - completed,
+        percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+      };
     }
 
-    // Handle legacy format
-    if (sequence.galaxyId) {
-      const entries = await ctx.db.query("galaxySequences").withIndex("by_user", (q) => q.eq("userId", userId)).collect();
-      for (const entry of entries) {
-        if (!entry.galaxyId) continue;
-        const c = await ctx.db.query("classifications").withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", entry.galaxyId!)).unique();
-        const s = await ctx.db.query("skippedGalaxies").withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", entry.galaxyId!)).unique();
-        if (c) classified++; if (s) skipped++;
-      }
-      const total = entries.length, completed = classified + skipped;
-      return { classified, skipped, total, completed, remaining: total - completed, percentage: total > 0 ? Math.round((completed / total) * 100) : 0 };
-    }
     return null;
   },
 });

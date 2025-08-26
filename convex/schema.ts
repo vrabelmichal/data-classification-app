@@ -74,10 +74,10 @@ const applicationTables = {
     userId: v.id("users"),
     galaxyIds: v.optional(v.array(v.id("galaxies"))), // Ordered list of galaxy IDs
     // Legacy fields for existing data
-    galaxyId: v.optional(v.string()),
-    nextGalaxyId: v.optional(v.string()),
-    previousGalaxyId: v.optional(v.string()),
-    sequenceOrder: v.optional(v.number()),
+    // galaxyId: v.optional(v.string()),
+    // nextGalaxyId: v.optional(v.string()),
+    // previousGalaxyId: v.optional(v.string()),
+    // sequenceOrder: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   // System settings
