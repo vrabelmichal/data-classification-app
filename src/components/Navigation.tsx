@@ -1,32 +1,31 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
+import { NavLink, useNavigate } from "react-router";
 import { api } from "../../convex/_generated/api";
 import { cn } from "../lib/utils";
 import { SignOutButton } from "../SignOutButton";
 
-interface NavigationProps {
-  currentPage: string;
-  onPageChange: (page: string) => void;
+interface NavigationItem {
+  id: string;
+  label: string;
+  icon: string;
+  path: string;
 }
 
-export function Navigation({ currentPage, onPageChange }: NavigationProps) {
+interface NavigationProps {
+  navigationItems: NavigationItem[];
+}
+
+export function Navigation({ navigationItems }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const userProfile = useQuery(api.users.getUserProfile);
   const progress = useQuery(api.galaxies.getProgress);
+  const navigate = useNavigate();
 
-  const navigationItems = [
-    { id: "classify", label: "Classify", icon: "🔬" },
-    { id: "browse", label: "Browse Galaxies", icon: "🌌" },
-    // { id: "table", label: "Galaxy Table", icon: "📋" },
-    { id: "skipped", label: "Skipped", icon: "⏭️" },
-    { id: "statistics", label: "Statistics", icon: "📊" },
-    { id: "settings", label: "Settings", icon: "⚙️" },
-    { id: "help", label: "Help", icon: "❓" },
-  ];
-
-  if (userProfile?.role === "admin") {
-    navigationItems.push({ id: "admin", label: "Admin", icon: "👑" });
-  }
+  // Filter items based on permissions (e.g., admin only)
+  const visibleItems = navigationItems.filter(
+    (it) => it.id !== "admin" || userProfile?.role === "admin"
+  );
 
   return (
     <>
@@ -69,23 +68,23 @@ export function Navigation({ currentPage, onPageChange }: NavigationProps) {
               </div>
               <nav className="flex-1 p-4">
                 <ul className="space-y-2">
-                  {navigationItems.map((item) => (
+                  {visibleItems.map((item) => (
                     <li key={item.id}>
-                      <button
-                        onClick={() => {
-                          onPageChange(item.id);
-                          setIsOpen(false);
-                        }}
-                        className={cn(
-                          "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
-                          currentPage === item.id
-                            ? "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                            : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                        )}
+                      <NavLink
+                        to={item.path}
+                        onClick={() => setIsOpen(false)}
+                        className={({ isActive }) =>
+                          cn(
+                            "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
+                            isActive
+                              ? "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                              : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                          )
+                        }
                       >
                         <span className="text-lg">{item.icon}</span>
                         <span className="font-medium">{item.label}</span>
-                      </button>
+                      </NavLink>
                     </li>
                   ))}
                 </ul>
@@ -136,20 +135,22 @@ export function Navigation({ currentPage, onPageChange }: NavigationProps) {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-4">
             <ul className="space-y-2">
-              {navigationItems.map((item) => (
+              {visibleItems.map((item) => (
                 <li key={item.id}>
-                  <button
-                    onClick={() => onPageChange(item.id)}
-                    className={cn(
-                      "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
-                      currentPage === item.id
-                        ? "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                        : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    )}
+                  <NavLink
+                    to={item.path}
+                    className={({ isActive }) =>
+                      cn(
+                        "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
+                        isActive
+                          ? "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
+                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      )
+                    }
                   >
                     <span className="text-lg">{item.icon}</span>
                     <span className="font-medium">{item.label}</span>
-                  </button>
+                  </NavLink>
                 </li>
               ))}
             </ul>
