@@ -61,6 +61,8 @@ function App() {
                    <Routes>
                     {/* keep index hardcoded */}
                     <Route index element={<ClassificationInterface />} />
+                    {/* dynamic galaxy route */}
+                    <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
                     {/* generate routes from navigationItems -- element components are already React nodes */}
                     {navigationItems.map((item) => (
                       <Route key={item.id} path={item.path} element={item.element} />

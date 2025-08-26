@@ -735,3 +735,22 @@ export const generateMockGalaxies = mutation({
     };
   },
 });
+
+// Get galaxy by external ID
+export const getGalaxyByExternalId = query({
+  args: {
+    externalId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (!args.externalId || !args.externalId.trim()) return null;
+    const externalId = args.externalId.trim();
+
+    // Use the index defined in schema (by_external_id) which indexes the 'id' field
+    const galaxy = await ctx.db
+      .query("galaxies")
+      .withIndex("by_external_id", (q) => q.eq("id", externalId))
+      .unique();
+
+    return galaxy || null;
+  },
+});

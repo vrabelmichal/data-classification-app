@@ -6,10 +6,14 @@ import { cn } from "../lib/utils";
 import { ProgressBar } from "./ProgressBar";
 import { ImageViewer } from "./ImageViewer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
+import { useParams, useNavigate } from "react-router";
 
 // let lastSelectedMorphology: number | null = null;
 
 export function ClassificationInterface() {
+  const { galaxyId: routeGalaxyId } = useParams<{ galaxyId: string }>();
+  const navigate = useNavigate();
+
   const [isMobile, setIsMobile] = useState(false);
 
   const [lsbClass, setLsbClass] = useState<number | null>(null);
@@ -24,12 +28,18 @@ export function ClassificationInterface() {
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const quickInputRef = useRef<HTMLInputElement>(null);
 
-  const galaxy = useQuery(api.galaxies.getNextGalaxy);
+  const galaxyByExternalId = useQuery(
+    api.galaxies.getGalaxyByExternalId,
+    routeGalaxyId ? { externalId: routeGalaxyId } : "skip"
+  );
+  const galaxy = useQuery(api.galaxies.getNextGalaxy, routeGalaxyId ? "skip" : {});
   const progress = useQuery(api.galaxies.getProgress);
   const userPrefs = useQuery(api.users.getUserPreferences);
   const userProfile = useQuery(api.users.getUserProfile);
-  const navigation = useQuery(api.galaxies.getGalaxyNavigation, 
-    currentGalaxy ? { currentGalaxyId: currentGalaxy._id } : {});
+  const navigation = useQuery(
+    api.galaxies.getGalaxyNavigation,
+    currentGalaxy ? { currentGalaxyId: currentGalaxy._id } : {}
+  );
   
   const submitClassification = useMutation(api.galaxies.submitClassification);
   const skipGalaxy = useMutation(api.galaxies.skipGalaxy);
@@ -50,10 +60,15 @@ export function ClassificationInterface() {
 
   // Update current galaxy when galaxy changes
   useEffect(() => {
-    if (galaxy) {
+    if (routeGalaxyId && galaxyByExternalId) {
+      setCurrentGalaxy(galaxyByExternalId);
+    } else if (!routeGalaxyId && galaxy) {
       setCurrentGalaxy(galaxy);
+      if (galaxy?.id) {
+        navigate(`/classify/${galaxy.id}`, { replace: true });
+      }
     }
-  }, [galaxy]);
+  }, [routeGalaxyId, galaxyByExternalId, galaxy, navigate]);
 
   // Generate sequence if not exists
   useEffect(() => {
@@ -171,64 +186,42 @@ export function ClassificationInterface() {
   // Navigation handlers
   const handlePrevious = useCallback(async () => {
     if (!currentGalaxy || !navigation?.hasPrevious) return;
-
     try {
-      const result = await navigateToGalaxy({
-        direction: "previous",
-        currentGalaxyId: currentGalaxy._id,
-      });
+      const result = await navigateToGalaxy({ direction: "previous", currentGalaxyId: currentGalaxy._id });
       setCurrentGalaxy(result.galaxy);
-      toast.info(`Navigated to galaxy ${result.position} of ${result.total}`);
+      if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
+      // toast.info(`Navigated to galaxy ${result.position} of ${result.total}`);
     } catch (error) {
       toast.error("Failed to navigate to previous galaxy");
       console.error(error);
     }
-  }, [currentGalaxy, navigation, navigateToGalaxy]);
+  }, [currentGalaxy, navigation, navigateToGalaxy, navigate]);
 
   const handleNext = useCallback(async () => {
     if (!currentGalaxy || !navigation?.hasNext) return;
-
     try {
-      const result = await navigateToGalaxy({
-        direction: "next",
-        currentGalaxyId: currentGalaxy._id,
-      });
+      const result = await navigateToGalaxy({ direction: "next", currentGalaxyId: currentGalaxy._id });
       setCurrentGalaxy(result.galaxy);
-      toast.info(`Navigated to galaxy ${result.position} of ${result.total}`);
+      if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
+      // toast.info(`Navigated to galaxy ${result.position} of ${result.total}`);
     } catch (error) {
       toast.error("Failed to navigate to next galaxy");
       console.error(error);
     }
-  }, [currentGalaxy, navigation, navigateToGalaxy]);
+  }, [currentGalaxy, navigation, navigateToGalaxy, navigate]);
 
   const handleSubmit = useCallback(async () => {
     if (!currentGalaxy || lsbClass === null || morphology === null) return;
-
     try {
       const timeSpent = Date.now() - startTime;
-      await submitClassification({
-        galaxyId: currentGalaxy._id,
-        lsb_class: lsbClass,
-        morphology: morphology,
-        awesome_flag: awesomeFlag,
-        valid_redshift: validRedshift,
-        comments: comments.trim() || undefined,
-        sky_bkg: undefined,
-        timeSpent,
-      });
-      
+      await submitClassification({ galaxyId: currentGalaxy._id, lsb_class: lsbClass, morphology, awesome_flag: awesomeFlag, valid_redshift: validRedshift, comments: comments.trim() || undefined, sky_bkg: undefined, timeSpent });
       toast.success("Classification submitted successfully!");
-      
-      // Auto-navigate to next galaxy if available
       if (navigation?.hasNext) {
         try {
-          const result = await navigateToGalaxy({
-            direction: "next",
-            currentGalaxyId: currentGalaxy._id,
-          });
-          setCurrentGalaxy(result.galaxy);
+          const result = await navigateToGalaxy({ direction: "next", currentGalaxyId: currentGalaxy._id });
+            setCurrentGalaxy(result.galaxy);
+            if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
         } catch (error) {
-          // If navigation fails, fall back to the next galaxy query
           console.error("Auto-navigation failed:", error);
         }
       }
@@ -236,29 +229,19 @@ export function ClassificationInterface() {
       toast.error("Failed to submit classification");
       console.error(error);
     }
-  }, [currentGalaxy, lsbClass, morphology, awesomeFlag, validRedshift, comments, startTime, submitClassification, navigation, navigateToGalaxy]);
+  }, [currentGalaxy, lsbClass, morphology, awesomeFlag, validRedshift, comments, startTime, submitClassification, navigation, navigateToGalaxy, navigate]);
 
   const handleSkip = useCallback(async () => {
     if (!currentGalaxy) return;
-
     try {
-      await skipGalaxy({
-        galaxyId: currentGalaxy._id,
-        comments: comments.trim() || undefined,
-      });
-      
+      await skipGalaxy({ galaxyId: currentGalaxy._id, comments: comments.trim() || undefined });
       toast.info("Galaxy skipped");
-      
-      // Auto-navigate to next galaxy if available
       if (navigation?.hasNext) {
         try {
-          const result = await navigateToGalaxy({
-            direction: "next",
-            currentGalaxyId: currentGalaxy._id,
-          });
+          const result = await navigateToGalaxy({ direction: "next", currentGalaxyId: currentGalaxy._id });
           setCurrentGalaxy(result.galaxy);
+          if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
         } catch (error) {
-          // If navigation fails, fall back to the next galaxy query
           console.error("Auto-navigation failed:", error);
         }
       }
@@ -266,7 +249,7 @@ export function ClassificationInterface() {
       toast.error("Failed to skip galaxy");
       console.error(error);
     }
-  }, [currentGalaxy, comments, skipGalaxy, navigation, navigateToGalaxy]);
+  }, [currentGalaxy, comments, skipGalaxy, navigation, navigateToGalaxy, navigate]);
 
   const handleAladinClick = () => {
     if (currentGalaxy) {
