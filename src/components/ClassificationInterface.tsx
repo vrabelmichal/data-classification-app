@@ -36,8 +36,6 @@ export function ClassificationInterface() {
   const generateSequence = useMutation(api.galaxies.generateUserSequence);
   const navigateToGalaxy = useMutation(api.galaxies.navigateToGalaxy);
 
-    console.log("Calling the ClassificationInterface component");
-
   // Track screen size changes
   useEffect(() => {
     const checkScreenSize = () => {
@@ -75,6 +73,7 @@ export function ClassificationInterface() {
       // preload existing classification or reset to defaults
       console.log("Current galaxy data:", currentGalaxy);
       if (currentGalaxy.lsb_class !== undefined) {
+        // THIS IS WRONG!!!
         setLsbClass(currentGalaxy.lsb_class);
         setMorphology(currentGalaxy.morphology);
         setAwesomeFlag(currentGalaxy.awesome_flag);
@@ -202,49 +201,6 @@ export function ClassificationInterface() {
     }
   }, [currentGalaxy, navigation, navigateToGalaxy]);
 
-  // Simplified keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in input fields
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-
-      switch (e.key.toLowerCase()) {
-        case 'c':
-          e.preventDefault();
-          // Cycle through contrast levels: 1.0 -> 1.5 -> 2.0 -> 0.5 -> 1.0
-          setContrast(prev => {
-            if (prev === 1.0) return 1.5;
-            if (prev === 1.5) return 2.0;
-            if (prev === 2.0) return 0.5;
-            return 1.0;
-          });
-          toast.info(`Contrast: ${contrast === 1.0 ? 1.5 : contrast === 1.5 ? 2.0 : contrast === 2.0 ? 0.5 : 1.0}x`);
-          break;
-        case 'p':
-          e.preventDefault();
-          handlePrevious();
-          break;
-        case 'n':
-          e.preventDefault();
-          handleNext();
-          break;
-        case 's':
-          e.preventDefault();
-          handleSkip();
-          break;
-        case '?':
-          e.preventDefault();
-          setShowKeyboardHelp(true);
-          break;
-      }
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [contrast, handlePrevious, handleNext]);
-
   const handleSubmit = useCallback(async () => {
     if (!currentGalaxy || lsbClass === null || morphology === null) return;
 
@@ -329,6 +285,62 @@ export function ClassificationInterface() {
     });
     toast.info(`Contrast: ${contrast === 1.0 ? 1.5 : contrast === 1.5 ? 2.0 : contrast === 2.0 ? 0.5 : 1.0}x`);
   };
+
+  // Simplified keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in input fields
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+      // Only handle lone key presses (no Ctrl, Alt, or Meta)
+      if (e.ctrlKey || e.altKey || e.metaKey) {
+        return
+      }
+
+      switch (e.key.toLowerCase()) {
+        case 'c':
+          e.preventDefault()
+          setContrast(prev => {
+            if (prev === 1.0) return 1.5
+            if (prev === 1.5) return 2.0
+            if (prev === 2.0) return 0.5
+            return 1.0
+          })
+          toast.info(
+            `Contrast: ${
+              contrast === 1.0
+                ? 1.5
+                : contrast === 1.5
+                ? 2.0
+                : contrast === 2.0
+                ? 0.5
+                : 1.0
+            }x`
+          )
+          break
+        case 'p':
+          e.preventDefault()
+          handlePrevious()
+          break
+        case 'n':
+          e.preventDefault()
+          handleNext()
+          break
+        case 's':
+          e.preventDefault()
+          handleSkip()
+          break
+        case '?':
+          e.preventDefault()
+          setShowKeyboardHelp(true)
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [contrast, handlePrevious, handleNext, handleSkip])
 
   // after parseQuickInput, add helper:
   const buildQuickInputString = (
@@ -961,7 +973,7 @@ export function ClassificationInterface() {
       </div>
 
       {/* Main Content */}
-      <p>Is Mobile: {isMobile ? "Yes" : "No"}; Morphology: {morphology}</p>
+      {/* <p>Is Mobile: {isMobile ? "Yes" : "No"}; Morphology: {morphology}</p> */}
       {mainContentToRender}
 
       {/* Progress Bar at Bottom */}
