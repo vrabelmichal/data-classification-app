@@ -8,6 +8,22 @@ export function UserSettings() {
   const userPrefs = useQuery(api.users.getUserPreferences);
   const updatePreferences = useMutation(api.users.updatePreferences);
 
+  // Query for combined user + profile returned by server as `getUserProfile`
+  // The returned shape is: { user, ...profileFields }
+  const userWithProfile = useQuery(api.users.getUserProfile);
+  const authUser = userWithProfile?.user ?? null;
+  // Keep the full profile object so we can display all columns
+  const profile = userWithProfile ?? null;
+  // {
+  //   userId: userWithProfile.userId,
+  //   role: userWithProfile.role,
+  //   isActive: userWithProfile.isActive,
+  //   isConfirmed: userWithProfile.isConfirmed,
+  //   classificationsCount: userWithProfile.classificationsCount,
+  //   joinedAt: userWithProfile.joinedAt,
+  //   lastActiveAt: userWithProfile.lastActiveAt,
+  // }
+
   const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low">("medium");
   const [showKeyboardHints, setShowKeyboardHints] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark" | "auto">("auto");
@@ -34,6 +50,7 @@ export function UserSettings() {
     }
   };
 
+  // If preferences are still loading show spinner. We also gracefully handle cases where profile/user might be loading.
   if (userPrefs === undefined) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
@@ -42,21 +59,40 @@ export function UserSettings() {
     );
   }
 
+  // Extract displayable fields (guarded with optional chaining)
+  const displayName = authUser?.name ?? "";
+  const displayEmail = authUser?.email ?? "";
+  const displayRole = profile?.role ?? "user";
+
   return (
     <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+      {/* Top: main user info */}
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-300">
-          Customize your classification experience
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-300">Customize your classification experience</p>
+          </div>
+          <div className="flex items-center space-x-4">
+            {/* Avatar (if available) */}
+            {authUser?.image ? (
+              <img src={authUser.image} alt={displayName || "user avatar"} className="h-12 w-12 rounded-full object-cover" />
+            ) : (
+              <div className="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300">{(displayName || displayEmail || "?").charAt(0).toUpperCase()}</div>
+            )}
+            <div className="text-right">
+              <div className="text-lg font-semibold text-gray-900 dark:text-white">{displayName || "-"}</div>
+              <div className="text-sm text-gray-500 dark:text-gray-400">{displayEmail}</div>
+              <div className="text-sm mt-1 inline-block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded">Role: {displayRole}</div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div className="space-y-6">
         {/* Image Quality */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Image Quality
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Image Quality</h2>
           <div className="space-y-3">
             <label className="flex items-center">
               <input
@@ -68,12 +104,8 @@ export function UserSettings() {
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
               <div className="ml-3">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  High Quality (PNG)
-                </span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Better image quality, larger file sizes
-                </p>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">High Quality (PNG)</span>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Better image quality, larger file sizes</p>
               </div>
             </label>
             <label className="flex items-center">
@@ -86,12 +118,8 @@ export function UserSettings() {
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
               <div className="ml-3">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  Medium Quality (WebP)
-                </span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Balanced quality and file size
-                </p>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">Medium Quality (WebP)</span>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Balanced quality and file size</p>
               </div>
             </label>
             <label className="flex items-center">
@@ -104,12 +132,8 @@ export function UserSettings() {
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
               <div className="ml-3">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  Low Quality (AVIF)
-                </span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Faster loading, smaller file sizes
-                </p>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">Low Quality (AVIF)</span>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Faster loading, smaller file sizes</p>
               </div>
             </label>
           </div>
@@ -117,18 +141,12 @@ export function UserSettings() {
 
         {/* Interface Options */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Interface Options
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Interface Options</h2>
           <div className="space-y-4">
             <label className="flex items-center justify-between">
               <div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  Show Keyboard Hints
-                </span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Display keyboard shortcuts on classification buttons
-                </p>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">Show Keyboard Hints</span>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Display keyboard shortcuts on classification buttons</p>
               </div>
               <input
                 type="checkbox"
@@ -142,9 +160,7 @@ export function UserSettings() {
 
         {/* Theme */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Theme
-          </h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Theme</h2>
           <div className="space-y-3">
             {[
               { value: "light", label: "Light", description: "Always use light theme" },
@@ -161,12 +177,8 @@ export function UserSettings() {
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <div className="ml-3">
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">
-                    {option.label}
-                  </span>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {option.description}
-                  </p>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">{option.label}</span>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">{option.description}</p>
                 </div>
               </label>
             ))}
@@ -181,6 +193,94 @@ export function UserSettings() {
           >
             Save Settings
           </button>
+        </div>
+
+        {/* Details section with additional user/profile fields */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account Details</h2>
+
+          <div className="grid grid-cols-1 gap-3 text-sm text-gray-700 dark:text-gray-300">
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Name</div>
+              <div className="font-medium">{displayName || "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Email</div>
+              <div className="font-medium">{displayEmail || "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Role</div>
+              <div className="font-medium">{displayRole}</div>
+            </div>
+
+            {/* Other profile fields (all columns) */}
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Profile ID</div>
+              <div className="font-medium">{profile?._id ?? "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">User ID (ref)</div>
+              <div className="font-medium">{profile?.userId ?? "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Active</div>
+              <div className="font-medium">{profile?.isActive ? "Yes" : "No"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Confirmed</div>
+              <div className="font-medium">{profile?.isConfirmed ? "Yes" : "No"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Classifications</div>
+              <div className="font-medium">{profile?.classificationsCount ?? 0}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Joined</div>
+              <div className="font-medium">{profile?.joinedAt ? new Date(profile.joinedAt).toLocaleString() : "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Last Active</div>
+              <div className="font-medium">{profile?.lastActiveAt ? new Date(profile.lastActiveAt).toLocaleString() : "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Sequence Generated</div>
+              <div className="font-medium">{profile?.sequenceGenerated ? "Yes" : "No"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Profile Created</div>
+              <div className="font-medium">{profile?._creationTime ? new Date(profile._creationTime).toLocaleString() : "-"}</div>
+            </div>
+
+            {/* Auth users table fields */}
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Email Verified</div>
+              <div className="font-medium">{authUser?.emailVerificationTime ? new Date(authUser.emailVerificationTime).toLocaleString() : "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">User doc ID</div>
+              <div className="font-medium">{authUser?._id ?? "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">User Created</div>
+              <div className="font-medium">{authUser?._creationTime ? new Date(authUser._creationTime).toLocaleString() : "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Phone</div>
+              <div className="font-medium">{authUser?.phone ?? "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Phone Verified</div>
+              <div className="font-medium">{authUser?.phoneVerificationTime ? new Date(authUser.phoneVerificationTime).toLocaleString() : "-"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Anonymous</div>
+              <div className="font-medium">{authUser?.isAnonymous ? "Yes" : "No"}</div>
+            </div>
+            <div>
+              <div className="text-xs text-gray-500 dark:text-gray-400">Image URL</div>
+              <div className="font-medium">{authUser?.image ?? "-"}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
