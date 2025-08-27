@@ -16,7 +16,6 @@ export const getUserPreferences = query({
 
     return prefs || {
       imageQuality: "medium" as const,
-      showKeyboardHints: true,
       theme: "auto" as const,
       contrast: 1.0,
     };
@@ -27,7 +26,6 @@ export const getUserPreferences = query({
 export const updatePreferences = mutation({
   args: {
     imageQuality: v.optional(v.union(v.literal("high"), v.literal("medium"), v.literal("low"))),
-    showKeyboardHints: v.optional(v.boolean()),
     theme: v.optional(v.union(v.literal("light"), v.literal("dark"), v.literal("auto"))),
     contrast: v.optional(v.number()),
   },
@@ -46,7 +44,6 @@ export const updatePreferences = mutation({
       await ctx.db.insert("userPreferences", {
         userId,
         imageQuality: args.imageQuality || "medium",
-        showKeyboardHints: args.showKeyboardHints ?? true,
         theme: args.theme || "auto",
         contrast: args.contrast || 1.0,
       });
