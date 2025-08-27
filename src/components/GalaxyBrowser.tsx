@@ -1,12 +1,15 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { ImageViewer } from "./ImageViewer";
 import { cn } from "../lib/utils";
+import { Link } from "react-router";
 
 type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "nucleus" | "_creationTime";
 type SortOrder = "asc" | "desc";
 type FilterType = "all" | "my_sequence" | "classified" | "unclassified" | "skipped";
+
+const STORAGE_KEY = "galaxyBrowserSettings";
 
 export function GalaxyBrowser() {
   const [page, setPage] = useState(1);
@@ -17,6 +20,7 @@ export function GalaxyBrowser() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const didHydrateFromStorage = useRef(false);
 
   const galaxyData = useQuery(api.galaxies.browseGalaxies, {
     page,
@@ -27,6 +31,31 @@ export function GalaxyBrowser() {
     searchTerm: debouncedSearchTerm,
   });
 
+  // Hydrate settings from localStorage on first mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") {
+          if (parsed.pageSize && Number.isFinite(parsed.pageSize)) setPage(parsed.pageSize);
+          if (parsed.page && Number.isFinite(parsed.page)) setPage(parsed.page);
+          if (parsed.sortBy) setSortBy(parsed.sortBy);
+          if (parsed.sortOrder) setSortOrder(parsed.sortOrder);
+          if (parsed.filter) setFilter(parsed.filter);
+          if (typeof parsed.searchTerm === "string") {
+            setSearchTerm(parsed.searchTerm);
+            setDebouncedSearchTerm(parsed.searchTerm);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load galaxy browser settings", e);
+    } finally {
+      didHydrateFromStorage.current = true;
+    }
+  }, []);
+
   // Debounce search term
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -35,10 +64,29 @@ export function GalaxyBrowser() {
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
+  // Persist settings whenever they change
+  useEffect(() => {
+    if (!didHydrateFromStorage.current) return; // avoid overwriting while hydrating
+    const data = {
+      page,
+      pageSize,
+      sortBy,
+      sortOrder,
+      filter,
+      searchTerm,
+    };
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.warn("Failed to save galaxy browser settings", e);
+    }
+  }, [page, pageSize, sortBy, sortOrder, filter, searchTerm]);
+
   const userPrefs = useQuery(api.users.getUserPreferences);
 
-  // Reset to page 1 when filters change
+  // Reset to page 1 when filters change (except during initial hydration)
   useEffect(() => {
+    if (!didHydrateFromStorage.current) return;
     setPage(1);
   }, [filter, sortBy, sortOrder, pageSize, debouncedSearchTerm]);
 
@@ -283,6 +331,9 @@ export function GalaxyBrowser() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                   Classification
                 </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  Action
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
@@ -304,7 +355,9 @@ export function GalaxyBrowser() {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {galaxy.id}
+                    {/* <Link to={`/classify/${galaxy.id}`} className="text-blue-600 dark:text-blue-400 hover:underline"> */}
+                      {galaxy.id}
+                    {/* </Link> */}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                     {galaxy.ra.toFixed(4)}°
@@ -329,16 +382,26 @@ export function GalaxyBrowser() {
                       <div className="space-y-1">
                         <div>LSB: {galaxy.classification.lsb_class}</div>
                         <div>Morph: {galaxy.classification.morphology}</div>
-                        {galaxy.classification.awesome_flag && (
-                          <span className="text-yellow-600 dark:text-yellow-400">⭐</span>
-                        )}
-                        {galaxy.classification.valid_redshift && (
-                          <span className="text-blue-600 dark:text-blue-400">🔴</span>
-                        )}
+                        <div className="flex space-x-1">
+                          {galaxy.classification.awesome_flag && (
+                            <span className="text-yellow-600 dark:text-yellow-400" title="Awesome">⭐</span>
+                          )}
+                          {galaxy.classification.valid_redshift && (
+                            <span className="text-blue-600 dark:text-blue-400" title="Valid redshift">🔴</span>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <span className="text-gray-400">—</span>
                     )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-right">
+                    <Link
+                      to={`/classify/${galaxy.id}`}
+                      className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
+                    >
+                      Classify
+                    </Link>
                   </td>
                 </tr>
               ))}
@@ -401,6 +464,14 @@ export function GalaxyBrowser() {
                   </div>
                 )}
               </div>
+            </div>
+            <div className="mt-4 flex justify-end">
+              <Link
+                to={`/classify/${galaxy.id}`}
+                className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
+              >
+                Classify
+              </Link>
             </div>
           </div>
         ))}
