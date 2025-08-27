@@ -37,7 +37,6 @@ const applicationTables = {
   userPreferences: defineTable({
     userId: v.id("users"),
     imageQuality: v.union(v.literal("high"), v.literal("medium"), v.literal("low")),
-    showKeyboardHints: v.boolean(),
     theme: v.union(v.literal("light"), v.literal("dark"), v.literal("auto")),
     contrast: v.number(),
     brightness: v.optional(v.number()), // Legacy field
@@ -62,7 +61,7 @@ const applicationTables = {
   // Skipped galaxies
   skippedGalaxies: defineTable({
     userId: v.id("users"),
-    galaxyId: v.union(v.id("galaxies"), v.string()), // Support both old and new formats
+    galaxyId: v.id("galaxies"),
     comments: v.optional(v.string()),
   })
     .index("by_user", ["userId"])

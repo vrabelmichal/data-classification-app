@@ -529,22 +529,22 @@ export const getProgress = query({
     // Handle new format
     if (sequence.galaxyIds && sequence.galaxyIds.length > 0) {
       for (const galaxyId of sequence.galaxyIds) {
-      const existingClassification = await ctx.db
-        .query("classifications")
-        .withIndex("by_user_and_galaxy", (q) => 
-          q.eq("userId", userId).eq("galaxyId", galaxyId)
-        )
-        .unique();
+        const existingClassification = await ctx.db
+          .query("classifications")
+          .withIndex("by_user_and_galaxy", (q) => 
+            q.eq("userId", userId).eq("galaxyId", galaxyId)
+          )
+          .unique();
 
-      const isSkipped = await ctx.db
-        .query("skippedGalaxies")
-        .withIndex("by_user_and_galaxy", (q) => 
-          q.eq("userId", userId).eq("galaxyId", galaxyId)
-        )
-        .unique();
+        const isSkipped = await ctx.db
+          .query("skippedGalaxies")
+          .withIndex("by_user_and_galaxy", (q) => 
+            q.eq("userId", userId).eq("galaxyId", galaxyId)
+          )
+          .unique();
 
-        if (existingClassification) classified++;
-        if (isSkipped) skipped++;
+          if (existingClassification) classified++;
+          if (isSkipped) skipped++;
       }
       
       const total = sequence.galaxyIds.length;
@@ -647,19 +647,11 @@ export const getSkippedGalaxies = query({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
 
+    // console.log("Skipped records:", skippedRecords);
+
     const skippedWithGalaxies = await Promise.all(
       skippedRecords.map(async (record) => {
-        let galaxy = null;
-        if (typeof record.galaxyId === 'string') {
-          // Legacy string ID - find by external ID
-          galaxy = await ctx.db
-            .query("galaxies")
-            .withIndex("by_external_id", (q) => q.eq("id", record.galaxyId))
-            .unique();
-        } else {
-          // New Convex ID
-          galaxy = await ctx.db.get(record.galaxyId);
-        }
+        let galaxy = await ctx.db.get(record.galaxyId);
         return {
           ...record,
           galaxy,

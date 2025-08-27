@@ -25,13 +25,11 @@ export function UserSettings() {
   // }
 
   const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low">("medium");
-  const [showKeyboardHints, setShowKeyboardHints] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark" | "auto">("auto");
 
   useEffect(() => {
     if (userPrefs) {
       setImageQuality(userPrefs.imageQuality);
-      setShowKeyboardHints(userPrefs.showKeyboardHints);
       setTheme(userPrefs.theme);
     }
   }, [userPrefs]);
@@ -40,7 +38,6 @@ export function UserSettings() {
     try {
       await updatePreferences({
         imageQuality,
-        showKeyboardHints,
         theme,
       });
       toast.success("Settings saved successfully!");
@@ -140,7 +137,7 @@ export function UserSettings() {
         </div>
 
         {/* Interface Options */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Interface Options</h2>
           <div className="space-y-4">
             <label className="flex items-center justify-between">
@@ -156,7 +153,7 @@ export function UserSettings() {
               />
             </label>
           </div>
-        </div>
+        </div> */}
 
         {/* Theme */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
