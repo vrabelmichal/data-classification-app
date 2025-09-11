@@ -4,6 +4,7 @@ import { NavLink, useNavigate } from "react-router";
 import { api } from "../../convex/_generated/api";
 import { cn } from "../lib/utils";
 import { SignOutButton } from "../SignOutButton";
+import { AdminButton } from "./AdminButton";
 
 interface NavigationItem {
   id: string;
@@ -153,6 +154,7 @@ export function Navigation({ navigationItems }: NavigationProps) {
                   </NavLink>
                 </li>
               ))}
+              <li><AdminButton /></li>
             </ul>
           </nav>
 

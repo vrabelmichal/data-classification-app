@@ -17,7 +17,7 @@ export function AdminButton() {
     }
   };
 
-  if (!userProfile || userProfile.role === "admin") {
+  if (userProfile && userProfile.role === "admin") {
     return null;
   }
 

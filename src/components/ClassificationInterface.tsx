@@ -7,6 +7,7 @@ import { ProgressBar } from "./ProgressBar";
 import { ImageViewer } from "./ImageViewer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { useParams, useNavigate } from "react-router";
+import { useGalaxyImages } from "../hooks/useGalaxyImages";
 
 // let lastSelectedMorphology: number | null = null;
 
@@ -20,6 +21,7 @@ export function ClassificationInterface() {
   const [morphology, setMorphology] = useState<number | null>(null);
   const [awesomeFlag, setAwesomeFlag] = useState(false);
   const [validRedshift, setValidRedshift] = useState(false);
+  const [visibleNucleus, setVisibleNucleus] = useState(false);
   const [comments, setComments] = useState("");
   const [quickInput, setQuickInput] = useState("");
   const [startTime, setStartTime] = useState<number>(Date.now());
@@ -40,7 +42,67 @@ export function ClassificationInterface() {
     api.galaxies.getGalaxyNavigation,
     currentGalaxy ? { currentGalaxyId: currentGalaxy._id } : {}
   );
+
+  // ----
+
+  // Prepare image names and resolve URLs based on user preference
+  const imageNamesLabels = {
+    "masked_g_band": "Masked g-Band",
+    "galfit_model": "GalfitModel",
+    "residual": "Residual",
+    "masked_aplpy": "Masked APLpy",
+    "aplpy": "APLpy",
+    "zoomed_out": "Zoomed out",
+  };
+
+  // Determine which galaxy ID to use: by external param or generated sequence
+  const resolvedGalaxyId = routeGalaxyId
+    ? galaxyByExternalId?.id
+    : galaxy?.id;
   
+    // let imageUrls = [
+    //     "https://placehold.co/200?text=Masked+g-Band",
+    //     "https://placehold.co/200?text=GalfitModel",
+    //     "https://placehold.co/200?text=Residual",
+    //     "https://placehold.co/200?text=Masked+APLpy",
+    //     "https://placehold.co/200?text=APLpy",
+    //     "https://placehold.co/200?text=Zoomed+out",
+    // ];
+    // let imagesLoading = false;
+    // let quality: "high" | "medium" | "low" = "medium";
+
+    // // TODO: this is really stupid. Just get the quality once, then create the object locally. There is nothing useful in the return value of the query except the quality
+    // const imagesData = useQuery(
+    //   api.images.getGalaxyImageUrls,
+    //   resolvedGalaxyId ? { galaxyId: resolvedGalaxyId, imageNames, quality } : "skip"
+    // );
+
+    // console.log("imagesData", imagesData);
+  
+    // Always call hook to maintain consistent hook order
+    const { imageUrls, isLoading: imagesLoading } = useGalaxyImages(
+      resolvedGalaxyId,
+      Object.keys(imageNamesLabels),
+      userPrefs?.imageQuality
+    );
+
+    console.log("imageUrls", imageUrls);
+    console.log("imagesLoading", imagesLoading);
+
+    console.log("resolvedGalaxyId", resolvedGalaxyId);
+    console.log("galaxyByExternalId", galaxyByExternalId);
+    console.log("currentGalaxy", currentGalaxy);
+    console.log("galaxy", galaxy);
+
+  // Create imageTypes array with resolved URLs
+  const imageTypes = Object.entries(imageNamesLabels).map(([key, label], index) => ({
+    name: label,
+    url: imageUrls?.[index],
+  }));
+
+  // ----
+
+
   const submitClassification = useMutation(api.galaxies.submitClassification);
   const skipGalaxy = useMutation(api.galaxies.skipGalaxy);
   const generateSequence = useMutation(api.galaxies.generateUserSequence);
@@ -93,13 +155,15 @@ export function ClassificationInterface() {
         setMorphology(currentGalaxy.morphology);
         setAwesomeFlag(currentGalaxy.awesome_flag);
         setValidRedshift(currentGalaxy.valid_redshift);
+        setVisibleNucleus(currentGalaxy.visible_nucleus || false);
         setComments(currentGalaxy.comments || "");
         setQuickInput(
           buildQuickInputString(
             currentGalaxy.lsb_class,
             currentGalaxy.morphology,
             currentGalaxy.awesome_flag,
-            currentGalaxy.valid_redshift
+            currentGalaxy.valid_redshift,
+            currentGalaxy.visible_nucleus || false
           )
         );
       } else {
@@ -107,6 +171,7 @@ export function ClassificationInterface() {
         setMorphology(null);
         setAwesomeFlag(false);
         setValidRedshift(false);
+        setVisibleNucleus(false);
         setComments("");
         setQuickInput("");
       }
@@ -141,12 +206,14 @@ export function ClassificationInterface() {
     // Check for flags
     const hasAwesome = cleanInput.includes('a');
     const hasRedshift = cleanInput.includes('r');
+    const hasNucleus = cleanInput.includes('n');
 
     // Update state
     if (newLsbClass !== null) setLsbClass(newLsbClass);
     if (newMorphology !== null) setMorphology(newMorphology);
     setAwesomeFlag(hasAwesome);
     setValidRedshift(hasRedshift);
+    setVisibleNucleus(hasNucleus);
   };
 
   // Handle quick input change
@@ -179,6 +246,16 @@ export function ClassificationInterface() {
         setQuickInput(currentInput.replace('r', ''));
       } else {
         setQuickInput(currentInput + 'r');
+      }
+    } else if (e.key === 'n') {
+      e.preventDefault();
+      setVisibleNucleus(!visibleNucleus);
+      // Update the input to reflect the change
+      const currentInput = quickInput.toLowerCase();
+      if (currentInput.includes('n')) {
+        setQuickInput(currentInput.replace('n', ''));
+      } else {
+        setQuickInput(currentInput + 'n');
       }
     }
   };
@@ -214,13 +291,13 @@ export function ClassificationInterface() {
     if (!currentGalaxy || lsbClass === null || morphology === null) return;
     try {
       const timeSpent = Date.now() - startTime;
-      await submitClassification({ galaxyId: currentGalaxy._id, lsb_class: lsbClass, morphology, awesome_flag: awesomeFlag, valid_redshift: validRedshift, comments: comments.trim() || undefined, sky_bkg: undefined, timeSpent });
+      await submitClassification({ galaxyId: currentGalaxy._id, lsb_class: lsbClass, morphology, awesome_flag: awesomeFlag, valid_redshift: validRedshift, visible_nucleus: visibleNucleus, comments: comments.trim() || undefined, sky_bkg: undefined, timeSpent });
       toast.success("Classification submitted successfully!");
       if (navigation?.hasNext) {
         try {
           const result = await navigateToGalaxy({ direction: "next", currentGalaxyId: currentGalaxy._id });
-            setCurrentGalaxy(result.galaxy);
-            if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
+          setCurrentGalaxy(result.galaxy);
+          if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
         } catch (error) {
           console.error("Auto-navigation failed:", error);
         }
@@ -229,7 +306,7 @@ export function ClassificationInterface() {
       toast.error("Failed to submit classification");
       console.error(error);
     }
-  }, [currentGalaxy, lsbClass, morphology, awesomeFlag, validRedshift, comments, startTime, submitClassification, navigation, navigateToGalaxy, navigate]);
+  }, [currentGalaxy, lsbClass, morphology, awesomeFlag, validRedshift, visibleNucleus, comments, startTime, submitClassification, navigation, navigateToGalaxy, navigate]);
 
   const handleSkip = useCallback(async () => {
     if (!currentGalaxy) return;
@@ -291,14 +368,13 @@ export function ClassificationInterface() {
             return 1.0
           })
           toast.info(
-            `Contrast: ${
-              contrast === 1.0
-                ? 1.5
-                : contrast === 1.5
+            `Contrast: ${contrast === 1.0
+              ? 1.5
+              : contrast === 1.5
                 ? 2.0
                 : contrast === 2.0
-                ? 0.5
-                : 1.0
+                  ? 0.5
+                  : 1.0
             }x`
           )
           break
@@ -330,15 +406,24 @@ export function ClassificationInterface() {
     lsb: number | null,
     morph: number | null,
     awesome: boolean,
-    redshift: boolean
+    redshift: boolean,
+    nucleus: boolean = false
   ) => {
     let str = "";
     if (lsb !== null) str += lsb === -1 ? "-" : lsb.toString();
     if (morph !== null) str += morph === -1 ? "-" : morph.toString();
     if (redshift) str += "r";
     if (awesome) str += "a";
+    if (nucleus) str += "n";
     return str;
   };
+
+  // TODO: eliminate displayGalaxy and just use currentGalaxy, invesitigate if there are any cases where currentGalaxy is null but galaxy is not
+  const displayGalaxy = currentGalaxy || galaxy;
+  if (!displayGalaxy) {
+    console.log("displayGalaxy is null");
+    return null;
+  }
 
   if (currentGalaxy === undefined && galaxy === undefined) {
     return (
@@ -365,7 +450,7 @@ export function ClassificationInterface() {
               {userProfile?.sequenceGenerated ? "All Done! 🎉" : "Setting up your sequence..."}
             </h3>
             <p className="text-gray-600 dark:text-gray-300">
-              {userProfile?.sequenceGenerated 
+              {userProfile?.sequenceGenerated
                 ? "You've classified all galaxies in your sequence. Thank you for your contribution!"
                 : "We're generating a personalized sequence of galaxies for you to classify."
               }
@@ -375,9 +460,6 @@ export function ClassificationInterface() {
       </div>
     );
   }
-
-  const displayGalaxy = currentGalaxy || galaxy;
-  if (!displayGalaxy) return null;
 
   const lsbOptions = [
     { value: -1, label: "Failed fitting [-1]", color: "bg-red-500" },
@@ -396,21 +478,12 @@ export function ClassificationInterface() {
   const handleMorphologyChange = (value: number) => {
     console.log(`Morphology changed to: ${value}`);
     setMorphology(value);
-    setQuickInput(buildQuickInputString(lsbClass, value, awesomeFlag, validRedshift));
+    setQuickInput(buildQuickInputString(lsbClass, value, awesomeFlag, validRedshift, visibleNucleus));
     // lastSelectedMorphology = value;
   };
 
   const canSubmit = lsbClass !== null && morphology !== null;
 
-  // Mock image data - in real implementation, these would come from the galaxy data
-  const imageTypes = [
-    { name: "Masked r-Band (99.0)", url: displayGalaxy.imageUrl },
-    { name: "Raw r-band (99.7)", url: displayGalaxy.imageUrl },
-    { name: "GalfitModel (99.0)", url: displayGalaxy.imageUrl },
-    { name: "APLpy", url: displayGalaxy.imageUrl },
-    { name: "Residual (99.0)", url: displayGalaxy.imageUrl },
-    { name: "Zoomed out", url: displayGalaxy.imageUrl },
-  ];
 
 
   let mainContentToRender;
@@ -540,8 +613,8 @@ export function ClassificationInterface() {
                 </h3>
                 <div className="aspect-square">
                   {imageType.url ? (
-                    <ImageViewer 
-                      imageUrl={imageType.url} 
+                    <ImageViewer
+                      imageUrl={imageType.url}
                       alt={`${displayGalaxy.id} - ${imageType.name}`}
                       preferences={userPrefs}
                       contrast={contrast}
@@ -604,7 +677,8 @@ export function ClassificationInterface() {
                         lsbClass,
                         morphology,
                         e.target.checked,
-                        validRedshift
+                        validRedshift,
+                        visibleNucleus
                       )
                     );
                   }}
@@ -612,7 +686,7 @@ export function ClassificationInterface() {
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Awesome</span>
               </label>
-              
+
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
@@ -624,13 +698,35 @@ export function ClassificationInterface() {
                         lsbClass,
                         morphology,
                         awesomeFlag,
-                        e.target.checked
+                        e.target.checked,
+                        visibleNucleus
                       )
                     );
                   }}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Valid redshift</span>
+              </label>
+
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={visibleNucleus}
+                  onChange={(e) => {
+                    setVisibleNucleus(e.target.checked);
+                    setQuickInput(
+                      buildQuickInputString(
+                        lsbClass,
+                        morphology,
+                        awesomeFlag,
+                        validRedshift,
+                        e.target.checked
+                      )
+                    );
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Visible nucleus</span>
               </label>
             </div>
           </div>
@@ -685,8 +781,8 @@ export function ClassificationInterface() {
                 </h3>
                 <div className="aspect-square">
                   {imageType.url ? (
-                    <ImageViewer 
-                      imageUrl={imageType.url} 
+                    <ImageViewer
+                      imageUrl={imageType.url}
                       alt={`${displayGalaxy.id} - ${imageType.name}`}
                       preferences={userPrefs}
                       contrast={contrast}
@@ -880,7 +976,8 @@ export function ClassificationInterface() {
                         lsbClass,
                         morphology,
                         e.target.checked,
-                        validRedshift
+                        validRedshift,
+                        visibleNucleus
                       )
                     );
                   }}
@@ -888,7 +985,7 @@ export function ClassificationInterface() {
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Awesome</span>
               </label>
-              
+
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
@@ -900,13 +997,35 @@ export function ClassificationInterface() {
                         lsbClass,
                         morphology,
                         awesomeFlag,
-                        e.target.checked
+                        e.target.checked,
+                        visibleNucleus
                       )
                     );
                   }}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Valid redshift</span>
+              </label>
+
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={visibleNucleus}
+                  onChange={(e) => {
+                    setVisibleNucleus(e.target.checked);
+                    setQuickInput(
+                      buildQuickInputString(
+                        lsbClass,
+                        morphology,
+                        awesomeFlag,
+                        validRedshift,
+                        e.target.checked
+                      )
+                    );
+                  }}
+                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                />
+                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Visible nucleus</span>
               </label>
             </div>
           </div>
@@ -964,9 +1083,9 @@ export function ClassificationInterface() {
         {progress && <ProgressBar progress={progress} />}
       </div>
 
-      <KeyboardShortcuts 
-        isOpen={showKeyboardHelp} 
-        onClose={() => setShowKeyboardHelp(false)} 
+      <KeyboardShortcuts
+        isOpen={showKeyboardHelp}
+        onClose={() => setShowKeyboardHelp(false)}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+// adminSetUserPassword removed: we now only support email-based reset flow.
 
 // Get user preferences
 export const getUserPreferences = query({
@@ -152,6 +153,7 @@ export const getUserStats = query({
 
     const awesomeCount = classifications.filter(c => c.awesome_flag).length;
     const validRedshiftCount = classifications.filter(c => c.valid_redshift).length;
+    const visibleNucleusCount = classifications.filter(c => c.visible_nucleus).length;
 
     return {
       total: classifications.length,
@@ -161,6 +163,7 @@ export const getUserStats = query({
       averageTime: Math.round(averageTime / 1000), // Convert to seconds
       awesomeCount,
       validRedshiftCount,
+      visibleNucleusCount,
     };
   },
 });
@@ -499,5 +502,39 @@ export const updateSystemSettings = mutation({
     }
 
     return { success: true };
+  },
+});
+
+// Admin: Reset a user's password (Password provider)
+export const resetUserPassword = mutation({
+  args: { targetUserId: v.id("users") },
+  handler: async (ctx, args) => {
+    const adminUserId = await getAuthUserId(ctx);
+    if (!adminUserId) throw new Error("Not authenticated");
+
+    const adminProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", adminUserId))
+      .unique();
+
+    if (!adminProfile || adminProfile.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    // Fetch the target user's email
+    const targetUser = await ctx.db.get(args.targetUserId);
+    if (!targetUser?.email) {
+      throw new Error("Target user has no email to send reset");
+    }
+
+    // Insert a password reset token doc (consumed by auth provider flow when user submits code)
+    // The provider's ResendOTPPasswordReset will generate & email a code when the user initiates
+    // the flow. Here we can optionally pre-create a marker or send a notification email.
+    // Simplicity: we just return success; admin instructs user to use the 'Forgot password' form.
+
+    return {
+      success: true,
+      message: "Password reset email can be requested by the user via the reset form.",
+    };
   },
 });

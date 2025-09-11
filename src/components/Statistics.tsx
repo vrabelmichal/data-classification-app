@@ -37,7 +37,7 @@ export function Statistics() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
         {/* Total Classifications */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <div className="flex items-center">
@@ -79,6 +79,21 @@ export function Statistics() {
             <div className="ml-4">
               <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Awesome</p>
               <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats?.awesomeCount || 0}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Visible Nucleus */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <div className="flex items-center">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
+                <span className="text-orange-600 dark:text-orange-400 text-lg">🎯</span>
+              </div>
+            </div>
+            <div className="ml-4">
+              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Visible Nucleus</p>
+              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats?.visibleNucleusCount || 0}</p>
             </div>
           </div>
         </div>

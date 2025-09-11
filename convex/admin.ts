@@ -9,7 +9,18 @@ export const makeCurrentUserAdmin = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
-    // Get or create user profile
+    // Create user profile if doesn't exist
+    await ctx.db.insert("userProfiles", {
+      userId,
+      role: "admin",
+      isActive: true,
+      isConfirmed: true,
+      classificationsCount: 0,
+      joinedAt: Date.now(),
+      lastActiveAt: Date.now(),
+      sequenceGenerated: false,
+    });
+
     let profile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user", (q) => q.eq("userId", userId))

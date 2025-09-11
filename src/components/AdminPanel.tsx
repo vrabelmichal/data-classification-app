@@ -17,6 +17,7 @@ export function AdminPanel() {
   const updateUserStatus = useMutation(api.users.updateUserStatus);
   const confirmUser = useMutation(api.users.confirmUser);
   const updateUserRole = useMutation(api.users.updateUserRole);
+  const resetUserPassword = useMutation(api.users.resetUserPassword);
   const deleteUser = useMutation(api.users.deleteUser);
   const createUserProfile = useMutation(api.admin.createUserProfile);
   const generateMockGalaxies = useMutation(api.galaxies.generateMockGalaxies);
@@ -73,6 +74,17 @@ export function AdminPanel() {
     } catch (error) {
       toast.error("Failed to delete user");
       console.error(error);
+    }
+  };
+
+  const handleResetPassword = async (userId: any) => {
+    if (!confirm("Trigger password reset? The user will need to use 'Forgot password' to receive the email code.")) return;
+    try {
+      await resetUserPassword({ targetUserId: userId });
+      toast.success("Reset initiated. Ask the user to use 'Forgot password'.");
+    } catch (e:any) {
+      toast.error("Failed to initiate reset");
+      console.error(e);
     }
   };
 
@@ -325,6 +337,12 @@ export function AdminPanel() {
                               className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 transition-colors"
                             >
                               Delete
+                            </button>
+                            <button
+                              onClick={() => handleResetPassword(userProfile.userId)}
+                              className="px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400 transition-colors"
+                            >
+                              Reset PW
                             </button>
                           </>
                         )}

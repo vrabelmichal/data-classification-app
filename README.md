@@ -10,8 +10,27 @@ This project is connected to the Convex deployment named [`brilliant-fox-578`](h
 The frontend code is in the `app` directory and is built with [Vite](https://vitejs.dev/).
   
 The backend code is in the `convex` directory.
+
+The data loading scripts are in the `scripts` directory.
   
 `npm run dev` will start the frontend and backend servers.
+
+## Data Loading
+
+To load galaxy data from parquet files into the database, use the Python scripts in the `scripts/` directory:
+
+```bash
+# Install Python dependencies
+pip install -r scripts/requirements.txt
+
+# Load galaxies from a parquet file
+python scripts/load_galaxies_from_parquet.py path/to/galaxies.parquet
+
+# Generate sample data for testing
+python scripts/generate_sample_parquet.py --count 100
+```
+
+See `scripts/README.md` for detailed documentation on data loading.
 
 ## App authentication
 

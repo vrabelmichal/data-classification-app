@@ -13,10 +13,12 @@ import type {
   FilterApi,
   FunctionReference,
 } from "convex/server";
+import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as galaxies from "../galaxies.js";
 import type * as http from "../http.js";
+import type * as images from "../images.js";
 import type * as router from "../router.js";
 import type * as users from "../users.js";
 
@@ -29,10 +31,12 @@ import type * as users from "../users.js";
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
   admin: typeof admin;
   auth: typeof auth;
   galaxies: typeof galaxies;
   http: typeof http;
+  images: typeof images;
   router: typeof router;
   users: typeof users;
 }>;

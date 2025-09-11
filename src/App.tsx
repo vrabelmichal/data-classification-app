@@ -1,9 +1,9 @@
-import { useState } from "react";
 import { Authenticated, Unauthenticated, useQuery } from "convex/react";
-import { BrowserRouter, Routes, Route } from "react-router";
+import { BrowserRouter, Routes, Route, Link } from "react-router";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
+import { PasswordReset } from "./PasswordReset";
 import { Navigation } from "./components/Navigation";
 import { ClassificationInterface } from "./components/ClassificationInterface";
 import { GalaxyBrowser } from "./components/GalaxyBrowser";
@@ -27,7 +27,8 @@ function App() {
   ];
 
   return (
-      <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <BrowserRouter>
         <Unauthenticated>
           <div className="flex items-center justify-center min-h-screen">
             <div className="max-w-md w-full mx-4">
@@ -40,42 +41,52 @@ function App() {
                     Help classify galaxies for scientific research
                   </p>
                 </div>
-                <SignInForm />
+                <Routes>
+                  <Route path="/reset" element={<PasswordReset />} />
+                  <Route
+                    path="*"
+                    element={
+                        <>
+                            <SignInForm />
+                            <div className="mt-6 text-center">
+                              <Link
+                                to="/reset"
+                                className="text-sm text-blue-600 hover:underline dark:text-blue-400"
+                              >
+                                Forgot your password?
+                              </Link>
+                            </div>
+                          </>
+                    }
+                  />
+                </Routes>
               </div>
             </div>
           </div>
         </Unauthenticated>
-        
         <Authenticated>
-          <BrowserRouter>
-            {/* <div className="flex h-screen"> */}
-            <div className="flex flex-col lg:flex-row h-screen">
-              <Navigation navigationItems={navigationItems} />
-               <div className="lg:flex lg:flex-1 lg:flex-col lg:ml-64">
-                 <div className="flex items-center justify-end px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                   <SignOutButton />
-                 </div>
-                 
-                 <div className="flex-1 overflow-auto">
-                   {/* {renderPage()} */}
-                   <Routes>
-                    {/* keep index hardcoded */}
-                    <Route index element={<ClassificationInterface />} />
-                    {/* dynamic galaxy route */}
-                    <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
-                    {/* generate routes from navigationItems -- element components are already React nodes */}
-                    {navigationItems.map((item) => (
-                      <Route key={item.id} path={item.path} element={item.element} />
-                    ))}
-                   </Routes>
-                 </div>
-               </div>
-             </div>
-           </BrowserRouter>
-         </Authenticated>
-        
+          <div className="flex flex-col lg:flex-row h-screen">
+            <Navigation navigationItems={navigationItems} />
+            <div className="lg:flex lg:flex-1 lg:flex-col lg:ml-64">
+              <div className="flex items-center justify-end px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                <SignOutButton />
+              </div>
+              <div className="flex-1 overflow-auto">
+                <Routes>
+                  <Route index element={<ClassificationInterface />} />
+                  <Route path="/reset" element={<PasswordReset />} />
+                  <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
+                  {navigationItems.map((item) => (
+                    <Route key={item.id} path={item.path} element={item.element} />
+                  ))}
+                </Routes>
+              </div>
+            </div>
+          </div>
+        </Authenticated>
         <Toaster position="top-right" />
-      </main>
+      </BrowserRouter>
+    </main>
   );
 }
 

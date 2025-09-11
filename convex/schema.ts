@@ -37,6 +37,7 @@ const applicationTables = {
   userPreferences: defineTable({
     userId: v.id("users"),
     imageQuality: v.union(v.literal("high"), v.literal("medium"), v.literal("low")),
+    showKeyboardHints: v.optional(v.boolean()),  // should be removed, keeping just to prevent the error
     theme: v.union(v.literal("light"), v.literal("dark"), v.literal("auto")),
     contrast: v.number(),
     brightness: v.optional(v.number()), // Legacy field
@@ -50,6 +51,7 @@ const applicationTables = {
     morphology: v.number(), // -1, 0, 1, 2
     awesome_flag: v.boolean(),
     valid_redshift: v.boolean(),
+    visible_nucleus: v.optional(v.boolean()), // User confirmation of visible nucleus
     comments: v.optional(v.string()),
     sky_bkg: v.optional(v.number()),
     timeSpent: v.number(), // milliseconds
