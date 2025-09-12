@@ -10,7 +10,8 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.IMAGE_SERVER_PORT || 5178;
-const DATA_DIR = process.env.LOCAL_DATA_DIR || path.join(process.cwd(), '.data');
+const DATA_DIR = process.env.VITE_LOCAL_DATA_DIR || path.join(process.cwd(), '.data');
+const SERVER_BASE = process.env.VITE_LOCAL_SERVER_BASE || `http://localhost:${PORT}`;
 
 // Enable CORS for all routes
 app.use(cors());
@@ -53,7 +54,7 @@ app.get('/health', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Image server running on http://localhost:${PORT}`);
+  console.log(`Image server running on ${SERVER_BASE}`);
   console.log(`Serving images from: ${DATA_DIR}`);
-  console.log(`Example: http://localhost:${PORT}/galaxy123/image.fits`);
+  console.log(`Example: ${SERVER_BASE}/galaxy123/image.fits`);
 });
