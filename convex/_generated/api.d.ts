@@ -16,6 +16,7 @@ import type {
 import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
+import type * as export_database from "../export_database.js";
 import type * as galaxies from "../galaxies.js";
 import type * as http from "../http.js";
 import type * as images from "../images.js";
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
   admin: typeof admin;
   auth: typeof auth;
+  export_database: typeof export_database;
   galaxies: typeof galaxies;
   http: typeof http;
   images: typeof images;

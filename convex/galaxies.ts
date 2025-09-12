@@ -750,102 +750,102 @@ export const getGalaxyByExternalId = query({
 });
 
 // Insert a new galaxy (for data loading)
-export const insertGalaxy = mutation({
-  args: {
-    id: v.string(),
-    ra: v.number(),
-    dec: v.number(),
-    reff: v.number(),
-    q: v.number(),
-    pa: v.number(),
-    nucleus: v.boolean(),
-    imageUrl: v.optional(v.string()),
-    isActive: v.optional(v.boolean()),
-    redshift_x: v.optional(v.number()),
-    redshift_y: v.optional(v.number()),
-    x: v.optional(v.number()),
-    y: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    // Check if galaxy with this external ID already exists
-    const existing = await ctx.db
-      .query("galaxies")
-      .withIndex("by_external_id", (q) => q.eq("id", args.id))
-      .unique();
+// export const insertGalaxy = mutation({
+//   args: {
+//     id: v.string(),
+//     ra: v.number(),
+//     dec: v.number(),
+//     reff: v.number(),
+//     q: v.number(),
+//     pa: v.number(),
+//     nucleus: v.boolean(),
+//     imageUrl: v.optional(v.string()),
+//     isActive: v.optional(v.boolean()),
+//     redshift_x: v.optional(v.number()),
+//     redshift_y: v.optional(v.number()),
+//     x: v.optional(v.number()),
+//     y: v.optional(v.number()),
+//   },
+//   handler: async (ctx, args) => {
+//     // Check if galaxy with this external ID already exists
+//     const existing = await ctx.db
+//       .query("galaxies")
+//       .withIndex("by_external_id", (q) => q.eq("id", args.id))
+//       .unique();
 
-    if (existing) {
-      throw new Error(`Galaxy with ID ${args.id} already exists`);
-    }
+//     if (existing) {
+//       throw new Error(`Galaxy with ID ${args.id} already exists`);
+//     }
 
-    // Insert the new galaxy
-    const galaxyId = await ctx.db.insert("galaxies", {
-      id: args.id,
-      ra: args.ra,
-      dec: args.dec,
-      reff: args.reff,
-      q: args.q,
-      pa: args.pa,
-      nucleus: args.nucleus,
-      imageUrl: args.imageUrl,
-      isActive: args.isActive,
-      redshift_x: args.redshift_x,
-      redshift_y: args.redshift_y,
-      x: args.x,
-      y: args.y,
-    });
+//     // Insert the new galaxy
+//     const galaxyId = await ctx.db.insert("galaxies", {
+//       id: args.id,
+//       ra: args.ra,
+//       dec: args.dec,
+//       reff: args.reff,
+//       q: args.q,
+//       pa: args.pa,
+//       nucleus: args.nucleus,
+//       imageUrl: args.imageUrl,
+//       isActive: args.isActive,
+//       redshift_x: args.redshift_x,
+//       redshift_y: args.redshift_y,
+//       x: args.x,
+//       y: args.y,
+//     });
 
-    return { success: true, galaxyId };
-  },
-});
+//     return { success: true, galaxyId };
+//   },
+// });
 
-// Batch insert galaxies (for efficient bulk loading)
-export const insertGalaxiesBatch = mutation({
-  args: {
-    galaxies: v.array(v.object({
-      id: v.string(),
-      ra: v.number(),
-      dec: v.number(),
-      reff: v.number(),
-      q: v.number(),
-      pa: v.number(),
-      nucleus: v.boolean(),
-      imageUrl: v.optional(v.string()),
-      isActive: v.optional(v.boolean()),
-      redshift_x: v.optional(v.number()),
-      redshift_y: v.optional(v.number()),
-      x: v.optional(v.number()),
-      y: v.optional(v.number()),
-    })),
-  },
-  handler: async (ctx, args) => {
-    const results = {
-      inserted: 0,
-      skipped: 0,
-      errors: [] as string[],
-    };
+// // Batch insert galaxies (for efficient bulk loading)
+// export const insertGalaxiesBatch = mutation({
+//   args: {
+//     galaxies: v.array(v.object({
+//       id: v.string(),
+//       ra: v.number(),
+//       dec: v.number(),
+//       reff: v.number(),
+//       q: v.number(),
+//       pa: v.number(),
+//       nucleus: v.boolean(),
+//       imageUrl: v.optional(v.string()),
+//       isActive: v.optional(v.boolean()),
+//       redshift_x: v.optional(v.number()),
+//       redshift_y: v.optional(v.number()),
+//       x: v.optional(v.number()),
+//       y: v.optional(v.number()),
+//     })),
+//   },
+//   handler: async (ctx, args) => {
+//     const results = {
+//       inserted: 0,
+//       skipped: 0,
+//       errors: [] as string[],
+//     };
 
-    for (const galaxy of args.galaxies) {
-      try {
-        // Check if galaxy with this external ID already exists
-        const existing = await ctx.db
-          .query("galaxies")
-          .withIndex("by_external_id", (q) => q.eq("id", galaxy.id))
-          .unique();
+//     for (const galaxy of args.galaxies) {
+//       try {
+//         // Check if galaxy with this external ID already exists
+//         const existing = await ctx.db
+//           .query("galaxies")
+//           .withIndex("by_external_id", (q) => q.eq("id", galaxy.id))
+//           .unique();
 
-        if (existing) {
-          results.skipped++;
-          continue;
-        }
+//         if (existing) {
+//           results.skipped++;
+//           continue;
+//         }
 
-        // Insert the new galaxy
-        await ctx.db.insert("galaxies", galaxy);
-        results.inserted++;
+//         // Insert the new galaxy
+//         await ctx.db.insert("galaxies", galaxy);
+//         results.inserted++;
 
-      } catch (error) {
-        results.errors.push(`Error inserting galaxy ${galaxy.id}: ${error}`);
-      }
-    }
+//       } catch (error) {
+//         results.errors.push(`Error inserting galaxy ${galaxy.id}: ${error}`);
+//       }
+//     }
 
-    return results;
-  },
-});
+//     return results;
+//   },
+// });

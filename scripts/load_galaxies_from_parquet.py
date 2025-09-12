@@ -130,13 +130,13 @@ class GalaxyDataLoader:
             print(f"Warning: Could not check existing galaxy {galaxy_id}: {e}")
             return False
 
-    def insert_galaxy(self, galaxy_record: Dict[str, Any]) -> bool:
-        try:
-            result = self.client.call_mutation("galaxies:insertGalaxy", galaxy_record)
-            return result.get("success", False)
-        except Exception as e:
-            print(f"Error inserting galaxy {galaxy_record.get('id', 'unknown')}: {e}")
-            return False
+    # def insert_galaxy(self, galaxy_record: Dict[str, Any]) -> bool:
+    #     try:
+    #         result = self.client.call_mutation("galaxies:insertGalaxy", galaxy_record)
+    #         return result.get("success", False)
+    #     except Exception as e:
+    #         print(f"Error inserting galaxy {galaxy_record.get('id', 'unknown')}: {e}")
+    #         return False
 
     def insert_galaxies_batch(
         self, galaxy_records: List[Dict[str, Any]]
