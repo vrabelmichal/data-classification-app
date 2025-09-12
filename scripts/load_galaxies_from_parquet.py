@@ -1,23 +1,7 @@
 #!/usr/bin/env python3
 """
 Script to load galaxy data from a parquet file into the Convex database.
-
-This script reads galaxy data from a parquet file and uploads it to the Convex backend
-using the HTTP API. The parquet file should contain columns matching the galaxy schema:
-- id (string): External galaxy ID
-- ra (float): Right ascension
-- dec (float): Declination
-- reff (float): Effective radius
-- q (float): Axis ratio
-- pa (float): Position angle
-- nucleus (boolean): Has nucleus
-- imageUrl (string, optional): URL to galaxy image
-
-Usage:
-    python scripts/load_galaxies_from_parquet.py <parquet_file_path> [--convex-url CONVEX_URL] [--batch-size BATCH_SIZE]
-
-Requirements:
-    pip install pandas pyarrow requests python-dotenv
+(Updated with proper parquet-to-database column mapping)
 """
 
 import argparse
@@ -25,7 +9,7 @@ import os
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 import json
 
 try:
@@ -41,300 +25,291 @@ except ImportError as e:
 
 class ConvexClient:
     """Client for interacting with Convex HTTP API."""
-    
+
     def __init__(self, convex_url: str):
-        self.convex_url = convex_url.rstrip('/')
+        self.convex_url = convex_url.rstrip("/")
         self.session = requests.Session()
-        
+
     def call_function(self, function_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Call a Convex function via HTTP API."""
         url = f"{self.convex_url}/api/functions/{function_name}"
-        
-        payload = {
-            "args": args,
-            "format": "json"
-        }
-        
+        payload = {"args": args, "format": "json"}
         response = self.session.post(url, json=payload)
         response.raise_for_status()
-        
         result = response.json()
         if "error" in result:
             raise Exception(f"Convex function error: {result['error']}")
-            
         return result.get("value", {})
-    
+
     def call_mutation(self, mutation_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
-        """Call a Convex mutation via HTTP API."""
         url = f"{self.convex_url}/api/mutations/{mutation_name}"
-        
-        payload = {
-            "args": args,
-            "format": "json"
-        }
-        
+        payload = {"args": args, "format": "json"}
         response = self.session.post(url, json=payload)
         response.raise_for_status()
-        
         result = response.json()
         if "error" in result:
             raise Exception(f"Convex mutation error: {result['error']}")
-            
         return result.get("value", {})
 
 
 class GalaxyDataLoader:
     """Loads galaxy data from parquet files into Convex database."""
-    
-    def __init__(self, convex_client: ConvexClient):
+
+    # Mapping database schema -> parquet columns
+    COLUMN_MAPPING: Dict[str, str] = {
+        "id": "coadd_object_id",
+        "ra": "ra",
+        "dec": "dec",
+        "reff": "sersic_reff_arcsec__best_available_fit",
+        "q": "sersic_q__best_available_fit",
+        "pa": "sersic_PA__best_available_fit",
+        "nucleus": "is_nucleated",
+        "imageUrl": None,
+        "isActive": None,
+        "redshift_x": None,
+        "redshift_y": None,
+        "x": "sersic_x__best_available_fit",
+        "y": "sersic_y__best_available_fit",
+    }
+
+    def __init__(self, convex_client: ConvexClient, fallback_is_active: bool = True):
         self.client = convex_client
-        
+        self.fallback_is_active = fallback_is_active
+
     def validate_parquet_columns(self, df: pd.DataFrame) -> None:
-        """Validate that the parquet file has required columns."""
-        required_columns = {'id', 'ra', 'dec', 'reff', 'q', 'pa', 'nucleus'}
-        optional_columns = {'imageUrl', 'isActive', 'redshift_x', 'redshift_y', 'x', 'y'}
-        
-        available_columns = set(df.columns)
-        missing_columns = required_columns - available_columns
-        
-        if missing_columns:
-            raise ValueError(f"Missing required columns: {missing_columns}")
-            
-        print(f"✓ Found all required columns: {required_columns}")
-        
-        # Check for optional columns
-        optional_found = available_columns & optional_columns
-        if optional_found:
-            print(f"✓ Found optional columns: {optional_found}")
-            
-        # Warn about unknown columns
-        unknown_columns = available_columns - required_columns - optional_columns
-        if unknown_columns:
-            print(f"⚠ Unknown columns (will be ignored): {unknown_columns}")
-    
+        """Validate required parquet columns are present."""
+        missing = []
+        for db_field, parquet_field in self.COLUMN_MAPPING.items():
+            # Only validate fields that come from parquet
+            if parquet_field is not None and parquet_field not in df.columns:
+                missing.append((db_field, parquet_field))
+
+        if missing:
+            raise ValueError(
+                "Missing required parquet columns: "
+                + ", ".join([f"{db}->{pq}" for db, pq in missing])
+            )
+
+        used = {pq for pq in self.COLUMN_MAPPING.values() if pq is not None}
+        print(f"✓ All required parquet columns are present: {used}")
+
     def prepare_galaxy_record(self, row: pd.Series) -> Dict[str, Any]:
-        """Convert a pandas row to a galaxy record suitable for Convex."""
-        record = {
-            'id': str(row['id']).strip(),
-            'ra': float(row['ra']),
-            'dec': float(row['dec']),
-            'reff': float(row['reff']),
-            'q': float(row['q']),
-            'pa': float(row['pa']),
-            'nucleus': bool(row['nucleus']),
-        }
-        
-        # Add optional fields if present
-        if 'imageUrl' in row and pd.notna(row['imageUrl']):
-            record['imageUrl'] = str(row['imageUrl']).strip()
-            
-        if 'isActive' in row and pd.notna(row['isActive']):
-            record['isActive'] = bool(row['isActive'])
-            
-        if 'redshift_x' in row and pd.notna(row['redshift_x']):
-            record['redshift_x'] = float(row['redshift_x'])
-            
-        if 'redshift_y' in row and pd.notna(row['redshift_y']):
-            record['redshift_y'] = float(row['redshift_y'])
-            
-        if 'x' in row and pd.notna(row['x']):
-            record['x'] = float(row['x'])
-            
-        if 'y' in row and pd.notna(row['y']):
-            record['y'] = float(row['y'])
-        
+        """Convert parquet row to Convex-compatible galaxy record."""
+        record: Dict[str, Any] = {}
+
+        for db_field, parquet_field in self.COLUMN_MAPPING.items():
+            if parquet_field is None:
+                # optional not present
+                continue
+
+            if pd.isna(row[parquet_field]):
+                continue
+
+            val = row[parquet_field]
+
+            if db_field in ["id", "imageUrl"]:
+                record[db_field] = str(val).strip()
+            elif db_field in ["nucleus", "isActive"]:
+                record[db_field] = bool(val)
+            else:
+                record[db_field] = float(val)
+
+        # Ensure isActive has a fallback when missing from parquet
+        if "isActive" not in record:
+            record["isActive"] = bool(self.fallback_is_active)
+
         return record
-    
+
+    # --- (rest stays unchanged) ---
     def check_existing_galaxy(self, galaxy_id: str) -> bool:
-        """Check if a galaxy with the given ID already exists."""
         try:
-            result = self.client.call_function("galaxies:getGalaxyByExternalId", {
-                "externalId": galaxy_id
-            })
+            result = self.client.call_function(
+                "galaxies:getGalaxyByExternalId", {"externalId": galaxy_id}
+            )
             return result is not None
         except Exception as e:
             print(f"Warning: Could not check existing galaxy {galaxy_id}: {e}")
             return False
-    
+
     def insert_galaxy(self, galaxy_record: Dict[str, Any]) -> bool:
-        """Insert a single galaxy record into the database."""
         try:
             result = self.client.call_mutation("galaxies:insertGalaxy", galaxy_record)
-            return result.get('success', False)
+            return result.get("success", False)
         except Exception as e:
             print(f"Error inserting galaxy {galaxy_record.get('id', 'unknown')}: {e}")
             return False
-    
-    def insert_galaxies_batch(self, galaxy_records: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Insert a batch of galaxy records into the database."""
+
+    def insert_galaxies_batch(
+        self, galaxy_records: List[Dict[str, Any]]
+    ) -> Dict[str, Any]:
         try:
-            result = self.client.call_mutation("galaxies:insertGalaxiesBatch", {
-                "galaxies": galaxy_records
-            })
+            result = self.client.call_mutation(
+                "galaxies:insertGalaxiesBatch", {"galaxies": galaxy_records}
+            )
             return result
         except Exception as e:
             print(f"Error inserting batch: {e}")
             return {"inserted": 0, "skipped": 0, "errors": [str(e)]}
-    
-    def load_galaxies(self, df: pd.DataFrame, batch_size: int = 100, 
-                     skip_existing: bool = True, dry_run: bool = False) -> Dict[str, int]:
-        """Load galaxies from dataframe into the database."""
-        stats = {
-            'total': len(df),
-            'inserted': 0,
-            'skipped': 0,
-            'errors': 0
-        }
-        
+
+    def load_galaxies(
+        self,
+        df: pd.DataFrame,
+        batch_size: int = 100,
+        skip_existing: bool = True,
+        dry_run: bool = False,
+    ) -> Dict[str, int]:
+        stats = {"total": len(df), "inserted": 0, "skipped": 0, "errors": 0}
         print(f"Starting to process {stats['total']} galaxies...")
-        
         if dry_run:
             print("🔍 DRY RUN MODE - No data will be inserted")
-        
-        # Process in batches for better performance
+
         batch_records = []
-        
         for i, (_, row) in enumerate(df.iterrows()):
             try:
-                galaxy_record = self.prepare_galaxy_record(row)
-                galaxy_id = galaxy_record['id']
-                
-                # In batch mode, we let the server handle duplicate checking
-                batch_records.append(galaxy_record)
-                
-                # Process batch when it's full or at the end
+                record = self.prepare_galaxy_record(row)
+                batch_records.append(record)
+
                 if len(batch_records) >= batch_size or i == len(df) - 1:
                     if not dry_run:
                         batch_result = self.insert_galaxies_batch(batch_records)
-                        stats['inserted'] += batch_result.get('inserted', 0)
-                        stats['skipped'] += batch_result.get('skipped', 0)
-                        
-                        # Handle batch errors
-                        batch_errors = batch_result.get('errors', [])
-                        if batch_errors:
-                            stats['errors'] += len(batch_errors)
-                            for error in batch_errors:
-                                print(f"❌ Batch error: {error}")
-                        
-                        print(f"✓ Processed batch: {batch_result.get('inserted', 0)} inserted, {batch_result.get('skipped', 0)} skipped")
+                        stats["inserted"] += batch_result.get("inserted", 0)
+                        stats["skipped"] += batch_result.get("skipped", 0)
+                        errs = batch_result.get("errors", [])
+                        if errs:
+                            stats["errors"] += len(errs)
+                            for e in errs:
+                                print(f"❌ Batch error: {e}")
+                        print(
+                            f"✓ Processed batch: {batch_result.get('inserted', 0)} inserted, "
+                            f"{batch_result.get('skipped', 0)} skipped"
+                        )
                     else:
                         print(f"🔍 Would insert batch of {len(batch_records)} galaxies")
-                        stats['inserted'] += len(batch_records)
-                    
-                    # Clear batch and show progress
+                        stats["inserted"] += len(batch_records)
+
                     batch_records = []
-                    progress = (i + 1) / stats['total'] * 100
-                    print(f"Progress: {i + 1}/{stats['total']} ({progress:.1f}%)")
-                    
+                    progress = (i + 1) / stats["total"] * 100
+                    print(f"Progress: {i+1}/{stats['total']} ({progress:.1f}%)")
+
                     if not dry_run:
-                        time.sleep(0.1)  # Small delay to avoid overwhelming the API
-                    
+                        time.sleep(0.1)
+
             except Exception as e:
                 print(f"❌ Error processing row {i}: {e}")
-                stats['errors'] += 1
+                stats["errors"] += 1
                 continue
-        
+
         return stats
-    
+
     def print_summary(self, stats: Dict[str, int]) -> None:
-        """Print a summary of the loading operation."""
-        print("\n" + "="*50)
+        print("\n" + "=" * 50)
         print("GALAXY LOADING SUMMARY")
-        print("="*50)
+        print("=" * 50)
         print(f"Total galaxies processed: {stats['total']}")
         print(f"Successfully inserted:   {stats['inserted']}")
         print(f"Skipped (existing):      {stats['skipped']}")
         print(f"Errors:                  {stats['errors']}")
-        print("="*50)
+        print("=" * 50)
 
 
 def load_environment() -> str:
-    """Load environment variables and return Convex URL."""
-    # Try to load .env file from project root
-    env_path = Path(__file__).parent.parent / '.env'
+    env_path = Path(__file__).parent.parent / ".env"
     if env_path.exists():
         load_dotenv(env_path)
         print(f"✓ Loaded environment from {env_path}")
-    
-    # Get Convex URL from environment
-    convex_url = os.getenv('VITE_CONVEX_URL')
+
+    convex_url = os.getenv("VITE_CONVEX_URL")
     if not convex_url:
         raise ValueError(
             "VITE_CONVEX_URL not found in environment variables. "
             "Please set it in your .env file or pass --convex-url argument."
         )
-    
     return convex_url
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Load galaxy data from parquet file to Convex database')
-    parser.add_argument('parquet_file', help='Path to the parquet file containing galaxy data')
-    parser.add_argument('--convex-url', help='Convex deployment URL (overrides environment variable)')
-    parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing (default: 100)')
-    parser.add_argument('--skip-existing', action='store_true', default=True, help='Skip galaxies that already exist (default: True)')
-    parser.add_argument('--dry-run', action='store_true', help='Preview what would be loaded without actually inserting data')
-    
+    parser = argparse.ArgumentParser(
+        description="Load galaxy data from parquet file to Convex database"
+    )
+    parser.add_argument("parquet_file", help="Path to the parquet file containing galaxy data")
+    parser.add_argument("--convex-url", help="Convex deployment URL (overrides environment variable)")
+    parser.add_argument(
+        "--batch-size", type=int, default=100, help="Batch size for processing (default: 100)"
+    )
+    parser.add_argument(
+        "--skip-existing",
+        action="store_true",
+        default=True,
+        help="Skip galaxies that already exist (default: True)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Preview what would be loaded without actually inserting data",
+    )
+    # Fallback isActive flag (default True)
+    if hasattr(argparse, "BooleanOptionalAction"):
+        parser.add_argument(
+            "--is-active",
+            dest="is_active",
+            action=argparse.BooleanOptionalAction,
+            default=True,
+            help="Fallback value for isActive when parquet doesn't provide it (default: True)",
+        )
+    else:
+        parser.add_argument(
+            "--is-active",
+            dest="is_active",
+            type=lambda s: s.lower() in ("1", "true", "yes", "y", "t"),
+            default=True,
+            help="Fallback value for isActive when parquet doesn't provide it (default: True)",
+        )
+
     args = parser.parse_args()
-    
+
     try:
-        # Load environment and get Convex URL
-        if args.convex_url:
-            convex_url = args.convex_url
-        else:
-            convex_url = load_environment()
-        
+        convex_url = args.convex_url if args.convex_url else load_environment()
         print(f"Using Convex URL: {convex_url}")
-        
-        # Validate parquet file exists
+
         parquet_path = Path(args.parquet_file)
         if not parquet_path.exists():
             raise FileNotFoundError(f"Parquet file not found: {parquet_path}")
-        
+
         print(f"Loading data from: {parquet_path}")
-        
-        # Read parquet file
         print("📖 Reading parquet file...")
         df = pd.read_parquet(parquet_path)
         print(f"✓ Loaded {len(df)} records from parquet file")
-        
-        # Initialize clients
+
         convex_client = ConvexClient(convex_url)
-        loader = GalaxyDataLoader(convex_client)
-        
-        # Validate columns
+        loader = GalaxyDataLoader(convex_client, fallback_is_active=bool(args.is_active))
+
         loader.validate_parquet_columns(df)
-        
-        # Show sample data
+
         print("\n📋 Sample of data to be loaded:")
         print(df.head().to_string())
-        
+
         if args.dry_run:
             print(f"\n🔍 DRY RUN: Would process {len(df)} galaxies")
         else:
-            # Confirm before proceeding
             response = input(f"\n❓ Proceed with loading {len(df)} galaxies? (y/N): ")
-            if response.lower() != 'y':
+            if response.lower() != "y":
                 print("❌ Operation cancelled")
                 return
-        
-        # Load galaxies
+
         stats = loader.load_galaxies(
-            df, 
+            df,
             batch_size=args.batch_size,
             skip_existing=args.skip_existing,
-            dry_run=args.dry_run
+            dry_run=args.dry_run,
         )
-        
-        # Print summary
+
         loader.print_summary(stats)
-        
-        if stats['errors'] > 0:
+
+        if stats["errors"] > 0:
             print(f"\n⚠ Completed with {stats['errors']} errors")
             sys.exit(1)
         else:
             print(f"\n✅ Successfully completed!")
-            
+
     except KeyboardInterrupt:
         print("\n❌ Operation interrupted by user")
         sys.exit(1)
