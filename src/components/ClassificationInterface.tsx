@@ -7,7 +7,7 @@ import { ProgressBar } from "./ProgressBar";
 import { ImageViewer } from "./ImageViewer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { useParams, useNavigate } from "react-router";
-import { useGalaxyImages } from "../hooks/useGalaxyImages";
+import { getImageUrl } from "../images";
 
 // let lastSelectedMorphology: number | null = null;
 
@@ -27,6 +27,7 @@ export function ClassificationInterface() {
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [contrast, setContrast] = useState(1.0);
+  const [currentContrastGroup, setCurrentContrastGroup] = useState(0);
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const quickInputRef = useRef<HTMLInputElement>(null);
 
@@ -45,59 +46,87 @@ export function ClassificationInterface() {
 
   // ----
 
-  // Prepare image names and resolve URLs based on user preference
-  const imageNamesLabels = {
-    "masked_g_band": "Masked g-Band",
-    "galfit_model": "GalfitModel",
-    "residual": "Residual",
-    "masked_aplpy": "Masked APLpy",
-    "aplpy": "APLpy",
-    "zoomed_out": "Zoomed out",
-  };
+  /*
+  g_zscale_masked
+  residual_zscale
+  model_100_0
+  aplpy_arcsinh_p001_100_vmid01
+  aplpy_defaults_unmasked
+  aplpy_linear_p1_995_wide_unmasked
+
+  g_99_9_masked
+  model_99_9
+  residual_100_0
+  aplpy_arcsinh_p001_100_vmid01
+  aplpy_zscale_unmasked
+  aplpy_linear_p1_995_wide_unmasked
+
+  g_99_7_masked
+  model_99_7
+  residual_99_7
+  aplpy_arcsinh_p001_100_vmid01
+  aplpy_zscale_unmasked
+  aplpy_linear_p1_995_wide_unmasked
+
+  g_99_0_masked
+  model_99_7
+  residual_99_7
+  aplpy_arcsinh_p001_100_vmid01
+  aplpy_zscale_unmasked
+  aplpy_linear_p1_995_wide_unmasked
+
+  */
+  
+  const imageContrastGroups: Array<Record<string, string>> = [
+    {
+      "g_zscale_masked": "Masked g-Band (zscale)",
+      "residual_zscale": "Residual (zscale)",
+      "model_100_0": "Galfit Model (100_0)",
+      "aplpy_arcsinh_p001_100_vmid01": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
+      "aplpy_defaults_unmasked": "APLpy Defaults (unmasked)",
+      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
+    },
+    {
+      "g_99_9_masked": "Masked g-Band (99.9%)",
+      "model_99_9": "Galfit Model (99.9%)",
+      "residual_100_0": "Residual (100_0)",
+      "aplpy_arcsinh_p001_100_vmid01": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
+      "aplpy_zscale_unmasked": "APLpy Zscale (unmasked)",
+      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
+    },
+    {
+      "g_99_7_masked": "Masked g-Band (99.7%)",
+      "model_99_7": "Galfit Model (99.7%)",
+      "residual_99_7": "Residual (99.7%)",
+      "aplpy_arcsinh_p001_100_vmid01": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
+      "aplpy_zscale_unmasked": "APLpy Zscale (unmasked)",
+      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
+    },
+    {
+      "g_99_0_masked": "Masked g-Band (99.0%)",
+      "model_99_7": "Galfit Model (99.7%)",
+      "residual_99_7": "Residual (99.7%)",
+      "aplpy_arcsinh_p001_100_vmid01": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
+      "aplpy_zscale_unmasked": "APLpy Zscale (unmasked)",
+      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
+    }
+  ]
 
   // Determine which galaxy ID to use: by external param or generated sequence
   const resolvedGalaxyId = routeGalaxyId
     ? galaxyByExternalId?.id
     : galaxy?.id;
   
-    // let imageUrls = [
-    //     "https://placehold.co/200?text=Masked+g-Band",
-    //     "https://placehold.co/200?text=GalfitModel",
-    //     "https://placehold.co/200?text=Residual",
-    //     "https://placehold.co/200?text=Masked+APLpy",
-    //     "https://placehold.co/200?text=APLpy",
-    //     "https://placehold.co/200?text=Zoomed+out",
-    // ];
-    // let imagesLoading = false;
-    // let quality: "high" | "medium" | "low" = "medium";
-
-    // // TODO: this is really stupid. Just get the quality once, then create the object locally. There is nothing useful in the return value of the query except the quality
-    // const imagesData = useQuery(
-    //   api.images.getGalaxyImageUrls,
-    //   resolvedGalaxyId ? { galaxyId: resolvedGalaxyId, imageNames, quality } : "skip"
-    // );
-
-    // console.log("imagesData", imagesData);
+  // Get current contrast group images
+  const currentImageGroup = imageContrastGroups[currentContrastGroup];
   
-    // Always call hook to maintain consistent hook order
-    const { imageUrls, isLoading: imagesLoading } = useGalaxyImages(
-      resolvedGalaxyId,
-      Object.keys(imageNamesLabels),
-      userPrefs?.imageQuality
-    );
-
-    console.log("imageUrls", imageUrls);
-    console.log("imagesLoading", imagesLoading);
-
-    console.log("resolvedGalaxyId", resolvedGalaxyId);
-    console.log("galaxyByExternalId", galaxyByExternalId);
-    console.log("currentGalaxy", currentGalaxy);
-    console.log("galaxy", galaxy);
-
-  // Create imageTypes array with resolved URLs
-  const imageTypes = Object.entries(imageNamesLabels).map(([key, label], index) => ({
+  // Create imageTypes array with resolved URLs using the current contrast group
+  const imageTypes = Object.entries(currentImageGroup).map(([key, label]) => ({
+    key,
     name: label,
-    url: imageUrls?.[index],
+    url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, { 
+      quality: userPrefs?.imageQuality || "medium" 
+    }) : null,
   }));
 
   // ----
@@ -147,6 +176,9 @@ export function ClassificationInterface() {
   useEffect(() => {
     console.log("Resetting form for new galaxy:", currentGalaxy?.id);
     if (currentGalaxy) {
+      // Reset contrast group to first one for new galaxy
+      setCurrentContrastGroup(0);
+      
       // preload existing classification or reset to defaults
       console.log("Current galaxy data:", currentGalaxy);
       if (currentGalaxy.lsb_class !== undefined) {
@@ -336,14 +368,10 @@ export function ClassificationInterface() {
   };
 
   const handleContrastClick = () => {
-    // Cycle through contrast levels
-    setContrast(prev => {
-      if (prev === 1.0) return 1.5;
-      if (prev === 1.5) return 2.0;
-      if (prev === 2.0) return 0.5;
-      return 1.0;
-    });
-    toast.info(`Contrast: ${contrast === 1.0 ? 1.5 : contrast === 1.5 ? 2.0 : contrast === 2.0 ? 0.5 : 1.0}x`);
+    // Cycle through contrast groups
+    const nextGroup = (currentContrastGroup + 1) % imageContrastGroups.length;
+    setCurrentContrastGroup(nextGroup);
+    toast.info(`Contrast Group: ${nextGroup + 1} of ${imageContrastGroups.length}`);
   };
 
   // Simplified keyboard shortcuts
@@ -361,22 +389,9 @@ export function ClassificationInterface() {
       switch (e.key.toLowerCase()) {
         case 'c':
           e.preventDefault()
-          setContrast(prev => {
-            if (prev === 1.0) return 1.5
-            if (prev === 1.5) return 2.0
-            if (prev === 2.0) return 0.5
-            return 1.0
-          })
-          toast.info(
-            `Contrast: ${contrast === 1.0
-              ? 1.5
-              : contrast === 1.5
-                ? 2.0
-                : contrast === 2.0
-                  ? 0.5
-                  : 1.0
-            }x`
-          )
+          const nextGroup = (currentContrastGroup + 1) % imageContrastGroups.length;
+          setCurrentContrastGroup(nextGroup);
+          toast.info(`View Group: ${nextGroup + 1} of ${imageContrastGroups.length}`)
           break
         case 'p':
           e.preventDefault()
@@ -399,7 +414,7 @@ export function ClassificationInterface() {
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [contrast, handlePrevious, handleNext, handleSkip])
+  }, [currentContrastGroup, handlePrevious, handleNext, handleSkip])
 
   // after parseQuickInput, add helper:
   const buildQuickInputString = (
@@ -603,36 +618,34 @@ export function ClassificationInterface() {
           </div>
         </div>
 
-        {/* Images - Mobile */}
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {imageTypes.map((imageType, index) => (
-              <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center">
-                  {imageType.name}
-                </h3>
-                <div className="aspect-square">
-                  {imageType.url ? (
-                    <ImageViewer
-                      imageUrl={imageType.url}
-                      alt={`${displayGalaxy.id} - ${imageType.name}`}
-                      preferences={userPrefs}
-                      contrast={contrast}
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                      <div className="text-center text-gray-500 dark:text-gray-400">
-                        <div className="text-2xl mb-1">🌌</div>
-                        <p className="text-xs">No image</p>
+          {/* Images - Mobile */}
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {imageTypes.map((imageType, index) => (
+                <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center">
+                    {imageType.name}
+                  </h3>
+                  <div className="aspect-square">
+                    {imageType.url ? (
+                      <ImageViewer
+                        imageUrl={imageType.url}
+                        alt={`${displayGalaxy.id} - ${imageType.name}`}
+                        preferences={userPrefs}
+                        contrast={contrast}
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
+                        <div className="text-center text-gray-500 dark:text-gray-400">
+                          <div className="text-2xl mb-1">🌌</div>
+                          <p className="text-xs">No image</p>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Galaxy Info */}
+              ))}
+            </div>          {/* Galaxy Info */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
             <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-300">
               <div><span className="font-medium">RA:</span> {displayGalaxy.ra.toFixed(4)}°</div>
@@ -656,7 +669,7 @@ export function ClassificationInterface() {
               onClick={handleContrastClick}
               className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
             >
-              Contrast ({contrast}x)
+              View {currentContrastGroup + 1}/{imageContrastGroups.length}
             </button>
           </div>
         </div>
@@ -824,7 +837,7 @@ export function ClassificationInterface() {
               onClick={handleContrastClick}
               className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
             >
-              Contrast ({contrast}x)
+              View {currentContrastGroup + 1}/{imageContrastGroups.length}
             </button>
           </div>
         </div>
