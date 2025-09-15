@@ -13,6 +13,7 @@
     "lint": "tsc -p convex -noEmit --pretty false && tsc -p . -noEmit --pretty false && convex dev --once && vite build"
   },
   "dependencies": {
+    "@convex-dev/aggregate": "^0.1.23",
     "@convex-dev/auth": "^0.0.80",
     "@react-email/render": "^1.2.2",
     "clsx": "^2.1.1",

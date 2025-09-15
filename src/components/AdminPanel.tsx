@@ -8,6 +8,8 @@ export function AdminPanel() {
   const [selectedTab, setSelectedTab] = useState<"users" | "galaxies" | "settings">("users");
   const [sequenceSize, setSequenceSize] = useState(50);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [generatingMock, setGeneratingMock] = useState(false);
+  const [generatingSequence, setGeneratingSequence] = useState(false);
   
   const userProfile = useQuery(api.users.getUserProfile);
   const isAdmin = userProfile?.role === "admin";
@@ -21,7 +23,7 @@ export function AdminPanel() {
   const deleteUser = useMutation(api.users.deleteUser);
   const createUserProfile = useMutation(api.admin.createUserProfile);
   const generateMockGalaxies = useMutation(api.galaxies.generateMockGalaxies);
-  const generateUserSequence = useMutation(api.galaxies.generateUserSequence);
+  const generateUserSequence = useMutation(api.galaxy_sequence.generateRandomUserSequence);
   const updateSystemSettings = useMutation(api.users.updateSystemSettings);
 
   const handleToggleUserStatus = async (userId: any, currentStatus: boolean) => {
@@ -100,11 +102,14 @@ export function AdminPanel() {
 
   const handleGenerateMockGalaxies = async () => {
     try {
+      setGeneratingMock(true);
       const result = await generateMockGalaxies();
       toast.success(result.message);
     } catch (error) {
       toast.error("Failed to generate mock galaxies");
       console.error(error);
+    } finally {
+      setGeneratingMock(false);
     }
   };
 
@@ -115,6 +120,7 @@ export function AdminPanel() {
     }
 
     try {
+      setGeneratingSequence(true);
       const result = await generateUserSequence({
         targetUserId: selectedUserId as any,
         sequenceSize,
@@ -123,6 +129,8 @@ export function AdminPanel() {
     } catch (error) {
       toast.error("Failed to generate sequence");
       console.error(error);
+    } finally {
+      setGeneratingSequence(false);
     }
   };
 
@@ -377,9 +385,13 @@ export function AdminPanel() {
                 </p>
                 <button
                   onClick={handleGenerateMockGalaxies}
-                  className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  disabled={generatingMock}
+                  className="relative inline-flex items-center bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
                 >
-                  Generate Mock Galaxies
+                  {generatingMock && (
+                    <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  )}
+                  {generatingMock ? 'Generating...' : 'Generate Mock Galaxies'}
                 </button>
               </div>
             </div>
@@ -399,6 +411,7 @@ export function AdminPanel() {
                   value={selectedUserId}
                   onChange={(e) => setSelectedUserId(e.target.value)}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={generatingSequence}
                 >
                   <option value="">Select a user...</option>
                   {users.filter(user => !user._id.toString().startsWith('temp_')).map((user) => (
@@ -416,20 +429,27 @@ export function AdminPanel() {
                 <input
                   type="number"
                   min="1"
-                  max="100"
+                  max="500000"
                   value={sequenceSize}
                   onChange={(e) => setSequenceSize(Number(e.target.value))}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={generatingSequence}
                 />
               </div>
               
               <button
                 onClick={handleGenerateSequence}
-                disabled={!selectedUserId}
-                className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                disabled={!selectedUserId || generatingSequence}
+                className="inline-flex items-center bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
               >
-                Generate New Sequence
+                {generatingSequence && (
+                  <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                )}
+                {generatingSequence ? 'Generating Sequence...' : 'Generate New Sequence'}
               </button>
+              {generatingSequence && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">This may take a while for large sizes...</p>
+              )}
             </div>
           </div>
         </div>

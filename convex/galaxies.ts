@@ -1,6 +1,20 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { Id } from "./_generated/dataModel";
+import { TableAggregate } from "@convex-dev/aggregate";
+import { components } from "./_generated/api";
+import { DataModel } from "./_generated/dataModel";
+
+
+// Aggregate for galaxies: unsorted (null) key -> underlying order by _id (pseudo-random)
+export const galaxiesAggregate = new TableAggregate<{
+  Key: string;
+  DataModel: DataModel;
+  TableName: "galaxies";
+}>(components.aggregate, {
+  sortKey: (doc) => doc._id,
+});
 
 // Get next galaxy for classification
 export const getNextGalaxy = query({
@@ -563,77 +577,6 @@ export const getProgress = query({
     }
 
     return null;
-  },
-});
-
-// Generate user sequence
-export const generateUserSequence = mutation({
-  args: {
-    targetUserId: v.optional(v.id("users")),
-    sequenceSize: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const targetUserId = args.targetUserId || userId;
-    const sequenceSize = args.sequenceSize || 50;
-
-    // Check if user is admin when targeting another user
-    if (targetUserId !== userId) {
-      const currentProfile = await ctx.db
-        .query("userProfiles")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .unique();
-
-      if (!currentProfile || currentProfile.role !== "admin") {
-        throw new Error("Admin access required");
-      }
-    }
-
-    // Get all available galaxies
-    const allGalaxies = await ctx.db.query("galaxies").collect();
-    
-    if (allGalaxies.length === 0) {
-      throw new Error("No galaxies available");
-    }
-
-    // Shuffle and select galaxies
-    const shuffled = [...allGalaxies].sort(() => Math.random() - 0.5);
-    const selectedGalaxies = shuffled.slice(0, Math.min(sequenceSize, allGalaxies.length));
-
-    // Delete existing sequence for this user
-    const existingSequence = await ctx.db
-      .query("galaxySequences")
-      .withIndex("by_user", (q) => q.eq("userId", targetUserId))
-      .unique();
-
-    if (existingSequence) {
-      await ctx.db.delete(existingSequence._id);
-    }
-
-    // Create new sequence
-    await ctx.db.insert("galaxySequences", {
-      userId: targetUserId,
-      galaxyIds: selectedGalaxies.map(g => g._id),
-    });
-
-    // Update user profile
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", targetUserId))
-      .unique();
-
-    if (userProfile) {
-      await ctx.db.patch(userProfile._id, {
-        sequenceGenerated: true,
-      });
-    }
-
-    return { 
-      success: true, 
-      message: `Generated sequence of ${selectedGalaxies.length} galaxies` 
-    };
   },
 });
 

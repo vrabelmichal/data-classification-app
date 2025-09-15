@@ -7,6 +7,7 @@ import {
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { galaxySchemaDefinition } from "./schema";
+import { galaxiesAggregate } from "./galaxies";
 
 /**
  * Constant-time comparison to avoid timing leaks.
@@ -67,7 +68,12 @@ async function insertGalaxiesBatchHelper(
         misc: galaxy.misc ?? {},
         thuruthipilly: galaxy.thuruthipilly ?? {},
       };
-      await ctx.db.insert("galaxies", toInsert);
+      // await ctx.db.insert("galaxies", toInsert);
+      // await galaxiesAggregate.insert(ctx, toInsert);
+      const id = await ctx.db.insert("galaxies", toInsert);
+      const doc = await ctx.db.get(id);
+      await galaxiesAggregate.insert(ctx, doc!);
+      
       results.inserted++;
     } catch (error) {
       results.errors.push(`Error inserting galaxy ${galaxy.id}: ${String(error)}`);
