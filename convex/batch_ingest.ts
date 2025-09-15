@@ -6,6 +6,7 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { galaxySchemaDefinition } from "./schema";
 
 /**
  * Constant-time comparison to avoid timing leaks.
@@ -22,21 +23,8 @@ function timingSafeEqual(a: string, b: string): boolean {
 /**
  * Schemas
  */
-const galaxySchema = v.object({
-  id: v.string(),
-  ra: v.number(),
-  dec: v.number(),
-  reff: v.number(),
-  q: v.number(),
-  pa: v.number(),
-  nucleus: v.boolean(),
-  imageUrl: v.optional(v.string()),
-  isActive: v.optional(v.boolean()),
-  redshift_x: v.optional(v.number()),
-  redshift_y: v.optional(v.number()),
-  x: v.optional(v.number()),
-  y: v.optional(v.number()),
-});
+// Match extended schema in `schema.ts` (imageUrl removed; new nested objects)
+const galaxySchema = v.object(galaxySchemaDefinition);
 
 const batchArgs = {
   galaxies: v.array(galaxySchema),
@@ -48,21 +36,7 @@ const batchArgs = {
  */
 async function insertGalaxiesBatchHelper(
   ctx: MutationCtx,
-  galaxies: Array<{
-    id: string;
-    ra: number;
-    dec: number;
-    reff: number;
-    q: number;
-    pa: number;
-    nucleus: boolean;
-    // imageUrl?: string;
-    isActive?: boolean;
-    redshift_x?: number;
-    redshift_y?: number;
-    x?: number;
-    y?: number;
-  }>
+  galaxies: Array<any>
 ) {
   const results = {
     inserted: 0,
@@ -82,7 +56,18 @@ async function insertGalaxiesBatchHelper(
         continue;
       }
 
-      await ctx.db.insert("galaxies", galaxy);
+      // Supply defaults for required nested objects if missing
+      const toInsert = {
+        ...galaxy,
+        photometry: galaxy.photometry ?? {
+          g: { sersic: {}, source_extractor: {} },
+          r: { sersic: {}, source_extractor: {} },
+          i: { sersic: {}, source_extractor: {} },
+        },
+        misc: galaxy.misc ?? {},
+        thuruthipilly: galaxy.thuruthipilly ?? {},
+      };
+      await ctx.db.insert("galaxies", toInsert);
       results.inserted++;
     } catch (error) {
       results.errors.push(`Error inserting galaxy ${galaxy.id}: ${String(error)}`);
