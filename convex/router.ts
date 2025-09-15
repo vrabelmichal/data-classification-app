@@ -1,8 +1,21 @@
 import { httpRouter } from "convex/server";
+import { ingestGalaxiesHttp, ping } from "./batch_ingest";
 
 const http = httpRouter();
 
 // Add any HTTP routes here if needed
-// For image serving in local development, you might want to add routes
+
+// batchIngest
+http.route({
+    path: "/ingest/galaxies",
+   method: "POST",
+   handler: ingestGalaxiesHttp,
+})
+
+http.route({
+    path: "/ping",
+    method: "GET",
+    handler: ping,
+});
 
 export default http;
