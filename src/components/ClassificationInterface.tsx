@@ -13,6 +13,10 @@ import { usePageTitle } from "../hooks/usePageTitle";
 // let lastSelectedMorphology: number | null = null;
 
 export function ClassificationInterface() {
+  // State for additional galaxy details
+  const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
+  const [additionalDetails, setAdditionalDetails] = useState<any>(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
   const { galaxyId: routeGalaxyId } = useParams<{ galaxyId: string }>();
   const navigate = useNavigate();
 
@@ -55,8 +59,10 @@ export function ClassificationInterface() {
   // const generateSequence = useMutation(api.galaxies.generateUserSequence);
   const navigateToGalaxy = useMutation(api.galaxies_navigation.navigateToGalaxyInSequence);
 
+  const loadAdditionalDetails = useMutation(api.galaxies.getAdditionalGalaxyDetailsByExternalId);
+
   // ----
-  
+
   const imageContrastGroups: Array<Record<string, string>> = [
     {
       "g_zscale_masked": "Masked g-Band (zscale)",
@@ -391,6 +397,7 @@ export function ClassificationInterface() {
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [currentContrastGroup, handlePrevious, handleNext, handleSkip])
 
+
   // after parseQuickInput, add helper:
   const buildQuickInputString = (
     lsb: number | null,
@@ -416,6 +423,119 @@ export function ClassificationInterface() {
     if (displayGalaxy?.id) return `Classify ${displayGalaxy.id}`;
     return "Classify";
   });
+
+  // Hide details when galaxy changes
+  useEffect(() => {
+    setShowAdditionalDetails(false);
+    setAdditionalDetails(null);
+    setLoadingDetails(false);
+  }, [displayGalaxy?.id]);
+  
+  // Toggle + (lazy) load additional details
+  const handleToggleDetails = async () => {
+    if (showAdditionalDetails) {
+      setShowAdditionalDetails(false);
+      return;
+    }
+    if (additionalDetails) {
+      setShowAdditionalDetails(true);
+      return;
+    }
+    if (!displayGalaxy?.id) return;
+    setLoadingDetails(true);
+    try {
+      const result = await loadAdditionalDetails({ externalId: displayGalaxy.id });
+      setAdditionalDetails(result);
+      setShowAdditionalDetails(true);
+    } catch (err) {
+      toast.error("Failed to load details");
+    } finally {
+      setLoadingDetails(false);
+    }
+  };
+
+  // Helpers to format and filter fields
+  const shouldIncludeKey = (key: string) => !key.startsWith("_") && key !== "band" && key !== "galaxyRef";
+  const formatNumber = (val: number) => {
+    if (Math.abs(val) >= 1000 || Math.abs(val) < 1e-3) return val.toExponential(3);
+    return val.toFixed(4).replace(/0+$/,'').replace(/\.$/,'');
+  };
+  const renderKeyVal = (label: string, value: any) => (
+    <div key={label} className="flex justify-between text-[11px] py-0.5">
+      <span className="text-gray-500 dark:text-gray-400 mr-2">{label}</span>
+      <span className="font-medium text-gray-900 dark:text-gray-100">{typeof value === 'number' ? formatNumber(value) : String(value)}</span>
+    </div>
+  );
+
+  const renderSersic = (sersic: any) => {
+    if (!sersic) return null;
+    return (
+      <div className="mt-1 rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-2">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300 mb-1">Sersic</div>
+        {Object.entries(sersic).filter(([k]) => shouldIncludeKey(k) && k !== 'psf').map(([k,v]) => renderKeyVal(k, v as any))}
+        {sersic.psf && (
+          <div className="mt-2 rounded border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-2">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300 mb-1">PSF</div>
+            {Object.entries(sersic.psf).filter(([k]) => shouldIncludeKey(k)).map(([k,v]) => renderKeyVal(k, v as any))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderPhotometryBlock = (label: string, block: any) => {
+    if (!block) return null;
+    return (
+      <div className="mb-3">
+        <div className="text-xs font-semibold text-blue-600 dark:text-blue-400 mb-1">Photometry ({label})</div>
+        {renderSersic(block.sersic)}
+      </div>
+    );
+  };
+
+  const renderSourceExtractor = (doc: any) => {
+    if (!doc) return null;
+    const bandKeys = ['g','r','i','y','z'];
+    return (
+      <div className="mb-3">
+        <div className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 mb-1">Source Extractor</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {bandKeys.filter(k => doc[k]).map(band => (
+            <div key={band} className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-300 mb-1">{band}-band</div>
+              {Object.entries(doc[band]).filter(([k]) => shouldIncludeKey(k)).map(([k,v]) => renderKeyVal(k, v as any))}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderThuruthipilly = (doc: any) => {
+    if (!doc) return null;
+    return (
+      <div className="mb-1">
+        <div className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 mb-1">Thuruthipilly</div>
+        <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-2">
+          {Object.entries(doc).filter(([k]) => shouldIncludeKey(k)).map(([k,v]) => renderKeyVal(k, v as any))}
+        </div>
+      </div>
+    );
+  };
+
+  const renderAdditionalDetails = () => {
+    if (!additionalDetails || !showAdditionalDetails) return null;
+    return (
+      <div className="mt-4 text-xs text-gray-700 dark:text-gray-200">
+        {renderPhotometryBlock('g-band', additionalDetails.photometry_g)}
+        {renderPhotometryBlock('r-band', additionalDetails.photometry_r)}
+        {renderPhotometryBlock('i-band', additionalDetails.photometry_i)}
+        {renderSourceExtractor(additionalDetails.source_extractor)}
+        {renderThuruthipilly(additionalDetails.thuruthipilly)}
+      </div>
+    );
+  };
+  
 
   if (currentGalaxy === undefined && galaxy === undefined) {
     return (
@@ -654,6 +774,16 @@ export function ClassificationInterface() {
               <div><span className="font-medium">PA:</span> {displayGalaxy.pa.toFixed(1)}°</div>
               <div><span className="font-medium">Nucleus:</span> {displayGalaxy.nucleus ? "Yes" : "No"}</div>
             </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                className="px-3 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-60"
+                onClick={handleToggleDetails}
+                disabled={loadingDetails}
+              >
+                {loadingDetails ? 'Loading...' : (showAdditionalDetails ? 'Hide details' : 'Show details')}
+              </button>
+            </div>
+            {renderAdditionalDetails()}
           </div>
 
           {/* Action Buttons */}
@@ -720,7 +850,7 @@ export function ClassificationInterface() {
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Valid redshift</span>
               </label>
 
-              <label className="flex items-center cursor-pointer">
+              <label className={cn("flex items-center cursor-pointer", displayGalaxy.nucleus ? "bg-yellow-50 dark:bg-yellow-900/20" : "")}>
                 <input
                   type="checkbox"
                   checked={visibleNucleus}
@@ -822,6 +952,16 @@ export function ClassificationInterface() {
               <div><span className="font-medium">PA:</span> {displayGalaxy.pa.toFixed(1)}°</div>
               <div><span className="font-medium">Nucleus:</span> {displayGalaxy.nucleus ? "Yes" : "No"}</div>
             </div>
+            <div className="mt-4 flex justify-end">
+              <button
+                className="px-3 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-60"
+                onClick={handleToggleDetails}
+                disabled={loadingDetails}
+              >
+                {loadingDetails ? 'Loading...' : (showAdditionalDetails ? 'Hide details' : 'Show details')}
+              </button>
+            </div>
+            {renderAdditionalDetails()}
           </div>
 
           {/* Action Buttons */}
@@ -1019,7 +1159,7 @@ export function ClassificationInterface() {
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Valid redshift</span>
               </label>
 
-              <label className="flex items-center cursor-pointer">
+              <label className={cn("flex items-center cursor-pointer", displayGalaxy.nucleus ? "bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded-md" : "")}>
                 <input
                   type="checkbox"
                   checked={visibleNucleus}

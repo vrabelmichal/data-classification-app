@@ -1,4 +1,5 @@
-import { mutation } from "./_generated/server";
+import { query, mutation } from "./_generated/server";
+import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
 import { TableAggregate } from "@convex-dev/aggregate";
@@ -92,3 +93,45 @@ export async function insertGalaxy(
 }
 
 
+// Query to fetch additional galaxy details by externalGalaxyId (id column)
+export const getAdditionalGalaxyDetailsByExternalId = mutation({
+  args: { externalId: v.string() },
+  handler: async (ctx, { externalId }) => {
+    // Find galaxy by external id
+    const galaxy = await ctx.db
+      .query("galaxies")
+      .withIndex("by_external_id", (q) => q.eq("id", externalId))
+      .unique();
+    if (!galaxy) return null;
+
+    // Example: fetch photometry, source extractor, thuruthipilly, etc.
+    const photometry_g = await ctx.db
+      .query("galaxies_photometry_g")
+      .withIndex("by_galaxy", (q) => q.eq("galaxyRef", galaxy._id))
+      .unique();
+    const photometry_r = await ctx.db
+      .query("galaxies_photometry_r")
+      .withIndex("by_galaxy", (q) => q.eq("galaxyRef", galaxy._id))
+      .unique();
+    const photometry_i = await ctx.db
+      .query("galaxies_photometry_i")
+      .withIndex("by_galaxy", (q) => q.eq("galaxyRef", galaxy._id))
+      .unique();
+    const source_extractor = await ctx.db
+      .query("galaxies_source_extractor")
+      .withIndex("by_galaxy", (q) => q.eq("galaxyRef", galaxy._id))
+      .unique();
+    const thuruthipilly = await ctx.db
+      .query("galaxies_thuruthipilly")
+      .withIndex("by_galaxy", (q) => q.eq("galaxyRef", galaxy._id))
+      .unique();
+
+    return {
+      photometry_g,
+      photometry_r,
+      photometry_i,
+      source_extractor,
+      thuruthipilly,
+    };
+  },
+});
