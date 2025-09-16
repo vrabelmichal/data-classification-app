@@ -20,7 +20,7 @@ interface NavigationProps {
 export function Navigation({ navigationItems }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const userProfile = useQuery(api.users.getUserProfile);
-  const progress = useQuery(api.galaxies.getProgress);
+  const progress = useQuery(api.classification.getProgress);
   const navigate = useNavigate();
 
   // Filter items based on permissions (e.g., admin only)

@@ -34,50 +34,27 @@ export function ClassificationInterface() {
   // "skip" prevevents the query from running
 
   const galaxyByExternalId = useQuery(
-    api.galaxies.getGalaxyByExternalId,
+    api.galaxies_navigation.getGalaxyByExternalId,
     routeGalaxyId ? { externalId: routeGalaxyId } : "skip"
   );
-  const galaxy = useQuery(api.galaxies.getNextGalaxy, routeGalaxyId ? "skip" : {});
-  const progress = useQuery(api.galaxies.getProgress);
+  const galaxy = useQuery(api.galaxies_navigation.getNextGalaxyToClassify, routeGalaxyId ? "skip" : {});
+
+  const progress = useQuery(api.classification.getProgress);
   const userPrefs = useQuery(api.users.getUserPreferences);
   const userProfile = useQuery(api.users.getUserProfile);
+  
   const navigation = useQuery(
-    api.galaxies.getGalaxyNavigation,
+    api.galaxies_navigation.getGalaxyNavigation,
     currentGalaxy ? { currentGalaxyId: currentGalaxy._id } : {}
   );
 
+
+  const submitClassification = useMutation(api.classification.submitClassification);
+  const skipGalaxy = useMutation(api.galaxies_skipped.skipGalaxy);
+  // const generateSequence = useMutation(api.galaxies.generateUserSequence);
+  const navigateToGalaxy = useMutation(api.galaxies_navigation.navigateToGalaxyInSequence);
+
   // ----
-
-  /*
-  g_zscale_masked
-  residual_zscale
-  model_100_0
-  aplpy_arcsinh_p001_100_vmid01
-  aplpy_defaults_unmasked
-  aplpy_linear_p1_995_wide_unmasked
-
-  g_99_9_masked
-  model_99_9
-  residual_100_0
-  aplpy_arcsinh_p001_100_vmid01
-  aplpy_zscale_unmasked
-  aplpy_linear_p1_995_wide_unmasked
-
-  g_99_7_masked
-  model_99_7
-  residual_99_7
-  aplpy_arcsinh_p001_100_vmid01
-  aplpy_zscale_unmasked
-  aplpy_linear_p1_995_wide_unmasked
-
-  g_99_0_masked
-  model_99_7
-  residual_99_7
-  aplpy_arcsinh_p001_100_vmid01
-  aplpy_zscale_unmasked
-  aplpy_linear_p1_995_wide_unmasked
-
-  */
   
   const imageContrastGroups: Array<Record<string, string>> = [
     {
@@ -133,11 +110,6 @@ export function ClassificationInterface() {
 
   // ----
 
-
-  const submitClassification = useMutation(api.galaxies.submitClassification);
-  const skipGalaxy = useMutation(api.galaxies.skipGalaxy);
-  // const generateSequence = useMutation(api.galaxies.generateUserSequence);
-  const navigateToGalaxy = useMutation(api.galaxies.navigateToGalaxy);
 
   // Track screen size changes
   useEffect(() => {

@@ -23,8 +23,8 @@ export function AdminPanel() {
   const resetUserPassword = useMutation(api.users.resetUserPassword);
   const deleteUser = useMutation(api.users.deleteUser);
   const createUserProfile = useMutation(api.admin.createUserProfile);
-  const generateMockGalaxies = useMutation(api.galaxies.generateMockGalaxies);
-  const generateUserSequence = useMutation(api.galaxy_sequence.generateTestingUserSequence);
+  const generateMockGalaxies = useMutation(api.galaxies_mock.generateMockGalaxies);
+  const generateUserSequence = useMutation(api.galaxies_sequence.generateRandomUserSequence);
   const updateSystemSettings = useMutation(api.users.updateSystemSettings);
   const clearGalaxyIdsAggregate = useMutation(api.galaxies.clearGalaxyIdsAggregate);
 
