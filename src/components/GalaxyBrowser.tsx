@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery } from "convex/react";
+import { useQuery, usePaginatedQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { ImageViewer } from "./ImageViewer";
 import { cn } from "../lib/utils";
@@ -15,7 +15,7 @@ const STORAGE_KEY = "galaxyBrowserSettings";
 
 export function GalaxyBrowser() {
   usePageTitle("Browse Galaxies");
-  const [page, setPage] = useState(1);
+  // pageSize now represents batch size for paginated query
   const [pageSize, setPageSize] = useState(100);
   const [sortBy, setSortBy] = useState<SortField>("id");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
@@ -25,14 +25,22 @@ export function GalaxyBrowser() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const didHydrateFromStorage = useRef(false);
 
-  const galaxyData = useQuery(api.galaxies_browse.browseGalaxies, {
-    page,
-    pageSize,
-    sortBy,
-    sortOrder,
-    filter,
-    searchTerm: debouncedSearchTerm,
-  });
+  const previewImageName = "aplpy_defaults_unmasked";
+
+  const {
+    results: galaxies,
+    status: paginationStatus,
+    loadMore,
+  } = usePaginatedQuery(
+    api.galaxies_browse.browseGalaxies,
+    {
+      sortBy,
+      sortOrder,
+      filter,
+      searchTerm: debouncedSearchTerm,
+    },
+    { initialNumItems: pageSize }
+  );
 
   // Hydrate settings from localStorage on first mount
   useEffect(() => {
@@ -41,8 +49,8 @@ export function GalaxyBrowser() {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object") {
-          if (parsed.pageSize && Number.isFinite(parsed.pageSize)) setPage(parsed.pageSize);
-          if (parsed.page && Number.isFinite(parsed.page)) setPage(parsed.page);
+          // legacy keys page/pageSize retained for backwards compatibility
+          if (parsed.pageSize && Number.isFinite(parsed.pageSize)) setPageSize(parsed.pageSize);
           if (parsed.sortBy) setSortBy(parsed.sortBy);
           if (parsed.sortOrder) setSortOrder(parsed.sortOrder);
           if (parsed.filter) setFilter(parsed.filter);
@@ -71,7 +79,6 @@ export function GalaxyBrowser() {
   useEffect(() => {
     if (!didHydrateFromStorage.current) return; // avoid overwriting while hydrating
     const data = {
-      page,
       pageSize,
       sortBy,
       sortOrder,
@@ -83,14 +90,15 @@ export function GalaxyBrowser() {
     } catch (e) {
       console.warn("Failed to save galaxy browser settings", e);
     }
-  }, [page, pageSize, sortBy, sortOrder, filter, searchTerm]);
+  }, [pageSize, sortBy, sortOrder, filter, searchTerm]);
 
   const userPrefs = useQuery(api.users.getUserPreferences);
 
-  // Reset to page 1 when filters change (except during initial hydration)
+  // When settings change we rely on Convex reactivity to refresh list. If we wanted to
+  // reset loaded results we could key the component, but for now leave accumulation.
   useEffect(() => {
     if (!didHydrateFromStorage.current) return;
-    setPage(1);
+    // No explicit reset; users can refresh if needed.
   }, [filter, sortBy, sortOrder, pageSize, debouncedSearchTerm]);
 
   const handleSort = (field: SortField) => {
@@ -145,7 +153,7 @@ export function GalaxyBrowser() {
     );
   };
 
-  if (!galaxyData) {
+  if (!galaxies) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="text-center">
@@ -156,7 +164,7 @@ export function GalaxyBrowser() {
     );
   }
 
-  const { galaxies, pagination } = galaxyData;
+  // galaxies already contains enriched page results from server (reactively accumulated)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
@@ -258,11 +266,12 @@ export function GalaxyBrowser() {
         </div>
       </div>
 
-      {/* Results Summary */}
-      <div className="mb-6">
+      {/* Results Status */}
+      <div className="mb-6 flex items-center justify-between">
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, pagination.total)} of {pagination.total} galaxies
+          Loaded {galaxies.length} galaxies{paginationStatus === "CanLoadMore" || paginationStatus === "LoadingMore" ? " (more available)" : ""}
         </p>
+        <div className="text-xs text-gray-500 dark:text-gray-400">Status: {paginationStatus}</div>
       </div>
 
       {/* Desktop Table View */}
@@ -345,7 +354,7 @@ export function GalaxyBrowser() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="w-16 h-16">
                       <ImageViewer
-                        imageUrl={getImageUrl(galaxy.id, "g_zscale_masked", { quality: userPrefs?.imageQuality || "medium" })}
+                        imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
                         alt={`Galaxy ${galaxy.id}`}
                         preferences={userPrefs}
                       />
@@ -417,7 +426,7 @@ export function GalaxyBrowser() {
             <div className="flex items-start space-x-4">
               <div className="w-20 h-20 flex-shrink-0">
                 <ImageViewer
-                  imageUrl={getImageUrl(galaxy.id, "g_zscale_masked", { quality: userPrefs?.imageQuality || "medium" })}
+                  imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
                   alt={`Galaxy ${galaxy.id}`}
                   preferences={userPrefs}
                 />
@@ -468,72 +477,22 @@ export function GalaxyBrowser() {
         ))}
       </div>
 
-      {/* Pagination */}
-      {pagination.totalPages > 1 && (
-        <div className="mt-8 flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setPage(Math.max(1, page - 1))}
-              disabled={!pagination.hasPrevious}
-              className={cn(
-                "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                pagination.hasPrevious
-                  ? "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-              )}
-            >
-              Previous
-            </button>
-            
-            <div className="flex items-center space-x-1">
-              {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                let pageNum;
-                if (pagination.totalPages <= 5) {
-                  pageNum = i + 1;
-                } else if (page <= 3) {
-                  pageNum = i + 1;
-                } else if (page >= pagination.totalPages - 2) {
-                  pageNum = pagination.totalPages - 4 + i;
-                } else {
-                  pageNum = page - 2 + i;
-                }
-                
-                return (
-                  <button
-                    key={pageNum}
-                    onClick={() => setPage(pageNum)}
-                    className={cn(
-                      "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                      page === pageNum
-                        ? "bg-blue-600 text-white"
-                        : "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                    )}
-                  >
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-            
-            <button
-              onClick={() => setPage(Math.min(pagination.totalPages, page + 1))}
-              disabled={!pagination.hasNext}
-              className={cn(
-                "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                pagination.hasNext
-                  ? "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                  : "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
-              )}
-            >
-              Next
-            </button>
-          </div>
-          
-          <div className="text-sm text-gray-600 dark:text-gray-300">
-            Page {page} of {pagination.totalPages}
-          </div>
-        </div>
-      )}
+      {/* Load More */}
+      <div className="mt-8 flex flex-col items-center space-y-4">
+        <button
+          onClick={() => loadMore(pageSize)}
+          disabled={paginationStatus !== "CanLoadMore"}
+          className={cn(
+            "px-5 py-2 rounded-md text-sm font-medium transition-colors",
+            paginationStatus === "CanLoadMore"
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-gray-200 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
+          )}
+        >
+          {paginationStatus === "LoadingMore" ? "Loading..." : paginationStatus === "Exhausted" ? "No More Galaxies" : "Load More"}
+        </button>
+        <div className="text-xs text-gray-500 dark:text-gray-400">Batch size: {pageSize}</div>
+      </div>
     </div>
   );
 }
