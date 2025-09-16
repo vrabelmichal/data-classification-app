@@ -30,6 +30,22 @@ export const getSkippedGalaxies = query({
     return skippedWithGalaxies.filter(item => item.galaxy !== null);
   },
 });
+
+// Check if a specific galaxy is skipped by the current user
+export const isGalaxySkipped = query({
+  args: { galaxyId: v.id("galaxies") },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return false;
+
+    const existing = await ctx.db
+      .query("skippedGalaxies")
+      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", args.galaxyId))
+      .unique();
+
+    return existing !== null;
+  },
+});
 // Remove galaxy from skipped list
 
 export const removeFromSkipped = mutation({
@@ -47,8 +63,21 @@ export const removeFromSkipped = mutation({
     if (skipped.userId !== userId) {
       throw new Error("Not authorized to remove this record");
     }
-
     await ctx.db.delete(args.skippedId);
+
+    // Update user's skipped count in the sequence
+    const sequence = await ctx.db
+      .query('galaxySequences')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .order('desc')
+      .first();
+
+    if (sequence && sequence.galaxyIds && sequence.galaxyIds.includes(skipped.galaxyId)) {
+      await ctx.db.patch(sequence._id, {
+        numSkipped: Math.max((sequence.numSkipped || 1) - 1, 0),
+      });
+    }
+
     return { success: true };
   },
 });// Skip galaxy
@@ -70,7 +99,7 @@ export const skipGalaxy = mutation({
       .unique();
 
     if (existing) {
-      throw new Error("Galaxy already skipped");
+      return { success: true };
     }
 
     // Insert skip record
@@ -79,6 +108,19 @@ export const skipGalaxy = mutation({
       galaxyId: args.galaxyId,
       comments: args.comments,
     });
+
+    // Update user's skipped count in the sequence
+    const sequence = await ctx.db
+      .query('galaxySequences')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .order('desc')
+      .first();
+
+    if (sequence && sequence.galaxyIds && sequence.galaxyIds.includes(args.galaxyId)) {
+      await ctx.db.patch(sequence._id, {
+        numSkipped: (sequence.numSkipped || 0) + 1,
+      });
+    }
 
     return { success: true };
   },

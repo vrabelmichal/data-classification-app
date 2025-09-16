@@ -35,6 +35,10 @@ export function ClassificationInterface() {
   const [currentContrastGroup, setCurrentContrastGroup] = useState(0);
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const quickInputRef = useRef<HTMLInputElement>(null);
+  // Track last applied classification doc so we don't overwrite user edits repeatedly
+  const lastAppliedClassificationId = useRef<string | null>(null);
+  // Lock form inputs while classification data loads for a new galaxy
+  const [formLocked, setFormLocked] = useState<boolean>(true);
 
   // "skip" prevevents the query from running
 
@@ -53,6 +57,8 @@ export function ClassificationInterface() {
     currentGalaxy ? { currentGalaxyId: currentGalaxy._id } : {}
   );
 
+  const isSkipped = useQuery(api.galaxies_skipped.isGalaxySkipped, currentGalaxy ? { galaxyId: currentGalaxy._id } : "skip");
+
 
   const submitClassification = useMutation(api.classification.submitClassification);
   const skipGalaxy = useMutation(api.galaxies_skipped.skipGalaxy);
@@ -68,33 +74,33 @@ export function ClassificationInterface() {
       "g_zscale_masked": "Masked g-Band (zscale)",
       "residual_zscale": "Residual (zscale)",
       "model_100_0": "Galfit Model (100%)",
-      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
-      "aplpy_defaults_unmasked": "APLpy Defaults (unmasked)",
-      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
+      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh\n(p0.01–100, vmid=0.1)",
+      "aplpy_defaults_unmasked": "APLpy Defaults\n(unmasked)",
+      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear\n(p1_995 wide, unmasked)"
     },
     {
       "g_99_9_masked": "Masked g-Band (99.9%)",
       "residual_100_0": "Residual (100%)",
       "model_99_9": "Galfit Model (99.9%)",
-      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
-      "aplpy_zscale_unmasked": "APLpy Zscale (unmasked)",
-      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
+      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh\n(p0.01–100, vmid=0.1)",
+      "aplpy_zscale_unmasked": "APLpy Zscale\n(unmasked)",
+      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear\n(p1_995 wide, unmasked)"
     },
     {
       "g_99_7_masked": "Masked g-Band (99.7%)",
       "residual_99_7": "Residual (99.7%)",
       "model_99_7": "Galfit Model (99.7%)",
-      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
-      "aplpy_zscale_unmasked": "APLpy Zscale (unmasked)",
-      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
+      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh\n(p0.01–100, vmid=0.1)",
+      "aplpy_zscale_unmasked": "APLpy Zscale\n(unmasked)",
+      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear\n(p1_995 wide, unmasked)"
     },
     {
       "g_99_0_masked": "Masked g-Band (99.0%)",
       "residual_99_7": "Residual (99.7%)",
       "model_99_7": "Galfit Model (99.7%)",
-      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
-      "aplpy_zscale_unmasked": "APLpy Zscale (unmasked)",
-      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
+      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh\n(p0.01–100, vmid=0.1)",
+      "aplpy_zscale_unmasked": "APLpy Zscale\n(unmasked)",
+      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear\n(p1_995 wide, unmasked)"
     }
   ]
 
@@ -109,7 +115,8 @@ export function ClassificationInterface() {
   // Create imageTypes array with resolved URLs using the current contrast group
   const imageTypes = Object.entries(currentImageGroup).map(([key, label]) => ({
     key,
-    name: label,
+    // Replace literal "\n" sequences with real newlines so we can rely on whitespace-pre-line
+    name: label.replace(/\\n/g, '\n'),
     url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, { 
       quality: userPrefs?.imageQuality || "medium" 
     }) : null,
@@ -153,46 +160,7 @@ export function ClassificationInterface() {
   //   }
   // }, [userProfile, galaxy, generateSequence]);
 
-  // Reset form when new galaxy loads
-  useEffect(() => {
-    console.log("Resetting form for new galaxy:", currentGalaxy?.id);
-    if (currentGalaxy) {
-      // Reset contrast group to first one for new galaxy
-      setCurrentContrastGroup(0);
-      
-      // preload existing classification or reset to defaults
-      console.log("Current galaxy data:", currentGalaxy);
-      if (currentGalaxy.lsb_class !== undefined) {
-        // THIS IS WRONG!!!
-        setLsbClass(currentGalaxy.lsb_class);
-        setMorphology(currentGalaxy.morphology);
-        setAwesomeFlag(currentGalaxy.awesome_flag);
-        setValidRedshift(currentGalaxy.valid_redshift);
-        setVisibleNucleus(currentGalaxy.visible_nucleus || false);
-        setComments(currentGalaxy.comments || "");
-        setQuickInput(
-          buildQuickInputString(
-            currentGalaxy.lsb_class,
-            currentGalaxy.morphology,
-            currentGalaxy.awesome_flag,
-            currentGalaxy.valid_redshift,
-            currentGalaxy.visible_nucleus || false
-          )
-        );
-      } else {
-        setLsbClass(null);
-        setMorphology(null);
-        setAwesomeFlag(false);
-        setValidRedshift(false);
-        setVisibleNucleus(false);
-        setComments("");
-        setQuickInput("");
-      }
-      setStartTime(Date.now());
-      // Auto-focus on quick input field
-      setTimeout(() => quickInputRef.current?.focus(), 100);
-    }
-  }, [currentGalaxy?.id]);
+  // (moved effects that depend on existingClassification below its declaration)
 
   // Parse quick input
   const parseQuickInput = (input: string) => {
@@ -418,9 +386,68 @@ export function ClassificationInterface() {
   // TODO: eliminate displayGalaxy and just use currentGalaxy, invesitigate if there are any cases where currentGalaxy is null but galaxy is not
   const displayGalaxy = currentGalaxy || galaxy;
 
+  const existingClassification = useQuery(
+    api.classification.getUserClassificationForGalaxy,
+    displayGalaxy?._id ? { galaxyRefId: displayGalaxy._id } : "skip"
+  );
+
+  // Reset form when new galaxy loads (independent of whether classification doc has arrived yet)
+  useEffect(() => {
+    if (!currentGalaxy) return;
+    setCurrentContrastGroup(0);
+    setLsbClass(null);
+    setMorphology(null);
+    setAwesomeFlag(false);
+    setValidRedshift(false);
+    setVisibleNucleus(false);
+    setComments("");
+    setQuickInput("");
+    lastAppliedClassificationId.current = null; // allow re-application when classification loads
+    setFormLocked(true); // lock until classification query resolves
+    setStartTime(Date.now());
+    setTimeout(() => quickInputRef.current?.focus(), 100);
+  }, [currentGalaxy?._id]);
+
+  // Apply existing classification once it becomes available (or changes) for the current galaxy
+  useEffect(() => {
+    if (!currentGalaxy || !existingClassification) return;
+    const sameGalaxy = String(existingClassification.galaxyId) === String(currentGalaxy._id) || String(existingClassification.galaxyId) === String(currentGalaxy.id);
+    if (!sameGalaxy) return;
+    if (lastAppliedClassificationId.current === existingClassification._id) return;
+    setLsbClass(existingClassification.lsb_class);
+    setMorphology(existingClassification.morphology);
+    setAwesomeFlag(existingClassification.awesome_flag);
+    setValidRedshift(existingClassification.valid_redshift);
+    setVisibleNucleus(existingClassification.visible_nucleus || false);
+    setComments(existingClassification.comments || "");
+    setQuickInput(
+      buildQuickInputString(
+        existingClassification.lsb_class,
+        existingClassification.morphology,
+        existingClassification.awesome_flag,
+        existingClassification.valid_redshift,
+        existingClassification.visible_nucleus || false
+      )
+    );
+    lastAppliedClassificationId.current = existingClassification._id;
+    setFormLocked(false);
+  }, [existingClassification?._id, currentGalaxy?._id]);
+
+  // Unlock if query finished and no classification found
+  useEffect(() => {
+    if (!currentGalaxy) return;
+    if (existingClassification === null) {
+      setFormLocked(false);
+    }
+  }, [existingClassification, currentGalaxy?._id]);
+
   // Dynamic page title: show galaxy id when available
   usePageTitle(() => {
-    if (displayGalaxy?.id) return `Classify ${displayGalaxy.id}`;
+    if (displayGalaxy?.id) {
+      const title = `Classify ${displayGalaxy.id}`;
+      if (isSkipped === true) return `${title} (Skipped)`;
+      return title;
+    }
     return "Classify";
   });
 
@@ -646,7 +673,8 @@ export function ClassificationInterface() {
                           option.value,
                           morphology,
                           awesomeFlag,
-                          validRedshift
+                          validRedshift,
+                          visibleNucleus
                         )
                       );
                     }}
@@ -694,10 +722,10 @@ export function ClassificationInterface() {
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={handleSubmit}
-              disabled={!canSubmit}
+              disabled={!canSubmit || formLocked}
               className={cn(
                 "py-3 px-4 rounded-lg font-semibold transition-colors",
-                canSubmit
+                canSubmit && !formLocked
                   ? "bg-green-600 hover:bg-green-700 text-white"
                   : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
               )}
@@ -706,6 +734,7 @@ export function ClassificationInterface() {
             </button>
             <button
               onClick={handleSkip}
+              disabled={formLocked}
               className="py-3 px-4 rounded-lg font-semibold bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition-colors"
             >
               Skip
@@ -742,7 +771,7 @@ export function ClassificationInterface() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {imageTypes.map((imageType, index) => (
                 <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center whitespace-pre-line">
                     {imageType.name}
                   </h3>
                   <div className="aspect-square">
@@ -824,6 +853,7 @@ export function ClassificationInterface() {
                       )
                     );
                   }}
+                  disabled={formLocked}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Awesome</span>
@@ -845,6 +875,7 @@ export function ClassificationInterface() {
                       )
                     );
                   }}
+                  disabled={formLocked}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Valid redshift</span>
@@ -866,6 +897,7 @@ export function ClassificationInterface() {
                       )
                     );
                   }}
+                  disabled={formLocked}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Visible nucleus</span>
@@ -899,7 +931,8 @@ export function ClassificationInterface() {
               onChange={(e) => handleQuickInputChange(e.target.value)}
               onKeyDown={handleQuickInputKeyDown}
               placeholder="Example: -1 or 1- or 0r (with a for awesome)"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              disabled={formLocked}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
               Format: [LSB: -/0/1] [Morph: -/0/1/2] (add "r" for redshift, "a" for awesome). Press Enter to submit.
@@ -918,7 +951,7 @@ export function ClassificationInterface() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {imageTypes.map((imageType, index) => (
               <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center whitespace-pre-line">
                   {imageType.name}
                 </h3>
                 <div className="aspect-square">
@@ -1023,11 +1056,13 @@ export function ClassificationInterface() {
                           option.value,
                           morphology,
                           awesomeFlag,
-                          validRedshift
+                          validRedshift,
+                          visibleNucleus
                         )
                       );
                     }}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    disabled={formLocked}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <div className="ml-3 flex items-center space-x-2">
                     <div className={`w-3 h-3 rounded-full ${option.color}`}></div>
@@ -1055,7 +1090,8 @@ export function ClassificationInterface() {
                     checked={morphology === option.value}
                     // checked={lastSelectedMorphology === option.value}
                     onChange={() => handleMorphologyChange(option.value)}
-                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                    disabled={formLocked}
+                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                   <div className="ml-3 flex items-center space-x-2">
                     <div className={`w-3 h-3 rounded-full ${option.color}`}></div>
@@ -1133,6 +1169,7 @@ export function ClassificationInterface() {
                       )
                     );
                   }}
+                  disabled={formLocked}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Awesome</span>
@@ -1154,12 +1191,13 @@ export function ClassificationInterface() {
                       )
                     );
                   }}
+                  disabled={formLocked}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Valid redshift</span>
               </label>
 
-              <label className={cn("flex items-center cursor-pointer", displayGalaxy.nucleus ? "bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded-md" : "")}>
+              <label className={cn("flex items-center cursor-pointer", displayGalaxy.nucleus ? "bg-yellow-50 dark:bg-yellow-900/20" : "")}>
                 <input
                   type="checkbox"
                   checked={visibleNucleus}
@@ -1175,6 +1213,7 @@ export function ClassificationInterface() {
                       )
                     );
                   }}
+                  disabled={formLocked}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                 />
                 <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">Visible nucleus</span>
@@ -1191,6 +1230,7 @@ export function ClassificationInterface() {
               value={comments}
               onChange={(e) => setComments(e.target.value)}
               placeholder="Add any observations or comments..."
+              disabled={formLocked}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white resize-none"
               rows={3}
             />
@@ -1202,12 +1242,13 @@ export function ClassificationInterface() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+    <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
       {/* Header with keyboard shortcuts button */}
       <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+          <h1 className={cn("text-2xl font-bold text-gray-900 dark:text-white", isSkipped === true && "bg-yellow-100 dark:bg-yellow-900/20 px-2 py-1 rounded")}>
             Galaxy: {displayGalaxy.id}
+            {isSkipped === true && <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">(skipped)</span>}
           </h1>
           {navigation && (
             <div className="text-sm text-gray-500 dark:text-gray-400">
