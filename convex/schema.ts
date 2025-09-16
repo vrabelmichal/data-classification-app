@@ -159,7 +159,15 @@ const applicationTables = {
   //   x: v.optional(v.number()),
   //   y: v.optional(v.number()),
   // }).index("by_external_id", ["id"]),
-  galaxies: defineTable(galaxySchemaDefinition).index("by_external_id", ["id"]),
+  galaxies: defineTable(galaxySchemaDefinition)
+    .index("by_external_id", ["id"])
+    // Indexes to support ordering/filtering in paginated browser
+    .index("by_ra", ["ra"]) // right ascension
+    .index("by_dec", ["dec"]) // declination
+    .index("by_reff", ["reff"]) // effective radius
+    .index("by_q", ["q"]) // axis ratio
+    .index("by_pa", ["pa"]) // position angle
+    .index("by_nucleus", ["nucleus"]), // nucleus boolean for grouping
 
   // Split photometry tables (one doc per galaxy per band)
   galaxies_photometry_g: defineTable(photometryBandSchema).index("by_galaxy", ["galaxyRef"]),
