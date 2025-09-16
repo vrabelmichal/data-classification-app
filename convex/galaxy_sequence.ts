@@ -22,7 +22,7 @@ you can clear and rebuild with galaxiesAggregate.clear(ctx) followed by backfill
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
-import { galaxiesAggregate } from "./galaxies";
+import { galaxyIdsAggregate } from "./galaxies";
 
 
 // Generate user sequence
@@ -51,7 +51,7 @@ export const generateRandomUserSequence = mutation({
     }
 
     // Obtain total count via aggregate (O(log n)). If zero, bail.
-    const totalGalaxies = await galaxiesAggregate.count(ctx);
+    const totalGalaxies = await galaxyIdsAggregate.count(ctx);
     if (totalGalaxies === 0) throw new Error("No galaxies available");
 
     // Cap fetch window for performance.
@@ -64,13 +64,13 @@ export const generateRandomUserSequence = mutation({
     const startOffset = Math.floor(Math.random() * (maxStart + 1));
 
     // Aggregate is defined with Key = _id (string ordering). Use at() to get starting document id.
-    const { id: startDocId } = await galaxiesAggregate.at(ctx, startOffset);
+    const { id: startDocId } = await galaxyIdsAggregate.at(ctx, startOffset);
 
     // Sequentially pull ids from offsets [startOffset, startOffset + fetchLimit)
     const candidateIds: string[] = [];
     const upperBound = Math.min(startOffset + fetchLimit, totalGalaxies);
     for (let off = startOffset; off < upperBound; off++) {
-      const { id } = await galaxiesAggregate.at(ctx, off);
+      const { id } = await galaxyIdsAggregate.at(ctx, off);
       candidateIds.push(id as any);
     }
 

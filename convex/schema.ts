@@ -162,6 +162,11 @@ const applicationTables = {
   // }).index("by_external_id", ["id"]),
   galaxies: defineTable(galaxySchemaDefinition).index("by_external_id", ["id"]),
 
+  galaxyIds: defineTable({
+    id: v.string(), // Just a table of galaxy IDs for aggregation
+    galaxyRef: v.id("galaxies"),
+  }).index("by_external_id", ["id"]),
+
   // User profiles
   userProfiles: defineTable({
     userId: v.id("users"),

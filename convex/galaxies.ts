@@ -5,16 +5,46 @@ import { Id } from "./_generated/dataModel";
 import { TableAggregate } from "@convex-dev/aggregate";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
+import { MutationCtx } from "./_generated/server";
+import { Doc } from "./_generated/dataModel";
 
 
 // Aggregate for galaxies: unsorted (null) key -> underlying order by _id (pseudo-random)
-export const galaxiesAggregate = new TableAggregate<{
+// export const galaxiesAggregate = new TableAggregate<{
+//   Key: string;
+//   DataModel: DataModel;
+//   TableName: "galaxies";
+// }>(components.aggregate, {
+//   sortKey: (doc) => doc._id,
+// });
+
+export const galaxyIdsAggregate = new TableAggregate<{
   Key: string;
   DataModel: DataModel;
-  TableName: "galaxies";
+  TableName: "galaxyIds";
 }>(components.aggregate, {
   sortKey: (doc) => doc._id,
 });
+
+// helper function to properly insert a galaxy into galaxies, galaxiesAggregate, and galaxyIds
+// Helper function to properly insert a galaxy into galaxies, galaxiesAggregate, and galaxyIds
+export async function insertGalaxy(
+  ctx: MutationCtx,
+  galaxy: Omit<Doc<"galaxies">, "_id">
+) 
+{
+  const id = await ctx.db.insert("galaxies", galaxy);
+  // const doc = await ctx.db.get(id);
+  // if (doc) {
+  //   await galaxiesAggregate.insert(ctx, doc);
+    const galaxyId_id = await ctx.db.insert("galaxyIds", { id: galaxy.id, galaxyRef: id });
+    const galaxyId_doc = await ctx.db.get(galaxyId_id);
+    if (galaxyId_doc) {
+      await galaxyIdsAggregate.insert(ctx, galaxyId_doc);
+    }
+  // }
+  return id;
+}
 
 // Get next galaxy for classification
 export const getNextGalaxy = query({
