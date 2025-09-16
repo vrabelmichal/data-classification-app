@@ -6,8 +6,17 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { galaxySchemaDefinition } from "./schema";
-import { insertGalaxy } from "./galaxies";
+import { galaxySchemaDefinition, photometryBandSchema, photometryBandSchemaR, photometryBandSchemaI, sourceExtractorSchema, thuruthipillySchema } from "./schema";
+// Ingestion now expects each array element shaped as:
+// {
+//   galaxy: { core galaxy fields },
+//   photometryBand?: { sersic: {...} }, // g band
+//   photometryBandR?: { sersic?: {...} },
+//   photometryBandI?: { sersic?: {...} },
+//   sourceExtractor?: { g:{}, r:{}, i:{}, y?:{}, z?:{} },
+//   thuruthipilly?: { ... }
+// }
+import { insertGalaxy, galaxyIdsAggregate } from "./galaxies";
 
 /**
  * Constant-time comparison to avoid timing leaks.
@@ -24,11 +33,60 @@ function timingSafeEqual(a: string, b: string): boolean {
 /**
  * Schemas
  */
-// Match extended schema in `schema.ts` (imageUrl removed; new nested objects)
-const galaxySchema = v.object(galaxySchemaDefinition);
+// Individual object validators mirroring split tables
+const galaxyCoreSchema = v.object(galaxySchemaDefinition);
+const gBandSchema = v.optional(v.union(
+  v.null(),
+  v.object({ sersic: photometryBandSchema.sersic } as any)
+));
+const rBandSchema = v.optional(v.union(
+  v.null(),
+  v.object({ sersic: photometryBandSchemaR.sersic } as any)
+));
+const iBandSchema = v.optional(v.union(
+  v.null(),
+  v.object({ sersic: photometryBandSchemaI.sersic } as any)
+));
+const sourceExtractorSplitSchema = v.optional(v.union(
+  v.null(),
+  v.object({
+    g: sourceExtractorSchema.g,
+    r: sourceExtractorSchema.r,
+    i: sourceExtractorSchema.i,
+    y: sourceExtractorSchema.y ?? v.optional(v.object({})),
+    z: sourceExtractorSchema.z ?? v.optional(v.object({})),
+  })
+));
+const thuruthipillySplitSchema = v.optional(v.union(
+  v.null(),
+  v.object({
+    n: thuruthipillySchema.n,
+    q: thuruthipillySchema.q,
+    reff_g: thuruthipillySchema.reff_g,
+    reff_i: thuruthipillySchema.reff_i,
+    mag_g_cor: thuruthipillySchema.mag_g_cor,
+    mag_g_gf: thuruthipillySchema.mag_g_gf,
+    mag_i_cor: thuruthipillySchema.mag_i_cor,
+    mag_i_gf: thuruthipillySchema.mag_i_gf,
+    mue_mean_g_gf: thuruthipillySchema.mue_mean_g_gf,
+    mu_mean_g_cor: thuruthipillySchema.mu_mean_g_cor,
+    mue_mean_i_gf: thuruthipillySchema.mue_mean_i_gf,
+    mu_mean_i_cor: thuruthipillySchema.mu_mean_i_cor,
+  })
+));
+
+// New batch item schema
+const batchGalaxyItem = v.object({
+  galaxy: galaxyCoreSchema,
+  photometryBand: gBandSchema,       // g band
+  photometryBandR: rBandSchema,
+  photometryBandI: iBandSchema,
+  sourceExtractor: sourceExtractorSplitSchema,
+  thuruthipilly: thuruthipillySplitSchema,
+});
 
 const batchArgs = {
-  galaxies: v.array(galaxySchema),
+  galaxies: v.array(batchGalaxyItem),
 };
 
 /**
@@ -45,40 +103,39 @@ async function insertGalaxiesBatchHelper(
     errors: [] as string[],
   };
 
-  for (const galaxy of galaxies) {
+
+    // Find maximum value of numericId so far using galaxyIdsAggregate
+    const maxNumericIdFromAgg = await galaxyIdsAggregate.max(ctx);
+    
+    let resolvedNumericId = maxNumericIdFromAgg !== null ? maxNumericIdFromAgg.key + BigInt(1) : BigInt(1);
+
+  for (const item of galaxies) {
     try {
+      const { galaxy, photometryBand, photometryBandR, photometryBandI, sourceExtractor, thuruthipilly } = item;
+      // Check existence in core table by external id
       const existing = await ctx.db
         .query("galaxyIds")
         .withIndex("by_external_id", (q) => q.eq("id", galaxy.id))
         .unique();
-
       if (existing) {
         results.skipped++;
         continue;
       }
 
-      // Supply defaults for required nested objects if missing
-      const toInsert = {
-        ...galaxy,
-        photometry: galaxy.photometry ?? {
-          g: { sersic: {}, source_extractor: {} },
-          r: { sersic: {}, source_extractor: {} },
-          i: { sersic: {}, source_extractor: {} },
-        },
-        misc: galaxy.misc ?? {},
-        thuruthipilly: galaxy.thuruthipilly ?? {},
-      };
-      // await ctx.db.insert("galaxies", toInsert);
-      // await galaxiesAggregate.insert(ctx, toInsert);
-      // const id = await ctx.db.insert("galaxies", toInsert);
-      // const doc = await ctx.db.get(id);
-      // await galaxiesAggregate.insert(ctx, doc!);
-
-      // insertGalaxy(ctx, toInsert);
-
+      await insertGalaxy(
+        ctx,
+        galaxy,
+        photometryBand || undefined,
+        photometryBandR || undefined,
+        photometryBandI || undefined,
+        sourceExtractor || undefined,
+        thuruthipilly || undefined,
+        resolvedNumericId
+      );
       results.inserted++;
+      resolvedNumericId++; // Increment for next galaxy
     } catch (error) {
-      results.errors.push(`Error inserting galaxy ${galaxy.id}: ${String(error)}`);
+      results.errors.push(`Error inserting galaxy ${(item.galaxy && item.galaxy.id) || 'unknown'}: ${String(error)}`);
     }
   }
 

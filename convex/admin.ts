@@ -9,6 +9,8 @@ export const makeCurrentUserAdmin = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
+    console.log("CAUTION DEBUG FUNCTIONALITY!!! Making user admin:", userId);
+
     // Create user profile if doesn't exist
     await ctx.db.insert("userProfiles", {
       userId,

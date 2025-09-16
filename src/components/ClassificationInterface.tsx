@@ -31,6 +31,8 @@ export function ClassificationInterface() {
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const quickInputRef = useRef<HTMLInputElement>(null);
 
+  // "skip" prevevents the query from running
+
   const galaxyByExternalId = useQuery(
     api.galaxies.getGalaxyByExternalId,
     routeGalaxyId ? { externalId: routeGalaxyId } : "skip"
@@ -134,7 +136,7 @@ export function ClassificationInterface() {
 
   const submitClassification = useMutation(api.galaxies.submitClassification);
   const skipGalaxy = useMutation(api.galaxies.skipGalaxy);
-  const generateSequence = useMutation(api.galaxies.generateUserSequence);
+  // const generateSequence = useMutation(api.galaxies.generateUserSequence);
   const navigateToGalaxy = useMutation(api.galaxies.navigateToGalaxy);
 
   // Track screen size changes
@@ -162,15 +164,15 @@ export function ClassificationInterface() {
   }, [routeGalaxyId, galaxyByExternalId, galaxy, navigate]);
 
   // Generate sequence if not exists
-  useEffect(() => {
-    if (userProfile && !userProfile.sequenceGenerated && galaxy === null) {
-      generateSequence({}).then(() => {
-        toast.success("Galaxy sequence generated!");
-      }).catch((error) => {
-        console.error("Failed to generate sequence:", error);
-      });
-    }
-  }, [userProfile, galaxy, generateSequence]);
+  // useEffect(() => {
+  //   if (userProfile && !userProfile.sequenceGenerated && galaxy === null) {
+  //     generateSequence({}).then(() => {
+  //       toast.success("Galaxy sequence generated!");
+  //     }).catch((error) => {
+  //       console.error("Failed to generate sequence:", error);
+  //     });
+  //   }
+  // }, [userProfile, galaxy, generateSequence]);
 
   // Reset form when new galaxy loads
   useEffect(() => {
@@ -435,10 +437,6 @@ export function ClassificationInterface() {
 
   // TODO: eliminate displayGalaxy and just use currentGalaxy, invesitigate if there are any cases where currentGalaxy is null but galaxy is not
   const displayGalaxy = currentGalaxy || galaxy;
-  if (!displayGalaxy) {
-    console.log("displayGalaxy is null");
-    return null;
-  }
 
   if (currentGalaxy === undefined && galaxy === undefined) {
     return (
@@ -450,7 +448,7 @@ export function ClassificationInterface() {
       </div>
     );
   }
-
+  
   if (!currentGalaxy && !galaxy) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8">
@@ -462,13 +460,35 @@ export function ClassificationInterface() {
               </svg>
             </div>
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-              {userProfile?.sequenceGenerated ? "All Done! 🎉" : "Setting up your sequence..."}
+              {userProfile?.sequenceGenerated ? "All Done! 🎉" : "User does not have a generated sequence."}
             </h3>
             <p className="text-gray-600 dark:text-gray-300">
               {userProfile?.sequenceGenerated
                 ? "You've classified all galaxies in your sequence. Thank you for your contribution!"
                 : "We're generating a personalized sequence of galaxies for you to classify."
               }
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!displayGalaxy) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8">
+        <div className="text-center max-w-md">
+          <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 dark:bg-red-900/40 rounded-full">
+              <svg className="w-6 h-6 text-red-600 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              No galaxies to show
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300">
+              There are currently no galaxies available for classification in your sequence.
             </p>
           </div>
         </div>

@@ -25,92 +25,117 @@ import { mutation } from "./_generated/server";
 import { galaxyIdsAggregate } from "./galaxies";
 
 
-// Generate user sequence
+
 export const generateRandomUserSequence = mutation({
-  args: {
-    targetUserId: v.optional(v.id("users")),
-    sequenceSize: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    args: {
+        targetUserId: v.optional(v.id("users")),
+        sequenceSize: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Not authenticated");
 
-    const targetUserId = args.targetUserId || userId;
-    const requestedSize = args.sequenceSize || 50;
-    const MAX_SEQUENCE = 500000;
-    const sequenceSize = Math.min(Math.max(1, requestedSize), MAX_SEQUENCE);
+        const targetUserId = args.targetUserId || userId;
+        const requestedSize = args.sequenceSize || 50;
+        const MAX_SEQUENCE = 500000;
+        const sequenceSize = Math.min(Math.max(1, requestedSize), MAX_SEQUENCE);
 
-    if (targetUserId !== userId) {
-      const currentProfile = await ctx.db
-        .query("userProfiles")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .unique();
-      if (!currentProfile || currentProfile.role !== "admin") {
-        throw new Error("Admin access required");
-      }
-    }
+        if (targetUserId !== userId) {
+            const currentProfile = await ctx.db
+                .query("userProfiles")
+                .withIndex("by_user", (q) => q.eq("userId", userId))
+                .unique();
+            if (!currentProfile || currentProfile.role !== "admin") {
+                throw new Error("Admin access required");
+            }
+        }
+        
+        // Obtain total count via aggregate (O(log n)). If zero, bail.
+        const totalGalaxies = await galaxyIdsAggregate.count(ctx);
+        if (totalGalaxies === 0) throw new Error("No galaxies available");
+        
+        // Cap fetch window for performance.
+        const OVERSAMPLE_FACTOR = 5;
+        const MAX_FETCH = 50000;
+        const fetchLimit = Math.min(sequenceSize * OVERSAMPLE_FACTOR, MAX_FETCH);
+        // Pick random start offset so that we have at most fetchLimit docs ahead.
+        const maxStart = Math.max(0, totalGalaxies - fetchLimit);
+        const startOffset = Math.floor(Math.random() * (maxStart + 1));
 
-    // Obtain total count via aggregate (O(log n)). If zero, bail.
-    const totalGalaxies = await galaxyIdsAggregate.count(ctx);
-    if (totalGalaxies === 0) throw new Error("No galaxies available");
+        console.log(`Total galaxies: ${totalGalaxies}, Fetch limit: ${fetchLimit}, Start offset: ${startOffset}`);
 
-    // Cap fetch window for performance.
-    const OVERSAMPLE_FACTOR = 5;
-    const MAX_FETCH = 5000;
-    const fetchLimit = Math.min(sequenceSize * OVERSAMPLE_FACTOR, MAX_FETCH);
+        // Aggregate is defined with Key = _id (string ordering). Use at() to get starting document id.
+        const galaxyIdAtOffsetAggregate = await galaxyIdsAggregate.at(ctx, startOffset);
 
-    // Pick random start offset so that we have at most fetchLimit docs ahead.
-    const maxStart = Math.max(0, totalGalaxies - fetchLimit);
-    const startOffset = Math.floor(Math.random() * (maxStart + 1));
+        console.log(`Starting document ID at offset ${startOffset}: ${galaxyIdAtOffsetAggregate.id}, numericId: ${galaxyIdAtOffsetAggregate.key}`);
 
-    // Aggregate is defined with Key = _id (string ordering). Use at() to get starting document id.
-    const { id: startDocId } = await galaxyIdsAggregate.at(ctx, startOffset);
+        // pull ids using the aggregate, the it is sorting using numericId (bigint)
+        const galaxyIdRefs = (
+            await ctx.db
+            .query("galaxyIds")
+            .withIndex("by_numeric_id", (q) => q.gte("numericId", galaxyIdAtOffsetAggregate.key))
+            .take(fetchLimit)
+        ).map((r) => r.galaxyRef);
 
-    // Sequentially pull ids from offsets [startOffset, startOffset + fetchLimit)
-    const candidateIds: string[] = [];
-    const upperBound = Math.min(startOffset + fetchLimit, totalGalaxies);
-    for (let off = startOffset; off < upperBound; off++) {
-      const { id } = await galaxyIdsAggregate.at(ctx, off);
-      candidateIds.push(id as any);
-    }
+        console.log(`Fetched ${galaxyIdRefs.length} candidate galaxy IDs from offset ${startOffset}`);
+        // log first 10 ids
+        console.log("First 10 candidate IDs:", galaxyIdRefs.slice(0, 10));
 
-    // Shuffle candidate IDs (Fisher-Yates)
-    for (let i = candidateIds.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [candidateIds[i], candidateIds[j]] = [candidateIds[j], candidateIds[i]];
-    }
-    const chosen = candidateIds.slice(0, Math.min(sequenceSize, candidateIds.length));
+        // Shuffle candidate IDs (Fisher-Yates)
+        for (let i = galaxyIdRefs.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [galaxyIdRefs[i], galaxyIdRefs[j]] = [galaxyIdRefs[j], galaxyIdRefs[i]];
+        }
+        const chosen = galaxyIdRefs.slice(0, Math.min(sequenceSize, galaxyIdRefs.length));
 
-    // Remove existing sequence
-    const existingSequence = await ctx.db
-      .query("galaxySequences")
-      .withIndex("by_user", (q) => q.eq("userId", targetUserId))
-      .unique();
-    if (existingSequence) await ctx.db.delete(existingSequence._id);
+        console.log(`Chosen ${chosen.length} galaxy IDs for the sequence`);
+        console.log("First 10 chosen IDs:", chosen.slice(0, 10));
 
-    await ctx.db.insert("galaxySequences", {
-      userId: targetUserId,
-      galaxyIds: chosen as any,
-    });
 
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", targetUserId))
-      .unique();
-    if (userProfile) await ctx.db.patch(userProfile._id, { sequenceGenerated: true });
+        let success = false;
 
-    return {
-      success: true,
-      message: `Generated sequence of ${chosen.length} galaxy IDs (requested ${sequenceSize})`,
-      requested: sequenceSize,
-      generated: chosen.length,
-      fetchLimitUsed: fetchLimit,
-      startOffset,
-      totalGalaxies,
-      windowEndExclusive: upperBound,
-      aggregateUsed: true,
-      keyUsed: startDocId,
-      note: totalGalaxies > fetchLimit ? "Random contiguous window sampled; for fully uniform sample consider multi-offset strategy or reservoir sampling over multiple invocations." : undefined,
-    };
+        if (chosen.length > 0) {
+            // Remove existing sequence
+            const existingSequence = await ctx.db
+                .query("galaxySequences")
+                .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+                .unique();
+            if (existingSequence) await ctx.db.delete(existingSequence._id);
+
+            await ctx.db.insert("galaxySequences", {
+                userId: targetUserId,
+                galaxyIds: chosen as any,
+                currentIndex: 0,
+                numClassified: 0,
+                numSkipped: 0,
+            });
+
+            const userProfile = await ctx.db
+                .query("userProfiles")
+                .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+                .unique();
+            if (userProfile) 
+                await ctx.db.patch(userProfile._id, { sequenceGenerated: true });
+            success = true;
+        }
+
+        return {
+            success: success,
+            message: success
+            ? `Generated sequence of ${chosen.length} galaxy IDs (requested ${sequenceSize})`
+            : "No galaxy IDs generated",
+            requested: sequenceSize,
+            generated: chosen.length,
+            fetchLimitUsed: fetchLimit,
+            startOffset,
+            totalGalaxies,
+            windowEndExclusive: startOffset + fetchLimit,
+            aggregateUsed: true,
+            keyUsed: galaxyIdAtOffsetAggregate.id,
+            note: totalGalaxies > fetchLimit
+            ? "Random contiguous window sampled; for fully uniform sample consider multi-offset strategy or reservoir sampling over multiple invocations."
+            : undefined,
+        };
   },
 });
+

@@ -9,41 +9,87 @@ import { MutationCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 
 
-// Aggregate for galaxies: unsorted (null) key -> underlying order by _id (pseudo-random)
-// export const galaxiesAggregate = new TableAggregate<{
-//   Key: string;
-//   DataModel: DataModel;
-//   TableName: "galaxies";
-// }>(components.aggregate, {
-//   sortKey: (doc) => doc._id,
-// });
-
 export const galaxyIdsAggregate = new TableAggregate<{
-  Key: string;
+  Key: bigint;
   DataModel: DataModel;
   TableName: "galaxyIds";
 }>(components.aggregate, {
-  sortKey: (doc) => doc._id,
+  sortKey: (doc) => doc.numericId,
 });
+
+
+export const clearGalaxyIdsAggregate = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // make sure only admin can call this
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    // Check if user is admin
+    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
+    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
+    
+    await galaxyIdsAggregate.clear(ctx);
+  },
+});
+
 
 // helper function to properly insert a galaxy into galaxies, galaxiesAggregate, and galaxyIds
 // Helper function to properly insert a galaxy into galaxies, galaxiesAggregate, and galaxyIds
 export async function insertGalaxy(
   ctx: MutationCtx,
-  galaxy: Omit<Doc<"galaxies">, "_id">
-) 
-{
-  const id = await ctx.db.insert("galaxies", galaxy);
-  // const doc = await ctx.db.get(id);
-  // if (doc) {
-  //   await galaxiesAggregate.insert(ctx, doc);
-    const galaxyId_id = await ctx.db.insert("galaxyIds", { id: galaxy.id, galaxyRef: id });
-    const galaxyId_doc = await ctx.db.get(galaxyId_id);
-    if (galaxyId_doc) {
-      await galaxyIdsAggregate.insert(ctx, galaxyId_doc);
+  galaxy: Omit<Doc<'galaxies'>, '_id'>,
+  photometryBand?: { sersic: any }, // g band required object shape if present
+  photometryBandR?: { sersic?: any },
+  photometryBandI?: { sersic?: any },
+  sourceExtractor?: { g: any; r: any; i: any; y?: any; z?: any },
+  thuruthipilly?: any,
+  numbericId?: bigint,
+): Promise<Id<'galaxies'>> {
+  // Insert core row first
+  const galaxyRef = await ctx.db.insert("galaxies", galaxy);
+
+  // if numericId is not provided, find the max numericId and increment or set to 1 if none exist, 
+  //   use galaxyIdsAggregate to find max value of numericId
+  let resolvedNumericId : bigint;
+  if (!numbericId) {
+    const maxNumericIdFromAgg = await galaxyIdsAggregate.max(ctx);
+    console.log("Max numericId from aggregate:", maxNumericIdFromAgg);
+    resolvedNumericId = maxNumericIdFromAgg !== null ? maxNumericIdFromAgg.key + BigInt(1) : BigInt(1);
+  } else {
+    resolvedNumericId = numbericId;
+  }
+
+  // Maintain galaxyIds aggregate table
+  const galaxyId_id = await ctx.db.insert("galaxyIds", { id: galaxy.id, galaxyRef, numericId: resolvedNumericId });
+  const galaxyId_doc = await ctx.db.get(galaxyId_id);
+  if (galaxyId_doc) {
+    await galaxyIdsAggregate.insert(ctx, galaxyId_doc);
+  }
+
+  // Per-band photometry tables
+  if (photometryBand) {
+    await ctx.db.insert("galaxies_photometry_g", { galaxyRef, band: "g", ...photometryBand });
+  }
+  if (photometryBandR) {
+    await ctx.db.insert("galaxies_photometry_r", { galaxyRef, band: "r", ...photometryBandR });
+  }
+  if (photometryBandI) {
+    await ctx.db.insert("galaxies_photometry_i", { galaxyRef, band: "i", ...photometryBandI });
+  }
+
+  if (sourceExtractor) {
+    // Only insert if at least one band has some data
+    const hasData = Object.values(sourceExtractor).some(v => v && Object.keys(v).length > 0);
+    if (hasData) {
+      await ctx.db.insert("galaxies_source_extractor", { galaxyRef, ...sourceExtractor });
     }
-  // }
-  return id;
+  }
+
+  if (thuruthipilly && Object.keys(thuruthipilly).length > 0) {
+    await ctx.db.insert("galaxies_thuruthipilly", { galaxyRef, ...thuruthipilly });
+  }
+
+  return galaxyRef;
 }
 
 // Get next galaxy for classification
@@ -64,29 +110,29 @@ export const getNextGalaxy = query({
 
     // Handle new format (array of galaxy IDs)
     if (sequence.galaxyIds && sequence.galaxyIds.length > 0) {
-      for (const galaxyId of sequence.galaxyIds) {
-        // Check if already classified
-        const existingClassification = await ctx.db
-          .query("classifications")
-          .withIndex("by_user_and_galaxy", (q) => 
-            q.eq("userId", userId).eq("galaxyId", galaxyId)
-          )
-          .unique();
+      // Get all skipped galaxy IDs for user
+      const skippedRecords = await ctx.db
+        .query("skippedGalaxies")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .collect();
+      const skippedIds = new Set(skippedRecords.map(r => r.galaxyId));
 
-        // Check if skipped
-        const isSkipped = await ctx.db
-          .query("skippedGalaxies")
-          .withIndex("by_user_and_galaxy", (q) => 
-            q.eq("userId", userId).eq("galaxyId", galaxyId)
-          )
-          .unique();
+      // Get all classified galaxy IDs for user
+      const classifiedRecords = await ctx.db
+        .query("classifications")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .collect();
+      const classifiedIds = new Set(classifiedRecords.map(r => r.galaxyId));
 
-        if (!existingClassification && !isSkipped) {
-          const galaxy = await ctx.db.get(galaxyId);
-          return galaxy;
-        }
+      // Filter out skipped and classified IDs from sequence
+      const remainingGalaxyIds = sequence.galaxyIds.filter(
+        id => !skippedIds.has(id) && !classifiedIds.has(id)
+      );
+
+      if (remainingGalaxyIds.length > 0) {
+        const galaxy = await ctx.db.get(remainingGalaxyIds[0]);
+        return galaxy;
       }
-
       return null; // All galaxies in new format sequence are done
     }
     
@@ -117,32 +163,27 @@ export const getGalaxyNavigation = query({
 
     let currentIndex = -1;
 
+
     if (args.currentGalaxyId) {
-      // Find the specific galaxy's position in the sequence
-      currentIndex = sequence.galaxyIds.findIndex(id => id === args.currentGalaxyId);
+      // Find the specific galaxy's position in the sequence using stringified IDs
+      const targetStr = args.currentGalaxyId.toString();
+      currentIndex = sequence.galaxyIds.findIndex(id => id.toString() === targetStr);
     } else {
-      // Find first unclassified galaxy position
+
+      // Fetch classified and skipped IDs once to avoid many DB queries in a loop
+      const [skippedRecords, classifiedRecords] = await Promise.all([
+        ctx.db.query("skippedGalaxies").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
+        ctx.db.query("classifications").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
+      ]);
+
+      const skippedIds = new Set(skippedRecords.map(r => r.galaxyId.toString()));
+      const classifiedIds = new Set(classifiedRecords.map(r => r.galaxyId.toString()));
+
+      // Find first unclassified and unskipped galaxy position using the pre-fetched sets
       for (let i = 0; i < sequence.galaxyIds.length; i++) {
-      const galaxyId = sequence.galaxyIds[i];
-      
-      // Check if already classified
-      const existingClassification = await ctx.db
-        .query("classifications")
-        .withIndex("by_user_and_galaxy", (q) => 
-          q.eq("userId", userId).eq("galaxyId", galaxyId)
-        )
-        .unique();
-
-      // Check if skipped
-      const isSkipped = await ctx.db
-        .query("skippedGalaxies")
-        .withIndex("by_user_and_galaxy", (q) => 
-          q.eq("userId", userId).eq("galaxyId", galaxyId)
-        )
-        .unique();
-
-      if (!existingClassification && !isSkipped) {
-        currentIndex = i;
+        const galaxyIdStr = sequence.galaxyIds[i].toString();
+        if (!classifiedIds.has(galaxyIdStr) && !skippedIds.has(galaxyIdStr)) {
+          currentIndex = i;
           break;
         }
       }
@@ -178,59 +219,57 @@ export const navigateToGalaxy = mutation({
 
     if (!sequence || !sequence.galaxyIds) throw new Error("No sequence found");
 
-    // Find current position
-    let currentIndex = -1;
+    // Fetch skipped then classified records once
+    const [skippedRecords, classifiedRecords] = await Promise.all([
+      ctx.db.query("skippedGalaxies").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
+      ctx.db.query("classifications").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
+    ]);
+
+    const skippedIds = new Set(skippedRecords.map(r => r.galaxyId.toString()));
+    const classifiedIds = new Set(classifiedRecords.map(r => r.galaxyId.toString()));
+
+    // Build remaining list by removing skipped then classified
+    const remainingGalaxyIds = sequence.galaxyIds.filter(id => {
+      const idStr = id.toString();
+      return !skippedIds.has(idStr) && !classifiedIds.has(idStr);
+    });
+
+    if (remainingGalaxyIds.length === 0) {
+      throw new Error("No available galaxies to navigate");
+    }
+
+    // Determine current index within remaining list
+    let currentIndexInRemaining = -1;
     if (args.currentGalaxyId) {
-      currentIndex = sequence.galaxyIds.findIndex(id => id === args.currentGalaxyId);
+      const targetStr = args.currentGalaxyId.toString();
+      currentIndexInRemaining = remainingGalaxyIds.findIndex(id => id.toString() === targetStr);
+      // If provided currentGalaxyId is not in remaining, default to first available
+      if (currentIndexInRemaining === -1) currentIndexInRemaining = 0;
     } else {
-      // Find first unclassified galaxy
-      for (let i = 0; i < sequence.galaxyIds.length; i++) {
-        const galaxyId = sequence.galaxyIds[i];
-        
-        const existingClassification = await ctx.db
-          .query("classifications")
-          .withIndex("by_user_and_galaxy", (q) => 
-            q.eq("userId", userId).eq("galaxyId", galaxyId)
-          )
-          .unique();
-
-        const isSkipped = await ctx.db
-          .query("skippedGalaxies")
-          .withIndex("by_user_and_galaxy", (q) => 
-            q.eq("userId", userId).eq("galaxyId", galaxyId)
-          )
-          .unique();
-
-        if (!existingClassification && !isSkipped) {
-          currentIndex = i;
-          break;
-        }
-      }
+      // Use first available in remaining
+      currentIndexInRemaining = 0;
     }
 
-    if (currentIndex === -1) {
-      throw new Error("Current galaxy not found in sequence");
-    }
+    // Calculate target index within remaining list
+    const targetIndexInRemaining = args.direction === "next" ? currentIndexInRemaining + 1 : currentIndexInRemaining - 1;
 
-    // Calculate target index
-    let targetIndex = args.direction === "next" ? currentIndex + 1 : currentIndex - 1;
-    
-    // Ensure target index is within bounds
-    if (targetIndex < 0 || targetIndex >= sequence.galaxyIds.length) {
+    if (targetIndexInRemaining < 0 || targetIndexInRemaining >= remainingGalaxyIds.length) {
       throw new Error(`No ${args.direction} galaxy available`);
     }
 
-    // Get the target galaxy
-    const targetGalaxyId = sequence.galaxyIds[targetIndex];
+    const targetGalaxyId = remainingGalaxyIds[targetIndexInRemaining];
     const targetGalaxy = await ctx.db.get(targetGalaxyId);
 
     if (!targetGalaxy) {
       throw new Error("Target galaxy not found");
     }
 
+    // Compute position in the full sequence for compatibility
+    const originalIndex = sequence.galaxyIds.findIndex(id => id.toString() === targetGalaxyId.toString());
+
     return {
       galaxy: targetGalaxy,
-      position: targetIndex + 1,
+      position: originalIndex >= 0 ? originalIndex + 1 : targetIndexInRemaining + 1,
       total: sequence.galaxyIds.length,
     };
   },
@@ -569,29 +608,29 @@ export const getProgress = query({
     if (!sequence) return null;
 
     // Count classified and skipped galaxies
-    let classified = 0;
-    let skipped = 0;
+    let classified = sequence.numClassified || 0;
+    let skipped = sequence.numSkipped || 0;
 
     // Handle new format
     if (sequence.galaxyIds && sequence.galaxyIds.length > 0) {
-      for (const galaxyId of sequence.galaxyIds) {
-        const existingClassification = await ctx.db
-          .query("classifications")
-          .withIndex("by_user_and_galaxy", (q) => 
-            q.eq("userId", userId).eq("galaxyId", galaxyId)
-          )
-          .unique();
+      // for (const galaxyId of sequence.galaxyIds) {
+      //   const existingClassification = await ctx.db
+      //     .query("classifications")
+      //     .withIndex("by_user_and_galaxy", (q) => 
+      //       q.eq("userId", userId).eq("galaxyId", galaxyId)
+      //     )
+      //     .unique();
 
-        const isSkipped = await ctx.db
-          .query("skippedGalaxies")
-          .withIndex("by_user_and_galaxy", (q) => 
-            q.eq("userId", userId).eq("galaxyId", galaxyId)
-          )
-          .unique();
+      //   const isSkipped = await ctx.db
+      //     .query("skippedGalaxies")
+      //     .withIndex("by_user_and_galaxy", (q) => 
+      //       q.eq("userId", userId).eq("galaxyId", galaxyId)
+      //     )
+      //     .unique();
 
-          if (existingClassification) classified++;
-          if (isSkipped) skipped++;
-      }
+      //     if (existingClassification) classified++;
+      //     if (isSkipped) skipped++;
+      // }
       
       const total = sequence.galaxyIds.length;
       const completed = classified + skipped;

@@ -5,11 +5,12 @@ import { toast } from "sonner";
 import { cn } from "../lib/utils";
 
 export function AdminPanel() {
-  const [selectedTab, setSelectedTab] = useState<"users" | "galaxies" | "settings">("users");
+  const [selectedTab, setSelectedTab] = useState<"users" | "galaxies" | "settings" | "debugging">("users");
   const [sequenceSize, setSequenceSize] = useState(50);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [generatingMock, setGeneratingMock] = useState(false);
   const [generatingSequence, setGeneratingSequence] = useState(false);
+  const [clearingAggregate, setClearingAggregate] = useState(false);
   
   const userProfile = useQuery(api.users.getUserProfile);
   const isAdmin = userProfile?.role === "admin";
@@ -23,8 +24,9 @@ export function AdminPanel() {
   const deleteUser = useMutation(api.users.deleteUser);
   const createUserProfile = useMutation(api.admin.createUserProfile);
   const generateMockGalaxies = useMutation(api.galaxies.generateMockGalaxies);
-  const generateUserSequence = useMutation(api.galaxy_sequence.generateRandomUserSequence);
+  const generateUserSequence = useMutation(api.galaxy_sequence.generateTestingUserSequence);
   const updateSystemSettings = useMutation(api.users.updateSystemSettings);
+  const clearGalaxyIdsAggregate = useMutation(api.galaxies.clearGalaxyIdsAggregate);
 
   const handleToggleUserStatus = async (userId: any, currentStatus: boolean) => {
     try {
@@ -134,6 +136,20 @@ export function AdminPanel() {
     }
   };
 
+  const handleClearGalaxyAggregate = async () => {
+    if (!confirm("Clear galaxy IDs aggregate? This cannot be undone.")) return;
+    try {
+      setClearingAggregate(true);
+      const res: any = await clearGalaxyIdsAggregate();
+      toast.success(res?.message || "Galaxy aggregate cleared");
+    } catch (e) {
+      toast.error("Failed to clear galaxy aggregate");
+      console.error(e);
+    } finally {
+      setClearingAggregate(false);
+    }
+  };
+
   const handleUpdateSettings = async (allowAnonymous: boolean) => {
     try {
       await updateSystemSettings({ allowAnonymous });
@@ -178,11 +194,8 @@ export function AdminPanel() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Panel</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-300">
-          Manage users and system settings
-        </p>
+        <p className="mt-2 text-gray-600 dark:text-gray-300">Manage users and system settings</p>
       </div>
-
       {/* Tab Navigation */}
       <div className="border-b border-gray-200 dark:border-gray-700 mb-8">
         <nav className="-mb-px flex space-x-8">
@@ -190,6 +203,7 @@ export function AdminPanel() {
             { id: "users", label: "Users", icon: "👥" },
             { id: "galaxies", label: "Galaxies", icon: "🌌" },
             { id: "settings", label: "Settings", icon: "⚙️" },
+            { id: "debugging", label: "Debugging", icon: "🛠️" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -478,6 +492,28 @@ export function AdminPanel() {
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
             </label>
+          </div>
+        </div>
+      )}
+
+      {selectedTab === "debugging" && (
+        <div className="max-w-xl mx-auto px-4 py-12">
+          <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Debugging Tools</h1>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Clear Galaxy Aggregate</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+              This will clear the galaxy IDs aggregate. This action cannot be undone.
+            </p>
+            <button
+              onClick={handleClearGalaxyAggregate}
+              disabled={clearingAggregate}
+              className="inline-flex items-center justify-center bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              {clearingAggregate && (
+                <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {clearingAggregate ? 'Clearing...' : 'Clear Galaxy Aggregate'}
+            </button>
           </div>
         </div>
       )}

@@ -3,6 +3,12 @@
 Script to ingest galaxy data from a parquet file into Convex database
 via the /ingest/galaxies HTTP endpoint.
 
+NOTE: The Convex backend now stores photometry & thuruthipilly data in
+split tables (galaxies_photometry_*, galaxies_source_extractor,
+galaxies_thuruthipilly). This script still sends the original nested
+structure (photometry.{g,r,i,y,z} & thuruthipilly). The server-side
+ingestion logic (insertGalaxy) performs the splitting transparently.
+
 Priority for configuration:
 1. Command line arguments (highest)
 2. Dotenv file (default `.env`, or user-supplied path via --dot-env-file)
@@ -278,7 +284,49 @@ def extract_nested(row: pd.Series, mapping: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def row_to_galaxy(row: pd.Series) -> Dict[str, Any]:
-    return extract_nested(row, NESTED_COLUMN_MAPPING)
+    """Build split-object representation expected by new ingestion API."""
+    nested = extract_nested(row, NESTED_COLUMN_MAPPING)
+    # Core galaxy fields
+    galaxy_core_keys = [
+        'id','ra','dec','reff','q','pa','nucleus','isActive','redshift_x','redshift_y','x','y','misc'
+    ]
+    galaxy_core = {k: nested.get(k) for k in galaxy_core_keys if k in nested}
+    # Photometry bands
+    phot = nested.get('photometry', {})
+    g_ser = phot.get('g', {}).get('sersic')
+    r_ser = phot.get('r', {}).get('sersic')
+    i_ser = phot.get('i', {}).get('sersic')
+    photometryBand = {'sersic': g_ser} if g_ser else None
+    photometryBandR = {'sersic': r_ser} if r_ser else None
+    photometryBandI = {'sersic': i_ser} if i_ser else None
+    # Source extractor unified
+    def se_band(b):
+        return phot.get(b, {}).get('source_extractor', {}) if phot.get(b) else {}
+    source_extractor = {
+        'g': se_band('g'),
+        'r': se_band('r'),
+        'i': se_band('i'),
+    }
+    y_se = se_band('y') if phot.get('y') else None
+    z_se = se_band('z') if phot.get('z') else None
+    if y_se: source_extractor['y'] = y_se
+    if z_se: source_extractor['z'] = z_se
+    # Remove empty dict bands
+    if not any(v for k,v in source_extractor.items() if isinstance(v, dict) and v):
+        source_extractor_out = None
+    else:
+        source_extractor_out = source_extractor
+    # Thuruthipilly
+    thuru = nested.get('thuruthipilly') or None
+    obj = {
+        'galaxy': galaxy_core,
+        'photometryBand': photometryBand,
+        'photometryBandR': photometryBandR,
+        'photometryBandI': photometryBandI,
+        'sourceExtractor': source_extractor_out,
+        'thuruthipilly': thuru,
+    }
+    return {k: v for k, v in obj.items() if v is not None}
 
 
 # --------------------------------------------------------------------------------------
@@ -352,12 +400,12 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
 # Main
 # --------------------------------------------------------------------------------------
 def main():
-    parser = argparse.ArgumentParser(description="Ingest galaxies with nested schema from parquet")
+    parser = argparse.ArgumentParser(description="Ingest galaxies (split schema objects) from parquet")
     parser.add_argument("--parquet-file", required=True, help="Parquet file path")
     parser.add_argument("--convex-http-actions-url", help="Convex ingestion URL")
     parser.add_argument("--ingest-token", help="Ingest API token")
     parser.add_argument("--dot-env-file", help="Dotenv file (default .env)")
-    parser.add_argument("--batch-size", type=int, default=500)
+    parser.add_argument("--batch-size", type=int, default=200, help="Batch size for ingestion (default: 200)")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--offset", type=int, default=0, help="Row offset to start processing (default: 0)")
     parser.add_argument("--limit", type=int, default=None, help="Maximum number of rows to process (default: all)")
