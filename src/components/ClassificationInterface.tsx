@@ -8,6 +8,7 @@ import { ImageViewer } from "./ImageViewer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { useParams, useNavigate } from "react-router";
 import { getImageUrl } from "../images";
+import { usePageTitle } from "../hooks/usePageTitle";
 
 // let lastSelectedMorphology: number | null = null;
 
@@ -42,7 +43,7 @@ export function ClassificationInterface() {
   const progress = useQuery(api.classification.getProgress);
   const userPrefs = useQuery(api.users.getUserPreferences);
   const userProfile = useQuery(api.users.getUserProfile);
-  
+
   const navigation = useQuery(
     api.galaxies_navigation.getGalaxyNavigation,
     currentGalaxy ? { currentGalaxyId: currentGalaxy._id } : {}
@@ -60,32 +61,32 @@ export function ClassificationInterface() {
     {
       "g_zscale_masked": "Masked g-Band (zscale)",
       "residual_zscale": "Residual (zscale)",
-      "model_100_0": "Galfit Model (100_0)",
-      "aplpy_arcsinh_p001_100_vmid01": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
+      "model_100_0": "Galfit Model (100%)",
+      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
       "aplpy_defaults_unmasked": "APLpy Defaults (unmasked)",
       "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
     },
     {
       "g_99_9_masked": "Masked g-Band (99.9%)",
+      "residual_100_0": "Residual (100%)",
       "model_99_9": "Galfit Model (99.9%)",
-      "residual_100_0": "Residual (100_0)",
-      "aplpy_arcsinh_p001_100_vmid01": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
+      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
       "aplpy_zscale_unmasked": "APLpy Zscale (unmasked)",
       "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
     },
     {
       "g_99_7_masked": "Masked g-Band (99.7%)",
-      "model_99_7": "Galfit Model (99.7%)",
       "residual_99_7": "Residual (99.7%)",
-      "aplpy_arcsinh_p001_100_vmid01": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
+      "model_99_7": "Galfit Model (99.7%)",
+      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
       "aplpy_zscale_unmasked": "APLpy Zscale (unmasked)",
       "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
     },
     {
       "g_99_0_masked": "Masked g-Band (99.0%)",
-      "model_99_7": "Galfit Model (99.7%)",
       "residual_99_7": "Residual (99.7%)",
-      "aplpy_arcsinh_p001_100_vmid01": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
+      "model_99_7": "Galfit Model (99.7%)",
+      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh (p0.01–100, vmid=0.1)",
       "aplpy_zscale_unmasked": "APLpy Zscale (unmasked)",
       "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear (p1_995 wide, unmasked)"
     }
@@ -409,6 +410,12 @@ export function ClassificationInterface() {
 
   // TODO: eliminate displayGalaxy and just use currentGalaxy, invesitigate if there are any cases where currentGalaxy is null but galaxy is not
   const displayGalaxy = currentGalaxy || galaxy;
+
+  // Dynamic page title: show galaxy id when available
+  usePageTitle(() => {
+    if (displayGalaxy?.id) return `Classify ${displayGalaxy.id}`;
+    return "Classify";
+  });
 
   if (currentGalaxy === undefined && galaxy === undefined) {
     return (

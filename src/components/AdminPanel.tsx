@@ -3,8 +3,10 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
+import { usePageTitle } from "../hooks/usePageTitle";
 
 export function AdminPanel() {
+  usePageTitle("Admin");
   const [selectedTab, setSelectedTab] = useState<"users" | "galaxies" | "settings" | "debugging">("users");
   const [sequenceSize, setSequenceSize] = useState(50);
   const [selectedUserId, setSelectedUserId] = useState<string>("");

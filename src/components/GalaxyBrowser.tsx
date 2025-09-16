@@ -4,6 +4,8 @@ import { api } from "../../convex/_generated/api";
 import { ImageViewer } from "./ImageViewer";
 import { cn } from "../lib/utils";
 import { Link } from "react-router";
+import { usePageTitle } from "../hooks/usePageTitle";
+import { getImageUrl } from "../images";
 
 type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "nucleus" | "_creationTime";
 type SortOrder = "asc" | "desc";
@@ -12,6 +14,7 @@ type FilterType = "all" | "my_sequence" | "classified" | "unclassified" | "skipp
 const STORAGE_KEY = "galaxyBrowserSettings";
 
 export function GalaxyBrowser() {
+  usePageTitle("Browse Galaxies");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const [sortBy, setSortBy] = useState<SortField>("id");
@@ -22,7 +25,7 @@ export function GalaxyBrowser() {
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const didHydrateFromStorage = useRef(false);
 
-  const galaxyData = useQuery(api.galaxies.browseGalaxies, {
+  const galaxyData = useQuery(api.galaxies_browse.browseGalaxies, {
     page,
     pageSize,
     sortBy,
@@ -337,21 +340,15 @@ export function GalaxyBrowser() {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {galaxies.map((galaxy) => (
+              {galaxies.map((galaxy: any) => (
                 <tr key={galaxy._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="w-16 h-16">
-                      {galaxy.imageUrl ? (
-                        <ImageViewer
-                          imageUrl={galaxy.imageUrl}
-                          alt={`Galaxy ${galaxy.id}`}
-                          preferences={userPrefs}
-                        />
-                      ) : (
-                        <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                          <span className="text-gray-400 text-xs">No image</span>
-                        </div>
-                      )}
+                      <ImageViewer
+                        imageUrl={getImageUrl(galaxy.id, "g_zscale_masked", { quality: userPrefs?.imageQuality || "medium" })}
+                        alt={`Galaxy ${galaxy.id}`}
+                        preferences={userPrefs}
+                      />
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
@@ -412,24 +409,18 @@ export function GalaxyBrowser() {
 
       {/* Mobile Card View */}
       <div className="lg:hidden space-y-4">
-        {galaxies.map((galaxy) => (
+  {galaxies.map((galaxy: any) => (
           <div
             key={galaxy._id}
             className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4"
           >
             <div className="flex items-start space-x-4">
               <div className="w-20 h-20 flex-shrink-0">
-                {galaxy.imageUrl ? (
-                  <ImageViewer
-                    imageUrl={galaxy.imageUrl}
-                    alt={`Galaxy ${galaxy.id}`}
-                    preferences={userPrefs}
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                    <span className="text-gray-400 text-xs">No image</span>
-                  </div>
-                )}
+                <ImageViewer
+                  imageUrl={getImageUrl(galaxy.id, "g_zscale_masked", { quality: userPrefs?.imageQuality || "medium" })}
+                  alt={`Galaxy ${galaxy.id}`}
+                  preferences={userPrefs}
+                />
               </div>
               
               <div className="flex-1 min-w-0">

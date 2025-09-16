@@ -1,11 +1,13 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { usePageTitle } from "../hooks/usePageTitle";
 import { toast } from "sonner";
 import { ImageViewer } from "./ImageViewer";
 
 export function SkippedGalaxies() {
-  const skippedGalaxies = useQuery(api.galaxies.getSkippedGalaxies);
-  const removeFromSkipped = useMutation(api.galaxies.removeFromSkipped);
+  usePageTitle("Skipped Galaxies");
+  const skippedGalaxies = useQuery(api.galaxies_skipped.getSkippedGalaxies);
+  const removeFromSkipped = useMutation(api.galaxies_skipped.removeFromSkipped);
   const userPrefs = useQuery(api.users.getUserPreferences);
 
   const handleRemoveFromSkipped = async (skippedId: any) => {

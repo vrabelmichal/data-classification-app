@@ -3,8 +3,10 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
 import { cn } from "../lib/utils";
+import { usePageTitle } from "../hooks/usePageTitle";
 
 export function UserSettings() {
+  usePageTitle("Settings");
   const userPrefs = useQuery(api.users.getUserPreferences);
   const updatePreferences = useMutation(api.users.updatePreferences);
 

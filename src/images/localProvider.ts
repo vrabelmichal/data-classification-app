@@ -9,8 +9,9 @@ export class LocalImageProvider implements ImageProvider {
     const qp = opts?.query ? toQueryString(opts.query) : "";
     
     let ext = "png";
-    if (opts?.quality === "low") ext = "avif";
-    else if (opts?.quality === "medium") ext = "webp";
+    // at the moment, we only have png images locally
+    // if (opts?.quality === "low") ext = "avif";
+    // else if (opts?.quality === "medium") ext = "webp";
 
     const imageNameWithExt = `${name}.${ext}`;
     return `${base}/${encodeURIComponent(id)}/${encodeURIComponent(imageNameWithExt)}`;

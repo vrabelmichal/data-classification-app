@@ -1,4 +1,7 @@
+import { usePageTitle } from "../hooks/usePageTitle";
+
 export function Help() {
+  usePageTitle("Help");
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
       <div className="mb-8">

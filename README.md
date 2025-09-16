@@ -43,6 +43,27 @@ Check out the [Convex docs](https://docs.convex.dev/) for more information on ho
 * Check out the [Hosting and Deployment](https://docs.convex.dev/production/) docs for how to deploy your app
 * Read the [Best Practices](https://docs.convex.dev/understanding/best-practices/) guide for tips on how to improve you app further
 
+## Dynamic Page Titles
+
+Pages now set the browser tab title automatically using a small `usePageTitle` hook (`src/hooks/usePageTitle.ts`).
+
+- Generic pages: `Browse Galaxies | Galaxy Classifier`, `Statistics | Galaxy Classifier`, etc.
+- Classification page: includes the current galaxy id, e.g. `Classify J1234+5678 | Galaxy Classifier`.
+
+If no galaxy is loaded yet it falls back to just `Classify | Galaxy Classifier`.
+
+To add a title on any new page:
+
+```
+import { usePageTitle } from "./hooks/usePageTitle";
+usePageTitle("My Page Title");
+```
+
+Or provide a function if the title is dynamic:
+
+```
+usePageTitle(() => entity ? `Edit ${entity.name}` : "Loading...");
+```
 ## HTTP API
 
 User-defined http routes are defined in the `convex/router.ts` file. We split these routes into a separate file from `convex/http.ts` to allow us to prevent the LLM from modifying the authentication routes.

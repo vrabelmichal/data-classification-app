@@ -47,7 +47,8 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0 }: Imag
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
         </div>
       )}
-      
+
+      {/* Thumbnail / inline image */}
       <img
         src={imageUrl}
         alt={alt}
@@ -56,17 +57,32 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0 }: Imag
         onClick={handleImageClick}
         className={`w-full h-full object-cover rounded-lg cursor-pointer transition-all duration-200 ${
           isLoading ? 'opacity-0' : 'opacity-100'
-        } ${isZoomed ? 'scale-150 z-10' : 'scale-100'}`}
+        } ${isZoomed ? 'scale-100' : 'scale-100'}`}
         style={{
           filter: `contrast(${contrast})`,
         }}
       />
-      
+
+      {/* Modal + backdrop rendered when zoomed. Image modal must be above overlay/backdrop. */}
       {isZoomed && (
-        <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-20"
-          onClick={() => setIsZoomed(false)}
-        />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          {/* backdrop */}
+          <div
+            className="absolute inset-0 bg-black bg-opacity-50"
+            onClick={() => setIsZoomed(false)}
+          />
+
+          {/* centered large image */}
+            <div className="relative max-w-full max-h-full rounded-lg overflow-hidden shadow-lg bg-white dark:bg-gray-900">
+            <img
+              src={imageUrl}
+              alt={alt}
+              onClick={(e) => e.stopPropagation()}
+              className="block max-w-[90vw] max-h-[90vh] object-contain"
+              style={{ filter: `contrast(${contrast})` }}
+            />
+            </div>
+        </div>
       )}
     </div>
   );
