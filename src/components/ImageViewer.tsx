@@ -1,4 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
+// Enable/disable half-light radius circle overlay
+const ENABLE_HALF_LIGHT_CIRCLE = true;
+
+// Scale factors for half-light overlay
+const HALF_LIGHT_ORIGINAL_SIZE = 256;
+const HALF_LIGHT_IMAGE_SIZE = 500;
 
 interface ImageViewerProps {
   imageUrl: string;
@@ -8,9 +15,14 @@ interface ImageViewerProps {
     contrast?: number;
   } | null;
   contrast?: number;
+  reff?: number; // half-light radius in pixels
+  pa?: number; // position angle in degrees
+  q?: number; // axis ratio (b/a)
+  x?: number; // center x coordinate
+  y?: number; // center y coordinate
 }
 
-export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0 }: ImageViewerProps) {
+export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, pa, q, x, y }: ImageViewerProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -28,6 +40,18 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0 }: Imag
   const handleImageClick = () => {
     setIsZoomed(!isZoomed);
   };
+
+  // Calculate scale factor for half-light overlay
+  const scale = HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
+
+  // Calculate ellipse parameters
+  const ellipseParams = ENABLE_HALF_LIGHT_CIRCLE && reff && pa !== undefined && q && x !== undefined && y !== undefined ? {
+    cx: x * scale,
+    cy: y * scale,
+    rx: reff * scale,
+    ry: reff * q * scale,
+    rotation: pa
+  } : null;
 
   if (hasError) {
     return (
@@ -63,6 +87,27 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0 }: Imag
         }}
       />
 
+      {/* Half-light radius circle overlay */}
+      {ellipseParams && (
+        <svg
+          viewBox={`0 0 ${HALF_LIGHT_IMAGE_SIZE} ${HALF_LIGHT_IMAGE_SIZE}`}
+          className="absolute inset-0 w-full h-full pointer-events-none"
+          style={{ filter: `contrast(${contrast})` }}
+        >
+          <ellipse
+            cx={ellipseParams.cx}
+            cy={ellipseParams.cy}
+            rx={ellipseParams.rx}
+            ry={ellipseParams.ry}
+            fill="none"
+            stroke="magenta"
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+            transform={`rotate(${ellipseParams.rotation}, ${ellipseParams.cx}, ${ellipseParams.cy})`}
+          />
+        </svg>
+      )}
+
       {/* Modal + backdrop rendered when zoomed. Image modal must be above overlay/backdrop. */}
       {isZoomed && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -81,6 +126,26 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0 }: Imag
               className="block max-w-[90vw] max-h-[90vh] object-contain"
               style={{ filter: `contrast(${contrast})` }}
             />
+            {/* Half-light radius circle overlay for modal */}
+            {ellipseParams && (
+              <svg
+                viewBox={`0 0 ${HALF_LIGHT_IMAGE_SIZE} ${HALF_LIGHT_IMAGE_SIZE}`}
+                className="absolute inset-0 w-full h-full pointer-events-none"
+                style={{ filter: `contrast(${contrast})` }}
+              >
+                <ellipse
+                  cx={ellipseParams.cx}
+                  cy={ellipseParams.cy}
+                  rx={ellipseParams.rx}
+                  ry={ellipseParams.ry}
+                  fill="none"
+                  stroke="magenta"
+                  strokeWidth={2}
+                  vectorEffect="non-scaling-stroke"
+                  transform={`rotate(${ellipseParams.rotation}, ${ellipseParams.cx}, ${ellipseParams.cy})`}
+                />
+              </svg>
+            )}
             </div>
         </div>
       )}
