@@ -31,7 +31,7 @@ export function Navigation({ navigationItems }: NavigationProps) {
   return (
     <>
       {/* Mobile Navigation */}
-      <div className="lg:hidden">
+      <div className="custom-lg:hidden">
         {/* Mobile Header */}
         <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
           <div className="flex items-center justify-between">
@@ -53,7 +53,7 @@ export function Navigation({ navigationItems }: NavigationProps) {
 
         {/* Mobile Menu Overlay */}
         {isOpen && (
-          <div className="fixed inset-0 z-50 lg:hidden">
+          <div className="fixed inset-0 z-50 custom-lg:hidden">
             <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsOpen(false)} />
             <div className="fixed top-0 right-0 bottom-0 w-64 bg-white dark:bg-gray-800 shadow-xl flex flex-col">
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
@@ -109,7 +109,7 @@ export function Navigation({ navigationItems }: NavigationProps) {
       </div>
 
       {/* Desktop Sidebar */}
-      <div className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0">
+      <div className="hidden custom-lg:flex custom-lg:w-64 custom-lg:flex-col custom-lg:fixed custom-lg:inset-y-0">
         <div className="flex flex-col flex-grow bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
           {/* Header */}
           <div className="flex items-center flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
@@ -169,6 +169,9 @@ export function Navigation({ navigationItems }: NavigationProps) {
               </div>
             </div>
           )}
+          <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+            <SignOutButton />
+          </div>
         </div>
       </div>
     </>

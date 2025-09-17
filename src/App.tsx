@@ -65,12 +65,9 @@ function App() {
           </div>
         </Unauthenticated>
         <Authenticated>
-          <div className="flex flex-col lg:flex-row h-screen">
+          <div className="flex flex-col custom-lg:flex-row h-screen">
             <Navigation navigationItems={navigationItems} />
-            <div className="lg:flex lg:flex-1 lg:flex-col lg:ml-64">
-              <div className="flex items-center justify-end px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                <SignOutButton />
-              </div>
+            <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64">
               <div className="flex-1 overflow-auto">
                 <Routes>
                   <Route index element={<ClassificationInterface />} />

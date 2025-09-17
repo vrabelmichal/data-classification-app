@@ -21,6 +21,7 @@ export function ClassificationInterface() {
   const navigate = useNavigate();
 
   const [isMobile, setIsMobile] = useState(false);
+  const [numColumns, setNumColumns] = useState(3);
 
   const [lsbClass, setLsbClass] = useState<number | null>(null);
   const [morphology, setMorphology] = useState<number | null>(null);
@@ -124,6 +125,27 @@ export function ClassificationInterface() {
     }) : null,
   }));
 
+  // Function to get priority for sorting images
+  const getPriority = (key: string, numColumns: number) => {
+    if (numColumns === 3) return 0; // default order
+    if (key.includes('g_') && key.includes('_masked')) return 1;
+    if (numColumns === 1) {
+      if (key === 'aplpy_arcsinh_p001_100_vmid01_masked') return 2;
+      if (key.includes('residual')) return 3;
+      if (key.includes('aplpy') && key !== 'aplpy_arcsinh_p001_100_vmid01_masked') return 4;
+      if (key.includes('model')) return 5;
+    } else if (numColumns === 2) {
+      if (key.includes('residual')) return 2;
+      if (key === 'aplpy_arcsinh_p001_100_vmid01_masked') return 3;
+      if (key.includes('aplpy') && key !== 'aplpy_arcsinh_p001_100_vmid01_masked') return 4;
+      if (key.includes('model')) return 5;
+    }
+    return 6; // fallback
+  };
+
+  // Sort imageTypes based on numColumns
+  const sortedImageTypes = [...imageTypes].sort((a, b) => getPriority(a.key, numColumns) - getPriority(b.key, numColumns));
+
   // Helper to determine if an image should show the ellipse overlay
   const shouldShowEllipse = (imageName: string) => imageName.includes("Masked g-Band") && showEllipseOverlay;
 
@@ -133,7 +155,15 @@ export function ClassificationInterface() {
   // Track screen size changes
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 1024); // lg breakpoint is 1024px in Tailwind
+      const width = window.innerWidth;
+      setIsMobile(width < 1024); // lg breakpoint is 1024px in Tailwind
+      // if (width < 768) {
+      //   setNumColumns(1);
+      // } else if (width < 1024) {
+      //   setNumColumns(2);
+      // } else {
+      //   setNumColumns(3);
+      // }
     };
 
     checkScreenSize(); // Check on mount
@@ -790,7 +820,7 @@ export function ClassificationInterface() {
           {/* Images - Mobile */}
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {imageTypes.map((imageType, index) => (
+              {sortedImageTypes.map((imageType, index) => (
                 <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                   <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center whitespace-pre-line">
                     {imageType.name}
@@ -977,7 +1007,7 @@ export function ClassificationInterface() {
         <div className="lg:col-span-2 space-y-6">
           {/* Image Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {imageTypes.map((imageType, index) => (
+            {sortedImageTypes.map((imageType, index) => (
               <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
                 <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center whitespace-pre-line">
                   {imageType.name}
@@ -1286,12 +1316,12 @@ export function ClassificationInterface() {
             {isSkipped === true && <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">(in skipped table)</span>}
           </h1>
           {navigation && (
-            <div className="text-sm text-gray-500 dark:text-gray-400">
+            <div className="hidden sm:block text-sm text-gray-500 dark:text-gray-400">
               Position: {navigation.currentIndex + 1} of {navigation.totalGalaxies}
             </div>
           )}
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="hidden sm:flex items-center space-x-2">
           <label className="flex items-center cursor-pointer text-sm text-gray-600 dark:text-gray-300">
             <input
               type="checkbox"
