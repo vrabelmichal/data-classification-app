@@ -357,11 +357,6 @@ export function GalaxyBrowser() {
                         imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
                         alt={`Galaxy ${galaxy.id}`}
                         preferences={userPrefs}
-                        reff={galaxy.reff_pixels}
-                        pa={galaxy.pa}
-                        q={galaxy.q}
-                        x={galaxy.x}
-                        y={galaxy.y}
                       />
                     </div>
                   </td>
@@ -434,11 +429,6 @@ export function GalaxyBrowser() {
                   imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
                   alt={`Galaxy ${galaxy.id}`}
                   preferences={userPrefs}
-                  reff={galaxy.reff_pixels}
-                  pa={galaxy.pa}
-                  q={galaxy.q}
-                  x={galaxy.x}
-                  y={galaxy.y}
                 />
               </div>
               

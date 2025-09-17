@@ -26,8 +26,13 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
+  const [imageWidth, setImageWidth] = useState<number | null>(null);
+  const [imageHeight, setImageHeight] = useState<number | null>(null);
 
-  const handleImageLoad = () => {
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    setImageWidth(img.naturalWidth);
+    setImageHeight(img.naturalHeight);
     setIsLoading(false);
     setHasError(false);
   };
@@ -41,16 +46,17 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     setIsZoomed(!isZoomed);
   };
 
-  // Calculate scale factor for half-light overlay
-  const scale = HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
+  // Calculate scale factors for half-light overlay
+  const scaleX = imageWidth ? imageWidth / HALF_LIGHT_ORIGINAL_SIZE : HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
+  const scaleY = imageHeight ? imageHeight / HALF_LIGHT_ORIGINAL_SIZE : HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
 
   // Calculate ellipse parameters
   const ellipseParams = ENABLE_HALF_LIGHT_CIRCLE && reff && pa !== undefined && q && x !== undefined && y !== undefined ? {
-    cx: x * scale,
-    cy: y * scale,
-    rx: reff * scale,
-    ry: reff * q * scale,
-    rotation: pa
+    cx: x * scaleX,
+    cy: y * scaleY,
+    rx: reff * scaleX,
+    ry: reff * q * scaleY,
+    rotation: 90 - pa  // Adjusted for astronomical PA convention (east of north)
   } : null;
 
   if (hasError) {
@@ -90,7 +96,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
       {/* Half-light radius circle overlay */}
       {ellipseParams && (
         <svg
-          viewBox={`0 0 ${HALF_LIGHT_IMAGE_SIZE} ${HALF_LIGHT_IMAGE_SIZE}`}
+          viewBox={`0 0 ${imageWidth || HALF_LIGHT_IMAGE_SIZE} ${imageHeight || HALF_LIGHT_IMAGE_SIZE}`}
           className="absolute inset-0 w-full h-full pointer-events-none"
           style={{ filter: `contrast(${contrast})` }}
         >
@@ -129,7 +135,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
             {/* Half-light radius circle overlay for modal */}
             {ellipseParams && (
               <svg
-                viewBox={`0 0 ${HALF_LIGHT_IMAGE_SIZE} ${HALF_LIGHT_IMAGE_SIZE}`}
+                viewBox={`0 0 ${imageWidth || HALF_LIGHT_IMAGE_SIZE} ${imageHeight || HALF_LIGHT_IMAGE_SIZE}`}
                 className="absolute inset-0 w-full h-full pointer-events-none"
                 style={{ filter: `contrast(${contrast})` }}
               >

@@ -39,6 +39,8 @@ export function ClassificationInterface() {
   const lastAppliedClassificationId = useRef<string | null>(null);
   // Lock form inputs while classification data loads for a new galaxy
   const [formLocked, setFormLocked] = useState<boolean>(true);
+  // Show/hide ellipse overlay on Masked g-Band images
+  const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
 
   // "skip" prevevents the query from running
 
@@ -121,6 +123,9 @@ export function ClassificationInterface() {
       quality: userPrefs?.imageQuality || "medium" 
     }) : null,
   }));
+
+  // Helper to determine if an image should show the ellipse overlay
+  const shouldShowEllipse = (imageName: string) => imageName.includes("Masked g-Band") && showEllipseOverlay;
 
   // ----
 
@@ -440,6 +445,19 @@ export function ClassificationInterface() {
       setFormLocked(false);
     }
   }, [existingClassification, currentGalaxy?._id]);
+
+  // Load showEllipseOverlay from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('showEllipseOverlay');
+    if (saved !== null) {
+      setShowEllipseOverlay(JSON.parse(saved));
+    }
+  }, []);
+
+  // Save showEllipseOverlay to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('showEllipseOverlay', JSON.stringify(showEllipseOverlay));
+  }, [showEllipseOverlay]);
 
   // Dynamic page title: show galaxy id when available
   usePageTitle(() => {
@@ -784,11 +802,13 @@ export function ClassificationInterface() {
                         alt={`${displayGalaxy.id} - ${imageType.name}`}
                         preferences={userPrefs}
                         contrast={contrast}
-                        reff={displayGalaxy.reff_pixels}
-                        pa={displayGalaxy.pa}
-                        q={displayGalaxy.q}
-                        x={displayGalaxy.x}
-                        y={displayGalaxy.y}
+                        {...(shouldShowEllipse(imageType.name) && {
+                          reff: displayGalaxy.reff_pixels,
+                          pa: displayGalaxy.pa,
+                          q: displayGalaxy.q,
+                          x: displayGalaxy.x,
+                          y: displayGalaxy.y,
+                        })}
                       />
                     ) : (
                       <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
@@ -806,7 +826,7 @@ export function ClassificationInterface() {
             <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 dark:text-gray-300">
               <div><span className="font-medium">RA:</span> {displayGalaxy.ra.toFixed(4)}°</div>
               <div><span className="font-medium">Dec:</span> {displayGalaxy.dec.toFixed(4)}°</div>
-              <div><span className="font-medium">Reff:</span> {displayGalaxy.reff.toFixed(2)}</div>
+              <div><span className="font-medium">r<sub>eff</sub>:</span> {displayGalaxy.reff.toFixed(2)}″ ({displayGalaxy.reff_pixels.toFixed(2)} pixels)</div>
               <div><span className="font-medium">q:</span> {displayGalaxy.q.toFixed(3)}</div>
               <div><span className="font-medium">PA:</span> {displayGalaxy.pa.toFixed(1)}°</div>
               <div><span className="font-medium">Nucleus:</span> {displayGalaxy.nucleus ? "Yes" : "No"}</div>
@@ -969,11 +989,13 @@ export function ClassificationInterface() {
                       alt={`${displayGalaxy.id} - ${imageType.name}`}
                       preferences={userPrefs}
                       contrast={contrast}
-                      reff={displayGalaxy.reff_pixels}
-                      pa={displayGalaxy.pa}
-                      q={displayGalaxy.q}
-                      x={displayGalaxy.x}
-                      y={displayGalaxy.y}
+                      {...(shouldShowEllipse(imageType.name) && {
+                        reff: displayGalaxy.reff_pixels,
+                        pa: displayGalaxy.pa,
+                        q: displayGalaxy.q,
+                        x: displayGalaxy.x,
+                        y: displayGalaxy.y,
+                      })}
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
@@ -993,7 +1015,7 @@ export function ClassificationInterface() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 dark:text-gray-300">
               <div><span className="font-medium">RA:</span> {displayGalaxy.ra.toFixed(4)}°</div>
               <div><span className="font-medium">Dec:</span> {displayGalaxy.dec.toFixed(4)}°</div>
-              <div><span className="font-medium">Reff:</span> {displayGalaxy.reff.toFixed(2)}</div>
+              <div><span className="font-medium">r<sub>eff</sub>:</span> {displayGalaxy.reff.toFixed(2)}″ ({displayGalaxy.reff_pixels.toFixed(2)} pixels)</div>
               <div><span className="font-medium">q:</span> {displayGalaxy.q.toFixed(3)}</div>
               <div><span className="font-medium">PA:</span> {displayGalaxy.pa.toFixed(1)}°</div>
               <div><span className="font-medium">Nucleus:</span> {displayGalaxy.nucleus ? "Yes" : "No"}</div>
@@ -1269,15 +1291,26 @@ export function ClassificationInterface() {
             </div>
           )}
         </div>
-        <button
-          onClick={() => setShowKeyboardHelp(true)}
-          className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          title="Keyboard shortcuts (?)"
-        >
-          <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
-            ?
-          </kbd>
-        </button>
+        <div className="flex items-center space-x-2">
+          <label className="flex items-center cursor-pointer text-sm text-gray-600 dark:text-gray-300">
+            <input
+              type="checkbox"
+              checked={showEllipseOverlay}
+              onChange={(e) => setShowEllipseOverlay(e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 mr-2"
+            />
+            Show <em>r<sub>eff</sub></em>
+          </label>
+          <button
+            onClick={() => setShowKeyboardHelp(true)}
+            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            title="Keyboard shortcuts (?)"
+          >
+            <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
+              ?
+            </kbd>
+          </button>
+        </div>
       </div>
 
       {/* Main Content */}
