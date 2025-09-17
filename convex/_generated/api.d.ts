@@ -11,10 +11,10 @@
 import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
-import type * as batch_ingest from "../batch_ingest.js";
 import type * as classification from "../classification.js";
 import type * as export_database from "../export_database.js";
 import type * as galaxies from "../galaxies.js";
+import type * as galaxies_batch_ingest from "../galaxies_batch_ingest.js";
 import type * as galaxies_browse from "../galaxies_browse.js";
 import type * as galaxies_deprecated from "../galaxies_deprecated.js";
 import type * as galaxies_mock from "../galaxies_mock.js";
@@ -45,10 +45,10 @@ declare const fullApi: ApiFromModules<{
   ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
   admin: typeof admin;
   auth: typeof auth;
-  batch_ingest: typeof batch_ingest;
   classification: typeof classification;
   export_database: typeof export_database;
   galaxies: typeof galaxies;
+  galaxies_batch_ingest: typeof galaxies_batch_ingest;
   galaxies_browse: typeof galaxies_browse;
   galaxies_deprecated: typeof galaxies_deprecated;
   galaxies_mock: typeof galaxies_mock;

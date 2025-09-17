@@ -70,6 +70,7 @@ NESTED_COLUMN_MAPPING: Dict[str, Union[tuple, Dict[str, Any], None]] = {
     "ra": ("ra", float),
     "dec": ("dec", float),
     "reff": ("sersic_reff_arcsec__best_available_fit", float),
+    "reff_pixels": ("sersic_reff_pixels__best_available_fit", float),
     "q": ("sersic_q__best_available_fit", float),
     "pa": ("sersic_PA__best_available_fit", float),
     "nucleus": ("is_nucleated", bool),
@@ -89,6 +90,7 @@ NESTED_COLUMN_MAPPING: Dict[str, Union[tuple, Dict[str, Any], None]] = {
                 "mean_mue": ("sersic_mean_mue__best_available_fit", float),
                 "mue": ("sersic_mue__best_available_fit", float),
                 "x_error": ("sersic_x_error__best_available_fit", float),
+                "x_rel_error": ("sersic_x_rel_error__best_available_fit", float),
                 "psf": {
                     "mag": ("sersic_psf_mag__best_available_fit", float),
                     "mag_error": ("sersic_psf_mag_error__best_available_fit", float),
@@ -112,6 +114,7 @@ NESTED_COLUMN_MAPPING: Dict[str, Union[tuple, Dict[str, Any], None]] = {
                 "mag_error": ("sersic_mag_error_r", float),
                 "mag_rel_error": ("sersic_mag_rel_error_r", float),
                 "x_error": ("sersic_x_error_r", float),
+                "x_rel_error": ("sersic_x_rel_error_r", float),
                 "psf": {
                     "mag": ("sersic_psf_mag_r", float),
                     "mag_error": ("sersic_psf_mag_error_r", float),
@@ -131,6 +134,7 @@ NESTED_COLUMN_MAPPING: Dict[str, Union[tuple, Dict[str, Any], None]] = {
                 "mag_error": ("sersic_mag_error_i", float),
                 "mag_rel_error": ("sersic_mag_rel_error_i", float),
                 "x_error": ("sersic_x_error_i", float),
+                "x_rel_error": ("sersic_x_rel_error_i", float),
                 "psf": {
                     "mag": ("sersic_psf_mag_i", float),
                     "mag_error": ("sersic_psf_mag_error_i", float),
@@ -288,7 +292,7 @@ def row_to_galaxy(row: pd.Series) -> Dict[str, Any]:
     nested = extract_nested(row, NESTED_COLUMN_MAPPING)
     # Core galaxy fields
     galaxy_core_keys = [
-        'id','ra','dec','reff','q','pa','nucleus','isActive','redshift_x','redshift_y','x','y','misc'
+        'id','ra','dec','reff','reff_pixels','q','pa','nucleus','isActive','redshift_x','redshift_y','x','y','misc'
     ]
     galaxy_core = {k: nested.get(k) for k in galaxy_core_keys if k in nested}
     # Photometry bands

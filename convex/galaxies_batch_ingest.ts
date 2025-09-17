@@ -190,7 +190,7 @@ export const ingestGalaxiesHttp = httpAction(async (ctx, request) => {
   // 3) Call internal mutation via internal reference
   try {
     const results = await ctx.runMutation(
-      internal.batch_ingest.insertGalaxiesBatchInternal,
+      internal.galaxies_batch_ingest.insertGalaxiesBatchInternal,
       body as any // Convex validates against `batchArgs` at runtime
     );
 

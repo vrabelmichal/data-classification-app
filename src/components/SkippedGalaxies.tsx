@@ -64,7 +64,7 @@ export function SkippedGalaxies() {
                     imageUrl={(item.galaxy as any).imageUrl}
                     alt={`Galaxy ${(item.galaxy as any).id}`}
                     preferences={userPrefs}
-                    reff={(item.galaxy as any).reff}
+                    reff={(item.galaxy as any).reff_pixels}
                     pa={(item.galaxy as any).pa}
                     q={(item.galaxy as any).q}
                     x={(item.galaxy as any).x}

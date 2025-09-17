@@ -411,7 +411,7 @@ export function ClassificationInterface() {
   // Apply existing classification once it becomes available (or changes) for the current galaxy
   useEffect(() => {
     if (!currentGalaxy || !existingClassification) return;
-    const sameGalaxy = String(existingClassification.galaxyId) === String(currentGalaxy._id) || String(existingClassification.galaxyId) === String(currentGalaxy.id);
+    const sameGalaxy = String(existingClassification.galaxyExternalId) === String(currentGalaxy._id) || String(existingClassification.galaxyExternalId) === String(currentGalaxy.id);
     if (!sameGalaxy) return;
     if (lastAppliedClassificationId.current === existingClassification._id) return;
     setLsbClass(existingClassification.lsb_class);
@@ -487,12 +487,15 @@ export function ClassificationInterface() {
     if (Math.abs(val) >= 1000 || Math.abs(val) < 1e-3) return val.toExponential(3);
     return val.toFixed(4).replace(/0+$/,'').replace(/\.$/,'');
   };
-  const renderKeyVal = (label: string, value: any) => (
-    <div key={label} className="flex justify-between text-[11px] py-0.5">
-      <span className="text-gray-500 dark:text-gray-400 mr-2">{label}</span>
-      <span className="font-medium text-gray-900 dark:text-gray-100">{typeof value === 'number' ? formatNumber(value) : String(value)}</span>
-    </div>
-  );
+  const renderKeyVal = (label: string, value: any) => {
+    if (value === null || value === undefined) return null;
+    return (
+      <div key={label} className="flex justify-between text-[11px] py-0.5">
+        <span className="text-gray-500 dark:text-gray-400 mr-2">{label}</span>
+        <span className="font-medium text-gray-900 dark:text-gray-100">{typeof value === 'number' ? formatNumber(value) : String(value)}</span>
+      </div>
+    );
+  };
 
   const renderSersic = (sersic: any) => {
     if (!sersic) return null;
@@ -781,7 +784,7 @@ export function ClassificationInterface() {
                         alt={`${displayGalaxy.id} - ${imageType.name}`}
                         preferences={userPrefs}
                         contrast={contrast}
-                        reff={displayGalaxy.reff}
+                        reff={displayGalaxy.reff_pixels}
                         pa={displayGalaxy.pa}
                         q={displayGalaxy.q}
                         x={displayGalaxy.x}
@@ -966,7 +969,7 @@ export function ClassificationInterface() {
                       alt={`${displayGalaxy.id} - ${imageType.name}`}
                       preferences={userPrefs}
                       contrast={contrast}
-                      reff={displayGalaxy.reff}
+                      reff={displayGalaxy.reff_pixels}
                       pa={displayGalaxy.pa}
                       q={displayGalaxy.q}
                       x={displayGalaxy.x}
