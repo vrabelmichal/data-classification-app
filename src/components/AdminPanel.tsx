@@ -13,6 +13,8 @@ export function AdminPanel() {
   const [generatingMock, setGeneratingMock] = useState(false);
   const [generatingSequence, setGeneratingSequence] = useState(false);
   const [clearingAggregate, setClearingAggregate] = useState(false);
+  const [deletingGalaxies, setDeletingGalaxies] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
   
   const userProfile = useQuery(api.users.getUserProfile);
   const isAdmin = userProfile?.role === "admin";
@@ -29,6 +31,7 @@ export function AdminPanel() {
   const generateUserSequence = useMutation(api.galaxies_sequence.generateRandomUserSequence);
   const updateSystemSettings = useMutation(api.users.updateSystemSettings);
   const clearGalaxyIdsAggregate = useMutation(api.galaxies.clearGalaxyIdsAggregate);
+  const deleteAllGalaxies = useMutation(api.galaxies.deleteAllGalaxies);
 
   const handleToggleUserStatus = async (userId: any, currentStatus: boolean) => {
     try {
@@ -149,6 +152,20 @@ export function AdminPanel() {
       console.error(e);
     } finally {
       setClearingAggregate(false);
+    }
+  };
+
+  const handleDeleteAllGalaxies = async () => {
+    try {
+      setDeletingGalaxies(true);
+      const res: any = await deleteAllGalaxies();
+      toast.success(res?.message || "All galaxy data deleted successfully");
+      setShowDeleteModal(false);
+    } catch (e) {
+      toast.error("Failed to delete galaxy data");
+      console.error(e);
+    } finally {
+      setDeletingGalaxies(false);
     }
   };
 
@@ -287,7 +304,7 @@ export function AdminPanel() {
                         ) : (
                           <select
                             value={userProfile.role}
-                            onChange={(e) => handleUpdateUserRole(userProfile.userId, e.target.value as "user" | "admin")}
+                            onChange={(e) => void (async () => { await handleUpdateUserRole(userProfile.userId, e.target.value as "user" | "admin"); })()}
                             className="text-sm border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                           >
                             <option value="user">User</option>
@@ -327,7 +344,7 @@ export function AdminPanel() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                         {!hasProfile ? (
                           <button
-                            onClick={() => handleCreateProfile(userProfile.userId)}
+                            onClick={() => void (async () => { await handleCreateProfile(userProfile.userId); })()}
                             className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 transition-colors"
                           >
                             Create Profile
@@ -335,7 +352,7 @@ export function AdminPanel() {
                         ) : (
                           <>
                             <button
-                              onClick={() => handleToggleUserStatus(userProfile.userId, userProfile.isActive)}
+                              onClick={() => void (async () => { await handleToggleUserStatus(userProfile.userId, userProfile.isActive); })()}
                               className={cn(
                                 "px-2 py-1 rounded text-xs font-medium transition-colors",
                                 userProfile.isActive
@@ -346,7 +363,7 @@ export function AdminPanel() {
                               {userProfile.isActive ? "Deactivate" : "Activate"}
                             </button>
                             <button
-                              onClick={() => handleConfirmUser(userProfile.userId, userProfile.isConfirmed || false)}
+                              onClick={() => void (async () => { await handleConfirmUser(userProfile.userId, userProfile.isConfirmed || false); })()}
                               className={cn(
                                 "px-2 py-1 rounded text-xs font-medium transition-colors",
                                 userProfile.isConfirmed
@@ -357,13 +374,13 @@ export function AdminPanel() {
                               {userProfile.isConfirmed ? "Unconfirm" : "Confirm"}
                             </button>
                             <button
-                              onClick={() => handleDeleteUser(userProfile.userId)}
+                              onClick={() => void (async () => { await handleDeleteUser(userProfile.userId); })()}
                               className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 transition-colors"
                             >
                               Delete
                             </button>
                             <button
-                              onClick={() => handleResetPassword(userProfile.userId)}
+                              onClick={() => void (async () => { await handleResetPassword(userProfile.userId); })()}
                               className="px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400 transition-colors"
                             >
                               Reset PW
@@ -388,31 +405,6 @@ export function AdminPanel() {
 
       {selectedTab === "galaxies" && (
         <div className="space-y-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Galaxy Management
-            </h2>
-            
-            <div className="space-y-4">
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
-                <h3 className="font-medium text-gray-900 dark:text-white mb-2">Generate Mock Data</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                  Generate 100 mock galaxies for testing and development purposes.
-                </p>
-                <button
-                  onClick={handleGenerateMockGalaxies}
-                  disabled={generatingMock}
-                  className="relative inline-flex items-center bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
-                >
-                  {generatingMock && (
-                    <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  )}
-                  {generatingMock ? 'Generating...' : 'Generate Mock Galaxies'}
-                </button>
-              </div>
-            </div>
-          </div>
-
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Generate User Sequence
@@ -454,7 +446,7 @@ export function AdminPanel() {
               </div>
               
               <button
-                onClick={handleGenerateSequence}
+                onClick={() => void (async () => { await handleGenerateSequence(); })()}
                 disabled={!selectedUserId || generatingSequence}
                 className="inline-flex items-center bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
               >
@@ -490,7 +482,7 @@ export function AdminPanel() {
               <input
                 type="checkbox"
                 checked={systemSettings.allowAnonymous || false}
-                onChange={(e) => handleUpdateSettings(e.target.checked)}
+                onChange={(e) => void (async () => { await handleUpdateSettings(e.target.checked); })()}
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
             </label>
@@ -501,13 +493,14 @@ export function AdminPanel() {
       {selectedTab === "debugging" && (
         <div className="max-w-xl mx-auto px-4 py-12">
           <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Debugging Tools</h1>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Clear Galaxy Aggregate</h2>
             <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
               This will clear the galaxy IDs aggregate. This action cannot be undone.
             </p>
             <button
-              onClick={handleClearGalaxyAggregate}
+              onClick={() => void (async () => { await handleClearGalaxyAggregate(); })()}
               disabled={clearingAggregate}
               className="inline-flex items-center justify-center bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
@@ -517,6 +510,80 @@ export function AdminPanel() {
               {clearingAggregate ? 'Clearing...' : 'Clear Galaxy Aggregate'}
             </button>
           </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            <h2 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-4">🧪 Generate Mock Data</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+              Generate 100 mock galaxies for testing and development purposes.
+            </p>
+            <button
+              onClick={() => void (async () => { await handleGenerateMockGalaxies(); })()}
+              disabled={generatingMock}
+              className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              {generatingMock && (
+                <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {generatingMock ? 'Generating...' : 'Generate Mock Galaxies'}
+            </button>
+          </div>
+
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <h2 className="text-lg font-semibold text-red-600 dark:text-red-400 mb-4">⚠️ Delete All Galaxy Data</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+              This will permanently delete ALL galaxy data including galaxies, photometry, source extractor data, thuruthipilly data, and galaxy IDs. This action cannot be undone and will affect all users.
+            </p>
+            <button
+              onClick={() => setShowDeleteModal(true)}
+              disabled={deletingGalaxies}
+              className="inline-flex items-center justify-center bg-red-700 hover:bg-red-800 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              {deletingGalaxies && (
+                <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {deletingGalaxies ? 'Deleting...' : 'Delete All Galaxy Data'}
+            </button>
+          </div>
+
+          {/* Confirmation Modal */}
+          {showDeleteModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                  Confirm Deletion
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mb-6">
+                  Are you sure you want to delete ALL galaxy data? This will remove:
+                </p>
+                <ul className="text-sm text-gray-600 dark:text-gray-300 mb-6 list-disc list-inside space-y-1">
+                  <li>All galaxy records</li>
+                  <li>Photometry data (g, r, i bands)</li>
+                  <li>Source extractor measurements</li>
+                  <li>Thuruthipilly parameters</li>
+                  <li>Galaxy ID mappings</li>
+                  <li>Aggregated data</li>
+                </ul>
+                <p className="text-sm text-red-600 dark:text-red-400 mb-6 font-medium">
+                  This action cannot be undone!
+                </p>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowDeleteModal(false)}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => void (async () => { await handleDeleteAllGalaxies(); })()}
+                    disabled={deletingGalaxies}
+                    className="flex-1 bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  >
+                    {deletingGalaxies ? 'Deleting...' : 'Confirm Delete'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

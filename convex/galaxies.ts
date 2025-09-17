@@ -1,4 +1,4 @@
-import { query, mutation } from "./_generated/server";
+import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
@@ -29,6 +29,53 @@ export const clearGalaxyIdsAggregate = mutation({
     if (!profile || profile.role !== "admin") throw new Error("Not authorized");
     
     await galaxyIdsAggregate.clear(ctx);
+  },
+});
+
+export const deleteAllGalaxies = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // make sure only admin can call this
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    // Check if user is admin
+    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
+    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
+
+    // Delete all documents from galaxy-related tables
+    // Note: We need to delete in the correct order due to foreign key references
+    
+    // First, delete related tables that reference galaxies
+    await ctx.db.query("galaxies_photometry_g").collect().then(docs => 
+      Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
+    );
+    await ctx.db.query("galaxies_photometry_r").collect().then(docs => 
+      Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
+    );
+    await ctx.db.query("galaxies_photometry_i").collect().then(docs => 
+      Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
+    );
+    await ctx.db.query("galaxies_source_extractor").collect().then(docs => 
+      Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
+    );
+    await ctx.db.query("galaxies_thuruthipilly").collect().then(docs => 
+      Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
+    );
+    
+    // Delete galaxyIds table
+    await ctx.db.query("galaxyIds").collect().then(docs => 
+      Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
+    );
+    
+    // Finally, delete the main galaxies table
+    await ctx.db.query("galaxies").collect().then(docs => 
+      Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
+    );
+    
+    // Clear the aggregate
+    await galaxyIdsAggregate.clear(ctx);
+    
+    return { message: "All galaxy data has been deleted successfully" };
   },
 });
 
