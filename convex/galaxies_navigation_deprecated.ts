@@ -21,32 +21,41 @@ export const navigateToGalaxy = mutation({
       .order("desc")
       .first();
 
-    if (!sequence || !sequence.galaxyIds) throw new Error("No sequence found");
+    if (!sequence || !sequence.galaxyExternalIds) throw new Error("No sequence found");
 
-    // Fetch skipped then classified records once
-    const [skippedRecords, classifiedRecords] = await Promise.all([
-      ctx.db.query("skippedGalaxies").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
-      ctx.db.query("classifications").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
-    ]);
+    // Get all skipped galaxy external IDs for user
+    const skippedRecords = await ctx.db
+      .query("skippedGalaxies")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    const skippedExternalIds = new Set(skippedRecords.map(r => r.galaxyExternalId));
 
-    const skippedIds = new Set(skippedRecords.map(r => r.galaxyId.toString()));
-    const classifiedIds = new Set(classifiedRecords.map(r => r.galaxyId.toString()));
+    // Get all classified galaxy external IDs for user
+    const classifiedRecords = await ctx.db
+      .query("classifications")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    
+    const classifiedExternalIds = new Set(classifiedRecords.map(r => r.galaxyExternalId));
 
     // Build remaining list by removing skipped then classified
-    const remainingGalaxyIds = sequence.galaxyIds.filter(id => {
-      const idStr = id.toString();
-      return !skippedIds.has(idStr) && !classifiedIds.has(idStr);
+    const remainingExternalIds = sequence.galaxyExternalIds.filter(externalId => {
+      return !skippedExternalIds.has(externalId) && !classifiedExternalIds.has(externalId);
     });
 
-    if (remainingGalaxyIds.length === 0) {
+    if (remainingExternalIds.length === 0) {
       throw new Error("No available galaxies to navigate");
     }
 
     // Determine current index within remaining list
     let currentIndexInRemaining = -1;
     if (args.currentGalaxyId) {
-      const targetStr = args.currentGalaxyId.toString();
-      currentIndexInRemaining = remainingGalaxyIds.findIndex(id => id.toString() === targetStr);
+      // Get the galaxy to find its external ID
+      const currentGalaxy = await ctx.db.get(args.currentGalaxyId);
+      if (currentGalaxy) {
+        currentIndexInRemaining = remainingExternalIds.findIndex(externalId => externalId === currentGalaxy.id);
+      }
       // If provided currentGalaxyId is not in remaining, default to first available
       if (currentIndexInRemaining === -1) currentIndexInRemaining = 0;
     } else {
@@ -57,24 +66,27 @@ export const navigateToGalaxy = mutation({
     // Calculate target index within remaining list
     const targetIndexInRemaining = args.direction === "next" ? currentIndexInRemaining + 1 : currentIndexInRemaining - 1;
 
-    if (targetIndexInRemaining < 0 || targetIndexInRemaining >= remainingGalaxyIds.length) {
+    if (targetIndexInRemaining < 0 || targetIndexInRemaining >= remainingExternalIds.length) {
       throw new Error(`No ${args.direction} galaxy available`);
     }
 
-    const targetGalaxyId = remainingGalaxyIds[targetIndexInRemaining];
-    const targetGalaxy = await ctx.db.get(targetGalaxyId);
+    const targetExternalId = remainingExternalIds[targetIndexInRemaining];
+    const targetGalaxy = await ctx.db
+      .query("galaxies")
+      .withIndex("by_external_id", (q) => q.eq("id", targetExternalId))
+      .unique();
 
     if (!targetGalaxy) {
       throw new Error("Target galaxy not found");
     }
 
     // Compute position in the full sequence for compatibility
-    const originalIndex = sequence.galaxyIds.findIndex(id => id.toString() === targetGalaxyId.toString());
+    const originalIndex = sequence.galaxyExternalIds.findIndex(externalId => externalId === targetExternalId);
 
     return {
       galaxy: targetGalaxy,
       position: originalIndex >= 0 ? originalIndex + 1 : targetIndexInRemaining + 1,
-      total: sequence.galaxyIds.length,
+      total: sequence.galaxyExternalIds.length,
     };
   },
 });

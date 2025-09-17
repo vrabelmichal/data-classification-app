@@ -211,7 +211,7 @@ const applicationTables = {
   // Galaxy classifications
   classifications: defineTable({
     userId: v.id("users"),
-    galaxyId: v.union(v.id("galaxies"), v.string()), // Support both old and new formats
+    galaxyExternalId: v.string(), // References galaxies.id (external ID)
     lsb_class: v.number(), // -1, 0, 1
     morphology: v.number(), // -1, 0, 1, 2
     awesome_flag: v.boolean(),
@@ -222,23 +222,23 @@ const applicationTables = {
     timeSpent: v.number(), // milliseconds
   })
     .index("by_user", ["userId"])
-    .index("by_galaxy", ["galaxyId"])
-    .index("by_user_and_galaxy", ["userId", "galaxyId"]),
+    .index("by_galaxy", ["galaxyExternalId"])
+    .index("by_user_and_galaxy", ["userId", "galaxyExternalId"]),
 
   // Skipped galaxies
   skippedGalaxies: defineTable({
     userId: v.id("users"),
-    galaxyId: v.id("galaxies"),
+    galaxyExternalId: v.string(), // References galaxies.id (external ID)
     comments: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
-    .index("by_galaxy", ["galaxyId"])
-    .index("by_user_and_galaxy", ["userId", "galaxyId"]),
+    .index("by_galaxy", ["galaxyExternalId"])
+    .index("by_user_and_galaxy", ["userId", "galaxyExternalId"]),
 
   // Galaxy sequences for users
   galaxySequences: defineTable({
     userId: v.id("users"),
-    galaxyIds: v.optional(v.array(v.id("galaxies"))), // Ordered list of galaxy IDs
+    galaxyExternalIds: v.optional(v.array(v.string())), // Ordered list of galaxy external IDs
     currentIndex: v.number(), // Current position in the sequence
     numClassified: v.number(), // Number of galaxies classified in this sequence
     numSkipped: v.number(), // Number of galaxies skipped in this sequence

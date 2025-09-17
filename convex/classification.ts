@@ -25,24 +25,8 @@ export const getProgress = query({
     let skipped = sequence.numSkipped || 0;
 
     // Handle new format
-    if (sequence.galaxyIds && sequence.galaxyIds.length > 0) {
-      // for (const galaxyId of sequence.galaxyIds) {
-      //   const existingClassification = await ctx.db
-      //     .query("classifications")
-      //     .withIndex("by_user_and_galaxy", (q) => 
-      //       q.eq("userId", userId).eq("galaxyId", galaxyId)
-      //     )
-      //     .unique();
-      //   const isSkipped = await ctx.db
-      //     .query("skippedGalaxies")
-      //     .withIndex("by_user_and_galaxy", (q) => 
-      //       q.eq("userId", userId).eq("galaxyId", galaxyId)
-      //     )
-      //     .unique();
-      //     if (existingClassification) classified++;
-      //     if (isSkipped) skipped++;
-      // }
-      const total = sequence.galaxyIds.length;
+    if (sequence.galaxyExternalIds && sequence.galaxyExternalIds.length > 0) {
+      const total = sequence.galaxyExternalIds.length;
       const completed = classified + skipped;
 
       return {
@@ -61,7 +45,7 @@ export const getProgress = query({
 
 export const submitClassification = mutation({
   args: {
-    galaxyId: v.id("galaxies"),
+    galaxyExternalId: v.string(),
     lsb_class: v.number(),
     morphology: v.number(),
     awesome_flag: v.boolean(),
@@ -78,7 +62,7 @@ export const submitClassification = mutation({
     // Check if already classified
     const existing = await ctx.db
       .query("classifications")
-      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", args.galaxyId)
+      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", args.galaxyExternalId)
       )
       .unique();
 
@@ -99,7 +83,7 @@ export const submitClassification = mutation({
       // // Remove from skipped if it was skipped before
       // const skipped = await ctx.db
       //   .query("skippedGalaxies")
-      //   .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", args.galaxyId)
+      //   .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", args.galaxyExternalId)
       //   )
       //   .unique();
 
@@ -110,7 +94,7 @@ export const submitClassification = mutation({
       // Insert classification
       await ctx.db.insert("classifications", {
         userId,
-        galaxyId: args.galaxyId,
+        galaxyExternalId: args.galaxyExternalId,
         lsb_class: args.lsb_class,
         morphology: args.morphology,
         awesome_flag: args.awesome_flag,
@@ -141,8 +125,8 @@ export const submitClassification = mutation({
         .order('desc')
         .first();
 
-      if (sequence && sequence.galaxyIds && sequence.galaxyIds.includes(args.galaxyId)) {
-        // update numClassified couner in sequence
+      if (sequence && sequence.galaxyExternalIds && sequence.galaxyExternalIds.includes(args.galaxyExternalId)) {
+        // update numClassified counter in sequence
         await ctx.db.patch(sequence._id, {
           numClassified: (sequence.numClassified || 0) + 1,
         });
@@ -160,11 +144,15 @@ export const getUserClassificationForGalaxy = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
 
-    // Direct lookup of classification by user and galaxy reference id
+    // Get the galaxy to find its external ID
+    const galaxy = await ctx.db.get(galaxyRefId);
+    if (!galaxy) return null;
+
+    // Direct lookup of classification by user and galaxy external id
     try {
       const classification = await ctx.db
         .query('classifications')
-        .withIndex('by_user_and_galaxy', (q) => q.eq('userId', userId).eq('galaxyId', galaxyRefId))
+        .withIndex('by_user_and_galaxy', (q) => q.eq('userId', userId).eq('galaxyExternalId', galaxy.id))
         .unique();
       if (classification) return classification;
     } catch (e) {

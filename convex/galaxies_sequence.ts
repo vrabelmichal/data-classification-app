@@ -69,32 +69,32 @@ export const generateRandomUserSequence = mutation({
 
         console.log(`Starting document ID at offset ${startOffset}: ${galaxyIdAtOffsetAggregate.id}, numericId: ${galaxyIdAtOffsetAggregate.key}`);
 
-        // pull ids using the aggregate, the it is sorting using numericId (bigint)
-        const galaxyIdRefs = (
+        // pull ids using the aggregate, then sort using numericId (bigint)
+        const galaxyExternalIds = (
             await ctx.db
             .query("galaxyIds")
             .withIndex("by_numeric_id", (q) => q.gte("numericId", galaxyIdAtOffsetAggregate.key))
             .take(fetchLimit)
-        ).map((r) => r.galaxyRef);
+        ).map((r) => r.id);
 
-        console.log(`Fetched ${galaxyIdRefs.length} candidate galaxy IDs from offset ${startOffset}`);
+        console.log(`Fetched ${galaxyExternalIds.length} candidate galaxy external IDs from offset ${startOffset}`);
         // log first 10 ids
-        console.log("First 10 candidate IDs:", galaxyIdRefs.slice(0, 10));
+        console.log("First 10 candidate external IDs:", galaxyExternalIds.slice(0, 10));
 
-        // Shuffle candidate IDs (Fisher-Yates)
-        for (let i = galaxyIdRefs.length - 1; i > 0; i--) {
+        // Shuffle candidate external IDs (Fisher-Yates)
+        for (let i = galaxyExternalIds.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
-            [galaxyIdRefs[i], galaxyIdRefs[j]] = [galaxyIdRefs[j], galaxyIdRefs[i]];
+            [galaxyExternalIds[i], galaxyExternalIds[j]] = [galaxyExternalIds[j], galaxyExternalIds[i]];
         }
-        const chosen = galaxyIdRefs.slice(0, Math.min(sequenceSize, galaxyIdRefs.length));
+        const chosenGalaxyExternalIds = galaxyExternalIds.slice(0, Math.min(sequenceSize, galaxyExternalIds.length));
 
-        console.log(`Chosen ${chosen.length} galaxy IDs for the sequence`);
-        console.log("First 10 chosen IDs:", chosen.slice(0, 10));
+        console.log(`Chosen ${chosenGalaxyExternalIds.length} galaxy external IDs for the sequence`);
+        console.log("First 10 chosen external IDs:", chosenGalaxyExternalIds.slice(0, 10));
 
 
         let success = false;
 
-        if (chosen.length > 0) {
+        if (chosenGalaxyExternalIds.length > 0) {
             // Remove existing sequence
             const existingSequence = await ctx.db
                 .query("galaxySequences")
@@ -104,7 +104,7 @@ export const generateRandomUserSequence = mutation({
 
             await ctx.db.insert("galaxySequences", {
                 userId: targetUserId,
-                galaxyIds: chosen as any,
+                galaxyExternalIds: chosenGalaxyExternalIds,
                 currentIndex: 0,
                 numClassified: 0,
                 numSkipped: 0,
@@ -122,10 +122,10 @@ export const generateRandomUserSequence = mutation({
         return {
             success: success,
             message: success
-            ? `Generated sequence of ${chosen.length} galaxy IDs (requested ${sequenceSize})`
-            : "No galaxy IDs generated",
+            ? `Generated sequence of ${chosenGalaxyExternalIds.length} galaxy external IDs (requested ${sequenceSize})`
+            : "No galaxy external IDs generated",
             requested: sequenceSize,
-            generated: chosen.length,
+            generated: chosenGalaxyExternalIds.length,
             fetchLimitUsed: fetchLimit,
             startOffset,
             totalGalaxies,

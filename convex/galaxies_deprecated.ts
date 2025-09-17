@@ -20,29 +20,32 @@ export const getGalaxyByPosition = query({
       .order("desc")
       .first();
 
-    if (!sequence || !sequence.galaxyIds) return null;
+    if (!sequence || !sequence.galaxyExternalIds) return null;
 
     const index = args.position - 1; // Convert to 0-based
-    if (index < 0 || index >= sequence.galaxyIds.length) {
+    if (index < 0 || index >= sequence.galaxyExternalIds.length) {
       return null;
     }
 
-    const galaxyId = sequence.galaxyIds[index];
-    const galaxy = await ctx.db.get(galaxyId);
+    const galaxyExternalId = sequence.galaxyExternalIds[index];
+    const galaxy = await ctx.db
+      .query("galaxies")
+      .withIndex("by_external_id", (q) => q.eq("id", galaxyExternalId))
+      .unique();
 
     if (!galaxy) return null;
 
     // Check if already classified
     const existingClassification = await ctx.db
       .query("classifications")
-      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", galaxyId)
+      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxyExternalId)
       )
       .unique();
 
     // Check if skipped
     const isSkipped = await ctx.db
       .query("skippedGalaxies")
-      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", galaxyId)
+      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxyExternalId)
       )
       .unique();
 
@@ -52,7 +55,7 @@ export const getGalaxyByPosition = query({
       isSkipped: !!isSkipped,
       classification: existingClassification,
       position: args.position,
-      total: sequence.galaxyIds.length,
+      total: sequence.galaxyExternalIds.length,
     };
   },
 });

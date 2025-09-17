@@ -272,7 +272,7 @@ export function ClassificationInterface() {
     if (!currentGalaxy || lsbClass === null || morphology === null) return;
     try {
       const timeSpent = Date.now() - startTime;
-      await submitClassification({ galaxyId: currentGalaxy._id, lsb_class: lsbClass, morphology, awesome_flag: awesomeFlag, valid_redshift: validRedshift, visible_nucleus: visibleNucleus, comments: comments.trim() || undefined, sky_bkg: undefined, timeSpent });
+      await submitClassification({ galaxyExternalId: currentGalaxy.id, lsb_class: lsbClass, morphology, awesome_flag: awesomeFlag, valid_redshift: validRedshift, visible_nucleus: visibleNucleus, comments: comments.trim() || undefined, sky_bkg: undefined, timeSpent });
       toast.success("Classification submitted successfully!");
       if (navigation?.hasNext) {
         try {
@@ -292,7 +292,7 @@ export function ClassificationInterface() {
   const handleSkip = useCallback(async () => {
     if (!currentGalaxy) return;
     try {
-      await skipGalaxy({ galaxyId: currentGalaxy._id, comments: comments.trim() || undefined });
+      await skipGalaxy({ galaxyExternalId: currentGalaxy.id, comments: comments.trim() || undefined });
       toast.info("Galaxy skipped");
       if (navigation?.hasNext) {
         try {
@@ -781,6 +781,11 @@ export function ClassificationInterface() {
                         alt={`${displayGalaxy.id} - ${imageType.name}`}
                         preferences={userPrefs}
                         contrast={contrast}
+                        reff={displayGalaxy.reff}
+                        pa={displayGalaxy.pa}
+                        q={displayGalaxy.q}
+                        x={displayGalaxy.x}
+                        y={displayGalaxy.y}
                       />
                     ) : (
                       <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
@@ -961,6 +966,11 @@ export function ClassificationInterface() {
                       alt={`${displayGalaxy.id} - ${imageType.name}`}
                       preferences={userPrefs}
                       contrast={contrast}
+                      reff={displayGalaxy.reff}
+                      pa={displayGalaxy.pa}
+                      q={displayGalaxy.q}
+                      x={displayGalaxy.x}
+                      y={displayGalaxy.y}
                     />
                   ) : (
                     <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
@@ -1248,7 +1258,7 @@ export function ClassificationInterface() {
         <div className="flex items-center space-x-4">
           <h1 className={cn("text-2xl font-bold text-gray-900 dark:text-white", isSkipped === true && "bg-yellow-100 dark:bg-yellow-900/20 px-2 py-1 rounded")}>
             Galaxy: {displayGalaxy.id}
-            {isSkipped === true && <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">(skipped)</span>}
+            {isSkipped === true && <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">(in skipped table)</span>}
           </h1>
           {navigation && (
             <div className="text-sm text-gray-500 dark:text-gray-400">

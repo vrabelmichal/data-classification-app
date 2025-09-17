@@ -77,11 +77,11 @@ export const browseGalaxies = query({
     const enriched = await Promise.all(pageDocs.map(async (galaxy) => {
       const classification = await ctx.db
         .query("classifications")
-        .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", galaxy._id))
+        .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxy.id))
         .unique();
       const skipped = await ctx.db
         .query("skippedGalaxies")
-        .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", galaxy._id))
+        .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxy.id))
         .unique();
       const status = classification ? "classified" : skipped ? "skipped" : "unclassified";
       return { ...galaxy, classification, isSkipped: !!skipped, status };

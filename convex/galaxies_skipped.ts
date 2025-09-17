@@ -19,7 +19,10 @@ export const getSkippedGalaxies = query({
     // console.log("Skipped records:", skippedRecords);
     const skippedWithGalaxies = await Promise.all(
       skippedRecords.map(async (record) => {
-        let galaxy = await ctx.db.get(record.galaxyId);
+        let galaxy = await ctx.db
+          .query("galaxies")
+          .withIndex("by_external_id", (q) => q.eq("id", record.galaxyExternalId))
+          .unique();
         return {
           ...record,
           galaxy,
@@ -38,9 +41,13 @@ export const isGalaxySkipped = query({
     const userId = await getAuthUserId(ctx);
     if (!userId) return false;
 
+    // Get the galaxy to find its external ID
+    const galaxy = await ctx.db.get(args.galaxyId);
+    if (!galaxy) return false;
+
     const existing = await ctx.db
       .query("skippedGalaxies")
-      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", args.galaxyId))
+      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxy.id))
       .unique();
 
     return existing !== null;
@@ -72,7 +79,7 @@ export const removeFromSkipped = mutation({
       .order('desc')
       .first();
 
-    if (sequence && sequence.galaxyIds && sequence.galaxyIds.includes(skipped.galaxyId)) {
+    if (sequence && sequence.galaxyExternalIds && sequence.galaxyExternalIds.includes(skipped.galaxyExternalId)) {
       await ctx.db.patch(sequence._id, {
         numSkipped: Math.max((sequence.numSkipped || 1) - 1, 0),
       });
@@ -84,7 +91,7 @@ export const removeFromSkipped = mutation({
 
 export const skipGalaxy = mutation({
   args: {
-    galaxyId: v.id("galaxies"),
+    galaxyExternalId: v.string(),
     comments: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
@@ -94,7 +101,7 @@ export const skipGalaxy = mutation({
     // Check if already skipped
     const existing = await ctx.db
       .query("skippedGalaxies")
-      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyId", args.galaxyId)
+      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", args.galaxyExternalId)
       )
       .unique();
 
@@ -105,7 +112,7 @@ export const skipGalaxy = mutation({
     // Insert skip record
     await ctx.db.insert("skippedGalaxies", {
       userId,
-      galaxyId: args.galaxyId,
+      galaxyExternalId: args.galaxyExternalId,
       comments: args.comments,
     });
 
@@ -116,7 +123,7 @@ export const skipGalaxy = mutation({
       .order('desc')
       .first();
 
-    if (sequence && sequence.galaxyIds && sequence.galaxyIds.includes(args.galaxyId)) {
+    if (sequence && sequence.galaxyExternalIds && sequence.galaxyExternalIds.includes(args.galaxyExternalId)) {
       await ctx.db.patch(sequence._id, {
         numSkipped: (sequence.numSkipped || 0) + 1,
       });
