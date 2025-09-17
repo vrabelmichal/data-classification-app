@@ -139,20 +139,16 @@ export const submitClassification = mutation({
 
 // Query: get the current user's classification for a galaxy by external id
 export const getUserClassificationForGalaxy = query({
-  args: { galaxyRefId: v.id('galaxies') },
-  handler: async (ctx, { galaxyRefId }) => {
+  args: { galaxyExternalId: v.string() },
+  handler: async (ctx, { galaxyExternalId }) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return null;
-
-    // Get the galaxy to find its external ID
-    const galaxy = await ctx.db.get(galaxyRefId);
-    if (!galaxy) return null;
 
     // Direct lookup of classification by user and galaxy external id
     try {
       const classification = await ctx.db
         .query('classifications')
-        .withIndex('by_user_and_galaxy', (q) => q.eq('userId', userId).eq('galaxyExternalId', galaxy.id))
+        .withIndex('by_user_and_galaxy', (q) => q.eq('userId', userId).eq('galaxyExternalId', galaxyExternalId))
         .unique();
       if (classification) return classification;
     } catch (e) {

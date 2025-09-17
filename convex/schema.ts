@@ -9,6 +9,7 @@ export const galaxySchemaDefinition = {
   ra: v.number(),
   dec: v.number(),
   reff: v.number(),
+  reff_pixels: v.number(),
   q: v.number(),
   pa: v.number(),
   nucleus: v.boolean(),
@@ -40,6 +41,7 @@ export const photometryBandSchema = {
     mean_mue: v.optional(v.number()),
     mue: v.optional(v.number()),
     x_error: v.optional(v.number()),
+    x_rel_error: v.optional(v.number()),
     psf: v.optional(
       v.object({
         mag: v.optional(v.number()),
@@ -64,6 +66,7 @@ export const photometryBandSchemaR = {
     mag_error: v.optional(v.number()),
     mag_rel_error: v.optional(v.number()),
     x_error: v.optional(v.number()),
+    x_rel_error: v.optional(v.number()),
     psf: v.optional(
       v.object({
         mag: v.optional(v.number()),
@@ -83,6 +86,7 @@ export const photometryBandSchemaI = {
     mag_error: v.optional(v.number()),
     mag_rel_error: v.optional(v.number()),
     x_error: v.optional(v.number()),
+    x_rel_error: v.optional(v.number()),
     psf: v.optional(
       v.object({
         mag: v.optional(v.number()),

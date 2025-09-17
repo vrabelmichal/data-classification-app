@@ -36,18 +36,14 @@ export const getSkippedGalaxies = query({
 
 // Check if a specific galaxy is skipped by the current user
 export const isGalaxySkipped = query({
-  args: { galaxyId: v.id("galaxies") },
+  args: { galaxyExternalId: v.string() },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) return false;
 
-    // Get the galaxy to find its external ID
-    const galaxy = await ctx.db.get(args.galaxyId);
-    if (!galaxy) return false;
-
     const existing = await ctx.db
       .query("skippedGalaxies")
-      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxy.id))
+      .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", args.galaxyExternalId))
       .unique();
 
     return existing !== null;

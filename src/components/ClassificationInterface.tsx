@@ -54,10 +54,10 @@ export function ClassificationInterface() {
 
   const navigation = useQuery(
     api.galaxies_navigation.getGalaxyNavigation,
-    currentGalaxy ? { currentGalaxyId: currentGalaxy._id } : {}
+    currentGalaxy ? { currentGalaxyExternalId: currentGalaxy.id } : {}
   );
 
-  const isSkipped = useQuery(api.galaxies_skipped.isGalaxySkipped, currentGalaxy ? { galaxyId: currentGalaxy._id } : "skip");
+  const isSkipped = useQuery(api.galaxies_skipped.isGalaxySkipped, currentGalaxy ? { galaxyExternalId: currentGalaxy.id } : "skip");
 
 
   const submitClassification = useMutation(api.classification.submitClassification);
@@ -245,7 +245,7 @@ export function ClassificationInterface() {
   const handlePrevious = useCallback(async () => {
     if (!currentGalaxy || !navigation?.hasPrevious) return;
     try {
-      const result = await navigateToGalaxy({ direction: "previous", currentGalaxyId: currentGalaxy._id });
+      const result = await navigateToGalaxy({ direction: "previous", currentGalaxyExternalId: currentGalaxy.id });
       setCurrentGalaxy(result.galaxy);
       if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
       // toast.info(`Navigated to galaxy ${result.position} of ${result.total}`);
@@ -258,7 +258,7 @@ export function ClassificationInterface() {
   const handleNext = useCallback(async () => {
     if (!currentGalaxy || !navigation?.hasNext) return;
     try {
-      const result = await navigateToGalaxy({ direction: "next", currentGalaxyId: currentGalaxy._id });
+      const result = await navigateToGalaxy({ direction: "next", currentGalaxyExternalId: currentGalaxy.id });
       setCurrentGalaxy(result.galaxy);
       if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
       // toast.info(`Navigated to galaxy ${result.position} of ${result.total}`);
@@ -276,7 +276,7 @@ export function ClassificationInterface() {
       toast.success("Classification submitted successfully!");
       if (navigation?.hasNext) {
         try {
-          const result = await navigateToGalaxy({ direction: "next", currentGalaxyId: currentGalaxy._id });
+          const result = await navigateToGalaxy({ direction: "next", currentGalaxyExternalId: currentGalaxy.id });
           setCurrentGalaxy(result.galaxy);
           if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
         } catch (error) {
@@ -296,7 +296,7 @@ export function ClassificationInterface() {
       toast.info("Galaxy skipped");
       if (navigation?.hasNext) {
         try {
-          const result = await navigateToGalaxy({ direction: "next", currentGalaxyId: currentGalaxy._id });
+          const result = await navigateToGalaxy({ direction: "next", currentGalaxyExternalId: currentGalaxy.id });
           setCurrentGalaxy(result.galaxy);
           if (result.galaxy?.id) navigate(`/classify/${result.galaxy.id}`);
         } catch (error) {
@@ -388,7 +388,7 @@ export function ClassificationInterface() {
 
   const existingClassification = useQuery(
     api.classification.getUserClassificationForGalaxy,
-    displayGalaxy?._id ? { galaxyRefId: displayGalaxy._id } : "skip"
+    displayGalaxy?.id ? { galaxyExternalId: displayGalaxy.id } : "skip"
   );
 
   // Reset form when new galaxy loads (independent of whether classification doc has arrived yet)
@@ -411,7 +411,7 @@ export function ClassificationInterface() {
   // Apply existing classification once it becomes available (or changes) for the current galaxy
   useEffect(() => {
     if (!currentGalaxy || !existingClassification) return;
-    const sameGalaxy = String(existingClassification.galaxyExternalId) === String(currentGalaxy._id) || String(existingClassification.galaxyExternalId) === String(currentGalaxy.id);
+    const sameGalaxy = String(existingClassification.galaxyExternalId) === String(currentGalaxy.id);
     if (!sameGalaxy) return;
     if (lastAppliedClassificationId.current === existingClassification._id) return;
     setLsbClass(existingClassification.lsb_class);

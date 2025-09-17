@@ -80,7 +80,7 @@ export const getGalaxyByExternalId = query({
 
 export const getGalaxyNavigation = query({
   args: {
-    currentGalaxyId: v.optional(v.id("galaxies")),
+    currentGalaxyExternalId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -100,12 +100,9 @@ export const getGalaxyNavigation = query({
 
     let currentIndex = -1;
 
-    if (args.currentGalaxyId) {
-      // Get the galaxy to find its external ID
-      const currentGalaxy = await ctx.db.get(args.currentGalaxyId);
-      if (currentGalaxy) {
-        currentIndex = sequence.galaxyExternalIds.findIndex(externalId => externalId === currentGalaxy.id);
-      }
+    if (args.currentGalaxyExternalId) {
+      // Find the position of the current galaxy in the sequence
+      currentIndex = sequence.galaxyExternalIds.findIndex(externalId => externalId === args.currentGalaxyExternalId);
     } else {
       // Fetch classified and skipped external IDs once to avoid many DB queries in a loop
       const [skippedRecords, classifiedRecords] = await Promise.all([
@@ -139,7 +136,7 @@ export const getGalaxyNavigation = query({
 export const navigateToGalaxyInSequence = mutation({
     args: {
         direction: v.union(v.literal("next"), v.literal("previous")),
-        currentGalaxyId: v.optional(v.id("galaxies")),
+        currentGalaxyExternalId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
         const userId = await getAuthUserId(ctx);
@@ -155,16 +152,13 @@ export const navigateToGalaxyInSequence = mutation({
         if (!sequence || !sequence.galaxyExternalIds) throw new Error("No sequence found");
 
         let originalIndex = -1;
-        if (args.currentGalaxyId) {
-            // Get the galaxy to find its external ID
-            const currentGalaxy = await ctx.db.get(args.currentGalaxyId);
-            if (currentGalaxy) {
-                originalIndex = sequence.galaxyExternalIds.findIndex(externalId => externalId === currentGalaxy.id);
-            }
+        if (args.currentGalaxyExternalId) {
+            // Find the position of the current galaxy in the sequence
+            originalIndex = sequence.galaxyExternalIds.findIndex(externalId => externalId === args.currentGalaxyExternalId);
         }
 
         if (originalIndex === -1) {
-            // If currentGalaxyId not found, start from beginning or end based on direction
+            // If currentGalaxyExternalId not found, start from beginning or end based on direction
             originalIndex = args.direction === "next" ? -1 : sequence.galaxyExternalIds.length;
         }
 
