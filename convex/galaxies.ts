@@ -62,6 +62,11 @@ export const deleteAllGalaxies = mutation({
       Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
     );
     
+    // Delete galaxyAssignmentStats
+    await ctx.db.query("galaxyAssignmentStats").collect().then(docs => 
+      Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
+    );
+    
     // Delete galaxyIds table
     await ctx.db.query("galaxyIds").collect().then(docs => 
       Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
@@ -112,6 +117,15 @@ export async function insertGalaxy(
   if (galaxyId_doc) {
     await galaxyIdsAggregate.insert(ctx, galaxyId_doc);
   }
+
+  // Insert galaxyAssignmentStats
+  await ctx.db.insert("galaxyAssignmentStats", {
+    galaxyExternalId: galaxy.id,
+    numericId: resolvedNumericId,
+    totalAssigned: 0,
+    perUser: {},
+    lastAssignedAt: undefined,
+  });
 
   // Per-band photometry tables
   if (photometryBand) {

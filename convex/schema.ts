@@ -190,6 +190,16 @@ const applicationTables = {
     numericId: v.int64(),
   }).index("by_external_id", ["id"]).index("by_numeric_id", ["numericId"]),
 
+  galaxyAssignmentStats: defineTable({
+    galaxyExternalId: v.string(),
+    numericId: v.int64(),
+    totalAssigned: v.number(),
+    perUser: v.optional(v.record(v.string(), v.number())),
+    lastAssignedAt: v.optional(v.number()),
+  })
+    .index("by_galaxy", ["galaxyExternalId"])
+    .index("by_total_numeric", ["totalAssigned", "numericId"]),
+
   // User profiles
   userProfiles: defineTable({
     userId: v.id("users"),

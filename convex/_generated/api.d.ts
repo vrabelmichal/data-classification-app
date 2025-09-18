@@ -22,9 +22,12 @@ import type * as galaxies_navigation from "../galaxies_navigation.js";
 import type * as galaxies_navigation_deprecated from "../galaxies_navigation_deprecated.js";
 import type * as galaxies_sequence from "../galaxies_sequence.js";
 import type * as galaxies_skipped from "../galaxies_skipped.js";
+import type * as generateBalancedUserSequence from "../generateBalancedUserSequence.js";
 import type * as http from "../http.js";
 import type * as images from "../images.js";
+import type * as lib_assignmentCore from "../lib/assignmentCore.js";
 import type * as router from "../router.js";
+import type * as seedGalaxyAssignmentStats from "../seedGalaxyAssignmentStats.js";
 import type * as users from "../users.js";
 
 import type {
@@ -56,9 +59,12 @@ declare const fullApi: ApiFromModules<{
   galaxies_navigation_deprecated: typeof galaxies_navigation_deprecated;
   galaxies_sequence: typeof galaxies_sequence;
   galaxies_skipped: typeof galaxies_skipped;
+  generateBalancedUserSequence: typeof generateBalancedUserSequence;
   http: typeof http;
   images: typeof images;
+  "lib/assignmentCore": typeof lib_assignmentCore;
   router: typeof router;
+  seedGalaxyAssignmentStats: typeof seedGalaxyAssignmentStats;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;
