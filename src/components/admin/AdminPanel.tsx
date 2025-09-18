@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { cn } from "../lib/utils";
-import { usePageTitle } from "../hooks/usePageTitle";
+import { api } from "../../../convex/_generated/api";
+import { cn } from "../../lib/utils";
+import { usePageTitle } from "../../hooks/usePageTitle";
 import { UsersTab } from "./UsersTab";
 import { GalaxiesTab } from "./GalaxiesTab";
 import { SettingsTab } from "./SettingsTab";

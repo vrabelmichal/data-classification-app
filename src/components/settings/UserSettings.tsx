@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
-import { cn } from "../lib/utils";
-import { usePageTitle } from "../hooks/usePageTitle";
+import { cn } from "../../lib/utils";
+import { usePageTitle } from "../../hooks/usePageTitle";
 
 export function UserSettings() {
   usePageTitle("Settings");

@@ -1,8 +1,8 @@
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { usePageTitle } from "../hooks/usePageTitle";
+import { api } from "../../../convex/_generated/api";
+import { usePageTitle } from "../../hooks/usePageTitle";
 import { toast } from "sonner";
-import { ImageViewer } from "./ImageViewer";
+import { ImageViewer } from "../classification/ImageViewer";
 
 export function SkippedGalaxies() {
   usePageTitle("Skipped Galaxies");

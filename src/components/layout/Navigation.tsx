@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { NavLink, useNavigate } from "react-router";
-import { api } from "../../convex/_generated/api";
-import { cn } from "../lib/utils";
-import { SignOutButton } from "../SignOutButton";
-import { AdminButton } from "./AdminButton";
+import { api } from "../../../convex/_generated/api";
+import { cn } from "../../lib/utils";
+import { SignOutButton } from "../../SignOutButton";
+import { AdminButton } from "../admin/AdminButton";
 
 interface NavigationItem {
   id: string;

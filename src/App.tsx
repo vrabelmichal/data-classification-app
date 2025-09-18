@@ -4,14 +4,14 @@ import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { SignOutButton } from "./SignOutButton";
 import { PasswordReset } from "./PasswordReset";
-import { Navigation } from "./components/Navigation";
-import { ClassificationInterface } from "./components/ClassificationInterface";
-import { GalaxyBrowser } from "./components/GalaxyBrowser";
-import { SkippedGalaxies } from "./components/SkippedGalaxies";
-import { Statistics } from "./components/Statistics";
-import { UserSettings } from "./components/UserSettings";
-import { Help } from "./components/Help";
-import { AdminPanel } from "./components/AdminPanel";
+import { Navigation } from "./components/layout/Navigation";
+import { ClassificationInterface } from "./components/classification/ClassificationInterface";
+import { GalaxyBrowser } from "./components/browse/GalaxyBrowser";
+import { SkippedGalaxies } from "./components/browse/SkippedGalaxies";
+import { Statistics } from "./components/statistics/Statistics";
+import { UserSettings } from "./components/settings/UserSettings";
+import { Help } from "./components/help/Help";
+import { AdminPanel } from "./components/admin/AdminPanel";
 import { Toaster } from "sonner";
 
 function App() {

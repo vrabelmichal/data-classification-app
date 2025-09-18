@@ -1,7 +1,7 @@
 import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
-import { cn } from "../lib/utils";
+import { cn } from "../../lib/utils";
 
 interface UsersTabProps {
   users: any[];

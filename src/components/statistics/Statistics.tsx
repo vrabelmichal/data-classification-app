@@ -1,6 +1,6 @@
 import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { usePageTitle } from "../hooks/usePageTitle";
+import { api } from "../../../convex/_generated/api";
+import { usePageTitle } from "../../hooks/usePageTitle";
 
 export function Statistics() {
   usePageTitle("Statistics");

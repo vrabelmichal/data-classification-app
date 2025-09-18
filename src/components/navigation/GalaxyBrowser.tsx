@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, usePaginatedQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { ImageViewer } from "./ImageViewer";
+import { ImageViewer } from "../classification/ImageViewer";
 import { cn } from "../lib/utils";
 import { Link } from "react-router";
 import { usePageTitle } from "../hooks/usePageTitle";

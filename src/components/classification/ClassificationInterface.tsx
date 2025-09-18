@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
-import { cn } from "../lib/utils";
+import { cn } from "../../lib/utils";
 import { ProgressBar } from "./ProgressBar";
 import { ImageViewer } from "./ImageViewer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { useParams, useNavigate } from "react-router";
-import { getImageUrl } from "../images";
-import { usePageTitle } from "../hooks/usePageTitle";
+import { getImageUrl } from "../../images";
+import { usePageTitle } from "../../hooks/usePageTitle";
 
 // let lastSelectedMorphology: number | null = null;
 

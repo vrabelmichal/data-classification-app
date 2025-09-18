@@ -1,5 +1,5 @@
 import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 
 interface SettingsTabProps {
