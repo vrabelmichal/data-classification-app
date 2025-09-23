@@ -36,7 +36,24 @@ export function PasswordReset() {
               setStep({ email: formData.get("email") as string });
             })
             .catch((err) => {
-              toast.error(err.message || "Failed to send reset code");
+              console.error("Password reset request error:", err); // Keep debugging details in console
+
+              // Provide user-friendly error messages
+              let userMessage = "Failed to send reset code";
+
+              if (err.message) {
+                const errorMsg = err.message.toLowerCase();
+
+                if (errorMsg.includes("not found") || errorMsg.includes("email")) {
+                  userMessage = "Email address not found. Please check your email and try again.";
+                } else if (errorMsg.includes("rate limit") || errorMsg.includes("too many")) {
+                  userMessage = "Too many requests. Please wait a few minutes and try again.";
+                } else if (errorMsg.includes("invalid email")) {
+                  userMessage = "Please enter a valid email address.";
+                }
+              }
+
+              toast.error(userMessage);
             })
             .finally(() => setSubmitting(false));
         }}
@@ -76,7 +93,28 @@ export function PasswordReset() {
             navigate("/");
           })
           .catch((err) => {
-            toast.error(err.message || "Failed to reset password");
+            console.error("Password reset error:", err); // Keep debugging details in console
+
+            // Provide user-friendly error messages
+            let userMessage = "Failed to reset password";
+
+            if (err.message) {
+              const errorMsg = err.message.toLowerCase();
+
+              if (errorMsg.includes("invalid") || errorMsg.includes("verification")) {
+                userMessage = "Invalid or expired reset code. Please request a new one.";
+              } else if (errorMsg.includes("not found") || errorMsg.includes("email")) {
+                userMessage = "Email address not found. Please check your email and try again.";
+              } else if (errorMsg.includes("expired") || errorMsg.includes("timeout")) {
+                userMessage = "Reset code has expired. Please request a new one.";
+              } else if (errorMsg.includes("already used")) {
+                userMessage = "This reset code has already been used. Please request a new one.";
+              } else if (errorMsg.includes("too many")) {
+                userMessage = "Too many attempts. Please wait a few minutes and try again.";
+              }
+            }
+
+            toast.error(userMessage);
             setSubmitting(false);
           });
       }}

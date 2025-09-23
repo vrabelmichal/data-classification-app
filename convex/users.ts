@@ -486,38 +486,38 @@ export const deleteUser = mutation({
 });
 
 // Admin: Reset user password (send reset email)
-export const resetUserPassword = action({
-  args: { targetUserId: v.id("users") },
-  handler: async (ctx, args) => {
-    const adminUserId = await getAuthUserId(ctx);
-    if (!adminUserId) throw new Error("Not authenticated");
+// export const resetUserPassword = action({
+//   args: { targetUserId: v.id("users") },
+//   handler: async (ctx, args) => {
+//     const adminUserId = await getAuthUserId(ctx);
+//     if (!adminUserId) throw new Error("Not authenticated");
 
-    // Check admin permissions using runQuery
-    const adminProfile = await ctx.runQuery(api.users.getUserProfileById, { userId: adminUserId });
-    if (!adminProfile || adminProfile.role !== "admin") {
-      throw new Error("Admin access required");
-    }
+//     // Check admin permissions using runQuery
+//     const adminProfile = await ctx.runQuery(api.users.getUserProfileById, { userId: adminUserId });
+//     if (!adminProfile || adminProfile.role !== "admin") {
+//       throw new Error("Admin access required");
+//     }
 
-    // Get target user data using runQuery
-    const targetUser = await ctx.runQuery(api.users.getUserById, { userId: args.targetUserId });
-    if (!targetUser?.email) {
-      throw new Error("Target user has no email to send reset");
-    }
+//     // Get target user data using runQuery
+//     const targetUser = await ctx.runQuery(api.users.getUserById, { userId: args.targetUserId });
+//     if (!targetUser?.email) {
+//       throw new Error("Target user has no email to send reset");
+//     }
 
-    // Get settings using runQuery
-    const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
-    const emailFrom = settings.emailFrom || "noreply@galaxies.michalvrabel.sk";
-    const appName = settings.appName || "Galaxy Classification App";
+//     // Get settings using runQuery
+//     const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
+//     const emailFrom = settings.emailFrom || "noreply@galaxies.michalvrabel.sk";
+//     const appName = settings.appName || "Galaxy Classification App";
 
-    // Send password reset email
-    await sendPasswordResetEmail(targetUser.email, `${appName} <${emailFrom}>`);
+//     // Send password reset email
+//     await sendPasswordResetEmail(targetUser.email, `${appName} <${emailFrom}>`);
 
-    return {
-      success: true,
-      message: "Password reset email sent successfully.",
-    };
-  },
-});
+//     return {
+//       success: true,
+//       message: "Password reset email sent successfully.",
+//     };
+//   },
+// });
 
 // Debug: Allow user to become admin (for debugging purposes)
 export const becomeAdmin = mutation({
@@ -548,6 +548,21 @@ export const becomeAdmin = mutation({
     }
 
     await ctx.db.patch(userProfile._id, { role: "admin" });
+
+    return { success: true };
+  },
+});
+
+// Update user name
+export const updateUserName = mutation({
+  args: {
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    await ctx.db.patch(userId, { name: args.name });
 
     return { success: true };
   },

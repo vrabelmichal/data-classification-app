@@ -71,6 +71,9 @@ export const getPublicSystemSettings = query({
         if (key === "appName") {
           publicSettings[key] = "Galaxy Classification App";
         }
+        // if (key === "emailFrom") {
+        //   publicSettings[key] = "noreply@galaxies.michalvrabel.sk";
+        // }
         if (key === "debugAdminMode") {
           publicSettings[key] = false;
         }

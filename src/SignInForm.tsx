@@ -45,6 +45,16 @@ export function SignInForm() {
           autoComplete="username"
           required
         />
+        {flow === "signUp" && (
+          <input
+            className="auth-input-field"
+            type="text"
+            name="name"
+            placeholder="Full Name"
+            autoComplete="name"
+            required
+          />
+        )}
         <input
           className="auth-input-field"
           type="password"

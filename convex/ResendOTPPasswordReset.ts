@@ -19,12 +19,12 @@ function generateResetToken() {
 }
 
 // Shared email sending
-async function sendResetEmail(email: string, token: string, apiKey: string, from: string = "Galaxy App <noreply@galaxies.michalvrabel.sk>") {
+async function sendResetEmail(email: string, token: string, apiKey: string, appName: string, from: string) {
   // const resend = new ResendAPI(apiKey);
   // console.log("API Key:", apiKey);
-  console.log("From address:", from);
-  console.log("Sending reset email to:", email);
-  console.log("Reset token:", token);
+  // console.log("From address:", from);
+  // console.log("Sending reset email to:", email);
+  // console.log("Reset token:", token);
 
   // Get the app URL from environment or use a default
   const appUrl = process.env.SITE_URL || "http://localhost:5173";
@@ -39,27 +39,41 @@ async function sendResetEmail(email: string, token: string, apiKey: string, from
     body: JSON.stringify({
       from,
       to: [email],
-      subject: `Reset your password`,
+      subject: `${appName} Password Reset`,
       text: `Your password reset code is ${token}. Use this code in the password reset form.`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #333;">Reset Your Password</h2>
+          <h2 style="color: #333;">Password Reset Request</h2>
           <p>Hello,</p>
-          <p>You requested a password reset for your account. Click the button below to reset your password:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${appUrl}/reset?token=${token}"
-               style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
-              Reset Password
-            </a>
-          </div>
-          <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-          <p style="word-break: break-all; color: #666;">${appUrl}/reset?token=${token}</p>
-          <p><strong>Reset code:</strong> ${token}</p>
-          <p>This link will expire. If you didn't request this reset, please ignore this email.</p>
+          <p>You requested a password reset for your account.</p>
+          <p style="margin: 32px 0; font-size: 2em; font-weight: bold; letter-spacing: 0.2em; color: #007bff; text-align: center;">
+            ${token}
+          </p>
+          <p>Enter this code in the password reset form to continue.</p>
+          <p>If you did not request this, please ignore this email.</p>
           <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
-          <p style="color: #666; font-size: 12px;">If you're having trouble, contact support.</p>
+          <p style="color: #666; font-size: 12px;">If you need help, contact support.</p>
         </div>
       `,
+      // html: `
+      //   <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+      //     <h2 style="color: #333;">Reset Your Password</h2>
+      //     <p>Hello,</p>
+      //     <p>You requested a password reset for your account. Click the button below to reset your password:</p>
+      //     <div style="text-align: center; margin: 30px 0;">
+      //       <a href="${appUrl}/reset?token=${token}"
+      //          style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+      //         Reset Password
+      //       </a>
+      //     </div>
+      //     <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+      //     <p style="word-break: break-all; color: #666;">${appUrl}/reset?token=${token}</p>
+      //     <p><strong>Reset code:</strong> ${token}</p>
+      //     <p>This link will expire. If you didn't request this reset, please ignore this email.</p>
+      //     <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+      //     <p style="color: #666; font-size: 12px;">If you're having trouble, contact support.</p>
+      //   </div>
+      // `,
     }),
   });
 
@@ -90,13 +104,54 @@ export const ResendOTPPasswordReset = Resend({
     return generateResetToken();
   },
   async sendVerificationRequest({ identifier: email, provider, token }) {
-    await sendResetEmail(email, token, provider.apiKey!);
+    try {
+      const url = `${process.env.CONVEX_CLOUD_URL}/api/query`;
+      console.log("Fetching system settings from:", url);
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          path: "emailSettings:getSystemSettingsForEmail",
+          args: {},
+          format: "json"
+        }),
+      });
+
+      // Read the response body once
+      const responseText = await res.text();
+      console.log("System settings response:", responseText);
+
+      if (!res.ok) {
+        console.error("Failed to fetch system settings:", responseText);
+        const appName = "Galaxy Classification App";
+        const from = "noreply@galaxies.michalvrabel.sk";
+        const fromWithName = `${appName} <${from}>`;
+        await sendResetEmail(email, token, provider.apiKey!, appName, fromWithName);
+        return;
+      }
+
+      // Parse the JSON from the text we already read
+      const responseData = JSON.parse(responseText) as { status: string; value: { appName?: string; emailFrom?: string } };
+      const settings = responseData.value;
+      const appName = settings?.appName ?? "Galaxy Classification App";
+      const from = settings?.emailFrom ?? "noreply@galaxies.michalvrabel.sk";
+      const fromWithName = `${appName} <${from}>`;
+      await sendResetEmail(email, token, provider.apiKey!, appName, fromWithName);
+    } catch (err) {
+      console.error("Error fetching system settings:", err);
+      const appName = "Galaxy Classification App";
+      const from = "noreply@galaxies.michalvrabel.sk";
+      const fromWithName = `${appName} <${from}>`;
+      await sendResetEmail(email, token, provider.apiKey!, appName, fromWithName);
+    }
   },
 });
 
 // Helper function to send password reset email manually
-export async function sendPasswordResetEmail(email: string, from?: string) {
+export async function sendPasswordResetEmail(email: string, from: string, appName?: string) {
   const token = generateResetToken();
-  await sendResetEmail(email, token, process.env.AUTH_RESEND_KEY!, from);
+  const appNameToUse = appName || "Galaxy Classification App";
+  const fromWithName = `${appNameToUse} <${from}>`;
+  await sendResetEmail(email, token, process.env.AUTH_RESEND_KEY!, appNameToUse, fromWithName);
   return token; // Optionally return the token if needed
 }

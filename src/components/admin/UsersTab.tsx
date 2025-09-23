@@ -11,7 +11,7 @@ export function UsersTab({ users }: UsersTabProps) {
   const updateUserStatus = useMutation(api.users.updateUserStatus);
   const confirmUser = useMutation(api.users.confirmUser);
   const updateUserRole = useMutation(api.users.updateUserRole);
-  const resetUserPassword = useAction(api.users.resetUserPassword);
+  // const resetUserPassword = useAction(api.users.resetUserPassword);   // Does not work at the moment, we need to modify convex's authVerificationCodes table in a proper way. Not sure if there is an API for that. 
   const deleteUser = useMutation(api.users.deleteUser);
   const createUserProfile = useMutation(api.admin.createUserProfile);
 
@@ -68,16 +68,16 @@ export function UsersTab({ users }: UsersTabProps) {
     }
   };
 
-  const handleResetPassword = async (userId: any) => {
-    if (!confirm("Send password reset email to this user?")) return;
-    try {
-      await resetUserPassword({ targetUserId: userId });
-      toast.success("Password reset email sent successfully.");
-    } catch (e:any) {
-      toast.error("Failed to send reset email");
-      console.error(e);
-    }
-  };
+  // const handleResetPassword = async (userId: any) => {
+  //   if (!confirm("Send password reset email to this user?")) return;
+  //   try {
+  //     await resetUserPassword({ targetUserId: userId });
+  //     toast.success("Password reset email sent successfully.");
+  //   } catch (e:any) {
+  //     toast.error("Failed to send reset email");
+  //     console.error(e);
+  //   }
+  // };
 
   const handleCreateProfile = async (userId: any) => {
     try {
@@ -227,12 +227,12 @@ export function UsersTab({ users }: UsersTabProps) {
                         >
                           Delete
                         </button>
-                        <button
+                        {/* <button
                           onClick={() => void (async () => { await handleResetPassword(userProfile.userId); })()}
                           className="px-2 py-1 rounded text-xs font-medium bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-400 transition-colors"
                         >
                           Reset PW
-                        </button>
+                        </button> */}
                       </>
                     )}
                   </td>
