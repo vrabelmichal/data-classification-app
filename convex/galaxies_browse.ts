@@ -243,7 +243,8 @@ export const browseGalaxies = query({
     }
 
     // Enrich with classification and skip data
-    const enriched = await Promise.all(searchFilteredGalaxies.map(async (galaxy) => {
+    const galaxiesToEnrich = searchFilteredGalaxies.length > 0 ? searchFilteredGalaxies : galaxies;
+    const enriched = await Promise.all(galaxiesToEnrich.map(async (galaxy) => {
       const classification = await ctx.db
         .query("classifications")
         .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxy.id))
