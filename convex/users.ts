@@ -1,7 +1,8 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, action } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
+import { api } from "./_generated/api";
 // adminSetUserPassword removed: we now only support email-based reset flow.
 
 // Get user preferences
@@ -166,6 +167,51 @@ export const getUserStats = query({
       validRedshiftCount,
       visibleNucleusCount,
     };
+  },
+});
+
+// Admin: Get user by ID
+export const getUserById = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const currentUserId = await getAuthUserId(ctx);
+    if (!currentUserId) throw new Error("Not authenticated");
+
+    const currentProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", currentUserId))
+      .unique();
+
+    if (!currentProfile || currentProfile.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    return await ctx.db.get(args.userId);
+  },
+});
+
+// Admin: Get user profile by userId
+export const getUserProfileById = query({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const currentUserId = await getAuthUserId(ctx);
+    if (!currentUserId) throw new Error("Not authenticated");
+
+    const currentProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", currentUserId))
+      .unique();
+
+    if (!currentProfile || currentProfile.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    return profile;
   },
 });
 
@@ -439,41 +485,32 @@ export const deleteUser = mutation({
   },
 });
 
-// Admin: Reset a user's password (Password provider)
-export const resetUserPassword = mutation({
+// Admin: Reset user password (send reset email)
+export const resetUserPassword = action({
   args: { targetUserId: v.id("users") },
   handler: async (ctx, args) => {
     const adminUserId = await getAuthUserId(ctx);
     if (!adminUserId) throw new Error("Not authenticated");
 
-    const adminProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", adminUserId))
-      .unique();
-
+    // Check admin permissions using runQuery
+    const adminProfile = await ctx.runQuery(api.users.getUserProfileById, { userId: adminUserId });
     if (!adminProfile || adminProfile.role !== "admin") {
       throw new Error("Admin access required");
     }
 
-    // Fetch the target user's email
-    const targetUser = await ctx.db.get(args.targetUserId);
+    // Get target user data using runQuery
+    const targetUser = await ctx.runQuery(api.users.getUserById, { userId: args.targetUserId });
     if (!targetUser?.email) {
       throw new Error("Target user has no email to send reset");
     }
 
-    // Send password reset email
-    const settings = await ctx.db.query("systemSettings").collect();
-    const settingsMap = settings.reduce((acc, setting) => {
-      acc[setting.key] = setting.value;
-      return acc;
-    }, {} as Record<string, any>);
-    const emailFrom = settingsMap.emailFrom || "noreply@galaxies.michalvrabel.sk";
-    const appName = settingsMap.appName || "Galaxy Classification App";
-    await sendPasswordResetEmail(targetUser.email, `${appName} <${emailFrom}>`);
+    // Get settings using runQuery
+    const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
+    const emailFrom = settings.emailFrom || "noreply@galaxies.michalvrabel.sk";
+    const appName = settings.appName || "Galaxy Classification App";
 
-    // Store the token in the database or handle it as per auth flow
-    // For simplicity, since the auth provider expects it, we might need to store it temporarily
-    // But for now, just send the email. The user can use the code in the reset form.
+    // Send password reset email
+    await sendPasswordResetEmail(targetUser.email, `${appName} <${emailFrom}>`);
 
     return {
       success: true,

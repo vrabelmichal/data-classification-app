@@ -1,13 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
 export function PasswordReset() {
   const { signIn } = useAuthActions();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<"request" | { email: string }>("request");
   const [submitting, setSubmitting] = useState(false);
+  const [tokenFromUrl, setTokenFromUrl] = useState<string>("");
+
+  // Check for token in URL on component mount
+  useEffect(() => {
+    const token = searchParams.get("token");
+    if (token) {
+      setTokenFromUrl(token);
+      // If we have a token, skip to the verification step
+      setStep({ email: "" }); // We'll get email from the form or user input
+    }
+  }, [searchParams]);
 
   if (step === "request") {
     return (
@@ -70,12 +82,25 @@ export function PasswordReset() {
       }}
     >
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Enter code & new password</h2>
-      <p className="text-sm text-gray-600 dark:text-gray-300">We sent a code to {step.email}. Enter it below.</p>
+      <p className="text-sm text-gray-600 dark:text-gray-300">
+        {tokenFromUrl
+          ? "Enter your email and new password to complete the reset."
+          : `We sent a code to ${step.email}. Enter it below.`
+        }
+      </p>
+      <input
+        name="email"
+        type="email"
+        required
+        placeholder="you@example.com"
+        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+      />
       <input
         name="code"
         type="text"
         required
         placeholder="Reset code"
+        defaultValue={tokenFromUrl}
         className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
       />
       <input

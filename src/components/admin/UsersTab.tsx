@@ -1,4 +1,4 @@
-import { useMutation } from "convex/react";
+import { useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { cn } from "../../lib/utils";
@@ -11,7 +11,7 @@ export function UsersTab({ users }: UsersTabProps) {
   const updateUserStatus = useMutation(api.users.updateUserStatus);
   const confirmUser = useMutation(api.users.confirmUser);
   const updateUserRole = useMutation(api.users.updateUserRole);
-  const resetUserPassword = useMutation(api.users.resetUserPassword);
+  const resetUserPassword = useAction(api.users.resetUserPassword);
   const deleteUser = useMutation(api.users.deleteUser);
   const createUserProfile = useMutation(api.admin.createUserProfile);
 

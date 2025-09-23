@@ -20,18 +20,67 @@ function generateResetToken() {
 
 // Shared email sending
 async function sendResetEmail(email: string, token: string, apiKey: string, from: string = "Galaxy App <noreply@galaxies.michalvrabel.sk>") {
-  const resend = new ResendAPI(apiKey);
-  const { error } = await resend.emails.send({
-    from,
-    to: [email],
-    subject: `Reset your password`,
-    text: `Your password reset code is ${token}. Use this code in the password reset form.`,
+  // const resend = new ResendAPI(apiKey);
+  // console.log("API Key:", apiKey);
+  console.log("From address:", from);
+  console.log("Sending reset email to:", email);
+  console.log("Reset token:", token);
+
+  // Get the app URL from environment or use a default
+  const appUrl = process.env.SITE_URL || "http://localhost:5173";
+
+  // Send the email using fetch to emulate curl
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [email],
+      subject: `Reset your password`,
+      text: `Your password reset code is ${token}. Use this code in the password reset form.`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #333;">Reset Your Password</h2>
+          <p>Hello,</p>
+          <p>You requested a password reset for your account. Click the button below to reset your password:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${appUrl}/reset?token=${token}"
+               style="background-color: #007bff; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; display: inline-block;">
+              Reset Password
+            </a>
+          </div>
+          <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
+          <p style="word-break: break-all; color: #666;">${appUrl}/reset?token=${token}</p>
+          <p><strong>Reset code:</strong> ${token}</p>
+          <p>This link will expire. If you didn't request this reset, please ignore this email.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #666; font-size: 12px;">If you're having trouble, contact support.</p>
+        </div>
+      `,
+    }),
   });
 
-  if (error) {
+  if (!res.ok) {
+    const error = await res.text();
     console.error("Resend email error:", error);
-    throw new Error(`Could not send reset email: ${error.message || JSON.stringify(error)}`);
+    throw new Error(`Could not send reset email: ${error}`);
   }
+
+  // Old code using Resend API (commented out)
+  // const { error } = await resend.emails.send({
+  //   from,
+  //   to: [email],
+  //   subject: `Reset your password`,
+  //   text: `Your password reset code is ${token}. Use this code in the password reset form.`,
+  // });
+
+  // if (error) {
+  //   console.error("Resend email error:", error);
+  //   throw new Error(`Could not send reset email: ${error.message || JSON.stringify(error)}`);
+  // }
 }
 
 export const ResendOTPPasswordReset = Resend({
