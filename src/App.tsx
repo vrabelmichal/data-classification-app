@@ -77,7 +77,11 @@ function App() {
                   <Route path="/reset" element={<Navigate to="/settings" replace />} />
                   <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
                   {navigationItems.map((item) => (
-                    <Route key={item.id} path={item.path} element={item.element} />
+                    <Route 
+                      key={item.id} 
+                      path={item.id === "admin" ? `${item.path}/*` : item.path} 
+                      element={item.element} 
+                    />
                   ))}
                 </Routes>
               </div>
