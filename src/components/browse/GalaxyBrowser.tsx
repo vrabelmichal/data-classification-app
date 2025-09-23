@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { useQuery, usePaginatedQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { ImageViewer } from "../classification/ImageViewer";
 import { cn } from "../../lib/utils";
@@ -15,32 +15,39 @@ const STORAGE_KEY = "galaxyBrowserSettings";
 
 export function GalaxyBrowser() {
   usePageTitle("Browse Galaxies");
-  // pageSize now represents batch size for paginated query
+  const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const [sortBy, setSortBy] = useState<SortField>("id");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [filter, setFilter] = useState<FilterType>("all");
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
+  const [jumpToPage, setJumpToPage] = useState("");
+  
+  // New search fields
+  const [searchId, setSearchId] = useState("");
+  const [searchRa, setSearchRa] = useState("");
+  const [searchDec, setSearchDec] = useState("");
+  const [searchReff, setSearchReff] = useState("");
+  const [searchQ, setSearchQ] = useState("");
+  const [searchPa, setSearchPa] = useState("");
+  const [isSearchActive, setIsSearchActive] = useState(false);
   const didHydrateFromStorage = useRef(false);
 
   const previewImageName = "aplpy_defaults_unmasked";
 
-  const {
-    results: galaxies,
-    status: paginationStatus,
-    loadMore,
-  } = usePaginatedQuery(
-    api.galaxies_browse.browseGalaxies,
-    {
-      sortBy,
-      sortOrder,
-      filter,
-      searchTerm: debouncedSearchTerm,
-    },
-    { initialNumItems: pageSize }
-  );
+  const galaxyData = useQuery(api.galaxies_browse.browseGalaxies, {
+    offset: (page - 1) * pageSize,
+    numItems: pageSize,
+    sortBy,
+    sortOrder,
+    filter,
+    searchId: isSearchActive ? searchId : undefined,
+    searchRa: isSearchActive ? searchRa : undefined,
+    searchDec: isSearchActive ? searchDec : undefined,
+    searchReff: isSearchActive ? searchReff : undefined,
+    searchQ: isSearchActive ? searchQ : undefined,
+    searchPa: isSearchActive ? searchPa : undefined,
+  });
 
   // Hydrate settings from localStorage on first mount
   useEffect(() => {
@@ -51,13 +58,17 @@ export function GalaxyBrowser() {
         if (parsed && typeof parsed === "object") {
           // legacy keys page/pageSize retained for backwards compatibility
           if (parsed.pageSize && Number.isFinite(parsed.pageSize)) setPageSize(parsed.pageSize);
+          if (parsed.page && Number.isFinite(parsed.page)) setPage(parsed.page);
           if (parsed.sortBy) setSortBy(parsed.sortBy);
           if (parsed.sortOrder) setSortOrder(parsed.sortOrder);
           if (parsed.filter) setFilter(parsed.filter);
-          if (typeof parsed.searchTerm === "string") {
-            setSearchTerm(parsed.searchTerm);
-            setDebouncedSearchTerm(parsed.searchTerm);
-          }
+          // New search fields
+          if (typeof parsed.searchId === "string") setSearchId(parsed.searchId);
+          if (typeof parsed.searchRa === "string") setSearchRa(parsed.searchRa);
+          if (typeof parsed.searchDec === "string") setSearchDec(parsed.searchDec);
+          if (typeof parsed.searchReff === "string") setSearchReff(parsed.searchReff);
+          if (typeof parsed.searchQ === "string") setSearchQ(parsed.searchQ);
+          if (typeof parsed.searchPa === "string") setSearchPa(parsed.searchPa);
         }
       }
     } catch (e) {
@@ -67,39 +78,36 @@ export function GalaxyBrowser() {
     }
   }, []);
 
-  // Debounce search term
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
   // Persist settings whenever they change
   useEffect(() => {
     if (!didHydrateFromStorage.current) return; // avoid overwriting while hydrating
     const data = {
+      page,
       pageSize,
       sortBy,
       sortOrder,
       filter,
-      searchTerm,
+      searchId,
+      searchRa,
+      searchDec,
+      searchReff,
+      searchQ,
+      searchPa,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
       console.warn("Failed to save galaxy browser settings", e);
     }
-  }, [pageSize, sortBy, sortOrder, filter, searchTerm]);
+  }, [page, pageSize, sortBy, sortOrder, filter, searchId, searchRa, searchDec, searchReff, searchQ, searchPa]);
 
   const userPrefs = useQuery(api.users.getUserPreferences);
 
-  // When settings change we rely on Convex reactivity to refresh list. If we wanted to
-  // reset loaded results we could key the component, but for now leave accumulation.
+  // Reset to page 1 when filters change (except during initial hydration)
   useEffect(() => {
     if (!didHydrateFromStorage.current) return;
-    // No explicit reset; users can refresh if needed.
-  }, [filter, sortBy, sortOrder, pageSize, debouncedSearchTerm]);
+    setPage(1);
+  }, [filter, sortBy, sortOrder, pageSize, isSearchActive]);
 
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
@@ -107,6 +115,23 @@ export function GalaxyBrowser() {
     } else {
       setSortBy(field);
       setSortOrder("asc");
+    }
+  };
+
+  const handleJumpToPage = () => {
+    const pageNum = parseInt(jumpToPage);
+    if (isNaN(pageNum) || pageNum < 1 || pageNum > totalPages) {
+      // Invalid page number, clear the input
+      setJumpToPage("");
+      return;
+    }
+    setPage(pageNum);
+    setJumpToPage("");
+  };
+
+  const handleJumpKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleJumpToPage();
     }
   };
 
@@ -153,7 +178,7 @@ export function GalaxyBrowser() {
     );
   };
 
-  if (!galaxies) {
+  if (!galaxyData) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="text-center">
@@ -164,7 +189,7 @@ export function GalaxyBrowser() {
     );
   }
 
-  // galaxies already contains enriched page results from server (reactively accumulated)
+  const { galaxies, total, hasNext, hasPrevious, totalPages } = galaxyData;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
@@ -178,20 +203,115 @@ export function GalaxyBrowser() {
 
       {/* Controls */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* Search */}
-          <div className="lg:col-span-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Search
-            </label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search by ID, RA, or Dec..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
-            />
+        {/* Search Section */}
+        <div className="mb-6">
+          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Search Galaxies</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Galaxy ID
+              </label>
+              <input
+                type="text"
+                value={searchId}
+                onChange={(e) => setSearchId(e.target.value)}
+                placeholder="Exact ID"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                RA (degrees)
+              </label>
+              <input
+                type="text"
+                value={searchRa}
+                onChange={(e) => setSearchRa(e.target.value)}
+                placeholder="e.g. 123.4567"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Dec (degrees)
+              </label>
+              <input
+                type="text"
+                value={searchDec}
+                onChange={(e) => setSearchDec(e.target.value)}
+                placeholder="e.g. -45.6789"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Effective Radius
+              </label>
+              <input
+                type="text"
+                value={searchReff}
+                onChange={(e) => setSearchReff(e.target.value)}
+                placeholder="e.g. 2.5"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Axis Ratio (q)
+              </label>
+              <input
+                type="text"
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                placeholder="e.g. 0.8"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Position Angle
+              </label>
+              <input
+                type="text"
+                value={searchPa}
+                onChange={(e) => setSearchPa(e.target.value)}
+                placeholder="e.g. 45.0"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+            </div>
           </div>
+          <div className="flex items-center space-x-4">
+            <button
+              onClick={() => setIsSearchActive(true)}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+            >
+              Search
+            </button>
+            <button
+              onClick={() => {
+                setSearchId("");
+                setSearchRa("");
+                setSearchDec("");
+                setSearchReff("");
+                setSearchQ("");
+                setSearchPa("");
+                setIsSearchActive(false);
+                setPage(1);
+              }}
+              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+            >
+              Clear Search
+            </button>
+            {isSearchActive && (
+              <span className="text-sm text-green-600 dark:text-green-400 font-medium">
+                Search active
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
 
           {/* Filter */}
           <div>
@@ -267,11 +387,32 @@ export function GalaxyBrowser() {
       </div>
 
       {/* Results Status */}
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6">
         <p className="text-sm text-gray-600 dark:text-gray-300">
-          Loaded {galaxies.length} galaxies{paginationStatus === "CanLoadMore" || paginationStatus === "LoadingMore" ? " (more available)" : ""}
+          Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, total)} of {total} galaxies
         </p>
-        <div className="text-xs text-gray-500 dark:text-gray-400">Status: {paginationStatus}</div>
+        {!galaxyData?.aggregatesPopulated && total > 0 && (
+          <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
+                  Performance Warning
+                </h3>
+                <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
+                  <p>
+                    Galaxy aggregates are not populated. Pagination may be slow for large datasets. 
+                    Go to the Admin panel → Debugging tab to rebuild aggregates for better performance.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Desktop Table View */}
@@ -418,7 +559,7 @@ export function GalaxyBrowser() {
 
       {/* Mobile Card View */}
       <div className="lg:hidden space-y-4">
-  {galaxies.map((galaxy: any) => (
+        {galaxies.map((galaxy: any) => (
           <div
             key={galaxy._id}
             className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4"
@@ -477,22 +618,95 @@ export function GalaxyBrowser() {
         ))}
       </div>
 
-      {/* Load More */}
-      <div className="mt-8 flex flex-col items-center space-y-4">
-        <button
-          onClick={() => loadMore(pageSize)}
-          disabled={paginationStatus !== "CanLoadMore"}
-          className={cn(
-            "px-5 py-2 rounded-md text-sm font-medium transition-colors",
-            paginationStatus === "CanLoadMore"
-              ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-gray-200 dark:bg-gray-700 text-gray-500 cursor-not-allowed"
-          )}
-        >
-          {paginationStatus === "LoadingMore" ? "Loading..." : paginationStatus === "Exhausted" ? "No More Galaxies" : "Load More"}
-        </button>
-        <div className="text-xs text-gray-500 dark:text-gray-400">Batch size: {pageSize}</div>
-      </div>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="mt-8 flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={!hasPrevious}
+              className={cn(
+                "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                hasPrevious
+                  ? "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+              )}
+            >
+              Previous
+            </button>
+            
+            <div className="flex items-center space-x-1">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (page <= 3) {
+                  pageNum = i + 1;
+                } else if (page >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = page - 2 + i;
+                }
+                
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setPage(pageNum)}
+                    className={cn(
+                      "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                      page === pageNum
+                        ? "bg-blue-600 text-white"
+                        : "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                    )}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            
+            <button
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={!hasNext}
+              className={cn(
+                "px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                hasNext
+                  ? "bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  : "bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed"
+              )}
+            >
+              Next
+            </button>
+          </div>
+          
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <span className="text-sm text-gray-600 dark:text-gray-300">Jump to:</span>
+              <input
+                type="number"
+                min="1"
+                max={totalPages}
+                value={jumpToPage}
+                onChange={(e) => setJumpToPage(e.target.value)}
+                onKeyPress={handleJumpKeyPress}
+                placeholder="Page"
+                className="w-16 px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+              />
+              <button
+                onClick={handleJumpToPage}
+                className="px-3 py-1 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+              >
+                Go
+              </button>
+            </div>
+            
+            <div className="text-sm text-gray-600 dark:text-gray-300">
+              Page {page} of {totalPages}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
     </div>
   );
 }

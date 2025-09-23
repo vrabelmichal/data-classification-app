@@ -98,7 +98,7 @@ export function UserSettings() {
 
       <div className="space-y-6">
         {/* Image Quality */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Image Quality</h2>
           <div className="space-y-3">
             <label className="flex items-center">
@@ -144,7 +144,7 @@ export function UserSettings() {
               </div>
             </label>
           </div>
-        </div>
+        </div> */}
 
         {/* Interface Options */}
         {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -166,7 +166,7 @@ export function UserSettings() {
         </div> */}
 
         {/* Theme */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Theme</h2>
           <div className="space-y-3">
             {[
@@ -190,7 +190,7 @@ export function UserSettings() {
               </label>
             ))}
           </div>
-        </div>
+        </div> */}
 
         {/* User Name */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">

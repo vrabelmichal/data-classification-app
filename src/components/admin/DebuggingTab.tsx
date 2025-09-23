@@ -10,9 +10,13 @@ export function DebuggingTab() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [seedingStats, setSeedingStats] = useState(false);
   const [seedingCursor, setSeedingCursor] = useState<string | null>(null);
+  const [clearingGalaxyAggregates, setClearingGalaxyAggregates] = useState(false);
+  const [rebuildingGalaxyAggregates, setRebuildingGalaxyAggregates] = useState(false);
 
   const generateMockGalaxies = useMutation(api.galaxies_mock.generateMockGalaxies);
   const clearGalaxyIdsAggregate = useMutation(api.galaxies.clearGalaxyIdsAggregate);
+  const clearGalaxyAggregates = useMutation(api.galaxies.clearGalaxyAggregates);
+  const rebuildGalaxyAggregates = useMutation(api.galaxies.rebuildGalaxyAggregates);
   const deleteAllGalaxies = useMutation(api.galaxies.deleteAllGalaxies);
   const seedGalaxyAssignmentStats = useMutation(api.seedGalaxyAssignmentStats.seedGalaxyAssignmentStats);
 
@@ -91,6 +95,34 @@ export function DebuggingTab() {
     }
   };
 
+  const handleClearGalaxyAggregates = async () => {
+    if (!confirm("Clear galaxy aggregates? This will affect pagination performance until aggregates are rebuilt.")) return;
+    try {
+      setClearingGalaxyAggregates(true);
+      await clearGalaxyAggregates();
+      toast.success("Galaxy aggregates cleared");
+    } catch (e) {
+      toast.error("Failed to clear galaxy aggregates");
+      console.error(e);
+    } finally {
+      setClearingGalaxyAggregates(false);
+    }
+  };
+
+  const handleRebuildGalaxyAggregates = async () => {
+    if (!confirm("Rebuild galaxy aggregates? This may take some time for large datasets.")) return;
+    try {
+      setRebuildingGalaxyAggregates(true);
+      await rebuildGalaxyAggregates();
+      toast.success("Galaxy aggregates rebuilt successfully");
+    } catch (e) {
+      toast.error("Failed to rebuild galaxy aggregates");
+      console.error(e);
+    } finally {
+      setRebuildingGalaxyAggregates(false);
+    }
+  };
+
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
       <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Debugging Tools</h1>
@@ -127,6 +159,40 @@ export function DebuggingTab() {
               <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             )}
             {generatingMock ? 'Generating...' : 'Generate Mock Galaxies'}
+          </button>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mb-4">🔄 Clear Galaxy Aggregates</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            Clear all galaxy aggregates used for pagination. This will affect pagination performance until aggregates are rebuilt.
+          </p>
+          <button
+            onClick={() => void (async () => { await handleClearGalaxyAggregates(); })()}
+            disabled={clearingGalaxyAggregates}
+            className="inline-flex items-center justify-center bg-purple-600 hover:bg-purple-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            {clearingGalaxyAggregates && (
+              <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            {clearingGalaxyAggregates ? 'Clearing...' : 'Clear Aggregates'}
+          </button>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-indigo-600 dark:text-indigo-400 mb-4">🔨 Rebuild Galaxy Aggregates</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            Rebuild galaxy aggregates from scratch. Required after clearing aggregates or if aggregates become corrupted.
+          </p>
+          <button
+            onClick={() => void (async () => { await handleRebuildGalaxyAggregates(); })()}
+            disabled={rebuildingGalaxyAggregates}
+            className="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            {rebuildingGalaxyAggregates && (
+              <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            {rebuildingGalaxyAggregates ? 'Rebuilding...' : 'Rebuild Aggregates'}
           </button>
         </div>
 
