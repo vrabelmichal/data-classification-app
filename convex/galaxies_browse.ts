@@ -238,67 +238,12 @@ export const browseGalaxies = query({
         }
       });
       
-    // Apply search filtering if needed (exact match) - BEFORE pagination for correct results
-    let filteredGalaxies = galaxies;
-    let filteredTotal = actualTotal;
-    
-    if (searchId || searchRa || searchDec || searchReff || searchQ || searchPa || searchTerm) {
-      // When searching, we need to filter the entire dataset before pagination
-      // Fall back to collecting all galaxies and filtering in memory
-      const allGalaxies = await ctx.db.query("galaxies").collect();
-      
-      filteredGalaxies = allGalaxies.filter(g => {
-        // Check each search field for exact match
-        if (searchId && g.id !== searchId.trim()) return false;
-        if (searchRa && g.ra.toString() !== searchRa.trim()) return false;
-        if (searchDec && g.dec.toString() !== searchDec.trim()) return false;
-        if (searchReff && g.reff.toString() !== searchReff.trim()) return false;
-        if (searchQ && g.q.toString() !== searchQ.trim()) return false;
-        if (searchPa && g.pa.toString() !== searchPa.trim()) return false;
-        
-        // Backward compatibility: fuzzy search on old searchTerm field
-        if (searchTerm && searchTerm.trim()) {
-          const term = searchTerm.toLowerCase().trim();
-          return g.id.toLowerCase().includes(term) ||
-                 g.ra.toString().includes(term) ||
-                 g.dec.toString().includes(term);
-        }
-        
-        return true;
-      });
-      
-      filteredTotal = filteredGalaxies.length;
-      
-      // Apply sorting to search results
-      filteredGalaxies = filteredGalaxies.sort((a, b) => {
-        switch (sortBy) {
-          case "id":
-            return sortOrder === "asc" ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
-          case "ra":
-            return sortOrder === "asc" ? a.ra - b.ra : b.ra - a.ra;
-          case "dec":
-            return sortOrder === "asc" ? a.dec - b.dec : b.dec - a.dec;
-          case "reff":
-            return sortOrder === "asc" ? a.reff - b.reff : b.reff - a.reff;
-          case "q":
-            return sortOrder === "asc" ? a.q - b.q : b.q - a.q;
-          case "pa":
-            return sortOrder === "asc" ? a.pa - b.pa : b.pa - a.pa;
-          case "nucleus":
-            return sortOrder === "asc" ? (a.nucleus ? 1 : 0) - (b.nucleus ? 1 : 0) : (b.nucleus ? 1 : 0) - (a.nucleus ? 1 : 0);
-          case "_creationTime":
-            return sortOrder === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime;
-          default:
-            return 0;
-        }
-      });
-      
       // Apply pagination to search results
-      filteredGalaxies = filteredGalaxies.slice(offset, offset + numItems);
+      searchFilteredGalaxies = searchFilteredGalaxies.slice(offset, offset + numItems);
     }
 
     // Enrich with classification and skip data
-    const enriched = await Promise.all(filteredGalaxies.map(async (galaxy) => {
+    const enriched = await Promise.all(searchFilteredGalaxies.map(async (galaxy) => {
       const classification = await ctx.db
         .query("classifications")
         .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxy.id))
@@ -322,7 +267,7 @@ export const browseGalaxies = query({
         .withIndex("by_user", (q) => q.eq("userId", userId))
         .collect()
         .then(classifications => classifications.length);
-      filteredTotal = classificationCount;
+      searchFilteredTotal = classificationCount;
     }
     else if (filter === "unclassified") {
       finalGalaxies = enriched.filter(g => g.status === "unclassified");
@@ -337,7 +282,7 @@ export const browseGalaxies = query({
           .collect()
           .then(skipped => skipped.length)
       ]);
-      filteredTotal = actualTotal - classificationCount - skippedCount;
+      searchFilteredTotal = actualTotal - classificationCount - skippedCount;
     }
     else if (filter === "skipped") {
       finalGalaxies = enriched.filter(g => g.status === "skipped");
@@ -347,7 +292,7 @@ export const browseGalaxies = query({
         .withIndex("by_user", (q) => q.eq("userId", userId))
         .collect()
         .then(skipped => skipped.length);
-      filteredTotal = skippedCount;
+      searchFilteredTotal = skippedCount;
     }
     else if (filter === "my_sequence") {
       // Get user's sequence
@@ -359,16 +304,16 @@ export const browseGalaxies = query({
       if (userSequence && userSequence.galaxyExternalIds) {
         const sequenceIds = new Set(userSequence.galaxyExternalIds);
         finalGalaxies = enriched.filter(g => sequenceIds.has(g.id));
-        filteredTotal = userSequence.galaxyExternalIds.length;
+        searchFilteredTotal = userSequence.galaxyExternalIds.length;
       } else {
         // No sequence found, return empty array
         finalGalaxies = [];
-        filteredTotal = 0;
+        searchFilteredTotal = 0;
       }
     }
 
     // Get total count for pagination info
-    const total = filteredTotal;
+    const total = searchFilteredTotal;
     const totalPages = Math.ceil(total / numItems);
     const hasNext = offset + numItems < total;
     const hasPrevious = offset > 0;
