@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from "react-router";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
 import { SignOutButton } from "../../SignOutButton";
-import { AdminButton } from "../admin/AdminButton";
+import { DebugAdminButton } from "../admin/DebugAdminButton";
 
 interface NavigationItem {
   id: string;
@@ -15,12 +15,14 @@ interface NavigationItem {
 
 interface NavigationProps {
   navigationItems: NavigationItem[];
+  appName: string;
 }
 
-export function Navigation({ navigationItems }: NavigationProps) {
+export function Navigation({ navigationItems, appName }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const userProfile = useQuery(api.users.getUserProfile);
   const progress = useQuery(api.classification.getProgress);
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const navigate = useNavigate();
 
   // Filter items based on permissions (e.g., admin only)
@@ -37,7 +39,7 @@ export function Navigation({ navigationItems }: NavigationProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                Galaxy Classifier
+                {appName}
               </h1>
             </div>
             <button
@@ -114,7 +116,7 @@ export function Navigation({ navigationItems }: NavigationProps) {
           {/* Header */}
           <div className="flex items-center flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-              Galaxy Classifier
+              {appName}
             </h1>
           </div>
 
@@ -154,7 +156,9 @@ export function Navigation({ navigationItems }: NavigationProps) {
                   </NavLink>
                 </li>
               ))}
-              <li><AdminButton /></li>
+              {systemSettings?.debugAdminMode && userProfile && userProfile.role !== "admin" && (
+                <li><DebugAdminButton /></li>
+              )}
             </ul>
           </nav>
 

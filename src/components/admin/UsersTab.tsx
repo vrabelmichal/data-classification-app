@@ -69,12 +69,12 @@ export function UsersTab({ users }: UsersTabProps) {
   };
 
   const handleResetPassword = async (userId: any) => {
-    if (!confirm("Trigger password reset? The user will need to use 'Forgot password' to receive the email code.")) return;
+    if (!confirm("Send password reset email to this user?")) return;
     try {
       await resetUserPassword({ targetUserId: userId });
-      toast.success("Reset initiated. Ask the user to use 'Forgot password'.");
+      toast.success("Password reset email sent successfully.");
     } catch (e:any) {
-      toast.error("Failed to initiate reset");
+      toast.error("Failed to send reset email");
       console.error(e);
     }
   };

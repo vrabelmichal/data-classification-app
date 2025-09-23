@@ -1,6 +1,11 @@
 import { usePageTitle } from "../../hooks/usePageTitle";
+import { useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 
 export function Help() {
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  const appName = systemSettings?.appName || "Galaxy Classification App";
+
   usePageTitle("Help");
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
@@ -20,7 +25,7 @@ export function Help() {
           </h2>
           <div className="space-y-4 text-gray-600 dark:text-gray-300">
             <p>
-              Welcome to Galaxy Classifier! You're contributing to real scientific research by helping astronomers 
+              Welcome to {appName}! You're contributing to real scientific research by helping astronomers 
               classify galaxies from telescope images. Here's how to get started:
             </p>
             <ol className="list-decimal list-inside space-y-2 ml-4">

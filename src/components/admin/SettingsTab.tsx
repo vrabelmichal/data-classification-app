@@ -12,6 +12,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
   
   const [localSettings, setLocalSettings] = useState({
     allowAnonymous: systemSettings.allowAnonymous || false,
+    emailFrom: systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk",
+    appName: systemSettings.appName || "Galaxy Classification App",
+    debugAdminMode: systemSettings.debugAdminMode || false,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -20,6 +23,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
   useEffect(() => {
     setLocalSettings({
       allowAnonymous: systemSettings.allowAnonymous || false,
+      emailFrom: systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk",
+      appName: systemSettings.appName || "Galaxy Classification App",
+      debugAdminMode: systemSettings.debugAdminMode || false,
     });
     setHasChanges(false);
   }, [systemSettings]);
@@ -27,10 +33,18 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
   // Check for changes
   useEffect(() => {
     const originalAllowAnonymous = systemSettings.allowAnonymous || false;
-    setHasChanges(localSettings.allowAnonymous !== originalAllowAnonymous);
+    const originalEmailFrom = systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk";
+    const originalAppName = systemSettings.appName || "Galaxy Classification App";
+    const originalDebugAdminMode = systemSettings.debugAdminMode || false;
+    setHasChanges(
+      localSettings.allowAnonymous !== originalAllowAnonymous ||
+      localSettings.emailFrom !== originalEmailFrom ||
+      localSettings.appName !== originalAppName ||
+      localSettings.debugAdminMode !== originalDebugAdminMode
+    );
   }, [localSettings, systemSettings]);
 
-  const handleSettingChange = (key: string, value: boolean) => {
+  const handleSettingChange = (key: string, value: boolean | string) => {
     setLocalSettings(prev => ({
       ...prev,
       [key]: value,
@@ -40,7 +54,12 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateSystemSettings({ allowAnonymous: localSettings.allowAnonymous });
+      await updateSystemSettings({ 
+        allowAnonymous: localSettings.allowAnonymous,
+        emailFrom: localSettings.emailFrom,
+        appName: localSettings.appName,
+        debugAdminMode: localSettings.debugAdminMode,
+      });
       toast.success("Settings updated successfully");
       setHasChanges(false);
     } catch (error) {
@@ -71,6 +90,22 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       </div>
       
       <div className="space-y-4">
+        <label className="block">
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            App Name
+          </span>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            The name of the application displayed in emails and UI
+          </p>
+          <input
+            type="text"
+            value={localSettings.appName}
+            onChange={(e) => handleSettingChange("appName", e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="Galaxy Classification App"
+          />
+        </label>
+
         <label className="flex items-center justify-between">
           <div>
             <span className="text-sm font-medium text-gray-900 dark:text-white">
@@ -85,6 +120,39 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
             checked={localSettings.allowAnonymous}
             onChange={(e) => handleSettingChange("allowAnonymous", e.target.checked)}
             className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+          />
+        </label>
+
+        <label className="flex items-center justify-between">
+          <div>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              Allow anybody to become admin (Debugging Admin Mode) 
+            </span>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Allow users to become admins via a button in the navigation (development only)
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={localSettings.debugAdminMode}
+            onChange={(e) => handleSettingChange("debugAdminMode", e.target.checked)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            Email From Address
+          </span>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            The email address used as the sender for password reset emails
+          </p>
+          <input
+            type="email"
+            value={localSettings.emailFrom}
+            onChange={(e) => handleSettingChange("emailFrom", e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="noreply@galaxies.michalvrabel.sk"
           />
         </label>
       </div>

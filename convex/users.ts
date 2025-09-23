@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
 // adminSetUserPassword removed: we now only support email-based reset flow.
 
 // Get user preferences
@@ -431,6 +432,9 @@ export const deleteUser = mutation({
       await ctx.db.delete(sequence._id);
     }
 
+    // Delete the user from the users table
+    await ctx.db.delete(args.targetUserId);
+
     return { success: true };
   },
 });
@@ -457,14 +461,57 @@ export const resetUserPassword = mutation({
       throw new Error("Target user has no email to send reset");
     }
 
-    // Insert a password reset token doc (consumed by auth provider flow when user submits code)
-    // The provider's ResendOTPPasswordReset will generate & email a code when the user initiates
-    // the flow. Here we can optionally pre-create a marker or send a notification email.
-    // Simplicity: we just return success; admin instructs user to use the 'Forgot password' form.
+    // Send password reset email
+    const settings = await ctx.db.query("systemSettings").collect();
+    const settingsMap = settings.reduce((acc, setting) => {
+      acc[setting.key] = setting.value;
+      return acc;
+    }, {} as Record<string, any>);
+    const emailFrom = settingsMap.emailFrom || "noreply@galaxies.michalvrabel.sk";
+    const appName = settingsMap.appName || "Galaxy Classification App";
+    await sendPasswordResetEmail(targetUser.email, `${appName} <${emailFrom}>`);
+
+    // Store the token in the database or handle it as per auth flow
+    // For simplicity, since the auth provider expects it, we might need to store it temporarily
+    // But for now, just send the email. The user can use the code in the reset form.
 
     return {
       success: true,
-      message: "Password reset email can be requested by the user via the reset form.",
+      message: "Password reset email sent successfully.",
     };
+  },
+});
+
+// Debug: Allow user to become admin (for debugging purposes)
+export const becomeAdmin = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Check if debug admin mode is enabled
+    const settings = await ctx.db.query("systemSettings").collect();
+    const settingsMap = settings.reduce((acc, setting) => {
+      acc[setting.key] = setting.value;
+      return acc;
+    }, {} as Record<string, any>);
+
+    if (!settingsMap.debugAdminMode) {
+      throw new Error("Debug admin mode is not enabled");
+    }
+
+    // Update user role to admin
+    const userProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!userProfile) {
+      throw new Error("User profile not found");
+    }
+
+    await ctx.db.patch(userProfile._id, { role: "admin" });
+
+    return { success: true };
   },
 });

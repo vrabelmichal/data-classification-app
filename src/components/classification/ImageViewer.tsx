@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 // Enable/disable half-light radius circle overlay
 const ENABLE_HALF_LIGHT_CIRCLE = true;

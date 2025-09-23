@@ -15,6 +15,9 @@ import { AdminPanel } from "./components/admin/AdminPanel";
 import { Toaster } from "sonner";
 
 function App() {
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  const appName = systemSettings?.appName || "Galaxy Classification App";
+
   // Navigation items defined here and passed into Navigation
   const navigationItems = [
     { id: "classify", label: "Classify", icon: "🔬", path: "/classify", element: <ClassificationInterface /> },
@@ -35,7 +38,7 @@ function App() {
               <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
                 <div className="text-center mb-8">
                   <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                    Galaxy Classifier
+                    {appName}
                   </h1>
                   <p className="text-gray-600 dark:text-gray-300">
                     Help classify galaxies for scientific research
@@ -66,7 +69,7 @@ function App() {
         </Unauthenticated>
         <Authenticated>
           <div className="flex flex-col custom-lg:flex-row h-screen">
-            <Navigation navigationItems={navigationItems} />
+            <Navigation navigationItems={navigationItems} appName={appName} />
             <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64">
               <div className="flex-1 overflow-auto">
                 <Routes>
