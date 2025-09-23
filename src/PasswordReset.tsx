@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useAuthActions } from "@convex-dev/auth/react";
+import { useNavigate } from "react-router";
 import { toast } from "sonner";
 
 export function PasswordReset() {
   const { signIn } = useAuthActions();
+  const navigate = useNavigate();
   const [step, setStep] = useState<"request" | { email: string }>("request");
   const [submitting, setSubmitting] = useState(false);
 
@@ -59,6 +61,7 @@ export function PasswordReset() {
         void signIn("password", formData)
           .then(() => {
             toast.success("Password updated, you are now signed in");
+            navigate("/");
           })
           .catch((err) => {
             toast.error(err.message || "Failed to reset password");

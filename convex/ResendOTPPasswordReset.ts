@@ -8,7 +8,8 @@ import { RandomReader, generateRandomString } from "@oslojs/crypto/random";
 
 export const ResendOTPPasswordReset = Resend({
   id: "resend-otp-reset",
-  apiKey: process.env.AUTH_RESEND_KEY,
+  // apiKey: process.env.AUTH_RESEND_KEY,
+  apiKey: process.env.CONVEX_RESEND_API_KEY,
   async generateVerificationToken() {
     const random: RandomReader = {
       read(bytes) {
@@ -28,6 +29,9 @@ export const ResendOTPPasswordReset = Resend({
       subject: `Reset your password`,
       text: "Your password reset code is " + token,
     });
-    if (error) throw new Error("Could not send reset email");
+    if (error) {
+      console.error("Resend email error:", error);
+      throw new Error(`Could not send reset email: ${error.message || JSON.stringify(error)}`);
+    }
   },
 });

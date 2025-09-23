@@ -16,6 +16,7 @@ export function SignInForm() {
     <div className="w-full">
       <form
         className="flex flex-col gap-form-field"
+        method="post"
         onSubmit={(e) => {
           e.preventDefault();
           setSubmitting(true);
@@ -41,6 +42,7 @@ export function SignInForm() {
           type="email"
           name="email"
           placeholder="Email"
+          autoComplete="username"
           required
         />
         <input
@@ -48,6 +50,7 @@ export function SignInForm() {
           type="password"
           name="password"
           placeholder="Password"
+          autoComplete="current-password"
           required
         />
         <button className="auth-button" type="submit" disabled={submitting}>
