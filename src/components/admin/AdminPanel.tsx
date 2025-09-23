@@ -16,7 +16,7 @@ export function AdminPanel() {
   const isAdmin = userProfile?.role === "admin";
   
   const users = useQuery(api.users.getAllUsers, isAdmin ? {} : "skip");
-  const systemSettings = useQuery(api.users.getSystemSettings, isAdmin ? {} : "skip");
+  const systemSettings = useQuery(api.system_settings.getSystemSettings, isAdmin ? {} : "skip");
 
   if (userProfile === undefined) {
     return (
