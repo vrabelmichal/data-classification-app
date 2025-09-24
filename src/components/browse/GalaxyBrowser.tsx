@@ -36,6 +36,12 @@ export function GalaxyBrowser() {
   const [searchPaMin, setSearchPaMin] = useState("");
   const [searchPaMax, setSearchPaMax] = useState("");
   const [searchNucleus, setSearchNucleus] = useState<boolean | undefined>(undefined);
+  const [searchClassificationStatus, setSearchClassificationStatus] = useState<"classified" | "unclassified" | "skipped" | undefined>(undefined);
+  const [searchLsbClass, setSearchLsbClass] = useState<string>("");
+  const [searchMorphology, setSearchMorphology] = useState<string>("");
+  const [searchAwesome, setSearchAwesome] = useState<boolean | undefined>(undefined);
+  const [searchValidRedshift, setSearchValidRedshift] = useState<boolean | undefined>(undefined);
+  const [searchVisibleNucleus, setSearchVisibleNucleus] = useState<boolean | undefined>(undefined);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const didHydrateFromStorage = useRef(false);
 
@@ -52,6 +58,12 @@ export function GalaxyBrowser() {
   const [appliedSearchPaMin, setAppliedSearchPaMin] = useState("");
   const [appliedSearchPaMax, setAppliedSearchPaMax] = useState("");
   const [appliedSearchNucleus, setAppliedSearchNucleus] = useState<boolean | undefined>(undefined);
+  const [appliedSearchClassificationStatus, setAppliedSearchClassificationStatus] = useState<"classified" | "unclassified" | "skipped" | undefined>(undefined);
+  const [appliedSearchLsbClass, setAppliedSearchLsbClass] = useState<string>("");
+  const [appliedSearchMorphology, setAppliedSearchMorphology] = useState<string>("");
+  const [appliedSearchAwesome, setAppliedSearchAwesome] = useState<boolean | undefined>(undefined);
+  const [appliedSearchValidRedshift, setAppliedSearchValidRedshift] = useState<boolean | undefined>(undefined);
+  const [appliedSearchVisibleNucleus, setAppliedSearchVisibleNucleus] = useState<boolean | undefined>(undefined);
 
   const previewImageName = "aplpy_defaults_unmasked";
 
@@ -73,6 +85,12 @@ export function GalaxyBrowser() {
     searchPaMin: isSearchActive ? (appliedSearchPaMin || undefined) : undefined,
     searchPaMax: isSearchActive ? (appliedSearchPaMax || undefined) : undefined,
     searchNucleus: isSearchActive ? appliedSearchNucleus : undefined,
+    searchClassificationStatus: isSearchActive ? appliedSearchClassificationStatus : undefined,
+    searchLsbClass: isSearchActive ? appliedSearchLsbClass : undefined,
+    searchMorphology: isSearchActive ? appliedSearchMorphology : undefined,
+    searchAwesome: isSearchActive ? appliedSearchAwesome : undefined,
+    searchValidRedshift: isSearchActive ? appliedSearchValidRedshift : undefined,
+    searchVisibleNucleus: isSearchActive ? appliedSearchVisibleNucleus : undefined,
   });
 
   // Check if there are pending changes (current values differ from applied values)
@@ -88,11 +106,20 @@ export function GalaxyBrowser() {
     searchQMax !== appliedSearchQMax ||
     searchPaMin !== appliedSearchPaMin ||
     searchPaMax !== appliedSearchPaMax ||
-    searchNucleus !== appliedSearchNucleus
+    searchNucleus !== appliedSearchNucleus ||
+    searchClassificationStatus !== appliedSearchClassificationStatus ||
+    searchLsbClass !== appliedSearchLsbClass ||
+    searchMorphology !== appliedSearchMorphology ||
+    searchAwesome !== appliedSearchAwesome ||
+    searchValidRedshift !== appliedSearchValidRedshift ||
+    searchVisibleNucleus !== appliedSearchVisibleNucleus
   );
 
   // Get search bounds for prefill
   const searchBounds = useQuery(api.galaxies_browse.getGalaxySearchBounds);
+  
+  // Get classification options for dropdowns
+  const classificationOptions = useQuery(api.galaxies_browse.getClassificationSearchOptions);
 
   // Extract current bounds from galaxy data (when search is active, these are filtered bounds)
   const currentBounds = galaxyData?.currentBounds;
@@ -158,6 +185,30 @@ export function GalaxyBrowser() {
           if (typeof parsed.searchNucleus === "boolean") {
             setSearchNucleus(parsed.searchNucleus);
             setAppliedSearchNucleus(parsed.searchNucleus);
+          }
+          if (parsed.searchClassificationStatus) {
+            setSearchClassificationStatus(parsed.searchClassificationStatus);
+            setAppliedSearchClassificationStatus(parsed.searchClassificationStatus);
+          }
+          if (typeof parsed.searchLsbClass === "string") {
+            setSearchLsbClass(parsed.searchLsbClass);
+            setAppliedSearchLsbClass(parsed.searchLsbClass);
+          }
+          if (typeof parsed.searchMorphology === "string") {
+            setSearchMorphology(parsed.searchMorphology);
+            setAppliedSearchMorphology(parsed.searchMorphology);
+          }
+          if (typeof parsed.searchAwesome === "boolean") {
+            setSearchAwesome(parsed.searchAwesome);
+            setAppliedSearchAwesome(parsed.searchAwesome);
+          }
+          if (typeof parsed.searchValidRedshift === "boolean") {
+            setSearchValidRedshift(parsed.searchValidRedshift);
+            setAppliedSearchValidRedshift(parsed.searchValidRedshift);
+          }
+          if (typeof parsed.searchVisibleNucleus === "boolean") {
+            setSearchVisibleNucleus(parsed.searchVisibleNucleus);
+            setAppliedSearchVisibleNucleus(parsed.searchVisibleNucleus);
           }
         }
       }
@@ -232,6 +283,12 @@ export function GalaxyBrowser() {
       searchPaMin: appliedSearchPaMin,
       searchPaMax: appliedSearchPaMax,
       searchNucleus: appliedSearchNucleus,
+      searchClassificationStatus: appliedSearchClassificationStatus,
+      searchLsbClass: appliedSearchLsbClass,
+      searchMorphology: appliedSearchMorphology,
+      searchAwesome: appliedSearchAwesome,
+      searchValidRedshift: appliedSearchValidRedshift,
+      searchVisibleNucleus: appliedSearchVisibleNucleus,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -257,6 +314,12 @@ export function GalaxyBrowser() {
         case 'searchPaMin': return searchPaMin !== "";
         case 'searchPaMax': return searchPaMax !== "";
         case 'searchNucleus': return searchNucleus !== undefined;
+        case 'searchClassificationStatus': return searchClassificationStatus !== undefined;
+        case 'searchLsbClass': return searchLsbClass !== "";
+        case 'searchMorphology': return searchMorphology !== "";
+        case 'searchAwesome': return searchAwesome !== undefined;
+        case 'searchValidRedshift': return searchValidRedshift !== undefined;
+        case 'searchVisibleNucleus': return searchVisibleNucleus !== undefined;
         default: return false;
       }
     }
@@ -274,6 +337,12 @@ export function GalaxyBrowser() {
       case 'searchPaMin': return searchPaMin !== appliedSearchPaMin;
       case 'searchPaMax': return searchPaMax !== appliedSearchPaMax;
       case 'searchNucleus': return searchNucleus !== appliedSearchNucleus;
+      case 'searchClassificationStatus': return searchClassificationStatus !== appliedSearchClassificationStatus;
+      case 'searchLsbClass': return searchLsbClass !== appliedSearchLsbClass;
+      case 'searchMorphology': return searchMorphology !== appliedSearchMorphology;
+      case 'searchAwesome': return searchAwesome !== appliedSearchAwesome;
+      case 'searchValidRedshift': return searchValidRedshift !== appliedSearchValidRedshift;
+      case 'searchVisibleNucleus': return searchVisibleNucleus !== appliedSearchVisibleNucleus;
       default: return false;
     }
   };
@@ -291,7 +360,13 @@ export function GalaxyBrowser() {
     searchQMax !== "" ||
     searchPaMin !== "" ||
     searchPaMax !== "" ||
-    searchNucleus !== undefined;
+    searchNucleus !== undefined ||
+    searchClassificationStatus !== undefined ||
+    searchLsbClass !== "" ||
+    searchMorphology !== "" ||
+    searchAwesome !== undefined ||
+    searchValidRedshift !== undefined ||
+    searchVisibleNucleus !== undefined;
 
   // Get input class with visual indicator for changed fields
   const getInputClass = (field: string, baseClass: string) => {
@@ -535,18 +610,108 @@ export function GalaxyBrowser() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Classification Status
+              </label>
+              <select
+                value={searchClassificationStatus || ""}
+                onChange={(e) => setSearchClassificationStatus(e.target.value ? e.target.value as "classified" | "unclassified" | "skipped" : undefined)}
+                className={getInputClass('searchClassificationStatus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+              >
+                <option value="">Any Status</option>
+                <option value="classified">Classified</option>
+                <option value="unclassified">Unclassified</option>
+                <option value="skipped">Skipped</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                LSB Class
+              </label>
+              <select
+                value={searchLsbClass}
+                onChange={(e) => setSearchLsbClass(e.target.value)}
+                className={getInputClass('searchLsbClass', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+              >
+                <option value="">Any LSB Class</option>
+                {classificationOptions?.lsbClasses.map(lsbClass => (
+                  <option key={lsbClass} value={lsbClass}>{lsbClass}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Morphology
+              </label>
+              <select
+                value={searchMorphology}
+                onChange={(e) => setSearchMorphology(e.target.value)}
+                className={getInputClass('searchMorphology', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+              >
+                <option value="">Any Morphology</option>
+                {classificationOptions?.morphologies.map(morphology => (
+                  <option key={morphology} value={morphology}>{morphology}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Has Nucleus
               </label>
-              <div className="flex items-center">
+              <select
+                value={searchNucleus === undefined ? "" : searchNucleus ? "true" : "false"}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSearchNucleus(value === "" ? undefined : value === "true" ? true : false);
+                }}
+                className={getInputClass('searchNucleus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+              >
+                <option value="">Any</option>
+                <option value="true">Has nucleus</option>
+                <option value="false">No nucleus</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Visible Nucleus
+              </label>
+              <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={searchNucleus === true}
-                  onChange={(e) => setSearchNucleus(e.target.checked ? true : undefined)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600"
+                  checked={searchVisibleNucleus === true}
+                  onChange={(e) => setSearchVisibleNucleus(e.target.checked ? true : undefined)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 mr-2"
                 />
-                <span className="ml-2 text-sm text-gray-600 dark:text-gray-300">Only show galaxies with nucleus</span>
-              </div>
+                <span className="text-sm text-gray-600 dark:text-gray-300">Only show galaxies with visible nucleus</span>
+              </label>
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Awesome Flag
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={searchAwesome === true}
+                  onChange={(e) => setSearchAwesome(e.target.checked ? true : undefined)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 mr-2"
+                />
+                <span className="text-sm text-gray-600 dark:text-gray-300">Only show awesome galaxies</span>
+              </label>
+            </div>
+            {/* <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Valid Redshift
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={searchValidRedshift === true}
+                  onChange={(e) => setSearchValidRedshift(e.target.checked ? true : undefined)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 mr-2"
+                />
+                <span className="text-sm text-gray-600 dark:text-gray-300">Only show galaxies with valid redshift</span>
+              </label>
+            </div> */}
           </div>
           <div className="flex items-center space-x-4">
             <button
@@ -564,6 +729,12 @@ export function GalaxyBrowser() {
                 setAppliedSearchPaMin(searchPaMin);
                 setAppliedSearchPaMax(searchPaMax);
                 setAppliedSearchNucleus(searchNucleus);
+                setAppliedSearchClassificationStatus(searchClassificationStatus);
+                setAppliedSearchLsbClass(searchLsbClass);
+                setAppliedSearchMorphology(searchMorphology);
+                setAppliedSearchAwesome(searchAwesome);
+                setAppliedSearchValidRedshift(searchValidRedshift);
+                setAppliedSearchVisibleNucleus(searchVisibleNucleus);
                 setIsSearchActive(true);
                 setPage(1);
               }}
@@ -593,6 +764,12 @@ export function GalaxyBrowser() {
                 setSearchPaMin("");
                 setSearchPaMax("");
                 setSearchNucleus(undefined);
+                setSearchClassificationStatus(undefined);
+                setSearchLsbClass("");
+                setSearchMorphology("");
+                setSearchAwesome(undefined);
+                setSearchValidRedshift(undefined);
+                setSearchVisibleNucleus(undefined);
                 setAppliedSearchId("");
                 setAppliedSearchRaMin("");
                 setAppliedSearchRaMax("");
@@ -605,6 +782,12 @@ export function GalaxyBrowser() {
                 setAppliedSearchPaMin("");
                 setAppliedSearchPaMax("");
                 setAppliedSearchNucleus(undefined);
+                setAppliedSearchClassificationStatus(undefined);
+                setAppliedSearchLsbClass("");
+                setAppliedSearchMorphology("");
+                setAppliedSearchAwesome(undefined);
+                setAppliedSearchValidRedshift(undefined);
+                setAppliedSearchVisibleNucleus(undefined);
                 setIsSearchActive(false);
                 setPage(1);
               }}

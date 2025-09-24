@@ -41,6 +41,16 @@ export const browseGalaxies = query({
     searchPaMin: v.optional(v.string()),
     searchPaMax: v.optional(v.string()),
     searchNucleus: v.optional(v.boolean()),
+    searchClassificationStatus: v.optional(v.union(
+      v.literal("classified"),
+      v.literal("unclassified"),
+      v.literal("skipped")
+    )),
+    searchLsbClass: v.optional(v.string()),
+    searchMorphology: v.optional(v.string()),
+    searchAwesome: v.optional(v.boolean()),
+    searchValidRedshift: v.optional(v.boolean()),
+    searchVisibleNucleus: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -54,7 +64,7 @@ export const browseGalaxies = query({
       };
     }
 
-        const { offset = 0, numItems = 100, sortBy = "id", sortOrder = "asc", filter, searchTerm, searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax, searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchNucleus } = args;
+        const { offset = 0, numItems = 100, sortBy = "id", sortOrder = "asc", filter, searchTerm, searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax, searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchNucleus, searchClassificationStatus, searchLsbClass, searchMorphology, searchAwesome, searchValidRedshift, searchVisibleNucleus } = args;
 
     const aggregate = getGalaxiesAggregate(sortBy);
 
@@ -193,7 +203,7 @@ export const browseGalaxies = query({
     let searchFilteredGalaxies: any[] = [];
     let searchFilteredTotal = actualTotal;
     
-    if (searchId || searchRaMin || searchRaMax || searchDecMin || searchDecMax || searchReffMin || searchReffMax || searchQMin || searchQMax || searchPaMin || searchPaMax || searchNucleus || searchTerm) {
+    if (searchId || searchRaMin || searchRaMax || searchDecMin || searchDecMax || searchReffMin || searchReffMax || searchQMin || searchQMax || searchPaMin || searchPaMax || searchNucleus !== undefined || searchTerm || searchClassificationStatus || searchLsbClass || searchMorphology || searchAwesome !== undefined || searchValidRedshift !== undefined || searchVisibleNucleus !== undefined) {
       // When searching, we need to filter the entire dataset before pagination
       // Fall back to collecting all galaxies and filtering in memory
       const allGalaxies = await ctx.db.query("galaxies").collect();
@@ -223,7 +233,10 @@ export const browseGalaxies = query({
         if (searchPaMax && g.pa > parseFloat(searchPaMax)) return false;
         
         // Nucleus boolean search
-        if (searchNucleus !== undefined && g.nucleus !== searchNucleus) return false;
+        if (searchNucleus !== undefined) {
+          if (searchNucleus === true && g.nucleus !== true) return false;
+          if (searchNucleus === false && g.nucleus === true) return false;
+        }
         
         // Backward compatibility: fuzzy search on old searchTerm field
         if (searchTerm && searchTerm.trim()) {
@@ -335,6 +348,43 @@ export const browseGalaxies = query({
         finalGalaxies = [];
         searchFilteredTotal = 0;
       }
+    }
+
+    // Apply classification-based search filters
+    if (searchClassificationStatus || searchLsbClass || searchMorphology || searchAwesome !== undefined || searchValidRedshift !== undefined || searchVisibleNucleus !== undefined) {
+      finalGalaxies = finalGalaxies.filter(g => {
+        // Classification status search
+        if (searchClassificationStatus && g.status !== searchClassificationStatus) return false;
+        
+        // Only apply classification field searches if galaxy has a classification
+        if (!g.classification) {
+          // If searching for specific classification fields but galaxy has no classification, exclude it
+          if (searchLsbClass || searchMorphology || searchAwesome !== undefined || searchValidRedshift !== undefined || searchVisibleNucleus !== undefined) {
+            return false;
+          }
+          return true;
+        }
+        
+        // LSB class search
+        if (searchLsbClass && g.classification.lsb_class !== searchLsbClass) return false;
+        
+        // Morphology search
+        if (searchMorphology && g.classification.morphology !== searchMorphology) return false;
+        
+        // Awesome flag search
+        if (searchAwesome !== undefined && g.classification.awesome_flag !== searchAwesome) return false;
+        
+        // Valid redshift search
+        if (searchValidRedshift !== undefined && g.classification.valid_redshift !== searchValidRedshift) return false;
+        
+        // Visible nucleus search
+        if (searchVisibleNucleus !== undefined && g.classification.visible_nucleus !== searchVisibleNucleus) return false;
+        
+        return true;
+      });
+      
+      // Update total count for classification searches
+      searchFilteredTotal = finalGalaxies.length;
     }
 
     // Get total count for pagination info
@@ -456,6 +506,33 @@ export const getGalaxySearchBounds = query({
         hasNucleus: nucleusCount > 0,
         totalCount: allGalaxies.length,
       },
+    };
+  },
+});// Get unique classification values for search dropdowns
+export const getClassificationSearchOptions = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return {
+        lsbClasses: [],
+        morphologies: [],
+      };
+    }
+
+    // Get all classifications for this user
+    const classifications = await ctx.db
+      .query("classifications")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+
+    // Extract unique values
+    const lsbClasses = [...new Set(classifications.map(c => c.lsb_class).filter(Boolean))].sort();
+    const morphologies = [...new Set(classifications.map(c => c.morphology).filter(Boolean))].sort();
+
+    return {
+      lsbClasses,
+      morphologies,
     };
   },
 });
