@@ -30,11 +30,17 @@ export const browseGalaxies = query({
     )),
     searchTerm: v.optional(v.string()), // Keep for backward compatibility
     searchId: v.optional(v.string()),
-    searchRa: v.optional(v.string()),
-    searchDec: v.optional(v.string()),
-    searchReff: v.optional(v.string()),
-    searchQ: v.optional(v.string()),
-    searchPa: v.optional(v.string()),
+    searchRaMin: v.optional(v.string()),
+    searchRaMax: v.optional(v.string()),
+    searchDecMin: v.optional(v.string()),
+    searchDecMax: v.optional(v.string()),
+    searchReffMin: v.optional(v.string()),
+    searchReffMax: v.optional(v.string()),
+    searchQMin: v.optional(v.string()),
+    searchQMax: v.optional(v.string()),
+    searchPaMin: v.optional(v.string()),
+    searchPaMax: v.optional(v.string()),
+    searchNucleus: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -48,7 +54,7 @@ export const browseGalaxies = query({
       };
     }
 
-    const { offset = 0, numItems = 100, sortBy = "id", sortOrder = "asc", filter, searchTerm, searchId, searchRa, searchDec, searchReff, searchQ, searchPa } = args;
+        const { offset = 0, numItems = 100, sortBy = "id", sortOrder = "asc", filter, searchTerm, searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax, searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchNucleus } = args;
 
     const aggregate = getGalaxiesAggregate(sortBy);
 
@@ -183,23 +189,41 @@ export const browseGalaxies = query({
       }
     }
 
-    // Apply search filtering if needed (exact match) - BEFORE pagination for correct results
+    // Apply search filtering if needed (range-based search)
     let searchFilteredGalaxies: any[] = [];
     let searchFilteredTotal = actualTotal;
     
-    if (searchId || searchRa || searchDec || searchReff || searchQ || searchPa || searchTerm) {
+    if (searchId || searchRaMin || searchRaMax || searchDecMin || searchDecMax || searchReffMin || searchReffMax || searchQMin || searchQMax || searchPaMin || searchPaMax || searchNucleus || searchTerm) {
       // When searching, we need to filter the entire dataset before pagination
       // Fall back to collecting all galaxies and filtering in memory
       const allGalaxies = await ctx.db.query("galaxies").collect();
       
       searchFilteredGalaxies = allGalaxies.filter(g => {
-        // Check each search field for exact match
+        // Check each search field for range or exact match
         if (searchId && g.id !== searchId.trim()) return false;
-        if (searchRa && g.ra.toString() !== searchRa.trim()) return false;
-        if (searchDec && g.dec.toString() !== searchDec.trim()) return false;
-        if (searchReff && g.reff.toString() !== searchReff.trim()) return false;
-        if (searchQ && g.q.toString() !== searchQ.trim()) return false;
-        if (searchPa && g.pa.toString() !== searchPa.trim()) return false;
+        
+        // RA range search
+        if (searchRaMin && g.ra < parseFloat(searchRaMin)) return false;
+        if (searchRaMax && g.ra > parseFloat(searchRaMax)) return false;
+        
+        // Dec range search
+        if (searchDecMin && g.dec < parseFloat(searchDecMin)) return false;
+        if (searchDecMax && g.dec > parseFloat(searchDecMax)) return false;
+        
+        // Reff range search
+        if (searchReffMin && g.reff < parseFloat(searchReffMin)) return false;
+        if (searchReffMax && g.reff > parseFloat(searchReffMax)) return false;
+        
+        // Q range search
+        if (searchQMin && g.q < parseFloat(searchQMin)) return false;
+        if (searchQMax && g.q > parseFloat(searchQMax)) return false;
+        
+        // PA range search
+        if (searchPaMin && g.pa < parseFloat(searchPaMin)) return false;
+        if (searchPaMax && g.pa > parseFloat(searchPaMax)) return false;
+        
+        // Nucleus boolean search
+        if (searchNucleus !== undefined && g.nucleus !== searchNucleus) return false;
         
         // Backward compatibility: fuzzy search on old searchTerm field
         if (searchTerm && searchTerm.trim()) {
@@ -326,6 +350,75 @@ export const browseGalaxies = query({
       hasPrevious,
       totalPages,
       aggregatesPopulated: aggregateCount > 0,
+    };
+  },
+});
+
+// Get min/max values for search field prefill
+export const getGalaxySearchBounds = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) {
+      return {
+        ra: { min: null, max: null },
+        dec: { min: null, max: null },
+        reff: { min: null, max: null },
+        q: { min: null, max: null },
+        pa: { min: null, max: null },
+        nucleus: { hasNucleus: false, totalCount: 0 },
+      };
+    }
+
+    // Get all galaxies to calculate bounds
+    const allGalaxies = await ctx.db.query("galaxies").collect();
+
+    if (allGalaxies.length === 0) {
+      return {
+        ra: { min: null, max: null },
+        dec: { min: null, max: null },
+        reff: { min: null, max: null },
+        q: { min: null, max: null },
+        pa: { min: null, max: null },
+        nucleus: { hasNucleus: false, totalCount: 0 },
+      };
+    }
+
+    // Calculate min/max for numeric fields
+    const raValues = allGalaxies.map(g => g.ra).filter(v => !isNaN(v));
+    const decValues = allGalaxies.map(g => g.dec).filter(v => !isNaN(v));
+    const reffValues = allGalaxies.map(g => g.reff).filter(v => !isNaN(v));
+    const qValues = allGalaxies.map(g => g.q).filter(v => !isNaN(v));
+    const paValues = allGalaxies.map(g => g.pa).filter(v => !isNaN(v));
+
+    // Count galaxies with nucleus
+    const nucleusCount = allGalaxies.filter(g => g.nucleus === true).length;
+
+    return {
+      ra: {
+        min: raValues.length > 0 ? Math.min(...raValues) : null,
+        max: raValues.length > 0 ? Math.max(...raValues) : null,
+      },
+      dec: {
+        min: decValues.length > 0 ? Math.min(...decValues) : null,
+        max: decValues.length > 0 ? Math.max(...decValues) : null,
+      },
+      reff: {
+        min: reffValues.length > 0 ? Math.min(...reffValues) : null,
+        max: reffValues.length > 0 ? Math.max(...reffValues) : null,
+      },
+      q: {
+        min: qValues.length > 0 ? Math.min(...qValues) : null,
+        max: qValues.length > 0 ? Math.max(...qValues) : null,
+      },
+      pa: {
+        min: paValues.length > 0 ? Math.min(...paValues) : null,
+        max: paValues.length > 0 ? Math.max(...paValues) : null,
+      },
+      nucleus: {
+        hasNucleus: nucleusCount > 0,
+        totalCount: allGalaxies.length,
+      },
     };
   },
 });
