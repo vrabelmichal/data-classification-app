@@ -15,7 +15,9 @@ import {
   galaxiesByQ,
   galaxiesByPa,
   galaxiesByNucleus,
-  galaxiesByCreationTime
+  galaxiesByCreationTime,
+  galaxiesByMag,
+  galaxiesByMeanMue
 } from "./aggregates";
 
 
@@ -60,6 +62,8 @@ export const clearGalaxyAggregates = mutation({
     await galaxiesByPa.clear(ctx);
     await galaxiesByNucleus.clear(ctx);
     await galaxiesByCreationTime.clear(ctx);
+    await galaxiesByMag.clear(ctx);
+    await galaxiesByMeanMue.clear(ctx);
   },
 });
 
@@ -82,6 +86,8 @@ export const rebuildGalaxyAggregates = mutation({
     await galaxiesByPa.clear(ctx);
     await galaxiesByNucleus.clear(ctx);
     await galaxiesByCreationTime.clear(ctx);
+    await galaxiesByMag.clear(ctx);
+    await galaxiesByMeanMue.clear(ctx);
 
     // Rebuild aggregates from all existing galaxies
     const allGalaxies = await ctx.db.query("galaxies").collect();
@@ -95,6 +101,8 @@ export const rebuildGalaxyAggregates = mutation({
       await galaxiesByPa.insert(ctx, galaxy);
       await galaxiesByNucleus.insert(ctx, galaxy);
       await galaxiesByCreationTime.insert(ctx, galaxy);
+      await galaxiesByMag.insert(ctx, galaxy);
+      await galaxiesByMeanMue.insert(ctx, galaxy);
     }
   },
 });
@@ -153,6 +161,8 @@ export const deleteAllGalaxies = mutation({
     await galaxiesByPa.clear(ctx);
     await galaxiesByNucleus.clear(ctx);
     await galaxiesByCreationTime.clear(ctx);
+    await galaxiesByMag.clear(ctx);
+    await galaxiesByMeanMue.clear(ctx);
     
     // Clear the aggregate
     await galaxyIdsAggregate.clear(ctx);
@@ -174,20 +184,32 @@ export async function insertGalaxy(
   thuruthipilly?: any,
   numbericId?: bigint,
 ): Promise<Id<'galaxies'>> {
+  // Populate mag and mean_mue from photometryBand if not already set
+  if (galaxy.mag === undefined && photometryBand?.sersic?.mag !== undefined) {
+    galaxy.mag = photometryBand.sersic.mag;
+  }
+  if (galaxy.mean_mue === undefined && photometryBand?.sersic?.mean_mue !== undefined) {
+    galaxy.mean_mue = photometryBand.sersic.mean_mue;
+  }
+
   // Insert core row first
   const galaxyRef = await ctx.db.insert("galaxies", galaxy);
   const galaxyDoc = await ctx.db.get(galaxyRef);
   if (!galaxyDoc) throw new Error("Failed to insert galaxy");
 
-  // Maintain galaxy aggregates
-  await galaxiesById.insert(ctx, galaxyDoc);
-  await galaxiesByRa.insert(ctx, galaxyDoc);
-  await galaxiesByDec.insert(ctx, galaxyDoc);
-  await galaxiesByReff.insert(ctx, galaxyDoc);
-  await galaxiesByQ.insert(ctx, galaxyDoc);
-  await galaxiesByPa.insert(ctx, galaxyDoc);
-  await galaxiesByNucleus.insert(ctx, galaxyDoc);
-  await galaxiesByCreationTime.insert(ctx, galaxyDoc);
+  // Maintain galaxy aggregates (run in parallel for better performance)
+  await Promise.all([
+    galaxiesById.insert(ctx, galaxyDoc),
+    galaxiesByRa.insert(ctx, galaxyDoc),
+    galaxiesByDec.insert(ctx, galaxyDoc),
+    galaxiesByReff.insert(ctx, galaxyDoc),
+    galaxiesByQ.insert(ctx, galaxyDoc),
+    galaxiesByPa.insert(ctx, galaxyDoc),
+    galaxiesByNucleus.insert(ctx, galaxyDoc),
+    galaxiesByCreationTime.insert(ctx, galaxyDoc),
+    galaxiesByMag.insert(ctx, galaxyDoc),
+    galaxiesByMeanMue.insert(ctx, galaxyDoc),
+  ]);
 
   // if numericId is not provided, find the max numericId and increment or set to 1 if none exist, 
   //   use galaxyIdsAggregate to find max value of numericId
@@ -282,6 +304,69 @@ export const getAdditionalGalaxyDetailsByExternalId = mutation({
       photometry_i,
       source_extractor,
       thuruthipilly,
+    };
+  },
+});
+
+const UPDATE_BATCH_SIZE = 500;
+
+export const fillGalaxyMagAndMeanMue = mutation({
+  args: {
+    maxToUpdate: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Admin only
+    const currentProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!currentProfile || currentProfile.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    const limit = args.maxToUpdate ? Math.max(1, Math.floor(args.maxToUpdate)) : UPDATE_BATCH_SIZE;
+    let updated = 0;
+    let cursor = args.cursor || null;
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("galaxies_photometry_g")
+      .paginate({
+        numItems: limit,
+        cursor,
+      });
+
+    for (const photometry of page) {
+      // Get the galaxy
+      const galaxy = await ctx.db.get(photometry.galaxyRef);
+      if (!galaxy) continue;
+
+      // Check if we need to update
+      const needsUpdate = (galaxy.mag === undefined && photometry.sersic?.mag !== undefined) ||
+                         (galaxy.mean_mue === undefined && photometry.sersic?.mean_mue !== undefined);
+
+      if (needsUpdate) {
+        const update: Partial<Doc<'galaxies'>> = {};
+        if (galaxy.mag === undefined && photometry.sersic?.mag !== undefined) {
+          update.mag = photometry.sersic.mag;
+        }
+        if (galaxy.mean_mue === undefined && photometry.sersic?.mean_mue !== undefined) {
+          update.mean_mue = photometry.sersic.mean_mue;
+        }
+        await ctx.db.patch(galaxy._id, update);
+        updated += 1;
+      }
+    }
+
+    return {
+      updated,
+      limit,
+      cursor: continueCursor,
+      isDone,
+      message: updated > 0 ? `Updated ${updated} galaxies with mag/mean_mue` : "No galaxies needed updating",
     };
   },
 });

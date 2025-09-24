@@ -13,6 +13,11 @@ export const galaxySchemaDefinition = {
   q: v.number(),
   pa: v.number(),
   nucleus: v.boolean(),
+  
+  // Optional fields from fitting, for easier searching / filtering
+  mag: v.optional(v.number()),
+  mean_mue: v.optional(v.number()),
+
   // Legacy / misc fields that remain
   isActive: v.optional(v.boolean()),
   redshift_x: v.optional(v.number()),
@@ -171,7 +176,9 @@ const applicationTables = {
     .index("by_reff", ["reff"]) // effective radius
     .index("by_q", ["q"]) // axis ratio
     .index("by_pa", ["pa"]) // position angle
-    .index("by_nucleus", ["nucleus"]), // nucleus boolean for grouping
+    .index("by_nucleus", ["nucleus"]) // nucleus boolean for grouping
+    .index("by_mag", ["mag"]) // optional magnitude for grouping
+    .index("by_mean_mue", ["mean_mue"]), // optional mean surface brightness for grouping
 
   // Split photometry tables (one doc per galaxy per band)
   galaxies_photometry_g: defineTable(photometryBandSchema).index("by_galaxy", ["galaxyRef"]),

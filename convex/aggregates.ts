@@ -74,6 +74,24 @@ export const galaxiesByCreationTime = new TableAggregate<{
   sortKey: (doc) => doc._creationTime,
 });
 
+// Aggregate for galaxies sorted by magnitude (number, optional)
+export const galaxiesByMag = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "galaxies";
+}>(components.galaxiesByMag, {
+  sortKey: (doc) => doc.mag ?? Number.MAX_SAFE_INTEGER, // Use max value for undefined to sort at end
+});
+
+// Aggregate for galaxies sorted by mean surface brightness (number, optional)
+export const galaxiesByMeanMue = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "galaxies";
+}>(components.galaxiesByMeanMue, {
+  sortKey: (doc) => doc.mean_mue ?? Number.MAX_SAFE_INTEGER, // Use max value for undefined to sort at end
+});
+
 // Helper function to get the appropriate aggregate based on sort field
 export function getGalaxiesAggregate(sortBy: string) {
   switch (sortBy) {
@@ -93,6 +111,10 @@ export function getGalaxiesAggregate(sortBy: string) {
       return galaxiesByNucleus;
     case "_creationTime":
       return galaxiesByCreationTime;
+    case "mag":
+      return galaxiesByMag;
+    case "mean_mue":
+      return galaxiesByMeanMue;
     default:
       return galaxiesById; // fallback
   }
