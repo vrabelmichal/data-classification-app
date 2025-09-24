@@ -35,6 +35,10 @@ export function GalaxyBrowser() {
   const [searchQMax, setSearchQMax] = useState("");
   const [searchPaMin, setSearchPaMin] = useState("");
   const [searchPaMax, setSearchPaMax] = useState("");
+  const [searchMagMin, setSearchMagMin] = useState("");
+  const [searchMagMax, setSearchMagMax] = useState("");
+  const [searchMeanMueMin, setSearchMeanMueMin] = useState("");
+  const [searchMeanMueMax, setSearchMeanMueMax] = useState("");
   const [searchNucleus, setSearchNucleus] = useState<boolean | undefined>(undefined);
   const [searchClassificationStatus, setSearchClassificationStatus] = useState<"classified" | "unclassified" | "skipped" | undefined>(undefined);
   const [searchLsbClass, setSearchLsbClass] = useState<string>("");
@@ -58,6 +62,10 @@ export function GalaxyBrowser() {
   const [appliedSearchQMax, setAppliedSearchQMax] = useState("");
   const [appliedSearchPaMin, setAppliedSearchPaMin] = useState("");
   const [appliedSearchPaMax, setAppliedSearchPaMax] = useState("");
+  const [appliedSearchMagMin, setAppliedSearchMagMin] = useState("");
+  const [appliedSearchMagMax, setAppliedSearchMagMax] = useState("");
+  const [appliedSearchMeanMueMin, setAppliedSearchMeanMueMin] = useState("");
+  const [appliedSearchMeanMueMax, setAppliedSearchMeanMueMax] = useState("");
   const [appliedSearchNucleus, setAppliedSearchNucleus] = useState<boolean | undefined>(undefined);
   const [appliedSearchClassificationStatus, setAppliedSearchClassificationStatus] = useState<"classified" | "unclassified" | "skipped" | undefined>(undefined);
   const [appliedSearchLsbClass, setAppliedSearchLsbClass] = useState<string>("");
@@ -85,6 +93,10 @@ export function GalaxyBrowser() {
     searchQMax: isSearchActive ? (appliedSearchQMax || undefined) : undefined,
     searchPaMin: isSearchActive ? (appliedSearchPaMin || undefined) : undefined,
     searchPaMax: isSearchActive ? (appliedSearchPaMax || undefined) : undefined,
+    searchMagMin: isSearchActive ? (appliedSearchMagMin || undefined) : undefined,
+    searchMagMax: isSearchActive ? (appliedSearchMagMax || undefined) : undefined,
+    searchMeanMueMin: isSearchActive ? (appliedSearchMeanMueMin || undefined) : undefined,
+    searchMeanMueMax: isSearchActive ? (appliedSearchMeanMueMax || undefined) : undefined,
     searchNucleus: isSearchActive ? appliedSearchNucleus : undefined,
     searchClassificationStatus: isSearchActive ? appliedSearchClassificationStatus : undefined,
     searchLsbClass: isSearchActive ? appliedSearchLsbClass : undefined,
@@ -240,11 +252,14 @@ export function GalaxyBrowser() {
   }, [searchBounds, searchRaMin, searchRaMax, searchDecMin, searchDecMax, searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchNucleus, didHydrateFromStorage.current]);
 
   // Helper function to get placeholder text for bounds
-  const getPlaceholderText = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa', type: 'min' | 'max') => {
+  const getPlaceholderText = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue', type: 'min' | 'max') => {
     const bounds = isSearchActive && currentBounds ? currentBounds : searchBounds;
     if (!bounds) return type === 'min' ? 'Min' : 'Max';
     
-    const value = bounds[field][type];
+    const fieldBounds = (bounds as any)[field];
+    if (!fieldBounds) return type === 'min' ? 'Min' : 'Max';
+    
+    const value = fieldBounds[type];
     if (value === null) return type === 'min' ? 'Min' : 'Max';
     
     // Format based on field type
@@ -253,6 +268,8 @@ export function GalaxyBrowser() {
       case 'dec':
         return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(4)}`;
       case 'reff':
+      case 'mag':
+      case 'mean_mue':
         return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(2)}`;
       case 'q':
         return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(3)}`;
@@ -464,7 +481,7 @@ export function GalaxyBrowser() {
     if (hasPreviousData) {
       // We have previous data but current query is loading - show loading state in table area
       return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+        <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Galaxy Browser</h1>
@@ -877,7 +894,7 @@ export function GalaxyBrowser() {
     } else {
       // First load - show full loading state
       return (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+        <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Galaxy Browser</h1>
@@ -1293,7 +1310,7 @@ export function GalaxyBrowser() {
   const { galaxies, total, hasNext, hasPrevious, totalPages } = galaxyData;
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+    <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Galaxy Browser</h1>
@@ -1437,6 +1454,52 @@ export function GalaxyBrowser() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Magnitude
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={searchMagMin}
+                  onChange={(e) => setSearchMagMin(e.target.value)}
+                  placeholder={getPlaceholderText('mag', 'min')}
+                  className={getInputClass('searchMagMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={searchMagMax}
+                  onChange={(e) => setSearchMagMax(e.target.value)}
+                  placeholder={getPlaceholderText('mag', 'max')}
+                  className={getInputClass('searchMagMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Mean Surface Brightness
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  step="0.01"
+                  value={searchMeanMueMin}
+                  onChange={(e) => setSearchMeanMueMin(e.target.value)}
+                  placeholder={getPlaceholderText('mean_mue', 'min')}
+                  className={getInputClass('searchMeanMueMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+                <input
+                  type="number"
+                  step="0.01"
+                  value={searchMeanMueMax}
+                  onChange={(e) => setSearchMeanMueMax(e.target.value)}
+                  placeholder={getPlaceholderText('mean_mue', 'max')}
+                  className={getInputClass('searchMeanMueMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Classification Status
               </label>
               <select
@@ -1555,6 +1618,10 @@ export function GalaxyBrowser() {
                 setAppliedSearchQMax(searchQMax);
                 setAppliedSearchPaMin(searchPaMin);
                 setAppliedSearchPaMax(searchPaMax);
+                setAppliedSearchMagMin(searchMagMin);
+                setAppliedSearchMagMax(searchMagMax);
+                setAppliedSearchMeanMueMin(searchMeanMueMin);
+                setAppliedSearchMeanMueMax(searchMeanMueMax);
                 setAppliedSearchNucleus(searchNucleus);
                 setAppliedSearchClassificationStatus(searchClassificationStatus);
                 setAppliedSearchLsbClass(searchLsbClass);
@@ -1590,6 +1657,10 @@ export function GalaxyBrowser() {
                 setSearchQMax("");
                 setSearchPaMin("");
                 setSearchPaMax("");
+                setSearchMagMin("");
+                setSearchMagMax("");
+                setSearchMeanMueMin("");
+                setSearchMeanMueMax("");
                 setSearchNucleus(undefined);
                 setSearchClassificationStatus(undefined);
                 setSearchLsbClass("");
@@ -1608,6 +1679,10 @@ export function GalaxyBrowser() {
                 setAppliedSearchQMax("");
                 setAppliedSearchPaMin("");
                 setAppliedSearchPaMax("");
+                setAppliedSearchMagMin("");
+                setAppliedSearchMagMax("");
+                setAppliedSearchMeanMueMin("");
+                setAppliedSearchMeanMueMax("");
                 setAppliedSearchNucleus(undefined);
                 setAppliedSearchClassificationStatus(undefined);
                 setAppliedSearchLsbClass("");
@@ -1667,6 +1742,8 @@ export function GalaxyBrowser() {
               <option value="reff">Effective Radius</option>
               <option value="q">Axis Ratio</option>
               <option value="pa">Position Angle</option>
+              <option value="mag">Magnitude</option>
+              <option value="mean_mue">Mean Surface Brightness</option>
               <option value="nucleus">Nucleus</option>
               <option value="_creationTime">Creation Time</option>
             </select>
@@ -1809,6 +1886,12 @@ export function GalaxyBrowser() {
                     </div>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Mag
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    μ₀
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -1857,6 +1940,12 @@ export function GalaxyBrowser() {
                       )}>
                         {galaxy.nucleus ? "Yes" : "No"}
                       </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {galaxy.mag !== undefined ? galaxy.mag.toFixed(2) : "—"}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {galaxy.mean_mue !== undefined ? galaxy.mean_mue.toFixed(2) : "—"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {getStatusBadge(galaxy.status)}
@@ -1935,6 +2024,8 @@ export function GalaxyBrowser() {
                     <div>q: {galaxy.q.toFixed(3)}</div>
                     <div>PA: {galaxy.pa.toFixed(1)}°</div>
                     <div>Nucleus: {galaxy.nucleus ? "Yes" : "No"}</div>
+                    <div>Mag: {galaxy.mag !== undefined ? galaxy.mag.toFixed(2) : "—"}</div>
+                    <div>μ₀: {galaxy.mean_mue !== undefined ? galaxy.mean_mue.toFixed(2) : "—"}</div>
                   </div>
                   
                   {galaxy.classification && (

@@ -40,6 +40,10 @@ export const browseGalaxies = query({
     searchQMax: v.optional(v.string()),
     searchPaMin: v.optional(v.string()),
     searchPaMax: v.optional(v.string()),
+    searchMagMin: v.optional(v.string()),
+    searchMagMax: v.optional(v.string()),
+    searchMeanMueMin: v.optional(v.string()),
+    searchMeanMueMax: v.optional(v.string()),
     searchNucleus: v.optional(v.boolean()),
     searchClassificationStatus: v.optional(v.union(
       v.literal("classified"),
@@ -64,7 +68,7 @@ export const browseGalaxies = query({
       };
     }
 
-        const { offset = 0, numItems = 100, sortBy = "id", sortOrder = "asc", filter, searchTerm, searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax, searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchNucleus, searchClassificationStatus, searchLsbClass, searchMorphology, searchAwesome, searchValidRedshift, searchVisibleNucleus } = args;
+        const { offset = 0, numItems = 100, sortBy = "id", sortOrder = "asc", filter, searchTerm, searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax, searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchMagMin, searchMagMax, searchMeanMueMin, searchMeanMueMax, searchNucleus, searchClassificationStatus, searchLsbClass, searchMorphology, searchAwesome, searchValidRedshift, searchVisibleNucleus } = args;
 
     const aggregate = getGalaxiesAggregate(sortBy);
 
@@ -203,7 +207,7 @@ export const browseGalaxies = query({
     let searchFilteredGalaxies: any[] = [];
     let searchFilteredTotal = actualTotal;
     
-    if (searchId || searchRaMin || searchRaMax || searchDecMin || searchDecMax || searchReffMin || searchReffMax || searchQMin || searchQMax || searchPaMin || searchPaMax || searchNucleus !== undefined || searchTerm || searchClassificationStatus || searchLsbClass || searchMorphology || searchAwesome !== undefined || searchValidRedshift !== undefined || searchVisibleNucleus !== undefined) {
+    if (searchId || searchRaMin || searchRaMax || searchDecMin || searchDecMax || searchReffMin || searchReffMax || searchQMin || searchQMax || searchPaMin || searchPaMax || searchMagMin || searchMagMax || searchMeanMueMin || searchMeanMueMax || searchNucleus !== undefined || searchTerm || searchClassificationStatus || searchLsbClass || searchMorphology || searchAwesome !== undefined || searchValidRedshift !== undefined || searchVisibleNucleus !== undefined) {
       // When searching, we need to filter the entire dataset before pagination
       // Fall back to collecting all galaxies and filtering in memory
       const allGalaxies = await ctx.db.query("galaxies").collect();
@@ -231,6 +235,14 @@ export const browseGalaxies = query({
         // PA range search
         if (searchPaMin && g.pa < parseFloat(searchPaMin)) return false;
         if (searchPaMax && g.pa > parseFloat(searchPaMax)) return false;
+        
+        // Mag range search
+        if (searchMagMin && g.mag !== undefined && g.mag < parseFloat(searchMagMin)) return false;
+        if (searchMagMax && g.mag !== undefined && g.mag > parseFloat(searchMagMax)) return false;
+        
+        // Mean Mue range search
+        if (searchMeanMueMin && g.mean_mue !== undefined && g.mean_mue < parseFloat(searchMeanMueMin)) return false;
+        if (searchMeanMueMax && g.mean_mue !== undefined && g.mean_mue > parseFloat(searchMeanMueMax)) return false;
         
         // Nucleus boolean search
         if (searchNucleus !== undefined) {
@@ -400,6 +412,8 @@ export const browseGalaxies = query({
     const reffValues = resultGalaxies.map(g => g.reff).filter(v => !isNaN(v));
     const qValues = resultGalaxies.map(g => g.q).filter(v => !isNaN(v));
     const paValues = resultGalaxies.map(g => g.pa).filter(v => !isNaN(v));
+    const magValues = resultGalaxies.map(g => g.mag).filter(v => v !== undefined && !isNaN(v));
+    const meanMueValues = resultGalaxies.map(g => g.mean_mue).filter(v => v !== undefined && !isNaN(v));
     const nucleusCount = resultGalaxies.filter(g => g.nucleus === true).length;
 
     const currentBounds = {
@@ -422,6 +436,14 @@ export const browseGalaxies = query({
       pa: {
         min: paValues.length > 0 ? Math.min(...paValues) : null,
         max: paValues.length > 0 ? Math.max(...paValues) : null,
+      },
+      mag: {
+        min: magValues.length > 0 ? Math.min(...(magValues as number[])) : null,
+        max: magValues.length > 0 ? Math.max(...(magValues as number[])) : null,
+      },
+      mean_mue: {
+        min: meanMueValues.length > 0 ? Math.min(...(meanMueValues as number[])) : null,
+        max: meanMueValues.length > 0 ? Math.max(...(meanMueValues as number[])) : null,
       },
       nucleus: {
         hasNucleus: nucleusCount > 0,
@@ -477,6 +499,8 @@ export const getGalaxySearchBounds = query({
     const reffValues = allGalaxies.map(g => g.reff).filter(v => !isNaN(v));
     const qValues = allGalaxies.map(g => g.q).filter(v => !isNaN(v));
     const paValues = allGalaxies.map(g => g.pa).filter(v => !isNaN(v));
+    const magValues = allGalaxies.map(g => g.mag).filter(v => v !== undefined && !isNaN(v));
+    const meanMueValues = allGalaxies.map(g => g.mean_mue).filter(v => v !== undefined && !isNaN(v));
 
     // Count galaxies with nucleus
     const nucleusCount = allGalaxies.filter(g => g.nucleus === true).length;
@@ -501,6 +525,14 @@ export const getGalaxySearchBounds = query({
       pa: {
         min: paValues.length > 0 ? Math.min(...paValues) : null,
         max: paValues.length > 0 ? Math.max(...paValues) : null,
+      },
+      mag: {
+        min: magValues.length > 0 ? Math.min(...(magValues as number[])) : null,
+        max: magValues.length > 0 ? Math.max(...(magValues as number[])) : null,
+      },
+      mean_mue: {
+        min: meanMueValues.length > 0 ? Math.min(...(meanMueValues as number[])) : null,
+        max: meanMueValues.length > 0 ? Math.max(...(meanMueValues as number[])) : null,
       },
       nucleus: {
         hasNucleus: nucleusCount > 0,
