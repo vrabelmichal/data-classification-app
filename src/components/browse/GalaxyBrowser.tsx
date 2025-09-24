@@ -39,6 +39,20 @@ export function GalaxyBrowser() {
   const [isSearchActive, setIsSearchActive] = useState(false);
   const didHydrateFromStorage = useRef(false);
 
+  // Applied search values (what's actually being used for queries)
+  const [appliedSearchId, setAppliedSearchId] = useState("");
+  const [appliedSearchRaMin, setAppliedSearchRaMin] = useState("");
+  const [appliedSearchRaMax, setAppliedSearchRaMax] = useState("");
+  const [appliedSearchDecMin, setAppliedSearchDecMin] = useState("");
+  const [appliedSearchDecMax, setAppliedSearchDecMax] = useState("");
+  const [appliedSearchReffMin, setAppliedSearchReffMin] = useState("");
+  const [appliedSearchReffMax, setAppliedSearchReffMax] = useState("");
+  const [appliedSearchQMin, setAppliedSearchQMin] = useState("");
+  const [appliedSearchQMax, setAppliedSearchQMax] = useState("");
+  const [appliedSearchPaMin, setAppliedSearchPaMin] = useState("");
+  const [appliedSearchPaMax, setAppliedSearchPaMax] = useState("");
+  const [appliedSearchNucleus, setAppliedSearchNucleus] = useState<boolean | undefined>(undefined);
+
   const previewImageName = "aplpy_defaults_unmasked";
 
   const galaxyData = useQuery(api.galaxies_browse.browseGalaxies, {
@@ -47,22 +61,41 @@ export function GalaxyBrowser() {
     sortBy,
     sortOrder,
     filter,
-    searchId: isSearchActive ? searchId : undefined,
-    searchRaMin: isSearchActive ? (searchRaMin || undefined) : undefined,
-    searchRaMax: isSearchActive ? (searchRaMax || undefined) : undefined,
-    searchDecMin: isSearchActive ? (searchDecMin || undefined) : undefined,
-    searchDecMax: isSearchActive ? (searchDecMax || undefined) : undefined,
-    searchReffMin: isSearchActive ? (searchReffMin || undefined) : undefined,
-    searchReffMax: isSearchActive ? (searchReffMax || undefined) : undefined,
-    searchQMin: isSearchActive ? (searchQMin || undefined) : undefined,
-    searchQMax: isSearchActive ? (searchQMax || undefined) : undefined,
-    searchPaMin: isSearchActive ? (searchPaMin || undefined) : undefined,
-    searchPaMax: isSearchActive ? (searchPaMax || undefined) : undefined,
-    searchNucleus: isSearchActive ? searchNucleus : undefined,
+    searchId: isSearchActive ? appliedSearchId : undefined,
+    searchRaMin: isSearchActive ? (appliedSearchRaMin || undefined) : undefined,
+    searchRaMax: isSearchActive ? (appliedSearchRaMax || undefined) : undefined,
+    searchDecMin: isSearchActive ? (appliedSearchDecMin || undefined) : undefined,
+    searchDecMax: isSearchActive ? (appliedSearchDecMax || undefined) : undefined,
+    searchReffMin: isSearchActive ? (appliedSearchReffMin || undefined) : undefined,
+    searchReffMax: isSearchActive ? (appliedSearchReffMax || undefined) : undefined,
+    searchQMin: isSearchActive ? (appliedSearchQMin || undefined) : undefined,
+    searchQMax: isSearchActive ? (appliedSearchQMax || undefined) : undefined,
+    searchPaMin: isSearchActive ? (appliedSearchPaMin || undefined) : undefined,
+    searchPaMax: isSearchActive ? (appliedSearchPaMax || undefined) : undefined,
+    searchNucleus: isSearchActive ? appliedSearchNucleus : undefined,
   });
+
+  // Check if there are pending changes (current values differ from applied values)
+  const hasPendingChanges = isSearchActive && (
+    searchId !== appliedSearchId ||
+    searchRaMin !== appliedSearchRaMin ||
+    searchRaMax !== appliedSearchRaMax ||
+    searchDecMin !== appliedSearchDecMin ||
+    searchDecMax !== appliedSearchDecMax ||
+    searchReffMin !== appliedSearchReffMin ||
+    searchReffMax !== appliedSearchReffMax ||
+    searchQMin !== appliedSearchQMin ||
+    searchQMax !== appliedSearchQMax ||
+    searchPaMin !== appliedSearchPaMin ||
+    searchPaMax !== appliedSearchPaMax ||
+    searchNucleus !== appliedSearchNucleus
+  );
 
   // Get search bounds for prefill
   const searchBounds = useQuery(api.galaxies_browse.getGalaxySearchBounds);
+
+  // Extract current bounds from galaxy data (when search is active, these are filtered bounds)
+  const currentBounds = galaxyData?.currentBounds;
 
   // Hydrate settings from localStorage on first mount
   useEffect(() => {
@@ -78,18 +111,54 @@ export function GalaxyBrowser() {
           if (parsed.sortOrder) setSortOrder(parsed.sortOrder);
           if (parsed.filter) setFilter(parsed.filter);
           // New search fields
-          if (typeof parsed.searchId === "string") setSearchId(parsed.searchId);
-          if (typeof parsed.searchRaMin === "string") setSearchRaMin(parsed.searchRaMin);
-          if (typeof parsed.searchRaMax === "string") setSearchRaMax(parsed.searchRaMax);
-          if (typeof parsed.searchDecMin === "string") setSearchDecMin(parsed.searchDecMin);
-          if (typeof parsed.searchDecMax === "string") setSearchDecMax(parsed.searchDecMax);
-          if (typeof parsed.searchReffMin === "string") setSearchReffMin(parsed.searchReffMin);
-          if (typeof parsed.searchReffMax === "string") setSearchReffMax(parsed.searchReffMax);
-          if (typeof parsed.searchQMin === "string") setSearchQMin(parsed.searchQMin);
-          if (typeof parsed.searchQMax === "string") setSearchQMax(parsed.searchQMax);
-          if (typeof parsed.searchPaMin === "string") setSearchPaMin(parsed.searchPaMin);
-          if (typeof parsed.searchPaMax === "string") setSearchPaMax(parsed.searchPaMax);
-          if (typeof parsed.searchNucleus === "boolean") setSearchNucleus(parsed.searchNucleus);
+          if (typeof parsed.searchId === "string") {
+            setSearchId(parsed.searchId);
+            setAppliedSearchId(parsed.searchId);
+          }
+          if (typeof parsed.searchRaMin === "string") {
+            setSearchRaMin(parsed.searchRaMin);
+            setAppliedSearchRaMin(parsed.searchRaMin);
+          }
+          if (typeof parsed.searchRaMax === "string") {
+            setSearchRaMax(parsed.searchRaMax);
+            setAppliedSearchRaMax(parsed.searchRaMax);
+          }
+          if (typeof parsed.searchDecMin === "string") {
+            setSearchDecMin(parsed.searchDecMin);
+            setAppliedSearchDecMin(parsed.searchDecMin);
+          }
+          if (typeof parsed.searchDecMax === "string") {
+            setSearchDecMax(parsed.searchDecMax);
+            setAppliedSearchDecMax(parsed.searchDecMax);
+          }
+          if (typeof parsed.searchReffMin === "string") {
+            setSearchReffMin(parsed.searchReffMin);
+            setAppliedSearchReffMin(parsed.searchReffMin);
+          }
+          if (typeof parsed.searchReffMax === "string") {
+            setSearchReffMax(parsed.searchReffMax);
+            setAppliedSearchReffMax(parsed.searchReffMax);
+          }
+          if (typeof parsed.searchQMin === "string") {
+            setSearchQMin(parsed.searchQMin);
+            setAppliedSearchQMin(parsed.searchQMin);
+          }
+          if (typeof parsed.searchQMax === "string") {
+            setSearchQMax(parsed.searchQMax);
+            setAppliedSearchQMax(parsed.searchQMax);
+          }
+          if (typeof parsed.searchPaMin === "string") {
+            setSearchPaMin(parsed.searchPaMin);
+            setAppliedSearchPaMin(parsed.searchPaMin);
+          }
+          if (typeof parsed.searchPaMax === "string") {
+            setSearchPaMax(parsed.searchPaMax);
+            setAppliedSearchPaMax(parsed.searchPaMax);
+          }
+          if (typeof parsed.searchNucleus === "boolean") {
+            setSearchNucleus(parsed.searchNucleus);
+            setAppliedSearchNucleus(parsed.searchNucleus);
+          }
         }
       }
     } catch (e) {
@@ -113,19 +182,34 @@ export function GalaxyBrowser() {
       searchNucleus === undefined;
 
     if (shouldSetDefaults) {
-      if (searchBounds.ra.min !== null) setSearchRaMin(searchBounds.ra.min.toFixed(4));
-      if (searchBounds.ra.max !== null) setSearchRaMax(searchBounds.ra.max.toFixed(4));
-      if (searchBounds.dec.min !== null) setSearchDecMin(searchBounds.dec.min.toFixed(4));
-      if (searchBounds.dec.max !== null) setSearchDecMax(searchBounds.dec.max.toFixed(4));
-      if (searchBounds.reff.min !== null) setSearchReffMin(searchBounds.reff.min.toFixed(2));
-      if (searchBounds.reff.max !== null) setSearchReffMax(searchBounds.reff.max.toFixed(2));
-      if (searchBounds.q.min !== null) setSearchQMin(searchBounds.q.min.toFixed(3));
-      if (searchBounds.q.max !== null) setSearchQMax(searchBounds.q.max.toFixed(3));
-      if (searchBounds.pa.min !== null) setSearchPaMin(searchBounds.pa.min.toFixed(1));
-      if (searchBounds.pa.max !== null) setSearchPaMax(searchBounds.pa.max.toFixed(1));
-      // For nucleus, we don't set a default since it's a checkbox
+      // Don't prefill inputs anymore - keep them empty
+      // The placeholders will show the bounds instead
     }
   }, [searchBounds, searchRaMin, searchRaMax, searchDecMin, searchDecMax, searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchNucleus, didHydrateFromStorage.current]);
+
+  // Helper function to get placeholder text for bounds
+  const getPlaceholderText = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa', type: 'min' | 'max') => {
+    const bounds = isSearchActive && currentBounds ? currentBounds : searchBounds;
+    if (!bounds) return type === 'min' ? 'Min' : 'Max';
+    
+    const value = bounds[field][type];
+    if (value === null) return type === 'min' ? 'Min' : 'Max';
+    
+    // Format based on field type
+    switch (field) {
+      case 'ra':
+      case 'dec':
+        return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(4)}`;
+      case 'reff':
+        return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(2)}`;
+      case 'q':
+        return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(3)}`;
+      case 'pa':
+        return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(1)}`;
+      default:
+        return type === 'min' ? 'Min' : 'Max';
+    }
+  };
 
   // Persist settings whenever they change
   useEffect(() => {
@@ -136,25 +220,85 @@ export function GalaxyBrowser() {
       sortBy,
       sortOrder,
       filter,
-      searchId,
-      searchRaMin,
-      searchRaMax,
-      searchDecMin,
-      searchDecMax,
-      searchReffMin,
-      searchReffMax,
-      searchQMin,
-      searchQMax,
-      searchPaMin,
-      searchPaMax,
-      searchNucleus,
+      searchId: appliedSearchId,
+      searchRaMin: appliedSearchRaMin,
+      searchRaMax: appliedSearchRaMax,
+      searchDecMin: appliedSearchDecMin,
+      searchDecMax: appliedSearchDecMax,
+      searchReffMin: appliedSearchReffMin,
+      searchReffMax: appliedSearchReffMax,
+      searchQMin: appliedSearchQMin,
+      searchQMax: appliedSearchQMax,
+      searchPaMin: appliedSearchPaMin,
+      searchPaMax: appliedSearchPaMax,
+      searchNucleus: appliedSearchNucleus,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
       console.warn("Failed to save galaxy browser settings", e);
     }
-  }, [page, pageSize, sortBy, sortOrder, filter, searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax, searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchNucleus]);
+  }, [page, pageSize, sortBy, sortOrder, filter, appliedSearchId, appliedSearchRaMin, appliedSearchRaMax, appliedSearchDecMin, appliedSearchDecMax, appliedSearchReffMin, appliedSearchReffMax, appliedSearchQMin, appliedSearchQMax, appliedSearchPaMin, appliedSearchPaMax, appliedSearchNucleus]);
+
+  // Helper functions to check if individual fields have changes or values
+  const hasFieldChanged = (field: string) => {
+    if (!isSearchActive) {
+      // When search is not active, highlight fields that have values
+      switch (field) {
+        case 'searchId': return searchId !== "";
+        case 'searchRaMin': return searchRaMin !== "";
+        case 'searchRaMax': return searchRaMax !== "";
+        case 'searchDecMin': return searchDecMin !== "";
+        case 'searchDecMax': return searchDecMax !== "";
+        case 'searchReffMin': return searchReffMin !== "";
+        case 'searchReffMax': return searchReffMax !== "";
+        case 'searchQMin': return searchQMin !== "";
+        case 'searchQMax': return searchQMax !== "";
+        case 'searchPaMin': return searchPaMin !== "";
+        case 'searchPaMax': return searchPaMax !== "";
+        case 'searchNucleus': return searchNucleus !== undefined;
+        default: return false;
+      }
+    }
+    // When search is active, check for pending changes
+    switch (field) {
+      case 'searchId': return searchId !== appliedSearchId;
+      case 'searchRaMin': return searchRaMin !== appliedSearchRaMin;
+      case 'searchRaMax': return searchRaMax !== appliedSearchRaMax;
+      case 'searchDecMin': return searchDecMin !== appliedSearchDecMin;
+      case 'searchDecMax': return searchDecMax !== appliedSearchDecMax;
+      case 'searchReffMin': return searchReffMin !== appliedSearchReffMin;
+      case 'searchReffMax': return searchReffMax !== appliedSearchReffMax;
+      case 'searchQMin': return searchQMin !== appliedSearchQMin;
+      case 'searchQMax': return searchQMax !== appliedSearchQMax;
+      case 'searchPaMin': return searchPaMin !== appliedSearchPaMin;
+      case 'searchPaMax': return searchPaMax !== appliedSearchPaMax;
+      case 'searchNucleus': return searchNucleus !== appliedSearchNucleus;
+      default: return false;
+    }
+  };
+
+  // Check if there are any search values (for when search is not active)
+  const hasAnySearchValues = 
+    searchId !== "" ||
+    searchRaMin !== "" ||
+    searchRaMax !== "" ||
+    searchDecMin !== "" ||
+    searchDecMax !== "" ||
+    searchReffMin !== "" ||
+    searchReffMax !== "" ||
+    searchQMin !== "" ||
+    searchQMax !== "" ||
+    searchPaMin !== "" ||
+    searchPaMax !== "" ||
+    searchNucleus !== undefined;
+
+  // Get input class with visual indicator for changed fields
+  const getInputClass = (field: string, baseClass: string) => {
+    return hasFieldChanged(field) 
+      ? `${baseClass} ring-2 ring-orange-400 border-orange-400` 
+      : baseClass;
+  };
 
   const userPrefs = useQuery(api.users.getUserPreferences);
 
@@ -271,7 +415,7 @@ export function GalaxyBrowser() {
                 value={searchId}
                 onChange={(e) => setSearchId(e.target.value)}
                 placeholder="Exact ID"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                className={getInputClass('searchId', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
               />
             </div>
             <div>
@@ -284,16 +428,16 @@ export function GalaxyBrowser() {
                   step="0.0001"
                   value={searchRaMin}
                   onChange={(e) => setSearchRaMin(e.target.value)}
-                  placeholder="Min"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('ra', 'min')}
+                  className={getInputClass('searchRaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
                   step="0.0001"
                   value={searchRaMax}
                   onChange={(e) => setSearchRaMax(e.target.value)}
-                  placeholder="Max"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('ra', 'max')}
+                  className={getInputClass('searchRaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -307,16 +451,16 @@ export function GalaxyBrowser() {
                   step="0.0001"
                   value={searchDecMin}
                   onChange={(e) => setSearchDecMin(e.target.value)}
-                  placeholder="Min"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('dec', 'min')}
+                  className={getInputClass('searchDecMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
                   step="0.0001"
                   value={searchDecMax}
                   onChange={(e) => setSearchDecMax(e.target.value)}
-                  placeholder="Max"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('dec', 'max')}
+                  className={getInputClass('searchDecMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -330,16 +474,16 @@ export function GalaxyBrowser() {
                   step="0.01"
                   value={searchReffMin}
                   onChange={(e) => setSearchReffMin(e.target.value)}
-                  placeholder="Min"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('reff', 'min')}
+                  className={getInputClass('searchReffMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
                   step="0.01"
                   value={searchReffMax}
                   onChange={(e) => setSearchReffMax(e.target.value)}
-                  placeholder="Max"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('reff', 'max')}
+                  className={getInputClass('searchReffMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -353,16 +497,16 @@ export function GalaxyBrowser() {
                   step="0.001"
                   value={searchQMin}
                   onChange={(e) => setSearchQMin(e.target.value)}
-                  placeholder="Min"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('q', 'min')}
+                  className={getInputClass('searchQMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
                   step="0.001"
                   value={searchQMax}
                   onChange={(e) => setSearchQMax(e.target.value)}
-                  placeholder="Max"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('q', 'max')}
+                  className={getInputClass('searchQMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -376,16 +520,16 @@ export function GalaxyBrowser() {
                   step="0.1"
                   value={searchPaMin}
                   onChange={(e) => setSearchPaMin(e.target.value)}
-                  placeholder="Min"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('pa', 'min')}
+                  className={getInputClass('searchPaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
                   step="0.1"
                   value={searchPaMax}
                   onChange={(e) => setSearchPaMax(e.target.value)}
-                  placeholder="Max"
-                  className="w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  placeholder={getPlaceholderText('pa', 'max')}
+                  className={getInputClass('searchPaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -406,39 +550,61 @@ export function GalaxyBrowser() {
           </div>
           <div className="flex items-center space-x-4">
             <button
-              onClick={() => setIsSearchActive(true)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+              onClick={() => {
+                // Apply pending changes
+                setAppliedSearchId(searchId);
+                setAppliedSearchRaMin(searchRaMin);
+                setAppliedSearchRaMax(searchRaMax);
+                setAppliedSearchDecMin(searchDecMin);
+                setAppliedSearchDecMax(searchDecMax);
+                setAppliedSearchReffMin(searchReffMin);
+                setAppliedSearchReffMax(searchReffMax);
+                setAppliedSearchQMin(searchQMin);
+                setAppliedSearchQMax(searchQMax);
+                setAppliedSearchPaMin(searchPaMin);
+                setAppliedSearchPaMax(searchPaMax);
+                setAppliedSearchNucleus(searchNucleus);
+                setIsSearchActive(true);
+                setPage(1);
+              }}
+              disabled={!hasPendingChanges && isSearchActive && !hasAnySearchValues}
+              className={cn(
+                "px-4 py-2 rounded-lg font-medium transition-colors",
+                hasPendingChanges || (!isSearchActive && hasAnySearchValues)
+                  ? "bg-orange-600 hover:bg-orange-700 text-white"
+                  : isSearchActive
+                    ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                    : "bg-blue-600 hover:bg-blue-700 text-white"
+              )}
             >
-              Search
+              {hasPendingChanges || (!isSearchActive && hasAnySearchValues) ? "Apply Search" : isSearchActive ? "Search Active" : "Search"}
             </button>
             <button
               onClick={() => {
                 setSearchId("");
-                // Reset to bounds if available, otherwise empty
-                if (searchBounds) {
-                  setSearchRaMin(searchBounds.ra.min !== null ? searchBounds.ra.min.toFixed(4) : "");
-                  setSearchRaMax(searchBounds.ra.max !== null ? searchBounds.ra.max.toFixed(4) : "");
-                  setSearchDecMin(searchBounds.dec.min !== null ? searchBounds.dec.min.toFixed(4) : "");
-                  setSearchDecMax(searchBounds.dec.max !== null ? searchBounds.dec.max.toFixed(4) : "");
-                  setSearchReffMin(searchBounds.reff.min !== null ? searchBounds.reff.min.toFixed(2) : "");
-                  setSearchReffMax(searchBounds.reff.max !== null ? searchBounds.reff.max.toFixed(2) : "");
-                  setSearchQMin(searchBounds.q.min !== null ? searchBounds.q.min.toFixed(3) : "");
-                  setSearchQMax(searchBounds.q.max !== null ? searchBounds.q.max.toFixed(3) : "");
-                  setSearchPaMin(searchBounds.pa.min !== null ? searchBounds.pa.min.toFixed(1) : "");
-                  setSearchPaMax(searchBounds.pa.max !== null ? searchBounds.pa.max.toFixed(1) : "");
-                } else {
-                  setSearchRaMin("");
-                  setSearchRaMax("");
-                  setSearchDecMin("");
-                  setSearchDecMax("");
-                  setSearchReffMin("");
-                  setSearchReffMax("");
-                  setSearchQMin("");
-                  setSearchQMax("");
-                  setSearchPaMin("");
-                  setSearchPaMax("");
-                }
+                setSearchRaMin("");
+                setSearchRaMax("");
+                setSearchDecMin("");
+                setSearchDecMax("");
+                setSearchReffMin("");
+                setSearchReffMax("");
+                setSearchQMin("");
+                setSearchQMax("");
+                setSearchPaMin("");
+                setSearchPaMax("");
                 setSearchNucleus(undefined);
+                setAppliedSearchId("");
+                setAppliedSearchRaMin("");
+                setAppliedSearchRaMax("");
+                setAppliedSearchDecMin("");
+                setAppliedSearchDecMax("");
+                setAppliedSearchReffMin("");
+                setAppliedSearchReffMax("");
+                setAppliedSearchQMin("");
+                setAppliedSearchQMax("");
+                setAppliedSearchPaMin("");
+                setAppliedSearchPaMax("");
+                setAppliedSearchNucleus(undefined);
                 setIsSearchActive(false);
                 setPage(1);
               }}
@@ -616,11 +782,11 @@ export function GalaxyBrowser() {
                 </th>
                 <th 
                   className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                  onClick={() => handleSort("pa")}
+                  onClick={() => handleSort("nucleus")}
                 >
                   <div className="flex items-center space-x-1">
-                    <span>PA</span>
-                    {getSortIcon("pa")}
+                    <span>Nucleus</span>
+                    {getSortIcon("nucleus")}
                   </div>
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -663,8 +829,15 @@ export function GalaxyBrowser() {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                     {galaxy.q.toFixed(3)}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.pa.toFixed(1)}°
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={cn(
+                      "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
+                      galaxy.nucleus
+                        ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                        : "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400"
+                    )}>
+                      {galaxy.nucleus ? "Yes" : "No"}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {getStatusBadge(galaxy.status)}

@@ -343,6 +343,42 @@ export const browseGalaxies = query({
     const hasNext = offset + numItems < total;
     const hasPrevious = offset > 0;
 
+    // Calculate bounds of current result set for placeholders
+    const resultGalaxies = finalGalaxies;
+    const raValues = resultGalaxies.map(g => g.ra).filter(v => !isNaN(v));
+    const decValues = resultGalaxies.map(g => g.dec).filter(v => !isNaN(v));
+    const reffValues = resultGalaxies.map(g => g.reff).filter(v => !isNaN(v));
+    const qValues = resultGalaxies.map(g => g.q).filter(v => !isNaN(v));
+    const paValues = resultGalaxies.map(g => g.pa).filter(v => !isNaN(v));
+    const nucleusCount = resultGalaxies.filter(g => g.nucleus === true).length;
+
+    const currentBounds = {
+      ra: {
+        min: raValues.length > 0 ? Math.min(...raValues) : null,
+        max: raValues.length > 0 ? Math.max(...raValues) : null,
+      },
+      dec: {
+        min: decValues.length > 0 ? Math.min(...decValues) : null,
+        max: decValues.length > 0 ? Math.max(...decValues) : null,
+      },
+      reff: {
+        min: reffValues.length > 0 ? Math.min(...reffValues) : null,
+        max: reffValues.length > 0 ? Math.max(...reffValues) : null,
+      },
+      q: {
+        min: qValues.length > 0 ? Math.min(...qValues) : null,
+        max: qValues.length > 0 ? Math.max(...qValues) : null,
+      },
+      pa: {
+        min: paValues.length > 0 ? Math.min(...paValues) : null,
+        max: paValues.length > 0 ? Math.max(...paValues) : null,
+      },
+      nucleus: {
+        hasNucleus: nucleusCount > 0,
+        totalCount: resultGalaxies.length,
+      },
+    };
+
     return {
       galaxies: finalGalaxies,
       total,
@@ -350,6 +386,7 @@ export const browseGalaxies = query({
       hasPrevious,
       totalPages,
       aggregatesPopulated: aggregateCount > 0,
+      currentBounds,
     };
   },
 });
