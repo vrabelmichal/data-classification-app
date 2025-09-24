@@ -688,7 +688,6 @@ export function ClassificationInterface() {
 
   // Handler for morphology radio button clicks
   const handleMorphologyChange = (value: number) => {
-    console.log(`Morphology changed to: ${value}`);
     setMorphology(value);
     setQuickInput(buildQuickInputString(lsbClass, value, awesomeFlag, validRedshift, visibleNucleus));
     // lastSelectedMorphology = value;
