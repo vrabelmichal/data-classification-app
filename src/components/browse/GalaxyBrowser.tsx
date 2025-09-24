@@ -495,7 +495,7 @@ export function GalaxyBrowser() {
             {/* Search Section */}
             <div className="mb-6">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Search Galaxies</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-[1367px]:grid-cols-3 min-[1747px]:grid-cols-4 gap-3 mb-4 max-w-5xl">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Galaxy ID
@@ -519,7 +519,7 @@ export function GalaxyBrowser() {
                       value={searchRaMin}
                       onChange={(e) => setSearchRaMin(e.target.value)}
                       placeholder={getPlaceholderText('ra', 'min')}
-                      className={getInputClass('searchRaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchRaMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -527,7 +527,7 @@ export function GalaxyBrowser() {
                       value={searchRaMax}
                       onChange={(e) => setSearchRaMax(e.target.value)}
                       placeholder={getPlaceholderText('ra', 'max')}
-                      className={getInputClass('searchRaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchRaMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -542,7 +542,7 @@ export function GalaxyBrowser() {
                       value={searchDecMin}
                       onChange={(e) => setSearchDecMin(e.target.value)}
                       placeholder={getPlaceholderText('dec', 'min')}
-                      className={getInputClass('searchDecMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchDecMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -550,7 +550,7 @@ export function GalaxyBrowser() {
                       value={searchDecMax}
                       onChange={(e) => setSearchDecMax(e.target.value)}
                       placeholder={getPlaceholderText('dec', 'max')}
-                      className={getInputClass('searchDecMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchDecMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -565,7 +565,7 @@ export function GalaxyBrowser() {
                       value={searchReffMin}
                       onChange={(e) => setSearchReffMin(e.target.value)}
                       placeholder={getPlaceholderText('reff', 'min')}
-                      className={getInputClass('searchReffMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchReffMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -573,7 +573,7 @@ export function GalaxyBrowser() {
                       value={searchReffMax}
                       onChange={(e) => setSearchReffMax(e.target.value)}
                       placeholder={getPlaceholderText('reff', 'max')}
-                      className={getInputClass('searchReffMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchReffMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -588,7 +588,7 @@ export function GalaxyBrowser() {
                       value={searchQMin}
                       onChange={(e) => setSearchQMin(e.target.value)}
                       placeholder={getPlaceholderText('q', 'min')}
-                      className={getInputClass('searchQMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchQMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -596,7 +596,7 @@ export function GalaxyBrowser() {
                       value={searchQMax}
                       onChange={(e) => setSearchQMax(e.target.value)}
                       placeholder={getPlaceholderText('q', 'max')}
-                      className={getInputClass('searchQMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchQMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -611,7 +611,7 @@ export function GalaxyBrowser() {
                       value={searchPaMin}
                       onChange={(e) => setSearchPaMin(e.target.value)}
                       placeholder={getPlaceholderText('pa', 'min')}
-                      className={getInputClass('searchPaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchPaMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -619,7 +619,7 @@ export function GalaxyBrowser() {
                       value={searchPaMax}
                       onChange={(e) => setSearchPaMax(e.target.value)}
                       placeholder={getPlaceholderText('pa', 'max')}
-                      className={getInputClass('searchPaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchPaMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -908,7 +908,7 @@ export function GalaxyBrowser() {
             {/* Search Section */}
             <div className="mb-6">
               <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Search Galaxies</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-[1367px]:grid-cols-3 min-[1747px]:grid-cols-4 gap-3 mb-4 max-w-5xl">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Galaxy ID
@@ -932,7 +932,7 @@ export function GalaxyBrowser() {
                       value={searchRaMin}
                       onChange={(e) => setSearchRaMin(e.target.value)}
                       placeholder={getPlaceholderText('ra', 'min')}
-                      className={getInputClass('searchRaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchRaMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -940,7 +940,7 @@ export function GalaxyBrowser() {
                       value={searchRaMax}
                       onChange={(e) => setSearchRaMax(e.target.value)}
                       placeholder={getPlaceholderText('ra', 'max')}
-                      className={getInputClass('searchRaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchRaMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -955,7 +955,7 @@ export function GalaxyBrowser() {
                       value={searchDecMin}
                       onChange={(e) => setSearchDecMin(e.target.value)}
                       placeholder={getPlaceholderText('dec', 'min')}
-                      className={getInputClass('searchDecMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchDecMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -963,7 +963,7 @@ export function GalaxyBrowser() {
                       value={searchDecMax}
                       onChange={(e) => setSearchDecMax(e.target.value)}
                       placeholder={getPlaceholderText('dec', 'max')}
-                      className={getInputClass('searchDecMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchDecMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -978,7 +978,7 @@ export function GalaxyBrowser() {
                       value={searchReffMin}
                       onChange={(e) => setSearchReffMin(e.target.value)}
                       placeholder={getPlaceholderText('reff', 'min')}
-                      className={getInputClass('searchReffMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchReffMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -986,7 +986,7 @@ export function GalaxyBrowser() {
                       value={searchReffMax}
                       onChange={(e) => setSearchReffMax(e.target.value)}
                       placeholder={getPlaceholderText('reff', 'max')}
-                      className={getInputClass('searchReffMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchReffMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -1001,7 +1001,7 @@ export function GalaxyBrowser() {
                       value={searchQMin}
                       onChange={(e) => setSearchQMin(e.target.value)}
                       placeholder={getPlaceholderText('q', 'min')}
-                      className={getInputClass('searchQMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchQMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -1009,7 +1009,7 @@ export function GalaxyBrowser() {
                       value={searchQMax}
                       onChange={(e) => setSearchQMax(e.target.value)}
                       placeholder={getPlaceholderText('q', 'max')}
-                      className={getInputClass('searchQMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchQMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -1024,7 +1024,7 @@ export function GalaxyBrowser() {
                       value={searchPaMin}
                       onChange={(e) => setSearchPaMin(e.target.value)}
                       placeholder={getPlaceholderText('pa', 'min')}
-                      className={getInputClass('searchPaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchPaMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                     <input
                       type="number"
@@ -1032,7 +1032,7 @@ export function GalaxyBrowser() {
                       value={searchPaMax}
                       onChange={(e) => setSearchPaMax(e.target.value)}
                       placeholder={getPlaceholderText('pa', 'max')}
-                      className={getInputClass('searchPaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                      className={getInputClass('searchPaMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                     />
                   </div>
                 </div>
@@ -1324,7 +1324,7 @@ export function GalaxyBrowser() {
         {/* Search Section */}
         <div className="mb-6">
           <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Search Galaxies</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-[1367px]:grid-cols-3 min-[1747px]:grid-cols-4 gap-3 mb-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Galaxy ID
@@ -1348,7 +1348,7 @@ export function GalaxyBrowser() {
                   value={searchRaMin}
                   onChange={(e) => setSearchRaMin(e.target.value)}
                   placeholder={getPlaceholderText('ra', 'min')}
-                  className={getInputClass('searchRaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchRaMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
@@ -1356,7 +1356,7 @@ export function GalaxyBrowser() {
                   value={searchRaMax}
                   onChange={(e) => setSearchRaMax(e.target.value)}
                   placeholder={getPlaceholderText('ra', 'max')}
-                  className={getInputClass('searchRaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchRaMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -1371,7 +1371,7 @@ export function GalaxyBrowser() {
                   value={searchDecMin}
                   onChange={(e) => setSearchDecMin(e.target.value)}
                   placeholder={getPlaceholderText('dec', 'min')}
-                  className={getInputClass('searchDecMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchDecMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
@@ -1379,7 +1379,7 @@ export function GalaxyBrowser() {
                   value={searchDecMax}
                   onChange={(e) => setSearchDecMax(e.target.value)}
                   placeholder={getPlaceholderText('dec', 'max')}
-                  className={getInputClass('searchDecMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchDecMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -1394,7 +1394,7 @@ export function GalaxyBrowser() {
                   value={searchReffMin}
                   onChange={(e) => setSearchReffMin(e.target.value)}
                   placeholder={getPlaceholderText('reff', 'min')}
-                  className={getInputClass('searchReffMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchReffMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
@@ -1402,7 +1402,7 @@ export function GalaxyBrowser() {
                   value={searchReffMax}
                   onChange={(e) => setSearchReffMax(e.target.value)}
                   placeholder={getPlaceholderText('reff', 'max')}
-                  className={getInputClass('searchReffMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchReffMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -1417,7 +1417,7 @@ export function GalaxyBrowser() {
                   value={searchQMin}
                   onChange={(e) => setSearchQMin(e.target.value)}
                   placeholder={getPlaceholderText('q', 'min')}
-                  className={getInputClass('searchQMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchQMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
@@ -1425,7 +1425,7 @@ export function GalaxyBrowser() {
                   value={searchQMax}
                   onChange={(e) => setSearchQMax(e.target.value)}
                   placeholder={getPlaceholderText('q', 'max')}
-                  className={getInputClass('searchQMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchQMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -1440,7 +1440,7 @@ export function GalaxyBrowser() {
                   value={searchPaMin}
                   onChange={(e) => setSearchPaMin(e.target.value)}
                   placeholder={getPlaceholderText('pa', 'min')}
-                  className={getInputClass('searchPaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchPaMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
@@ -1448,7 +1448,7 @@ export function GalaxyBrowser() {
                   value={searchPaMax}
                   onChange={(e) => setSearchPaMax(e.target.value)}
                   placeholder={getPlaceholderText('pa', 'max')}
-                  className={getInputClass('searchPaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchPaMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -1463,7 +1463,7 @@ export function GalaxyBrowser() {
                   value={searchMagMin}
                   onChange={(e) => setSearchMagMin(e.target.value)}
                   placeholder={getPlaceholderText('mag', 'min')}
-                  className={getInputClass('searchMagMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchMagMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
@@ -1471,7 +1471,7 @@ export function GalaxyBrowser() {
                   value={searchMagMax}
                   onChange={(e) => setSearchMagMax(e.target.value)}
                   placeholder={getPlaceholderText('mag', 'max')}
-                  className={getInputClass('searchMagMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchMagMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
@@ -1486,7 +1486,7 @@ export function GalaxyBrowser() {
                   value={searchMeanMueMin}
                   onChange={(e) => setSearchMeanMueMin(e.target.value)}
                   placeholder={getPlaceholderText('mean_mue', 'min')}
-                  className={getInputClass('searchMeanMueMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchMeanMueMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
                 <input
                   type="number"
@@ -1494,7 +1494,7 @@ export function GalaxyBrowser() {
                   value={searchMeanMueMax}
                   onChange={(e) => setSearchMeanMueMax(e.target.value)}
                   placeholder={getPlaceholderText('mean_mue', 'max')}
-                  className={getInputClass('searchMeanMueMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  className={getInputClass('searchMeanMueMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>
