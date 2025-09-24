@@ -44,6 +44,7 @@ export function GalaxyBrowser() {
   const [searchVisibleNucleus, setSearchVisibleNucleus] = useState<boolean | undefined>(undefined);
   const [isSearchActive, setIsSearchActive] = useState(false);
   const didHydrateFromStorage = useRef(false);
+  const [hasPreviousData, setHasPreviousData] = useState(false);
 
   // Applied search values (what's actually being used for queries)
   const [appliedSearchId, setAppliedSearchId] = useState("");
@@ -452,15 +453,841 @@ export function GalaxyBrowser() {
     );
   };
 
+  // Track when we have data to avoid showing full loading state on subsequent queries
+  useEffect(() => {
+    if (galaxyData && !hasPreviousData) {
+      setHasPreviousData(true);
+    }
+  }, [galaxyData, hasPreviousData]);
+
   if (!galaxyData) {
-    return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-300">Loading galaxies...</p>
+    if (hasPreviousData) {
+      // We have previous data but current query is loading - show loading state in table area
+      return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Galaxy Browser</h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-300">
+              Browse and explore all galaxies in the database
+            </p>
+          </div>
+
+          {/* Controls */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            {/* Search Section */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Search Galaxies</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Galaxy ID
+                  </label>
+                  <input
+                    type="text"
+                    value={searchId}
+                    onChange={(e) => setSearchId(e.target.value)}
+                    placeholder="Exact ID"
+                    className={getInputClass('searchId', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    RA (degrees)
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={searchRaMin}
+                      onChange={(e) => setSearchRaMin(e.target.value)}
+                      placeholder={getPlaceholderText('ra', 'min')}
+                      className={getInputClass('searchRaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={searchRaMax}
+                      onChange={(e) => setSearchRaMax(e.target.value)}
+                      placeholder={getPlaceholderText('ra', 'max')}
+                      className={getInputClass('searchRaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Dec (degrees)
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={searchDecMin}
+                      onChange={(e) => setSearchDecMin(e.target.value)}
+                      placeholder={getPlaceholderText('dec', 'min')}
+                      className={getInputClass('searchDecMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={searchDecMax}
+                      onChange={(e) => setSearchDecMax(e.target.value)}
+                      placeholder={getPlaceholderText('dec', 'max')}
+                      className={getInputClass('searchDecMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Effective Radius
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={searchReffMin}
+                      onChange={(e) => setSearchReffMin(e.target.value)}
+                      placeholder={getPlaceholderText('reff', 'min')}
+                      className={getInputClass('searchReffMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={searchReffMax}
+                      onChange={(e) => setSearchReffMax(e.target.value)}
+                      placeholder={getPlaceholderText('reff', 'max')}
+                      className={getInputClass('searchReffMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Axis Ratio (q)
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={searchQMin}
+                      onChange={(e) => setSearchQMin(e.target.value)}
+                      placeholder={getPlaceholderText('q', 'min')}
+                      className={getInputClass('searchQMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={searchQMax}
+                      onChange={(e) => setSearchQMax(e.target.value)}
+                      placeholder={getPlaceholderText('q', 'max')}
+                      className={getInputClass('searchQMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Position Angle
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={searchPaMin}
+                      onChange={(e) => setSearchPaMin(e.target.value)}
+                      placeholder={getPlaceholderText('pa', 'min')}
+                      className={getInputClass('searchPaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={searchPaMax}
+                      onChange={(e) => setSearchPaMax(e.target.value)}
+                      placeholder={getPlaceholderText('pa', 'max')}
+                      className={getInputClass('searchPaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Classification Status
+                  </label>
+                  <select
+                    value={searchClassificationStatus || ""}
+                    onChange={(e) => setSearchClassificationStatus(e.target.value ? e.target.value as "classified" | "unclassified" | "skipped" : undefined)}
+                    className={getInputClass('searchClassificationStatus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any Status</option>
+                    <option value="classified">Classified</option>
+                    <option value="unclassified">Unclassified</option>
+                    <option value="skipped">Skipped</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    LSB Class
+                  </label>
+                  <select
+                    value={searchLsbClass}
+                    onChange={(e) => setSearchLsbClass(e.target.value)}
+                    className={getInputClass('searchLsbClass', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any LSB Class</option>
+                    {classificationOptions?.lsbClasses.map(lsbClass => (
+                      <option key={lsbClass} value={lsbClass}>{lsbClass}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Morphology
+                  </label>
+                  <select
+                    value={searchMorphology}
+                    onChange={(e) => setSearchMorphology(e.target.value)}
+                    className={getInputClass('searchMorphology', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any Morphology</option>
+                    {classificationOptions?.morphologies.map(morphology => (
+                      <option key={morphology} value={morphology}>{morphology}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Has Nucleus
+                  </label>
+                  <select
+                    value={searchNucleus === undefined ? "" : searchNucleus ? "true" : "false"}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSearchNucleus(value === "" ? undefined : value === "true" ? true : false);
+                    }}
+                    className={getInputClass('searchNucleus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any</option>
+                    <option value="true">Has nucleus</option>
+                    <option value="false">No nucleus</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Visible Nucleus
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={searchVisibleNucleus === true}
+                      onChange={(e) => setSearchVisibleNucleus(e.target.checked ? true : undefined)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 mr-2"
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-300">Only show galaxies with visible nucleus</span>
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Awesome Flag
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={searchAwesome === true}
+                      onChange={(e) => setSearchAwesome(e.target.checked ? true : undefined)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 mr-2"
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-300">Only show awesome galaxies</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => {
+                    // Apply pending changes
+                    setAppliedSearchId(searchId);
+                    setAppliedSearchRaMin(searchRaMin);
+                    setAppliedSearchRaMax(searchRaMax);
+                    setAppliedSearchDecMin(searchDecMin);
+                    setAppliedSearchDecMax(searchDecMax);
+                    setAppliedSearchReffMin(searchReffMin);
+                    setAppliedSearchReffMax(searchReffMax);
+                    setAppliedSearchQMin(searchQMin);
+                    setAppliedSearchQMax(searchQMax);
+                    setAppliedSearchPaMin(searchPaMin);
+                    setAppliedSearchPaMax(searchPaMax);
+                    setAppliedSearchNucleus(searchNucleus);
+                    setAppliedSearchClassificationStatus(searchClassificationStatus);
+                    setAppliedSearchLsbClass(searchLsbClass);
+                    setAppliedSearchMorphology(searchMorphology);
+                    setAppliedSearchAwesome(searchAwesome);
+                    setAppliedSearchValidRedshift(searchValidRedshift);
+                    setAppliedSearchVisibleNucleus(searchVisibleNucleus);
+                    setIsSearchActive(true);
+                    setPage(1);
+                  }}
+                  disabled={!hasPendingChanges && isSearchActive && !hasAnySearchValues}
+                  className={cn(
+                    "px-4 py-2 rounded-lg font-medium transition-colors",
+                    hasPendingChanges || (!isSearchActive && hasAnySearchValues)
+                      ? "bg-orange-600 hover:bg-orange-700 text-white"
+                      : isSearchActive
+                        ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                  )}
+                >
+                  {hasPendingChanges || (!isSearchActive && hasAnySearchValues) ? "Apply Search" : isSearchActive ? "Search Active" : "Search"}
+                </button>
+                <button
+                  onClick={() => {
+                    setSearchId("");
+                    setSearchRaMin("");
+                    setSearchRaMax("");
+                    setSearchDecMin("");
+                    setSearchDecMax("");
+                    setSearchReffMin("");
+                    setSearchReffMax("");
+                    setSearchQMin("");
+                    setSearchQMax("");
+                    setSearchPaMin("");
+                    setSearchPaMax("");
+                    setSearchNucleus(undefined);
+                    setSearchClassificationStatus(undefined);
+                    setSearchLsbClass("");
+                    setSearchMorphology("");
+                    setSearchAwesome(undefined);
+                    setSearchValidRedshift(undefined);
+                    setSearchVisibleNucleus(undefined);
+                    setAppliedSearchId("");
+                    setAppliedSearchRaMin("");
+                    setAppliedSearchRaMax("");
+                    setAppliedSearchDecMin("");
+                    setAppliedSearchDecMax("");
+                    setAppliedSearchReffMin("");
+                    setAppliedSearchReffMax("");
+                    setAppliedSearchQMin("");
+                    setAppliedSearchQMax("");
+                    setAppliedSearchPaMin("");
+                    setAppliedSearchPaMax("");
+                    setAppliedSearchNucleus(undefined);
+                    setAppliedSearchClassificationStatus(undefined);
+                    setAppliedSearchLsbClass("");
+                    setAppliedSearchMorphology("");
+                    setAppliedSearchAwesome(undefined);
+                    setAppliedSearchValidRedshift(undefined);
+                    setAppliedSearchVisibleNucleus(undefined);
+                    setIsSearchActive(false);
+                    setPage(1);
+                  }}
+                  className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  Clear Search
+                </button>
+                {isSearchActive && (
+                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">
+                    Search active
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+                {/* Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Filter
+                  </label>
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value as FilterType)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="all">All Galaxies</option>
+                    <option value="my_sequence">My Sequence</option>
+                    <option value="classified">Classified by Me</option>
+                    <option value="unclassified">Unclassified by Me</option>
+                    <option value="skipped">Skipped by Me</option>
+                  </select>
+                </div>
+
+                {/* Sort By */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Sort By
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortField)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="id">Galaxy ID</option>
+                    <option value="ra">Right Ascension</option>
+                    <option value="dec">Declination</option>
+                    <option value="reff">Effective Radius</option>
+                    <option value="q">Axis Ratio</option>
+                    <option value="pa">Position Angle</option>
+                    <option value="nucleus">Nucleus</option>
+                    <option value="_creationTime">Creation Time</option>
+                  </select>
+                </div>
+
+                {/* Sort Order */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Order
+                  </label>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </select>
+                </div>
+
+                {/* Page Size */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Per Page
+                  </label>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Loading state for table area when we have previous data */}
+          <div className="flex justify-center items-center py-16">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Updating results...</p>
+            </div>
+          </div>
         </div>
-      </div>
-    );
+      );
+    } else {
+      // First load - show full loading state
+      return (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+          {/* Header */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Galaxy Browser</h1>
+            <p className="mt-2 text-gray-600 dark:text-gray-300">
+              Browse and explore all galaxies in the database
+            </p>
+          </div>
+
+          {/* Controls */}
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            {/* Search Section */}
+            <div className="mb-6">
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Search Galaxies</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Galaxy ID
+                  </label>
+                  <input
+                    type="text"
+                    value={searchId}
+                    onChange={(e) => setSearchId(e.target.value)}
+                    placeholder="Exact ID"
+                    className={getInputClass('searchId', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    RA (degrees)
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={searchRaMin}
+                      onChange={(e) => setSearchRaMin(e.target.value)}
+                      placeholder={getPlaceholderText('ra', 'min')}
+                      className={getInputClass('searchRaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={searchRaMax}
+                      onChange={(e) => setSearchRaMax(e.target.value)}
+                      placeholder={getPlaceholderText('ra', 'max')}
+                      className={getInputClass('searchRaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Dec (degrees)
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={searchDecMin}
+                      onChange={(e) => setSearchDecMin(e.target.value)}
+                      placeholder={getPlaceholderText('dec', 'min')}
+                      className={getInputClass('searchDecMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.0001"
+                      value={searchDecMax}
+                      onChange={(e) => setSearchDecMax(e.target.value)}
+                      placeholder={getPlaceholderText('dec', 'max')}
+                      className={getInputClass('searchDecMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Effective Radius
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={searchReffMin}
+                      onChange={(e) => setSearchReffMin(e.target.value)}
+                      placeholder={getPlaceholderText('reff', 'min')}
+                      className={getInputClass('searchReffMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={searchReffMax}
+                      onChange={(e) => setSearchReffMax(e.target.value)}
+                      placeholder={getPlaceholderText('reff', 'max')}
+                      className={getInputClass('searchReffMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Axis Ratio (q)
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={searchQMin}
+                      onChange={(e) => setSearchQMin(e.target.value)}
+                      placeholder={getPlaceholderText('q', 'min')}
+                      className={getInputClass('searchQMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={searchQMax}
+                      onChange={(e) => setSearchQMax(e.target.value)}
+                      placeholder={getPlaceholderText('q', 'max')}
+                      className={getInputClass('searchQMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Position Angle
+                  </label>
+                  <div className="flex space-x-2">
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={searchPaMin}
+                      onChange={(e) => setSearchPaMin(e.target.value)}
+                      placeholder={getPlaceholderText('pa', 'min')}
+                      className={getInputClass('searchPaMin', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={searchPaMax}
+                      onChange={(e) => setSearchPaMax(e.target.value)}
+                      placeholder={getPlaceholderText('pa', 'max')}
+                      className={getInputClass('searchPaMax', "w-40 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Classification Status
+                  </label>
+                  <select
+                    value={searchClassificationStatus || ""}
+                    onChange={(e) => setSearchClassificationStatus(e.target.value ? e.target.value as "classified" | "unclassified" | "skipped" : undefined)}
+                    className={getInputClass('searchClassificationStatus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any Status</option>
+                    <option value="classified">Classified</option>
+                    <option value="unclassified">Unclassified</option>
+                    <option value="skipped">Skipped</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    LSB Class
+                  </label>
+                  <select
+                    value={searchLsbClass}
+                    onChange={(e) => setSearchLsbClass(e.target.value)}
+                    className={getInputClass('searchLsbClass', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any LSB Class</option>
+                    {classificationOptions?.lsbClasses.map(lsbClass => (
+                      <option key={lsbClass} value={lsbClass}>{lsbClass}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Morphology
+                  </label>
+                  <select
+                    value={searchMorphology}
+                    onChange={(e) => setSearchMorphology(e.target.value)}
+                    className={getInputClass('searchMorphology', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any Morphology</option>
+                    {classificationOptions?.morphologies.map(morphology => (
+                      <option key={morphology} value={morphology}>{morphology}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Has Nucleus
+                  </label>
+                  <select
+                    value={searchNucleus === undefined ? "" : searchNucleus ? "true" : "false"}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSearchNucleus(value === "" ? undefined : value === "true" ? true : false);
+                    }}
+                    className={getInputClass('searchNucleus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any</option>
+                    <option value="true">Has nucleus</option>
+                    <option value="false">No nucleus</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Visible Nucleus
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={searchVisibleNucleus === true}
+                      onChange={(e) => setSearchVisibleNucleus(e.target.checked ? true : undefined)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 mr-2"
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-300">Only show galaxies with visible nucleus</span>
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Awesome Flag
+                  </label>
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={searchAwesome === true}
+                      onChange={(e) => setSearchAwesome(e.target.checked ? true : undefined)}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 mr-2"
+                    />
+                    <span className="text-sm text-gray-600 dark:text-gray-300">Only show awesome galaxies</span>
+                  </label>
+                </div>
+              </div>
+              <div className="flex items-center space-x-4">
+                <button
+                  onClick={() => {
+                    // Apply pending changes
+                    setAppliedSearchId(searchId);
+                    setAppliedSearchRaMin(searchRaMin);
+                    setAppliedSearchRaMax(searchRaMax);
+                    setAppliedSearchDecMin(searchDecMin);
+                    setAppliedSearchDecMax(searchDecMax);
+                    setAppliedSearchReffMin(searchReffMin);
+                    setAppliedSearchReffMax(searchReffMax);
+                    setAppliedSearchQMin(searchQMin);
+                    setAppliedSearchQMax(searchQMax);
+                    setAppliedSearchPaMin(searchPaMin);
+                    setAppliedSearchPaMax(searchPaMax);
+                    setAppliedSearchNucleus(searchNucleus);
+                    setAppliedSearchClassificationStatus(searchClassificationStatus);
+                    setAppliedSearchLsbClass(searchLsbClass);
+                    setAppliedSearchMorphology(searchMorphology);
+                    setAppliedSearchAwesome(searchAwesome);
+                    setAppliedSearchValidRedshift(searchValidRedshift);
+                    setAppliedSearchVisibleNucleus(searchVisibleNucleus);
+                    setIsSearchActive(true);
+                    setPage(1);
+                  }}
+                  disabled={!hasPendingChanges && isSearchActive && !hasAnySearchValues}
+                  className={cn(
+                    "px-4 py-2 rounded-lg font-medium transition-colors",
+                    hasPendingChanges || (!isSearchActive && hasAnySearchValues)
+                      ? "bg-orange-600 hover:bg-orange-700 text-white"
+                      : isSearchActive
+                        ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                        : "bg-blue-600 hover:bg-blue-700 text-white"
+                  )}
+                >
+                  {hasPendingChanges || (!isSearchActive && hasAnySearchValues) ? "Apply Search" : isSearchActive ? "Search Active" : "Search"}
+                </button>
+                <button
+                  onClick={() => {
+                    setSearchId("");
+                    setSearchRaMin("");
+                    setSearchRaMax("");
+                    setSearchDecMin("");
+                    setSearchDecMax("");
+                    setSearchReffMin("");
+                    setSearchReffMax("");
+                    setSearchQMin("");
+                    setSearchQMax("");
+                    setSearchPaMin("");
+                    setSearchPaMax("");
+                    setSearchNucleus(undefined);
+                    setSearchClassificationStatus(undefined);
+                    setSearchLsbClass("");
+                    setSearchMorphology("");
+                    setSearchAwesome(undefined);
+                    setSearchValidRedshift(undefined);
+                    setSearchVisibleNucleus(undefined);
+                    setAppliedSearchId("");
+                    setAppliedSearchRaMin("");
+                    setAppliedSearchRaMax("");
+                    setAppliedSearchDecMin("");
+                    setAppliedSearchDecMax("");
+                    setAppliedSearchReffMin("");
+                    setAppliedSearchReffMax("");
+                    setAppliedSearchQMin("");
+                    setAppliedSearchQMax("");
+                    setAppliedSearchPaMin("");
+                    setAppliedSearchPaMax("");
+                    setAppliedSearchNucleus(undefined);
+                    setAppliedSearchClassificationStatus(undefined);
+                    setAppliedSearchLsbClass("");
+                    setAppliedSearchMorphology("");
+                    setAppliedSearchAwesome(undefined);
+                    setAppliedSearchValidRedshift(undefined);
+                    setAppliedSearchVisibleNucleus(undefined);
+                    setIsSearchActive(false);
+                    setPage(1);
+                  }}
+                  className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  Clear Search
+                </button>
+                {isSearchActive && (
+                  <span className="text-sm text-green-600 dark:text-green-400 font-medium">
+                    Search active
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+
+                {/* Filter */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Filter
+                  </label>
+                  <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value as FilterType)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="all">All Galaxies</option>
+                    <option value="my_sequence">My Sequence</option>
+                    <option value="classified">Classified by Me</option>
+                    <option value="unclassified">Unclassified by Me</option>
+                    <option value="skipped">Skipped by Me</option>
+                  </select>
+                </div>
+
+                {/* Sort By */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Sort By
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as SortField)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="id">Galaxy ID</option>
+                    <option value="ra">Right Ascension</option>
+                    <option value="dec">Declination</option>
+                    <option value="reff">Effective Radius</option>
+                    <option value="q">Axis Ratio</option>
+                    <option value="pa">Position Angle</option>
+                    <option value="nucleus">Nucleus</option>
+                    <option value="_creationTime">Creation Time</option>
+                  </select>
+                </div>
+
+                {/* Sort Order */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Order
+                  </label>
+                  <select
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value="asc">Ascending</option>
+                    <option value="desc">Descending</option>
+                  </select>
+                </div>
+
+                {/* Page Size */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Per Page
+                  </label>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={200}>200</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Loading state for table area */}
+          <div className="flex justify-center items-center py-16">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600 dark:text-gray-300">Loading galaxies...</p>
+            </div>
+          </div>
+        </div>
+      );
+    }
   }
 
   const { galaxies, total, hasNext, hasPrevious, totalPages } = galaxyData;
@@ -911,212 +1738,232 @@ export function GalaxyBrowser() {
 
       {/* Desktop Table View */}
       <div className="hidden lg:block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Image
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                  onClick={() => handleSort("id")}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>Galaxy ID</span>
-                    {getSortIcon("id")}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                  onClick={() => handleSort("ra")}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>RA</span>
-                    {getSortIcon("ra")}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                  onClick={() => handleSort("dec")}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>Dec</span>
-                    {getSortIcon("dec")}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                  onClick={() => handleSort("reff")}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>Reff</span>
-                    {getSortIcon("reff")}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                  onClick={() => handleSort("q")}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>q</span>
-                    {getSortIcon("q")}
-                  </div>
-                </th>
-                <th 
-                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
-                  onClick={() => handleSort("nucleus")}
-                >
-                  <div className="flex items-center space-x-1">
-                    <span>Nucleus</span>
-                    {getSortIcon("nucleus")}
-                  </div>
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Classification
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                  Action
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {galaxies.map((galaxy: any) => (
-                <tr key={galaxy._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="w-16 h-16">
-                      <ImageViewer
-                        imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
-                        alt={`Galaxy ${galaxy.id}`}
-                        preferences={userPrefs}
-                      />
+        {!galaxyData ? (
+          /* Loading state for table area when we have previous data */
+          <div className="flex justify-center items-center py-16">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Updating results...</p>
+            </div>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-50 dark:bg-gray-900">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Image
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => handleSort("id")}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Galaxy ID</span>
+                      {getSortIcon("id")}
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {/* <Link to={`/classify/${galaxy.id}`} className="text-blue-600 dark:text-blue-400 hover:underline"> */}
-                      {galaxy.id}
-                    {/* </Link> */}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.ra.toFixed(4)}°
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.dec.toFixed(4)}°
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.reff.toFixed(2)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.q.toFixed(3)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={cn(
-                      "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-                      galaxy.nucleus
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                        : "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400"
-                    )}>
-                      {galaxy.nucleus ? "Yes" : "No"}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {getStatusBadge(galaxy.status)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.classification ? (
-                      <div className="space-y-1">
-                        <div>LSB: {galaxy.classification.lsb_class}</div>
-                        <div>Morph: {galaxy.classification.morphology}</div>
-                        <div className="flex space-x-1">
-                          {galaxy.classification.awesome_flag && (
-                            <span className="text-yellow-600 dark:text-yellow-400" title="Awesome">⭐</span>
-                          )}
-                          {galaxy.classification.valid_redshift && (
-                            <span className="text-blue-600 dark:text-blue-400" title="Valid redshift">🔴</span>
-                          )}
-                        </div>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right">
-                    <Link
-                      to={`/classify/${galaxy.id}`}
-                      className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
-                    >
-                      Classify
-                    </Link>
-                  </td>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => handleSort("ra")}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>RA</span>
+                      {getSortIcon("ra")}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => handleSort("dec")}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Dec</span>
+                      {getSortIcon("dec")}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => handleSort("reff")}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Reff</span>
+                      {getSortIcon("reff")}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => handleSort("q")}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>q</span>
+                      {getSortIcon("q")}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => handleSort("nucleus")}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Nucleus</span>
+                      {getSortIcon("nucleus")}
+                    </div>
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Classification
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                    Action
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {galaxies.map((galaxy: any) => (
+                  <tr key={galaxy._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="w-16 h-16">
+                        <ImageViewer
+                          imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
+                          alt={`Galaxy ${galaxy.id}`}
+                          preferences={userPrefs}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      {/* <Link to={`/classify/${galaxy.id}`} className="text-blue-600 dark:text-blue-400 hover:underline"> */}
+                        {galaxy.id}
+                      {/* </Link> */}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {galaxy.ra.toFixed(4)}°
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {galaxy.dec.toFixed(4)}°
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {galaxy.reff.toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {galaxy.q.toFixed(3)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={cn(
+                        "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
+                        galaxy.nucleus
+                          ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
+                          : "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400"
+                      )}>
+                        {galaxy.nucleus ? "Yes" : "No"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {getStatusBadge(galaxy.status)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                      {galaxy.classification ? (
+                        <div className="space-y-1">
+                          <div>LSB: {galaxy.classification.lsb_class}</div>
+                          <div>Morph: {galaxy.classification.morphology}</div>
+                          <div className="flex space-x-1">
+                            {galaxy.classification.awesome_flag && (
+                              <span className="text-yellow-600 dark:text-yellow-400" title="Awesome">⭐</span>
+                            )}
+                            {galaxy.classification.valid_redshift && (
+                              <span className="text-blue-600 dark:text-blue-400" title="Valid redshift">🔴</span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                      <Link
+                        to={`/classify/${galaxy.id}`}
+                        className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
+                      >
+                        Classify
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Mobile Card View */}
       <div className="lg:hidden space-y-4">
-        {galaxies.map((galaxy: any) => (
-          <div
-            key={galaxy._id}
-            className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4"
-          >
-            <div className="flex items-start space-x-4">
-              <div className="w-20 h-20 flex-shrink-0">
-                <ImageViewer
-                  imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
-                  alt={`Galaxy ${galaxy.id}`}
-                  preferences={userPrefs}
-                />
-              </div>
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                    {galaxy.id}
-                  </h3>
-                  {getStatusBadge(galaxy.status)}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-300 mb-3">
-                  <div>RA: {galaxy.ra.toFixed(4)}°</div>
-                  <div>Dec: {galaxy.dec.toFixed(4)}°</div>
-                  <div>Reff: {galaxy.reff.toFixed(2)}</div>
-                  <div>q: {galaxy.q.toFixed(3)}</div>
-                  <div>PA: {galaxy.pa.toFixed(1)}°</div>
-                  <div>Nucleus: {galaxy.nucleus ? "Yes" : "No"}</div>
-                </div>
-                
-                {galaxy.classification && (
-                  <div className="text-sm text-gray-600 dark:text-gray-300">
-                    <div className="flex items-center space-x-4">
-                      <span>LSB: {galaxy.classification.lsb_class}</span>
-                      <span>Morph: {galaxy.classification.morphology}</span>
-                      {galaxy.classification.awesome_flag && (
-                        <span className="text-yellow-600 dark:text-yellow-400">⭐</span>
-                      )}
-                      {galaxy.classification.valid_redshift && (
-                        <span className="text-blue-600 dark:text-blue-400">🔴</span>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div className="mt-4 flex justify-end">
-              <Link
-                to={`/classify/${galaxy.id}`}
-                className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
-              >
-                Classify
-              </Link>
+        {!galaxyData ? (
+          /* Loading state for mobile cards when we have previous data */
+          <div className="flex justify-center items-center py-16">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p className="text-sm text-gray-600 dark:text-gray-300">Updating results...</p>
             </div>
           </div>
-        ))}
+        ) : (
+          galaxies.map((galaxy: any) => (
+            <div
+              key={galaxy._id}
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+            >
+              <div className="flex items-start space-x-4">
+                <div className="w-20 h-20 flex-shrink-0">
+                  <ImageViewer
+                    imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
+                    alt={`Galaxy ${galaxy.id}`}
+                    preferences={userPrefs}
+                  />
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                      {galaxy.id}
+                    </h3>
+                    {getStatusBadge(galaxy.status)}
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-300 mb-3">
+                    <div>RA: {galaxy.ra.toFixed(4)}°</div>
+                    <div>Dec: {galaxy.dec.toFixed(4)}°</div>
+                    <div>Reff: {galaxy.reff.toFixed(2)}</div>
+                    <div>q: {galaxy.q.toFixed(3)}</div>
+                    <div>PA: {galaxy.pa.toFixed(1)}°</div>
+                    <div>Nucleus: {galaxy.nucleus ? "Yes" : "No"}</div>
+                  </div>
+                  
+                  {galaxy.classification && (
+                    <div className="text-sm text-gray-600 dark:text-gray-300">
+                      <div className="flex items-center space-x-4">
+                        <span>LSB: {galaxy.classification.lsb_class}</span>
+                        <span>Morph: {galaxy.classification.morphology}</span>
+                        {galaxy.classification.awesome_flag && (
+                          <span className="text-yellow-600 dark:text-yellow-400">⭐</span>
+                        )}
+                        {galaxy.classification.valid_redshift && (
+                          <span className="text-blue-600 dark:text-blue-400">🔴</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <Link
+                  to={`/classify/${galaxy.id}`}
+                  className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
+                >
+                  Classify
+                </Link>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Pagination */}
