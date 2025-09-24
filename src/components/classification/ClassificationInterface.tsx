@@ -1314,11 +1314,15 @@ export function ClassificationInterface() {
             Galaxy: {displayGalaxy.id}
             {isSkipped === true && <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">(in skipped table)</span>}
           </h1>
-          {navigation && (
+          {navigation && navigation.currentIndex !== -1 ? (
             <div className="hidden sm:block text-sm text-gray-500 dark:text-gray-400">
               Position: {navigation.currentIndex + 1} of {navigation.totalGalaxies}
             </div>
-          )}
+          ) : navigation ? (
+            <div className="hidden sm:block text-sm text-gray-500 dark:text-gray-400">
+              Not in your galaxies
+            </div>
+          ) : null}
         </div>
         <div className="hidden sm:flex items-center space-x-2">
           <label className="flex items-center cursor-pointer text-sm text-gray-600 dark:text-gray-300">
