@@ -16,7 +16,7 @@ const STORAGE_KEY = "galaxyBrowserSettings";
 export function GalaxyBrowser() {
   usePageTitle("Browse Galaxies");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(100);
+  const [pageSize, setPageSize] = useState(10);
   const [sortBy, setSortBy] = useState<SortField>("id");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [filter, setFilter] = useState<FilterType>("all");
@@ -377,6 +377,7 @@ export function GalaxyBrowser() {
               onChange={(e) => setPageSize(Number(e.target.value))}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
             >
+              <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
@@ -387,7 +388,7 @@ export function GalaxyBrowser() {
       </div>
 
       {/* Results Status */}
-      <div className="mb-6">
+      <div className="mb-6 pt-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">
           Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, total)} of {total} galaxies
         </p>
