@@ -222,6 +222,66 @@ export const getAdditionalGalaxyDetailsByExternalId = mutation({
 
 export const UPDATE_BATCH_SIZE = 200;
 
+export const rebuildGalaxyIdsTable = mutation({
+  args: {
+    cursor: v.optional(v.string()),
+    startNumericId: v.optional(v.int64()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Admin only
+    const currentProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!currentProfile || currentProfile.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    let cursor = args.cursor || null;
+    let processed = 0;
+    let startNumericId = args.startNumericId || BigInt(1);
+
+    // On first call (no cursor), clear the table
+    if (!cursor) {
+      await ctx.db.query("galaxyIds").collect().then(docs => 
+        Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
+      );
+    }
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("galaxies")
+      .paginate({
+        numItems: UPDATE_BATCH_SIZE,
+        cursor,
+      });
+
+    for (const galaxy of page) {
+      const numericId = startNumericId + BigInt(processed);
+      
+      await ctx.db.insert("galaxyIds", {
+        id: galaxy.id,
+        galaxyRef: galaxy._id,
+        numericId,
+      });
+      
+      processed += 1;
+    }
+
+    const nextStartNumericId = startNumericId + BigInt(processed);
+
+    return {
+      processed,
+      cursor: continueCursor,
+      isDone,
+      nextStartNumericId,
+      message: processed > 0 ? `Processed ${processed} galaxies` : "No galaxies to process",
+    };
+  },
+});
+
 export const fillGalaxyMagAndMeanMue = mutation({
   args: {
     maxToUpdate: v.optional(v.number()),

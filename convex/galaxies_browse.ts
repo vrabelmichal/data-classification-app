@@ -77,9 +77,15 @@ export const browseGalaxies = query({
 
     // Get total count first to check if aggregates are populated
     const aggregateCount = await aggregate.count(ctx);
+    const actualDbCount = await ctx.db.query("galaxies").collect().then(g => g.length);
+    
+    // Use actual DB count if aggregates seem stale (more than 10% difference)
+    const countDifference = Math.abs(aggregateCount - actualDbCount);
+    const percentDifference = actualDbCount > 0 ? (countDifference / actualDbCount) * 100 : 0;
+    const useActualCount = aggregateCount > 0 && percentDifference > 10;
     
     let galaxies: any[] = [];
-    let actualTotal = aggregateCount;
+    let actualTotal = useActualCount ? actualDbCount : aggregateCount;
 
     if (aggregateCount === 0) {
       // Aggregates are empty, fall back to collecting all galaxies and sorting in memory
