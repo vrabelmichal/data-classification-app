@@ -335,29 +335,53 @@ export function DebuggingTab() {
         </div>
         
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-teal-600 dark:text-teal-400 mb-4">🔨 Rebuild Galaxy IDs Aggregate</h2>
+          <h2 className="text-lg font-semibold text-orange-600 dark:text-orange-400 mb-4">🔨 Rebuild Galaxy IDs Table</h2>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            Rebuild galaxy IDs aggregate from scratch. Processes in batches of 1000 to avoid timeouts and will continue until all galaxy IDs are processed. Required after clearing the aggregate or if it becomes corrupted.
+            Rebuild galaxyIds table from galaxies table. Clears the table first, then rebuilds with sequential numericIds. Processes in batches of 200 to avoid timeouts and will continue until all galaxies are processed.
           </p>
           <div className="flex items-center justify-between mb-4">
             <button
-              onClick={() => void (async () => { await handleRebuildGalaxyIdsAggregate(); })()}
-              disabled={rebuildingGalaxyIdsAggregate}
-              className="inline-flex items-center justify-center bg-teal-600 hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              onClick={() => void (async () => { await handleRebuildGalaxyIdsTable(); })()}
+              disabled={rebuildingGalaxyIdsTable}
+              className="inline-flex items-center justify-center bg-orange-600 hover:bg-orange-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
-              {rebuildingGalaxyIdsAggregate && (
+              {rebuildingGalaxyIdsTable && (
                 <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               )}
-              {rebuildingGalaxyIdsAggregate ? 'Rebuilding...' : 'Rebuild IDs Aggregate'}
+              {rebuildingGalaxyIdsTable ? 'Rebuilding...' : 'Rebuild IDs Table'}
             </button>
-            {rebuildIdsProgress > 0 && (
-              <div className="text-sm font-medium text-teal-600 dark:text-teal-400">
-                {rebuildIdsProgress.toLocaleString()} processed
+            {rebuildIdsTableProgress > 0 && (
+              <div className="text-sm font-medium text-orange-600 dark:text-orange-400">
+                {rebuildIdsTableProgress.toLocaleString()} processed
               </div>
             )}
           </div>
         </div>
 
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-orange-600 dark:text-orange-400 mb-4">🔨 Rebuild Galaxy IDs Table</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            Rebuild galaxyIds table from galaxies table. Clears the table first, then rebuilds with sequential numericIds. Processes in batches of 200 to avoid timeouts and will continue until all galaxies are processed.
+          </p>
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => void (async () => { await handleRebuildGalaxyIdsTable(); })()}
+              disabled={rebuildingGalaxyIdsTable}
+              className="inline-flex items-center justify-center bg-orange-600 hover:bg-orange-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              {rebuildingGalaxyIdsTable && (
+                <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {rebuildingGalaxyIdsTable ? 'Rebuilding...' : 'Rebuild IDs Table'}
+            </button>
+            {rebuildIdsTableProgress > 0 && (
+              <div className="text-sm font-medium text-orange-600 dark:text-orange-400">
+                {rebuildIdsTableProgress.toLocaleString()} processed
+              </div>
+            )}
+          </div>
+        </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-purple-600 dark:text-purple-400 mb-4">🔄 Clear Galaxy Aggregates</h2>
