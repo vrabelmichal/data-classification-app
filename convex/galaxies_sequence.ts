@@ -22,7 +22,7 @@ you can clear and rebuild with galaxiesAggregate.clear(ctx) followed by backfill
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
-import { galaxyIdsAggregate } from "./galaxies";
+import { galaxyIdsAggregate } from "./galaxies_aggregates";
 
 
 

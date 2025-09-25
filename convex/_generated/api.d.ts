@@ -10,12 +10,12 @@
 
 import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as admin from "../admin.js";
-import type * as aggregates from "../aggregates.js";
 import type * as auth from "../auth.js";
 import type * as classification from "../classification.js";
 import type * as emailSettings from "../emailSettings.js";
 import type * as export_database from "../export_database.js";
 import type * as galaxies from "../galaxies.js";
+import type * as galaxies_aggregates from "../galaxies_aggregates.js";
 import type * as galaxies_batch_ingest from "../galaxies_batch_ingest.js";
 import type * as galaxies_browse from "../galaxies_browse.js";
 import type * as galaxies_deprecated from "../galaxies_deprecated.js";
@@ -50,12 +50,12 @@ import type {
 declare const fullApi: ApiFromModules<{
   ResendOTPPasswordReset: typeof ResendOTPPasswordReset;
   admin: typeof admin;
-  aggregates: typeof aggregates;
   auth: typeof auth;
   classification: typeof classification;
   emailSettings: typeof emailSettings;
   export_database: typeof export_database;
   galaxies: typeof galaxies;
+  galaxies_aggregates: typeof galaxies_aggregates;
   galaxies_batch_ingest: typeof galaxies_batch_ingest;
   galaxies_browse: typeof galaxies_browse;
   galaxies_deprecated: typeof galaxies_deprecated;

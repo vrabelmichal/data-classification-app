@@ -16,7 +16,8 @@ import { galaxySchemaDefinition, photometryBandSchema, photometryBandSchemaR, ph
 //   sourceExtractor?: { g:{}, r:{}, i:{}, y?:{}, z?:{} },
 //   thuruthipilly?: { ... }
 // }
-import { insertGalaxy, galaxyIdsAggregate } from "./galaxies";
+import { insertGalaxy } from "./galaxies";
+import { galaxyIdsAggregate } from "./galaxies_aggregates";
 
 /**
  * Constant-time comparison to avoid timing leaks.

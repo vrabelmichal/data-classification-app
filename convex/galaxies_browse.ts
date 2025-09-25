@@ -1,7 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { getGalaxiesAggregate } from "./aggregates";
+import { getGalaxiesAggregate } from "./galaxies_aggregates";
 
 
 // Browse galaxies with offset-based pagination for proper page navigation
@@ -17,6 +17,8 @@ export const browseGalaxies = query({
       v.literal("reff"),
       v.literal("q"),
       v.literal("pa"),
+      v.literal("mag"),
+      v.literal("mean_mue"),
       v.literal("nucleus"),
       v.literal("_creationTime")
     )),
@@ -115,6 +117,20 @@ export const browseGalaxies = query({
             sortOrder === "asc" ? a.pa - b.pa : b.pa - a.pa
           );
           break;
+        case "mag":
+          sortedGalaxies = allGalaxies.sort((a, b) => {
+            const aVal = a.mag ?? Number.MAX_VALUE;
+            const bVal = b.mag ?? Number.MAX_VALUE;
+            return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+          });
+          break;
+        case "mean_mue":
+          sortedGalaxies = allGalaxies.sort((a, b) => {
+            const aVal = a.mean_mue ?? Number.MAX_VALUE;
+            const bVal = b.mean_mue ?? Number.MAX_VALUE;
+            return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+          });
+          break;
         case "nucleus":
           sortedGalaxies = allGalaxies.sort((a, b) => 
             sortOrder === "asc" ? (a.nucleus ? 1 : 0) - (b.nucleus ? 1 : 0) : (b.nucleus ? 1 : 0) - (a.nucleus ? 1 : 0)
@@ -173,6 +189,18 @@ export const browseGalaxies = query({
           case "pa":
             galaxies = await ctx.db.query("galaxies")
               .withIndex("by_pa", q => q.gte("pa", key as number))
+              .order(sortOrder)
+              .take(numItems);
+            break;
+          case "mag":
+            galaxies = await ctx.db.query("galaxies")
+              .withIndex("by_mag", q => q.gte("mag", key as number))
+              .order(sortOrder)
+              .take(numItems);
+            break;
+          case "mean_mue":
+            galaxies = await ctx.db.query("galaxies")
+              .withIndex("by_mean_mue", q => q.gte("mean_mue", key as number))
               .order(sortOrder)
               .take(numItems);
             break;
@@ -278,6 +306,14 @@ export const browseGalaxies = query({
             return sortOrder === "asc" ? a.q - b.q : b.q - a.q;
           case "pa":
             return sortOrder === "asc" ? a.pa - b.pa : b.pa - a.pa;
+          case "mag":
+            const aMag = a.mag ?? Number.MAX_VALUE;
+            const bMag = b.mag ?? Number.MAX_VALUE;
+            return sortOrder === "asc" ? aMag - bMag : bMag - aMag;
+          case "mean_mue":
+            const aMue = a.mean_mue ?? Number.MAX_VALUE;
+            const bMue = b.mean_mue ?? Number.MAX_VALUE;
+            return sortOrder === "asc" ? aMue - bMue : bMue - aMue;
           case "nucleus":
             return sortOrder === "asc" ? (a.nucleus ? 1 : 0) - (b.nucleus ? 1 : 0) : (b.nucleus ? 1 : 0) - (a.nucleus ? 1 : 0);
           case "_creationTime":
@@ -475,6 +511,8 @@ export const getGalaxySearchBounds = query({
         reff: { min: null, max: null },
         q: { min: null, max: null },
         pa: { min: null, max: null },
+        mag: { min: null, max: null },
+        mean_mue: { min: null, max: null },
         nucleus: { hasNucleus: false, totalCount: 0 },
       };
     }
@@ -489,6 +527,8 @@ export const getGalaxySearchBounds = query({
         reff: { min: null, max: null },
         q: { min: null, max: null },
         pa: { min: null, max: null },
+        mag: { min: null, max: null },
+        mean_mue: { min: null, max: null },
         nucleus: { hasNucleus: false, totalCount: 0 },
       };
     }

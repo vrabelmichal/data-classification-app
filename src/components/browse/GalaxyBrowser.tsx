@@ -7,7 +7,7 @@ import { Link } from "react-router";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { getImageUrl } from "../../images";
 
-type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "nucleus" | "_creationTime";
+type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus" | "_creationTime";
 type SortOrder = "asc" | "desc";
 type FilterType = "all" | "my_sequence" | "classified" | "unclassified" | "skipped";
 
@@ -1885,11 +1885,23 @@ export function GalaxyBrowser() {
                       {getSortIcon("nucleus")}
                     </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    Mag
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => handleSort("mag")}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>Mag</span>
+                      {getSortIcon("mag")}
+                    </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                    μ₀
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => handleSort("mean_mue")}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>μ₀</span>
+                      {getSortIcon("mean_mue")}
+                    </div>
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                     Status

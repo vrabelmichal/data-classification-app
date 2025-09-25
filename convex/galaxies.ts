@@ -2,9 +2,6 @@ import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
-import { TableAggregate } from "@convex-dev/aggregate";
-import { components } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import {
@@ -17,95 +14,10 @@ import {
   galaxiesByNucleus,
   galaxiesByCreationTime,
   galaxiesByMag,
-  galaxiesByMeanMue
-} from "./aggregates";
+  galaxiesByMeanMue,
+  galaxyIdsAggregate
+} from "./galaxies_aggregates";
 
-
-export const galaxyIdsAggregate = new TableAggregate<{
-  Key: bigint;
-  DataModel: DataModel;
-  TableName: "galaxyIds";
-}>(components.aggregate, {
-  sortKey: (doc) => doc.numericId,
-});
-
-
-export const clearGalaxyIdsAggregate = mutation({
-  args: {},
-  handler: async (ctx) => {
-    // make sure only admin can call this
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    // Check if user is admin
-    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
-    
-    await galaxyIdsAggregate.clear(ctx);
-  },
-});
-
-export const clearGalaxyAggregates = mutation({
-  args: {},
-  handler: async (ctx) => {
-    // make sure only admin can call this
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    // Check if user is admin
-    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
-    
-    await galaxiesById.clear(ctx);
-    await galaxiesByRa.clear(ctx);
-    await galaxiesByDec.clear(ctx);
-    await galaxiesByReff.clear(ctx);
-    await galaxiesByQ.clear(ctx);
-    await galaxiesByPa.clear(ctx);
-    await galaxiesByNucleus.clear(ctx);
-    await galaxiesByCreationTime.clear(ctx);
-    await galaxiesByMag.clear(ctx);
-    await galaxiesByMeanMue.clear(ctx);
-  },
-});
-
-export const rebuildGalaxyAggregates = mutation({
-  args: {},
-  handler: async (ctx) => {
-    // make sure only admin can call this
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    // Check if user is admin
-    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
-
-    // Clear existing aggregates
-    await galaxiesById.clear(ctx);
-    await galaxiesByRa.clear(ctx);
-    await galaxiesByDec.clear(ctx);
-    await galaxiesByReff.clear(ctx);
-    await galaxiesByQ.clear(ctx);
-    await galaxiesByPa.clear(ctx);
-    await galaxiesByNucleus.clear(ctx);
-    await galaxiesByCreationTime.clear(ctx);
-    await galaxiesByMag.clear(ctx);
-    await galaxiesByMeanMue.clear(ctx);
-
-    // Rebuild aggregates from all existing galaxies
-    const allGalaxies = await ctx.db.query("galaxies").collect();
-    
-    for (const galaxy of allGalaxies) {
-      await galaxiesById.insert(ctx, galaxy);
-      await galaxiesByRa.insert(ctx, galaxy);
-      await galaxiesByDec.insert(ctx, galaxy);
-      await galaxiesByReff.insert(ctx, galaxy);
-      await galaxiesByQ.insert(ctx, galaxy);
-      await galaxiesByPa.insert(ctx, galaxy);
-      await galaxiesByNucleus.insert(ctx, galaxy);
-      await galaxiesByCreationTime.insert(ctx, galaxy);
-      await galaxiesByMag.insert(ctx, galaxy);
-      await galaxiesByMeanMue.insert(ctx, galaxy);
-    }
-  },
-});
 
 export const deleteAllGalaxies = mutation({
   args: {},
@@ -308,7 +220,7 @@ export const getAdditionalGalaxyDetailsByExternalId = mutation({
   },
 });
 
-const UPDATE_BATCH_SIZE = 500;
+export const UPDATE_BATCH_SIZE = 200;
 
 export const fillGalaxyMagAndMeanMue = mutation({
   args: {

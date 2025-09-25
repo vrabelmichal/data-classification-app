@@ -12,13 +12,15 @@ export function DebuggingTab() {
   const [seedingCursor, setSeedingCursor] = useState<string | null>(null);
   const [clearingGalaxyAggregates, setClearingGalaxyAggregates] = useState(false);
   const [rebuildingGalaxyAggregates, setRebuildingGalaxyAggregates] = useState(false);
+  const [rebuildCursor, setRebuildCursor] = useState<string | null>(null);
+  const [rebuildProgress, setRebuildProgress] = useState<number>(0);
   const [fillingMagMeanMue, setFillingMagMeanMue] = useState(false);
   const [fillingCursor, setFillingCursor] = useState<string | null>(null);
 
   const generateMockGalaxies = useMutation(api.galaxies_mock.generateMockGalaxies);
-  const clearGalaxyIdsAggregate = useMutation(api.galaxies.clearGalaxyIdsAggregate);
-  const clearGalaxyAggregates = useMutation(api.galaxies.clearGalaxyAggregates);
-  const rebuildGalaxyAggregates = useMutation(api.galaxies.rebuildGalaxyAggregates);
+  const clearGalaxyIdsAggregate = useMutation(api.galaxies_aggregates.clearGalaxyIdsAggregate);
+  const clearGalaxyAggregates = useMutation(api.galaxies_aggregates.clearGalaxyAggregates);
+  const rebuildGalaxyAggregates = useMutation(api.galaxies_aggregates.rebuildGalaxyAggregates);
   const deleteAllGalaxies = useMutation(api.galaxies.deleteAllGalaxies);
   const seedGalaxyAssignmentStats = useMutation(api.seedGalaxyAssignmentStats.seedGalaxyAssignmentStats);
   const fillGalaxyMagAndMeanMue = useMutation(api.galaxies.fillGalaxyMagAndMeanMue);
@@ -113,14 +115,39 @@ export function DebuggingTab() {
   };
 
   const handleRebuildGalaxyAggregates = async () => {
-    if (!confirm("Rebuild galaxy aggregates? This may take some time for large datasets.")) return;
+    if (!confirm("Rebuild galaxy aggregates? This may take some time for large datasets and will process in batches.")) return;
     try {
       setRebuildingGalaxyAggregates(true);
-      await rebuildGalaxyAggregates();
-      toast.success("Galaxy aggregates rebuilt successfully");
+      setRebuildProgress(0); // Reset progress
+      let totalProcessed = 0;
+      let iterations = 0;
+      let currentCursor = rebuildCursor;
+      const maxIterations = 10000; // safety limit
+
+      while (iterations < maxIterations) {
+        const result = await rebuildGalaxyAggregates({
+          cursor: currentCursor || undefined,
+        });
+        totalProcessed += result.processed || 0;
+        setRebuildProgress(totalProcessed); // Update progress
+        currentCursor = result.continueCursor || null;
+        setRebuildCursor(result.continueCursor || null);
+
+        if (result.isDone) break;
+        iterations++;
+      }
+
+      // Reset cursor and progress when done
+      if (currentCursor === null) {
+        setRebuildCursor(null);
+        setRebuildProgress(0);
+      }
+
+      toast.success(`Galaxy aggregates rebuilt successfully. Processed ${totalProcessed} galaxies across ${iterations + 1} batches`);
     } catch (e) {
       toast.error("Failed to rebuild galaxy aggregates");
       console.error(e);
+      setRebuildProgress(0); // Reset on error
     } finally {
       setRebuildingGalaxyAggregates(false);
     }
@@ -219,18 +246,25 @@ export function DebuggingTab() {
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-indigo-600 dark:text-indigo-400 mb-4">🔨 Rebuild Galaxy Aggregates</h2>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            Rebuild galaxy aggregates from scratch. Required after clearing aggregates or if aggregates become corrupted.
+            Rebuild galaxy aggregates from scratch. Processes in batches of 200 to avoid timeouts and will continue until all galaxies are processed. Required after clearing aggregates or if aggregates become corrupted.
           </p>
-          <button
-            onClick={() => void (async () => { await handleRebuildGalaxyAggregates(); })()}
-            disabled={rebuildingGalaxyAggregates}
-            className="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
-          >
-            {rebuildingGalaxyAggregates && (
-              <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={() => void (async () => { await handleRebuildGalaxyAggregates(); })()}
+              disabled={rebuildingGalaxyAggregates}
+              className="inline-flex items-center justify-center bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              {rebuildingGalaxyAggregates && (
+                <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {rebuildingGalaxyAggregates ? 'Rebuilding...' : 'Rebuild Aggregates'}
+            </button>
+            {rebuildProgress > 0 && (
+              <div className="text-sm font-medium text-indigo-600 dark:text-indigo-400">
+                {rebuildProgress.toLocaleString()} processed
+              </div>
             )}
-            {rebuildingGalaxyAggregates ? 'Rebuilding...' : 'Rebuild Aggregates'}
-          </button>
+          </div>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
