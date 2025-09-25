@@ -5,6 +5,14 @@ import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 
+export const galaxyIdsAggregate = new TableAggregate<{
+  Key: bigint;
+  DataModel: DataModel;
+  TableName: "galaxyIds";
+}>(components.aggregate, {
+  sortKey: (doc) => doc.numericId,
+});
+
 // Aggregate for galaxies sorted by ID (string)
 export const galaxiesById = new TableAggregate<{
   Key: string;
@@ -118,6 +126,8 @@ export function getGalaxiesAggregate(sortBy: string) {
       return galaxiesByMag;
     case "mean_mue":
       return galaxiesByMeanMue;
+    case "numericId":
+      return galaxyIdsAggregate;
     default:
       return galaxiesById; // fallback
   }
@@ -134,7 +144,9 @@ export const clearGalaxyIdsAggregate = mutation({
 
     await galaxyIdsAggregate.clear(ctx);
   },
-});export const clearGalaxyAggregates = mutation({
+});
+
+export const clearGalaxyAggregates = mutation({
   args: {},
   handler: async (ctx) => {
     // make sure only admin can call this
@@ -154,6 +166,7 @@ export const clearGalaxyIdsAggregate = mutation({
     await galaxiesByCreationTime.clear(ctx);
     await galaxiesByMag.clear(ctx);
     await galaxiesByMeanMue.clear(ctx);
+    // await galaxyIdsAggregate.clear(ctx);
   },
 });
 
@@ -195,6 +208,7 @@ export const rebuildGalaxyAggregates = mutation({
       await galaxiesByCreationTime.clear(ctx);
       await galaxiesByMag.clear(ctx);
       await galaxiesByMeanMue.clear(ctx);
+      // await galaxyIdsAggregate.clear(ctx);
       console.log('[rebuildGalaxyAggregates] Aggregates cleared successfully');
     }
 
@@ -230,6 +244,16 @@ export const rebuildGalaxyAggregates = mutation({
       processed += 1;
     }
 
+    // Also rebuild galaxyIdsAggregate from galaxyIds table
+    // if (!args.cursor) {
+    //   console.log('[rebuildGalaxyAggregates] Rebuilding galaxyIdsAggregate...');
+    //   const allGalaxyIds = await ctx.db.query("galaxyIds").collect();
+    //   for (const galaxyId of allGalaxyIds) {
+    //     await galaxyIdsAggregate.insert(ctx, galaxyId);
+    //   }
+    //   console.log(`[rebuildGalaxyAggregates] Inserted ${allGalaxyIds.length} records into galaxyIdsAggregate`);
+    // }
+
     if (isDone) {
       console.log(`[rebuildGalaxyAggregates] Completed final batch. Total processed in batch: ${processed}`);
     }
@@ -243,12 +267,5 @@ export const rebuildGalaxyAggregates = mutation({
         : `Processed ${processed} galaxies. Continue with cursor: ${continueCursor}`,
     };
   },
-});
-export const galaxyIdsAggregate = new TableAggregate<{
-  Key: bigint;
-  DataModel: DataModel;
-  TableName: "galaxyIds";
-}>(components.aggregate, {
-  sortKey: (doc) => doc.numericId,
 });
 

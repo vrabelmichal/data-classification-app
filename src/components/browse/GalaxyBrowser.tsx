@@ -7,7 +7,7 @@ import { Link } from "react-router";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { getImageUrl } from "../../images";
 
-type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus" | "_creationTime";
+type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus" | "_creationTime" | "numericId";
 type SortOrder = "asc" | "desc";
 type FilterType = "all" | "my_sequence" | "classified" | "unclassified" | "skipped";
 
@@ -17,7 +17,7 @@ export function GalaxyBrowser() {
   usePageTitle("Browse Galaxies");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sortBy, setSortBy] = useState<SortField>("id");
+  const [sortBy, setSortBy] = useState<SortField>("numericId");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [filter, setFilter] = useState<FilterType>("all");
 
@@ -625,6 +625,23 @@ export function GalaxyBrowser() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Has Nucleus
+                  </label>
+                  <select
+                    value={searchNucleus === undefined ? "" : searchNucleus ? "true" : "false"}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSearchNucleus(value === "" ? undefined : value === "true" ? true : false);
+                    }}
+                    className={getInputClass('searchNucleus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any</option>
+                    <option value="true">Has nucleus</option>
+                    <option value="false">No nucleus</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Classification Status
                   </label>
                   <select
@@ -666,23 +683,6 @@ export function GalaxyBrowser() {
                     {classificationOptions?.morphologies.map(morphology => (
                       <option key={morphology} value={morphology}>{morphology}</option>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Has Nucleus
-                  </label>
-                  <select
-                    value={searchNucleus === undefined ? "" : searchNucleus ? "true" : "false"}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setSearchNucleus(value === "" ? undefined : value === "true" ? true : false);
-                    }}
-                    className={getInputClass('searchNucleus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-                  >
-                    <option value="">Any</option>
-                    <option value="true">Has nucleus</option>
-                    <option value="false">No nucleus</option>
                   </select>
                 </div>
                 <div>
@@ -1038,6 +1038,23 @@ export function GalaxyBrowser() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Has Nucleus
+                  </label>
+                  <select
+                    value={searchNucleus === undefined ? "" : searchNucleus ? "true" : "false"}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSearchNucleus(value === "" ? undefined : value === "true" ? true : false);
+                    }}
+                    className={getInputClass('searchNucleus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                  >
+                    <option value="">Any</option>
+                    <option value="true">Has nucleus</option>
+                    <option value="false">No nucleus</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Classification Status
                   </label>
                   <select
@@ -1079,23 +1096,6 @@ export function GalaxyBrowser() {
                     {classificationOptions?.morphologies.map(morphology => (
                       <option key={morphology} value={morphology}>{morphology}</option>
                     ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Has Nucleus
-                  </label>
-                  <select
-                    value={searchNucleus === undefined ? "" : searchNucleus ? "true" : "false"}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setSearchNucleus(value === "" ? undefined : value === "true" ? true : false);
-                    }}
-                    className={getInputClass('searchNucleus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-                  >
-                    <option value="">Any</option>
-                    <option value="true">Has nucleus</option>
-                    <option value="false">No nucleus</option>
                   </select>
                 </div>
                 <div>
@@ -1500,6 +1500,23 @@ export function GalaxyBrowser() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Has Nucleus
+              </label>
+              <select
+                value={searchNucleus === undefined ? "" : searchNucleus ? "true" : "false"}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSearchNucleus(value === "" ? undefined : value === "true" ? true : false);
+                }}
+                className={getInputClass('searchNucleus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+              >
+                <option value="">Any</option>
+                <option value="true">Has nucleus</option>
+                <option value="false">No nucleus</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Classification Status
               </label>
               <select
@@ -1541,23 +1558,6 @@ export function GalaxyBrowser() {
                 {classificationOptions?.morphologies.map(morphology => (
                   <option key={morphology} value={morphology}>{morphology}</option>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Has Nucleus
-              </label>
-              <select
-                value={searchNucleus === undefined ? "" : searchNucleus ? "true" : "false"}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setSearchNucleus(value === "" ? undefined : value === "true" ? true : false);
-                }}
-                className={getInputClass('searchNucleus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-              >
-                <option value="">Any</option>
-                <option value="true">Has nucleus</option>
-                <option value="false">No nucleus</option>
               </select>
             </div>
             <div>
@@ -1736,6 +1736,7 @@ export function GalaxyBrowser() {
               onChange={(e) => setSortBy(e.target.value as SortField)}
               className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
             >
+              <option value="numericId">#</option>
               <option value="id">Galaxy ID</option>
               <option value="ra">Right Ascension</option>
               <option value="dec">Declination</option>
@@ -1828,11 +1829,20 @@ export function GalaxyBrowser() {
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
               <thead className="bg-gray-50 dark:bg-gray-900">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
                     Image
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    onClick={() => handleSort("numericId")}
+                  >
+                    <div className="flex items-center space-x-1">
+                      <span>#</span>
+                      {getSortIcon("numericId")}
+                    </div>
+                  </th>
+                  <th 
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={() => handleSort("id")}
                   >
                     <div className="flex items-center space-x-1">
@@ -1841,7 +1851,7 @@ export function GalaxyBrowser() {
                     </div>
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={() => handleSort("ra")}
                   >
                     <div className="flex items-center space-x-1">
@@ -1850,7 +1860,7 @@ export function GalaxyBrowser() {
                     </div>
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={() => handleSort("dec")}
                   >
                     <div className="flex items-center space-x-1">
@@ -1859,7 +1869,7 @@ export function GalaxyBrowser() {
                     </div>
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={() => handleSort("reff")}
                   >
                     <div className="flex items-center space-x-1">
@@ -1868,7 +1878,7 @@ export function GalaxyBrowser() {
                     </div>
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={() => handleSort("q")}
                   >
                     <div className="flex items-center space-x-1">
@@ -1877,7 +1887,7 @@ export function GalaxyBrowser() {
                     </div>
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={() => handleSort("nucleus")}
                   >
                     <div className="flex items-center space-x-1">
@@ -1886,7 +1896,7 @@ export function GalaxyBrowser() {
                     </div>
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={() => handleSort("mag")}
                   >
                     <div className="flex items-center space-x-1">
@@ -1895,7 +1905,7 @@ export function GalaxyBrowser() {
                     </div>
                   </th>
                   <th 
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={() => handleSort("mean_mue")}
                   >
                     <div className="flex items-center space-x-1">
@@ -1903,13 +1913,13 @@ export function GalaxyBrowser() {
                       {getSortIcon("mean_mue")}
                     </div>
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
                     Classification
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
                     Action
                   </th>
                 </tr>
@@ -1925,6 +1935,9 @@ export function GalaxyBrowser() {
                           preferences={userPrefs}
                         />
                       </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
+                      {galaxy.numericId?.toString() || "—"}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
                       {/* <Link to={`/classify/${galaxy.id}`} className="text-blue-600 dark:text-blue-400 hover:underline"> */}

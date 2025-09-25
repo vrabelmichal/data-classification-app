@@ -20,7 +20,8 @@ export const browseGalaxies = query({
       v.literal("mag"),
       v.literal("mean_mue"),
       v.literal("nucleus"),
-      v.literal("_creationTime")
+      v.literal("_creationTime"),
+      v.literal("numericId")
     )),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
     filter: v.optional(v.union(
@@ -141,6 +142,18 @@ export const browseGalaxies = query({
             sortOrder === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime
           );
           break;
+        case "numericId":
+          // For numericId sorting in fallback, we need to join with galaxyIds
+          const allGalaxyIds = await ctx.db.query("galaxyIds").collect();
+          const galaxyIdMap = new Map(allGalaxyIds.map(gid => [gid.id, gid.numericId]));
+          sortedGalaxies = allGalaxies
+            .map(galaxy => ({ ...galaxy, numericId: galaxyIdMap.get(galaxy.id) || BigInt(0) }))
+            .sort((a, b) => {
+              const aId = a.numericId as bigint;
+              const bId = b.numericId as bigint;
+              return sortOrder === "asc" ? (aId < bId ? -1 : aId > bId ? 1 : 0) : (aId > bId ? -1 : aId < bId ? 1 : 0);
+            });
+          break;
       }
       
       // Apply offset and limit
@@ -218,6 +231,18 @@ export const browseGalaxies = query({
               .slice(offset, offset + numItems);
             galaxies = sortedByCreationTime;
             break;
+          case "numericId":
+            // For numericId, query galaxyIds and join with galaxies
+            const galaxyIdRecords = await ctx.db.query("galaxyIds")
+              .withIndex("by_numeric_id", q => q.gte("numericId", key as bigint))
+              .order(sortOrder)
+              .take(numItems);
+            // Join with galaxies to get full galaxy data
+            galaxies = await Promise.all(galaxyIdRecords.map(async (galaxyIdRecord) => {
+              const galaxy = await ctx.db.get(galaxyIdRecord.galaxyRef);
+              return galaxy ? { ...galaxy, numericId: galaxyIdRecord.numericId } : null;
+            })).then(results => results.filter(Boolean));
+            break;
         }
       } catch (error) {
         // If aggregate fails for any reason, fall back to regular pagination
@@ -239,8 +264,16 @@ export const browseGalaxies = query({
       // When searching, we need to filter the entire dataset before pagination
       // Fall back to collecting all galaxies and filtering in memory
       const allGalaxies = await ctx.db.query("galaxies").collect();
+      const allGalaxyIds = await ctx.db.query("galaxyIds").collect();
+      const galaxyIdMap = new Map(allGalaxyIds.map(gid => [gid.id, gid.numericId]));
       
-      searchFilteredGalaxies = allGalaxies.filter(g => {
+      // Join galaxies with numericId
+      const galaxiesWithIds = allGalaxies.map(galaxy => ({
+        ...galaxy,
+        numericId: galaxyIdMap.get(galaxy.id) || BigInt(0)
+      }));
+      
+      searchFilteredGalaxies = galaxiesWithIds.filter(g => {
         // Check each search field for range or exact match
         if (searchId && g.id !== searchId.trim()) return false;
         
@@ -318,6 +351,10 @@ export const browseGalaxies = query({
             return sortOrder === "asc" ? (a.nucleus ? 1 : 0) - (b.nucleus ? 1 : 0) : (b.nucleus ? 1 : 0) - (a.nucleus ? 1 : 0);
           case "_creationTime":
             return sortOrder === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime;
+          case "numericId":
+            const aNumId = a.numericId as bigint;
+            const bNumId = b.numericId as bigint;
+            return sortOrder === "asc" ? (aNumId < bNumId ? -1 : aNumId > bNumId ? 1 : 0) : (aNumId > bNumId ? -1 : aNumId < bNumId ? 1 : 0);
           default:
             return 0;
         }
@@ -329,7 +366,18 @@ export const browseGalaxies = query({
 
     // Enrich with classification and skip data
     const galaxiesToEnrich = searchFilteredGalaxies.length > 0 ? searchFilteredGalaxies : galaxies;
-    const enriched = await Promise.all(galaxiesToEnrich.map(async (galaxy) => {
+    
+    // Ensure all galaxies have numericId
+    const galaxiesWithIds = await Promise.all(galaxiesToEnrich.map(async (galaxy) => {
+      if (galaxy.numericId !== undefined) {
+        return galaxy; // Already has numericId
+      }
+      // Get numericId from galaxyIds table
+      const galaxyIdRecord = await ctx.db.query("galaxyIds").withIndex("by_external_id", q => q.eq("id", galaxy.id)).unique();
+      return { ...galaxy, numericId: galaxyIdRecord ? galaxyIdRecord.numericId : BigInt(0) };
+    }));
+    
+    const enriched = await Promise.all(galaxiesWithIds.map(async (galaxy) => {
       const classification = await ctx.db
         .query("classifications")
         .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxy.id))
