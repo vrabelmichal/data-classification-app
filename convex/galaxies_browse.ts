@@ -1,15 +1,17 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
-import { getGalaxiesAggregate } from "./galaxies_aggregates";
+// Aggregates are not used in this implementation; we rely on Convex indexes + paginate
 
 
 // Browse galaxies with offset-based pagination for proper page navigation
 
 export const browseGalaxies = query({
   args: {
+    // Keep offset for backward-compat, but pagination now uses a cursor
     offset: v.number(),
     numItems: v.number(),
+    cursor: v.optional(v.string()),
     sortBy: v.optional(v.union(
       v.literal("id"),
       v.literal("ra"),
@@ -20,7 +22,6 @@ export const browseGalaxies = query({
       v.literal("mag"),
       v.literal("mean_mue"),
       v.literal("nucleus"),
-      v.literal("_creationTime"),
       v.literal("numericId")
     )),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
@@ -28,8 +29,7 @@ export const browseGalaxies = query({
       v.literal("all"),
       v.literal("my_sequence"),
       v.literal("classified"),
-      v.literal("unclassified"),
-      v.literal("skipped")
+      v.literal("unclassified")
     )),
     searchTerm: v.optional(v.string()), // Keep for backward compatibility
     searchId: v.optional(v.string()),
@@ -48,13 +48,8 @@ export const browseGalaxies = query({
     searchMeanMueMin: v.optional(v.string()),
     searchMeanMueMax: v.optional(v.string()),
     searchNucleus: v.optional(v.boolean()),
-    searchClassificationStatus: v.optional(v.union(
-      v.literal("classified"),
-      v.literal("unclassified"),
-      v.literal("skipped")
-    )),
-    searchLsbClass: v.optional(v.string()),
-    searchMorphology: v.optional(v.string()),
+    searchTotalClassificationsMin: v.optional(v.string()),
+    searchTotalClassificationsMax: v.optional(v.string()),
     searchAwesome: v.optional(v.boolean()),
     searchValidRedshift: v.optional(v.boolean()),
     searchVisibleNucleus: v.optional(v.boolean()),
@@ -68,310 +63,195 @@ export const browseGalaxies = query({
         hasNext: false,
         hasPrevious: false,
         totalPages: 0,
+        aggregatesPopulated: false,
+        currentBounds: {
+          ra: { min: null, max: null },
+          dec: { min: null, max: null },
+          reff: { min: null, max: null },
+          q: { min: null, max: null },
+          pa: { min: null, max: null },
+          mag: { min: null, max: null },
+          mean_mue: { min: null, max: null },
+          nucleus: { hasNucleus: false, totalCount: 0 },
+        },
+        cursor: null as any,
+        isDone: true,
       };
     }
+    const {
+      cursor = null,
+      numItems = 100,
+      sortBy = "numericId",
+      sortOrder = "asc",
+      filter,
+      searchTerm,
+      searchId,
+      searchRaMin,
+      searchRaMax,
+      searchDecMin,
+      searchDecMax,
+      searchReffMin,
+      searchReffMax,
+      searchQMin,
+      searchQMax,
+      searchPaMin,
+      searchPaMax,
+      searchMagMin,
+      searchMagMax,
+      searchMeanMueMin,
+      searchMeanMueMax,
+      searchNucleus,
+      searchTotalClassificationsMin,
+      searchTotalClassificationsMax,
+      searchAwesome,
+      searchValidRedshift,
+      searchVisibleNucleus,
+    } = args;
 
-        const { offset = 0, numItems = 100, sortBy = "id", sortOrder = "asc", filter, searchTerm, searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax, searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchMagMin, searchMagMax, searchMeanMueMin, searchMeanMueMax, searchNucleus, searchClassificationStatus, searchLsbClass, searchMorphology, searchAwesome, searchValidRedshift, searchVisibleNucleus } = args;
+    type Sortable = "numericId" | "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus";
+    const allowedSort: Record<Sortable, { index: string; field: string }> = {
+      numericId: { index: "by_numeric_id", field: "numericId" },
+      id: { index: "by_external_id", field: "id" },
+      ra: { index: "by_ra", field: "ra" },
+      dec: { index: "by_dec", field: "dec" },
+      reff: { index: "by_reff", field: "reff" },
+      q: { index: "by_q", field: "q" },
+      pa: { index: "by_pa", field: "pa" },
+      mag: { index: "by_mag", field: "mag" },
+      mean_mue: { index: "by_mean_mue", field: "mean_mue" },
+      nucleus: { index: "by_nucleus", field: "nucleus" },
+    };
+    const requestedSort = (Object.keys(allowedSort) as Sortable[]).includes(sortBy as Sortable)
+      ? (sortBy as Sortable)
+      : "numericId";
 
-    const aggregate = getGalaxiesAggregate(sortBy);
+    // Pick best index starting with the sort key and optionally second fields based on filters
+    let indexName = allowedSort[requestedSort].index;
+    let indexBuilder: ((qb: any) => any) | undefined = undefined;
 
-    // Get total count first to check if aggregates are populated
-    const aggregateCount = await aggregate.count(ctx);
-    const actualDbCount = await ctx.db.query("galaxies").collect().then(g => g.length);
-    
-    // Use actual DB count if aggregates seem stale (more than 10% difference)
-    const countDifference = Math.abs(aggregateCount - actualDbCount);
-    const percentDifference = actualDbCount > 0 ? (countDifference / actualDbCount) * 100 : 0;
-    const useActualCount = aggregateCount > 0 && percentDifference > 10;
-    
-    let galaxies: any[] = [];
-    let actualTotal = useActualCount ? actualDbCount : aggregateCount;
+    const applyRange = (qb: any, field: string, min?: string, max?: string) => {
+      let out = qb;
+      if (min) out = out.gte(field, parseFloat(min));
+      if (max) out = out.lte(field, parseFloat(max));
+      return out;
+    };
 
-    if (aggregateCount === 0) {
-      // Aggregates are empty, fall back to collecting all galaxies and sorting in memory
-      // This handles the case where aggregates haven't been built yet
-      const allGalaxies = await ctx.db.query("galaxies").collect();
-      
-      let sortedGalaxies: any[] = [];
-      switch (sortBy) {
-        case "id":
-          sortedGalaxies = allGalaxies.sort((a, b) => 
-            sortOrder === "asc" ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id)
-          );
-          break;
-        case "ra":
-          sortedGalaxies = allGalaxies.sort((a, b) => 
-            sortOrder === "asc" ? a.ra - b.ra : b.ra - a.ra
-          );
-          break;
-        case "dec":
-          sortedGalaxies = allGalaxies.sort((a, b) => 
-            sortOrder === "asc" ? a.dec - b.dec : b.dec - a.dec
-          );
-          break;
-        case "reff":
-          sortedGalaxies = allGalaxies.sort((a, b) => 
-            sortOrder === "asc" ? a.reff - b.reff : b.reff - a.reff
-          );
-          break;
-        case "q":
-          sortedGalaxies = allGalaxies.sort((a, b) => 
-            sortOrder === "asc" ? a.q - b.q : b.q - a.q
-          );
-          break;
-        case "pa":
-          sortedGalaxies = allGalaxies.sort((a, b) => 
-            sortOrder === "asc" ? a.pa - b.pa : b.pa - a.pa
-          );
-          break;
-        case "mag":
-          sortedGalaxies = allGalaxies.sort((a, b) => {
-            const aVal = a.mag ?? Number.MAX_VALUE;
-            const bVal = b.mag ?? Number.MAX_VALUE;
-            return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-          });
-          break;
-        case "mean_mue":
-          sortedGalaxies = allGalaxies.sort((a, b) => {
-            const aVal = a.mean_mue ?? Number.MAX_VALUE;
-            const bVal = b.mean_mue ?? Number.MAX_VALUE;
-            return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-          });
-          break;
-        case "nucleus":
-          sortedGalaxies = allGalaxies.sort((a, b) => 
-            sortOrder === "asc" ? (a.nucleus ? 1 : 0) - (b.nucleus ? 1 : 0) : (b.nucleus ? 1 : 0) - (a.nucleus ? 1 : 0)
-          );
-          break;
-        case "_creationTime":
-          sortedGalaxies = allGalaxies.sort((a, b) => 
-            sortOrder === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime
-          );
-          break;
-        case "numericId":
-          // For numericId sorting in fallback, we need to join with galaxyIds
-          const allGalaxyIds = await ctx.db.query("galaxyIds").collect();
-          const galaxyIdMap = new Map(allGalaxyIds.map(gid => [gid.id, gid.numericId]));
-          sortedGalaxies = allGalaxies
-            .map(galaxy => ({ ...galaxy, numericId: galaxyIdMap.get(galaxy.id) || BigInt(0) }))
-            .sort((a, b) => {
-              const aId = a.numericId as bigint;
-              const bId = b.numericId as bigint;
-              return sortOrder === "asc" ? (aId < bId ? -1 : aId > bId ? 1 : 0) : (aId > bId ? -1 : aId < bId ? 1 : 0);
-            });
-          break;
-      }
-      
-      // Apply offset and limit
-      galaxies = sortedGalaxies.slice(offset, offset + numItems);
-      
-      // Get actual total count
-      actualTotal = allGalaxies.length;
-    } else {
-      // Use aggregates for efficient pagination
-      try {
-        // Get the key at the specified offset
-        const { key } = await aggregate.at(ctx, offset);
-
-        // Build query based on sort field
-        switch (sortBy) {
-          case "id":
-            galaxies = await ctx.db.query("galaxies")
-              .withIndex("by_external_id", q => q.gte("id", key as string))
-              .order(sortOrder)
-              .take(numItems);
-            break;
-          case "ra":
-            galaxies = await ctx.db.query("galaxies")
-              .withIndex("by_ra", q => q.gte("ra", key as number))
-              .order(sortOrder)
-              .take(numItems);
-            break;
-          case "dec":
-            galaxies = await ctx.db.query("galaxies")
-              .withIndex("by_dec", q => q.gte("dec", key as number))
-              .order(sortOrder)
-              .take(numItems);
-            break;
-          case "reff":
-            galaxies = await ctx.db.query("galaxies")
-              .withIndex("by_reff", q => q.gte("reff", key as number))
-              .order(sortOrder)
-              .take(numItems);
-            break;
-          case "q":
-            galaxies = await ctx.db.query("galaxies")
-              .withIndex("by_q", q => q.gte("q", key as number))
-              .order(sortOrder)
-              .take(numItems);
-            break;
-          case "pa":
-            galaxies = await ctx.db.query("galaxies")
-              .withIndex("by_pa", q => q.gte("pa", key as number))
-              .order(sortOrder)
-              .take(numItems);
-            break;
-          case "mag":
-            galaxies = await ctx.db.query("galaxies")
-              .withIndex("by_mag", q => q.gte("mag", key as number))
-              .order(sortOrder)
-              .take(numItems);
-            break;
-          case "mean_mue":
-            galaxies = await ctx.db.query("galaxies")
-              .withIndex("by_mean_mue", q => q.gte("mean_mue", key as number))
-              .order(sortOrder)
-              .take(numItems);
-            break;
-          case "nucleus":
-            galaxies = await ctx.db.query("galaxies")
-              .withIndex("by_nucleus", q => q.gte("nucleus", key as boolean))
-              .order(sortOrder)
-              .take(numItems);
-            break;
-          case "_creationTime":
-            // For _creationTime, we need to collect all and sort in memory since no index supports gte on _creationTime
-            const allGalaxies = await ctx.db.query("galaxies").collect();
-            const sortedByCreationTime = allGalaxies
-              .sort((a, b) => sortOrder === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime)
-              .slice(offset, offset + numItems);
-            galaxies = sortedByCreationTime;
-            break;
-          case "numericId":
-            // For numericId, query galaxyIds and join with galaxies
-            const galaxyIdRecords = await ctx.db.query("galaxyIds")
-              .withIndex("by_numeric_id", q => q.gte("numericId", key as bigint))
-              .order(sortOrder)
-              .take(numItems);
-            // Join with galaxies to get full galaxy data
-            galaxies = await Promise.all(galaxyIdRecords.map(async (galaxyIdRecord) => {
-              const galaxy = await ctx.db.get(galaxyIdRecord.galaxyRef);
-              return galaxy ? { ...galaxy, numericId: galaxyIdRecord.numericId } : null;
-            })).then(results => results.filter(Boolean));
-            break;
-        }
-      } catch (error) {
-        // If aggregate fails for any reason, fall back to regular pagination
-        console.warn("Aggregate query failed, falling back to regular pagination:", error);
-        const fallbackResult = await ctx.db.query("galaxies")
-          .withIndex("by_external_id")
-          .order(sortOrder)
-          .paginate({ numItems, cursor: null });
-        galaxies = fallbackResult.page;
-        actualTotal = await ctx.db.query("galaxies").collect().then(g => g.length);
-      }
-    }
-
-    // Apply search filtering if needed (range-based search)
-    let searchFilteredGalaxies: any[] = [];
-    let searchFilteredTotal = actualTotal;
-    
-    if (searchId || searchRaMin || searchRaMax || searchDecMin || searchDecMax || searchReffMin || searchReffMax || searchQMin || searchQMax || searchPaMin || searchPaMax || searchMagMin || searchMagMax || searchMeanMueMin || searchMeanMueMax || searchNucleus !== undefined || searchTerm || searchClassificationStatus || searchLsbClass || searchMorphology || searchAwesome !== undefined || searchValidRedshift !== undefined || searchVisibleNucleus !== undefined) {
-      // When searching, we need to filter the entire dataset before pagination
-      // Fall back to collecting all galaxies and filtering in memory
-      const allGalaxies = await ctx.db.query("galaxies").collect();
-      const allGalaxyIds = await ctx.db.query("galaxyIds").collect();
-      const galaxyIdMap = new Map(allGalaxyIds.map(gid => [gid.id, gid.numericId]));
-      
-      // Join galaxies with numericId
-      const galaxiesWithIds = allGalaxies.map(galaxy => ({
-        ...galaxy,
-        numericId: galaxyIdMap.get(galaxy.id) || BigInt(0)
-      }));
-      
-      searchFilteredGalaxies = galaxiesWithIds.filter(g => {
-        // Check each search field for range or exact match
-        if (searchId && g.id !== searchId.trim()) return false;
-        
-        // RA range search
-        if (searchRaMin && g.ra < parseFloat(searchRaMin)) return false;
-        if (searchRaMax && g.ra > parseFloat(searchRaMax)) return false;
-        
-        // Dec range search
-        if (searchDecMin && g.dec < parseFloat(searchDecMin)) return false;
-        if (searchDecMax && g.dec > parseFloat(searchDecMax)) return false;
-        
-        // Reff range search
-        if (searchReffMin && g.reff < parseFloat(searchReffMin)) return false;
-        if (searchReffMax && g.reff > parseFloat(searchReffMax)) return false;
-        
-        // Q range search
-        if (searchQMin && g.q < parseFloat(searchQMin)) return false;
-        if (searchQMax && g.q > parseFloat(searchQMax)) return false;
-        
-        // PA range search
-        if (searchPaMin && g.pa < parseFloat(searchPaMin)) return false;
-        if (searchPaMax && g.pa > parseFloat(searchPaMax)) return false;
-        
-        // Mag range search
-        if (searchMagMin && g.mag !== undefined && g.mag < parseFloat(searchMagMin)) return false;
-        if (searchMagMax && g.mag !== undefined && g.mag > parseFloat(searchMagMax)) return false;
-        
-        // Mean Mue range search
-        if (searchMeanMueMin && g.mean_mue !== undefined && g.mean_mue < parseFloat(searchMeanMueMin)) return false;
-        if (searchMeanMueMax && g.mean_mue !== undefined && g.mean_mue > parseFloat(searchMeanMueMax)) return false;
-        
-        // Nucleus boolean search
+    switch (requestedSort) {
+      case "numericId":
         if (searchNucleus !== undefined) {
-          if (searchNucleus === true && g.nucleus !== true) return false;
-          if (searchNucleus === false && g.nucleus === true) return false;
+          indexName = "by_numericId_nucleus";
+          indexBuilder = (qb) => qb.eq("nucleus", !!searchNucleus);
+        } else if (searchMagMin || searchMagMax) {
+          indexName = "by_numericId_mag";
+        } else if (searchMeanMueMin || searchMeanMueMax) {
+          indexName = "by_numericId_mean_mue";
+        } else if (searchQMin || searchQMax) {
+          indexName = "by_numericId_q";
+        } else if (searchReffMin || searchReffMax) {
+          indexName = "by_numericId_reff";
         }
-        
-        // Backward compatibility: fuzzy search on old searchTerm field
-        if (searchTerm && searchTerm.trim()) {
-          const term = searchTerm.toLowerCase().trim();
-          return g.id.toLowerCase().includes(term) ||
-                 g.ra.toString().includes(term) ||
-                 g.dec.toString().includes(term);
+        break;
+      case "ra":
+        if (searchDecMin || searchDecMax) {
+          indexName = "by_ra_dec";
+          indexBuilder = (qb) => applyRange(qb, "ra", searchRaMin, searchRaMax);
+        } else if (searchRaMin || searchRaMax) {
+          indexBuilder = (qb) => applyRange(qb, "ra", searchRaMin, searchRaMax);
         }
-        
-        return true;
-      });
-      
-      searchFilteredTotal = searchFilteredGalaxies.length;
-      
-      // Apply sorting to search results
-      searchFilteredGalaxies = searchFilteredGalaxies.sort((a, b) => {
-        switch (sortBy) {
-          case "id":
-            return sortOrder === "asc" ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
-          case "ra":
-            return sortOrder === "asc" ? a.ra - b.ra : b.ra - a.ra;
-          case "dec":
-            return sortOrder === "asc" ? a.dec - b.dec : b.dec - a.dec;
-          case "reff":
-            return sortOrder === "asc" ? a.reff - b.reff : b.reff - a.reff;
-          case "q":
-            return sortOrder === "asc" ? a.q - b.q : b.q - a.q;
-          case "pa":
-            return sortOrder === "asc" ? a.pa - b.pa : b.pa - a.pa;
-          case "mag":
-            const aMag = a.mag ?? Number.MAX_VALUE;
-            const bMag = b.mag ?? Number.MAX_VALUE;
-            return sortOrder === "asc" ? aMag - bMag : bMag - aMag;
-          case "mean_mue":
-            const aMue = a.mean_mue ?? Number.MAX_VALUE;
-            const bMue = b.mean_mue ?? Number.MAX_VALUE;
-            return sortOrder === "asc" ? aMue - bMue : bMue - aMue;
-          case "nucleus":
-            return sortOrder === "asc" ? (a.nucleus ? 1 : 0) - (b.nucleus ? 1 : 0) : (b.nucleus ? 1 : 0) - (a.nucleus ? 1 : 0);
-          case "_creationTime":
-            return sortOrder === "asc" ? a._creationTime - b._creationTime : b._creationTime - a._creationTime;
-          case "numericId":
-            const aNumId = a.numericId as bigint;
-            const bNumId = b.numericId as bigint;
-            return sortOrder === "asc" ? (aNumId < bNumId ? -1 : aNumId > bNumId ? 1 : 0) : (aNumId > bNumId ? -1 : aNumId < bNumId ? 1 : 0);
-          default:
-            return 0;
+        break;
+      case "reff":
+        if (searchMeanMueMin || searchMeanMueMax) {
+          indexName = "by_reff_mean_mue";
+          indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
+        } else if (searchMagMin || searchMagMax) {
+          indexName = "by_reff_mag";
+          indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
+        } else if (searchReffMin || searchReffMax) {
+          indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
         }
-      });
-      
-      // Apply pagination to search results
-      searchFilteredGalaxies = searchFilteredGalaxies.slice(offset, offset + numItems);
+        break;
+      case "mag":
+        if (searchReffMin || searchReffMax) {
+          indexName = "by_mag_reff";
+          indexBuilder = (qb) => applyRange(qb, "mag", searchMagMin, searchMagMax);
+        } else if (searchMagMin || searchMagMax) {
+          indexBuilder = (qb) => applyRange(qb, "mag", searchMagMin, searchMagMax);
+        }
+        break;
+      case "mean_mue":
+        if (searchReffMin || searchReffMax) {
+          indexName = "by_mean_mue_reff";
+          indexBuilder = (qb) => applyRange(qb, "mean_mue", searchMeanMueMin, searchMeanMueMax);
+        } else if (searchMeanMueMin || searchMeanMueMax) {
+          indexBuilder = (qb) => applyRange(qb, "mean_mue", searchMeanMueMin, searchMeanMueMax);
+        }
+        break;
+      case "q":
+        if (searchReffMin || searchReffMax) {
+          indexName = "by_q_reff";
+          indexBuilder = (qb) => applyRange(qb, "q", searchQMin, searchQMax);
+        } else if (searchQMin || searchQMax) {
+          indexBuilder = (qb) => applyRange(qb, "q", searchQMin, searchQMax);
+        }
+        break;
+      case "nucleus":
+        if (searchNucleus !== undefined) {
+          indexBuilder = (qb) => qb.eq("nucleus", !!searchNucleus);
+          if (searchMagMin || searchMagMax) indexName = "by_nucleus_mag";
+          else if (searchMeanMueMin || searchMeanMueMax) indexName = "by_nucleus_mean_mue";
+          else if (searchQMin || searchQMax) indexName = "by_nucleus_q";
+        }
+        break;
+      case "id":
+        if (searchId) {
+          indexBuilder = (qb) => qb.eq("id", searchId.trim());
+        }
+        break;
+      case "dec":
+        if (searchDecMin || searchDecMax) {
+          indexBuilder = (qb) => applyRange(qb, "dec", searchDecMin, searchDecMax);
+        }
+        break;
+      case "pa":
+        if (searchPaMin || searchPaMax) {
+          indexBuilder = (qb) => applyRange(qb, "pa", searchPaMin, searchPaMax);
+        }
+        break;
     }
 
-    // Enrich with classification and skip data
-    const galaxiesToEnrich = searchFilteredGalaxies.length > 0 ? searchFilteredGalaxies : galaxies;
+    // Start query with index and sort order
+    let qBase = ctx.db.query("galaxies");
+    let q: any = indexBuilder
+      ? qBase.withIndex(indexName as any, indexBuilder as any)
+      : qBase.withIndex(indexName as any);
+    q = q.order(sortOrder as any);
+
+    // Apply additional filters via chained .filter calls
+  if (searchId) q = q.filter((f: any) => f.eq(f.field("id"), searchId.trim()));
+  if (searchRaMin) q = q.filter((f: any) => f.gte(f.field("ra"), parseFloat(searchRaMin)));
+  if (searchRaMax) q = q.filter((f: any) => f.lte(f.field("ra"), parseFloat(searchRaMax)));
+  if (searchDecMin) q = q.filter((f: any) => f.gte(f.field("dec"), parseFloat(searchDecMin)));
+  if (searchDecMax) q = q.filter((f: any) => f.lte(f.field("dec"), parseFloat(searchDecMax)));
+  if (searchReffMin) q = q.filter((f: any) => f.gte(f.field("reff"), parseFloat(searchReffMin)));
+  if (searchReffMax) q = q.filter((f: any) => f.lte(f.field("reff"), parseFloat(searchReffMax)));
+  if (searchQMin) q = q.filter((f: any) => f.gte(f.field("q"), parseFloat(searchQMin)));
+  if (searchQMax) q = q.filter((f: any) => f.lte(f.field("q"), parseFloat(searchQMax)));
+  if (searchPaMin) q = q.filter((f: any) => f.gte(f.field("pa"), parseFloat(searchPaMin)));
+  if (searchPaMax) q = q.filter((f: any) => f.lte(f.field("pa"), parseFloat(searchPaMax)));
+  if (searchMagMin) q = q.filter((f: any) => f.gte(f.field("mag"), parseFloat(searchMagMin)));
+  if (searchMagMax) q = q.filter((f: any) => f.lte(f.field("mag"), parseFloat(searchMagMax)));
+  if (searchMeanMueMin) q = q.filter((f: any) => f.gte(f.field("mean_mue"), parseFloat(searchMeanMueMin)));
+  if (searchMeanMueMax) q = q.filter((f: any) => f.lte(f.field("mean_mue"), parseFloat(searchMeanMueMax)));
+  if (searchNucleus !== undefined) q = q.filter((f: any) => f.eq(f.field("nucleus"), !!searchNucleus));
+
+    const { page, isDone, continueCursor } = await q.paginate({ numItems, cursor: cursor || null });
+    let galaxies: any[] = page;
+
+    // We rely on server-side filtering above; no additional in-memory filtering/pagination here
+    let searchFilteredTotal = 0;
+
+    // Enrich with classification and skip data - REMOVED: no joins
+    const galaxiesToEnrich = galaxies;
     
     // Ensure all galaxies have numericId
     const galaxiesWithIds = await Promise.all(galaxiesToEnrich.map(async (galaxy) => {
@@ -383,56 +263,25 @@ export const browseGalaxies = query({
       return { ...galaxy, numericId: galaxyIdRecord ? galaxyIdRecord.numericId : BigInt(0) };
     }));
     
-    const enriched = await Promise.all(galaxiesWithIds.map(async (galaxy) => {
-      const classification = await ctx.db
-        .query("classifications")
-        .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxy.id))
-        .unique();
-      const skipped = await ctx.db
-        .query("skippedGalaxies")
-        .withIndex("by_user_and_galaxy", (q) => q.eq("userId", userId).eq("galaxyExternalId", galaxy.id))
-        .unique();
-      const status = classification ? "classified" : skipped ? "skipped" : "unclassified";
-      return { ...galaxy, classification, isSkipped: !!skipped, status };
-    }));
+    const enriched = galaxiesWithIds.map((galaxy) => {
+      // No classification/skipped enrichment
+      const status = (galaxy.totalClassifications || 0) > 0 ? "classified" : "unclassified";
+      return { ...galaxy, status };
+    });
 
     // Apply status filters
     let finalGalaxies = enriched;
     
     if (filter === "classified") {
-      finalGalaxies = enriched.filter(g => g.status === "classified");
-      // Get total count of user's classifications
-      const classificationCount = await ctx.db
-        .query("classifications")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .collect()
-        .then(classifications => classifications.length);
-      searchFilteredTotal = classificationCount;
+      finalGalaxies = enriched.filter(g => (g.totalClassifications || 0) > 0);
+      // Get total count of classified galaxies (those with totalClassifications > 0)
+      // For simplicity, set to length; in future, could compute total
+      searchFilteredTotal = finalGalaxies.length;
     }
     else if (filter === "unclassified") {
-      finalGalaxies = enriched.filter(g => g.status === "unclassified");
-      // Get total count of galaxies that are not classified or skipped by this user
-      const [classificationCount, skippedCount] = await Promise.all([
-        ctx.db.query("classifications")
-          .withIndex("by_user", (q) => q.eq("userId", userId))
-          .collect()
-          .then(classifications => classifications.length),
-        ctx.db.query("skippedGalaxies")
-          .withIndex("by_user", (q) => q.eq("userId", userId))
-          .collect()
-          .then(skipped => skipped.length)
-      ]);
-      searchFilteredTotal = actualTotal - classificationCount - skippedCount;
-    }
-    else if (filter === "skipped") {
-      finalGalaxies = enriched.filter(g => g.status === "skipped");
-      // Get total count of user's skipped galaxies
-      const skippedCount = await ctx.db
-        .query("skippedGalaxies")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .collect()
-        .then(skipped => skipped.length);
-      searchFilteredTotal = skippedCount;
+      finalGalaxies = enriched.filter(g => (g.totalClassifications || 0) === 0);
+      // Total unknown without full scan; leave as 0
+      searchFilteredTotal = 0;
     }
     else if (filter === "my_sequence") {
       // Get user's sequence
@@ -453,35 +302,11 @@ export const browseGalaxies = query({
     }
 
     // Apply classification-based search filters
-    if (searchClassificationStatus || searchLsbClass || searchMorphology || searchAwesome !== undefined || searchValidRedshift !== undefined || searchVisibleNucleus !== undefined) {
+    if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
       finalGalaxies = finalGalaxies.filter(g => {
-        // Classification status search
-        if (searchClassificationStatus && g.status !== searchClassificationStatus) return false;
-        
-        // Only apply classification field searches if galaxy has a classification
-        if (!g.classification) {
-          // If searching for specific classification fields but galaxy has no classification, exclude it
-          if (searchLsbClass || searchMorphology || searchAwesome !== undefined || searchValidRedshift !== undefined || searchVisibleNucleus !== undefined) {
-            return false;
-          }
-          return true;
-        }
-        
-        // LSB class search
-        if (searchLsbClass && g.classification.lsb_class !== searchLsbClass) return false;
-        
-        // Morphology search
-        if (searchMorphology && g.classification.morphology !== searchMorphology) return false;
-        
-        // Awesome flag search
-        if (searchAwesome !== undefined && g.classification.awesome_flag !== searchAwesome) return false;
-        
-        // Valid redshift search
-        if (searchValidRedshift !== undefined && g.classification.valid_redshift !== searchValidRedshift) return false;
-        
-        // Visible nucleus search
-        if (searchVisibleNucleus !== undefined && g.classification.visible_nucleus !== searchVisibleNucleus) return false;
-        
+        const total = g.totalClassifications || 0;
+        if (searchTotalClassificationsMin && total < parseInt(searchTotalClassificationsMin)) return false;
+        if (searchTotalClassificationsMax && total > parseInt(searchTotalClassificationsMax)) return false;
         return true;
       });
       
@@ -490,10 +315,10 @@ export const browseGalaxies = query({
     }
 
     // Get total count for pagination info
-    const total = searchFilteredTotal;
-    const totalPages = Math.ceil(total / numItems);
-    const hasNext = offset + numItems < total;
-    const hasPrevious = offset > 0;
+    const total = searchFilteredTotal; // unknown overall; 0 unless a specific narrow search was performed
+    const totalPages = 0;
+    const hasNext = !isDone;
+    const hasPrevious = false; // client tracks previous cursors
 
     // Calculate bounds of current result set for placeholders
     const resultGalaxies = finalGalaxies;
@@ -547,7 +372,9 @@ export const browseGalaxies = query({
       hasNext,
       hasPrevious,
       totalPages,
-      aggregatesPopulated: aggregateCount > 0,
+      aggregatesPopulated: false,
+      cursor: continueCursor,
+      isDone,
       currentBounds,
     };
   },

@@ -170,9 +170,6 @@ export function GalaxyBrowserTableView({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
               Status
             </th>
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
-              Classification
-            </th>
             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
               Action
             </th>
@@ -226,24 +223,6 @@ export function GalaxyBrowserTableView({
               </td>
               <td className="px-6 py-4 whitespace-nowrap">
                 {getStatusBadge(galaxy.status)}
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                {galaxy.classification ? (
-                  <div className="space-y-1">
-                    <div>LSB: {galaxy.classification.lsb_class}</div>
-                    <div>Morph: {galaxy.classification.morphology}</div>
-                    <div className="flex space-x-1">
-                      {galaxy.classification.awesome_flag && (
-                        <span className="text-yellow-600 dark:text-yellow-400" title="Awesome">⭐</span>
-                      )}
-                      {galaxy.classification.valid_redshift && (
-                        <span className="text-blue-600 dark:text-blue-400" title="Valid redshift">🔴</span>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <span className="text-gray-400">—</span>
-                )}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right">
                 <Link

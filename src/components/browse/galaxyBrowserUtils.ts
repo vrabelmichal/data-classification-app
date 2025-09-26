@@ -121,9 +121,8 @@ export const hasAnySearchValues = (values: Record<string, any>): boolean => {
     values.searchPaMin !== "" ||
     values.searchPaMax !== "" ||
     values.searchNucleus !== undefined ||
-    values.searchClassificationStatus !== undefined ||
-    values.searchLsbClass !== "" ||
-    values.searchMorphology !== "" ||
+    values.searchTotalClassificationsMin !== "" ||
+    values.searchTotalClassificationsMax !== "" ||
     values.searchAwesome !== undefined ||
     values.searchValidRedshift !== undefined ||
     values.searchVisibleNucleus !== undefined

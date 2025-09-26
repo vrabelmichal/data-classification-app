@@ -4,11 +4,11 @@ import { GalaxyBrowserSearchForm } from "./GalaxyBrowserSearchForm";
 import { GalaxyBrowserControls } from "./GalaxyBrowserControls";
 import { GalaxyBrowserTableView } from "./GalaxyBrowserTableView";
 import { GalaxyBrowserMobileCards } from "./GalaxyBrowserMobileCards";
-import { GalaxyBrowserPagination } from "./GalaxyBrowserPagination";
+// Cursor-based pagination handled in controls; standalone pagination removed
 
-export type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus" | "_creationTime" | "numericId";
+export type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus" | "numericId";
 export type SortOrder = "asc" | "desc";
-export type FilterType = "all" | "my_sequence" | "classified" | "unclassified" | "skipped";
+export type FilterType = "all" | "my_sequence" | "classified" | "unclassified";
 
 export function GalaxyBrowser() {
   usePageTitle("Browse Galaxies");
@@ -16,8 +16,6 @@ export function GalaxyBrowser() {
   const {
     // State
     page,
-    setPage,
-    totalPages,
     hasPrevious,
     hasNext,
 
@@ -30,8 +28,8 @@ export function GalaxyBrowser() {
 
     // Handlers
     handleSort,
-    handleJumpToPage,
-    handleJumpKeyPress,
+    goPrev,
+    goNext,
 
     // Search form props
     searchId,
@@ -66,12 +64,10 @@ export function GalaxyBrowser() {
     setSearchMeanMueMax,
     searchNucleus,
     setSearchNucleus,
-    searchClassificationStatus,
-    setSearchClassificationStatus,
-    searchLsbClass,
-    setSearchLsbClass,
-    searchMorphology,
-    setSearchMorphology,
+    searchTotalClassificationsMin,
+    setSearchTotalClassificationsMin,
+    searchTotalClassificationsMax,
+    setSearchTotalClassificationsMax,
     searchAwesome,
     setSearchAwesome,
     searchValidRedshift,
@@ -85,7 +81,6 @@ export function GalaxyBrowser() {
     clearSearch,
     getPlaceholderText,
     getInputClass,
-    classificationOptions,
 
     // Controls props
     filter,
@@ -96,8 +91,7 @@ export function GalaxyBrowser() {
     setSortOrder,
     pageSize,
     setPageSize,
-    jumpToPage,
-    setJumpToPage,
+    // cursor-based navigation handled in controls
   } = useGalaxyBrowser();
 
   if (!galaxyData) {
@@ -148,12 +142,10 @@ export function GalaxyBrowser() {
               setSearchMeanMueMax={setSearchMeanMueMax}
               searchNucleus={searchNucleus}
               setSearchNucleus={setSearchNucleus}
-              searchClassificationStatus={searchClassificationStatus}
-              setSearchClassificationStatus={setSearchClassificationStatus}
-              searchLsbClass={searchLsbClass}
-              setSearchLsbClass={setSearchLsbClass}
-              searchMorphology={searchMorphology}
-              setSearchMorphology={setSearchMorphology}
+              searchTotalClassificationsMin={searchTotalClassificationsMin}
+              setSearchTotalClassificationsMin={setSearchTotalClassificationsMin}
+              searchTotalClassificationsMax={searchTotalClassificationsMax}
+              setSearchTotalClassificationsMax={setSearchTotalClassificationsMax}
               searchAwesome={searchAwesome}
               setSearchAwesome={setSearchAwesome}
               searchValidRedshift={searchValidRedshift}
@@ -167,7 +159,6 @@ export function GalaxyBrowser() {
               clearSearch={clearSearch}
               getPlaceholderText={getPlaceholderText}
               getInputClass={getInputClass}
-              classificationOptions={classificationOptions}
             />
 
             <GalaxyBrowserControls
@@ -180,12 +171,10 @@ export function GalaxyBrowser() {
               pageSize={pageSize}
               setPageSize={setPageSize}
               page={page}
-              setPage={setPage}
-              totalPages={totalPages}
-              jumpToPage={jumpToPage}
-              setJumpToPage={setJumpToPage}
-              handleJumpToPage={handleJumpToPage}
-              handleJumpKeyPress={handleJumpKeyPress}
+              hasPrevious={hasPrevious}
+              hasNext={hasNext}
+              goPrev={goPrev}
+              goNext={goNext}
               galaxyData={galaxyData}
             />
           </div>
@@ -246,12 +235,10 @@ export function GalaxyBrowser() {
               setSearchMeanMueMax={setSearchMeanMueMax}
               searchNucleus={searchNucleus}
               setSearchNucleus={setSearchNucleus}
-              searchClassificationStatus={searchClassificationStatus}
-              setSearchClassificationStatus={setSearchClassificationStatus}
-              searchLsbClass={searchLsbClass}
-              setSearchLsbClass={setSearchLsbClass}
-              searchMorphology={searchMorphology}
-              setSearchMorphology={setSearchMorphology}
+              searchTotalClassificationsMin={searchTotalClassificationsMin}
+              setSearchTotalClassificationsMin={setSearchTotalClassificationsMin}
+              searchTotalClassificationsMax={searchTotalClassificationsMax}
+              setSearchTotalClassificationsMax={setSearchTotalClassificationsMax}
               searchAwesome={searchAwesome}
               setSearchAwesome={setSearchAwesome}
               searchValidRedshift={searchValidRedshift}
@@ -265,7 +252,6 @@ export function GalaxyBrowser() {
               clearSearch={clearSearch}
               getPlaceholderText={getPlaceholderText}
               getInputClass={getInputClass}
-              classificationOptions={classificationOptions}
             />
 
             <GalaxyBrowserControls
@@ -278,12 +264,10 @@ export function GalaxyBrowser() {
               pageSize={pageSize}
               setPageSize={setPageSize}
               page={page}
-              setPage={setPage}
-              totalPages={totalPages}
-              jumpToPage={jumpToPage}
-              setJumpToPage={setJumpToPage}
-              handleJumpToPage={handleJumpToPage}
-              handleJumpKeyPress={handleJumpKeyPress}
+              hasPrevious={hasPrevious}
+              hasNext={hasNext}
+              goPrev={goPrev}
+              goNext={goNext}
               galaxyData={galaxyData}
             />
           </div>
@@ -347,12 +331,10 @@ export function GalaxyBrowser() {
           setSearchMeanMueMax={setSearchMeanMueMax}
           searchNucleus={searchNucleus}
           setSearchNucleus={setSearchNucleus}
-          searchClassificationStatus={searchClassificationStatus}
-          setSearchClassificationStatus={setSearchClassificationStatus}
-          searchLsbClass={searchLsbClass}
-          setSearchLsbClass={setSearchLsbClass}
-          searchMorphology={searchMorphology}
-          setSearchMorphology={setSearchMorphology}
+          searchTotalClassificationsMin={searchTotalClassificationsMin}
+          setSearchTotalClassificationsMin={setSearchTotalClassificationsMin}
+          searchTotalClassificationsMax={searchTotalClassificationsMax}
+          setSearchTotalClassificationsMax={setSearchTotalClassificationsMax}
           searchAwesome={searchAwesome}
           setSearchAwesome={setSearchAwesome}
           searchValidRedshift={searchValidRedshift}
@@ -366,7 +348,6 @@ export function GalaxyBrowser() {
           clearSearch={clearSearch}
           getPlaceholderText={getPlaceholderText}
           getInputClass={getInputClass}
-          classificationOptions={classificationOptions}
         />
 
         <GalaxyBrowserControls
@@ -379,12 +360,10 @@ export function GalaxyBrowser() {
           pageSize={pageSize}
           setPageSize={setPageSize}
           page={page}
-          setPage={setPage}
-          totalPages={totalPages}
-          jumpToPage={jumpToPage}
-          setJumpToPage={setJumpToPage}
-          handleJumpToPage={handleJumpToPage}
-          handleJumpKeyPress={handleJumpKeyPress}
+          hasPrevious={hasPrevious}
+          hasNext={hasNext}
+          goPrev={goPrev}
+          goNext={goNext}
           galaxyData={galaxyData}
         />
       </div>
@@ -439,18 +418,7 @@ export function GalaxyBrowser() {
         />
       </div>
 
-      {/* Pagination */}
-      <GalaxyBrowserPagination
-        page={page}
-        totalPages={totalPages}
-        hasPrevious={hasPrevious}
-        hasNext={hasNext}
-        jumpToPage={jumpToPage}
-        setJumpToPage={setJumpToPage}
-        handleJumpToPage={handleJumpToPage}
-        handleJumpKeyPress={handleJumpKeyPress}
-        setPage={setPage}
-      />
+      {/* Cursor-based pagination is managed in controls */}
     </div>
   );
 }

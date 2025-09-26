@@ -8,14 +8,12 @@ import {
   hasFieldChanged,
   getInputClass,
   handleSort as handleSortUtil,
-  handleJumpToPage as handleJumpToPageUtil,
   hasAnySearchValues
 } from "./galaxyBrowserUtils";
 
 export interface UseGalaxyBrowserReturn {
   // State
   page: number;
-  setPage: (page: number) => void;
   pageSize: number;
   setPageSize: (size: number) => void;
   sortBy: SortField;
@@ -24,8 +22,8 @@ export interface UseGalaxyBrowserReturn {
   setSortOrder: (order: SortOrder) => void;
   filter: FilterType;
   setFilter: (filter: FilterType) => void;
-  jumpToPage: string;
-  setJumpToPage: (value: string) => void;
+  goNext: () => void;
+  goPrev: () => void;
 
   // Search state
   searchId: string;
@@ -60,12 +58,10 @@ export interface UseGalaxyBrowserReturn {
   setSearchMeanMueMax: (value: string) => void;
   searchNucleus: boolean | undefined;
   setSearchNucleus: (value: boolean | undefined) => void;
-  searchClassificationStatus: "classified" | "unclassified" | "skipped" | undefined;
-  setSearchClassificationStatus: (value: "classified" | "unclassified" | "skipped" | undefined) => void;
-  searchLsbClass: string;
-  setSearchLsbClass: (value: string) => void;
-  searchMorphology: string;
-  setSearchMorphology: (value: string) => void;
+  searchTotalClassificationsMin: string;
+  setSearchTotalClassificationsMin: (value: string) => void;
+  searchTotalClassificationsMax: string;
+  setSearchTotalClassificationsMax: (value: string) => void;
   searchAwesome: boolean | undefined;
   setSearchAwesome: (value: boolean | undefined) => void;
   searchValidRedshift: boolean | undefined;
@@ -79,12 +75,10 @@ export interface UseGalaxyBrowserReturn {
   // Queries
   galaxyData: any;
   searchBounds: any;
-  classificationOptions: any;
   userPrefs: any;
 
   // Computed values
   currentBounds: any;
-  totalPages: number;
   hasPrevious: boolean;
   hasNext: boolean;
   previewImageName: string;
@@ -97,8 +91,6 @@ export interface UseGalaxyBrowserReturn {
 
   // Handlers
   handleSort: (field: SortField) => void;
-  handleJumpToPage: () => void;
-  handleJumpKeyPress: (e: React.KeyboardEvent) => void;
   applySearch: () => void;
   clearSearch: () => void;
 }
@@ -110,7 +102,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const [sortBy, setSortBy] = useState<SortField>("numericId");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [filter, setFilter] = useState<FilterType>("all");
-  const [jumpToPage, setJumpToPage] = useState("");
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [cursorStack, setCursorStack] = useState<string[]>([]);
 
   // Search fields
   const [searchId, setSearchId] = useState("");
@@ -129,9 +122,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const [searchMeanMueMin, setSearchMeanMueMin] = useState("");
   const [searchMeanMueMax, setSearchMeanMueMax] = useState("");
   const [searchNucleus, setSearchNucleus] = useState<boolean | undefined>(undefined);
-  const [searchClassificationStatus, setSearchClassificationStatus] = useState<"classified" | "unclassified" | "skipped" | undefined>(undefined);
-  const [searchLsbClass, setSearchLsbClass] = useState<string>("");
-  const [searchMorphology, setSearchMorphology] = useState<string>("");
+  const [searchTotalClassificationsMin, setSearchTotalClassificationsMin] = useState("");
+  const [searchTotalClassificationsMax, setSearchTotalClassificationsMax] = useState("");
   const [searchAwesome, setSearchAwesome] = useState<boolean | undefined>(undefined);
   const [searchValidRedshift, setSearchValidRedshift] = useState<boolean | undefined>(undefined);
   const [searchVisibleNucleus, setSearchVisibleNucleus] = useState<boolean | undefined>(undefined);
@@ -156,9 +148,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const [appliedSearchMeanMueMin, setAppliedSearchMeanMueMin] = useState("");
   const [appliedSearchMeanMueMax, setAppliedSearchMeanMueMax] = useState("");
   const [appliedSearchNucleus, setAppliedSearchNucleus] = useState<boolean | undefined>(undefined);
-  const [appliedSearchClassificationStatus, setAppliedSearchClassificationStatus] = useState<"classified" | "unclassified" | "skipped" | undefined>(undefined);
-  const [appliedSearchLsbClass, setAppliedSearchLsbClass] = useState<string>("");
-  const [appliedSearchMorphology, setAppliedSearchMorphology] = useState<string>("");
+  const [appliedSearchTotalClassificationsMin, setAppliedSearchTotalClassificationsMin] = useState("");
+  const [appliedSearchTotalClassificationsMax, setAppliedSearchTotalClassificationsMax] = useState("");
   const [appliedSearchAwesome, setAppliedSearchAwesome] = useState<boolean | undefined>(undefined);
   const [appliedSearchValidRedshift, setAppliedSearchValidRedshift] = useState<boolean | undefined>(undefined);
   const [appliedSearchVisibleNucleus, setAppliedSearchVisibleNucleus] = useState<boolean | undefined>(undefined);
@@ -167,8 +158,9 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
   // Queries
   const galaxyData = useQuery(api.galaxies_browse.browseGalaxies, {
-    offset: (page - 1) * pageSize,
+    offset: 0,
     numItems: pageSize,
+    cursor: cursor ?? undefined,
     sortBy,
     sortOrder,
     filter,
@@ -188,23 +180,20 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     searchMeanMueMin: isSearchActive ? (appliedSearchMeanMueMin || undefined) : undefined,
     searchMeanMueMax: isSearchActive ? (appliedSearchMeanMueMax || undefined) : undefined,
     searchNucleus: isSearchActive ? appliedSearchNucleus : undefined,
-    searchClassificationStatus: isSearchActive ? appliedSearchClassificationStatus : undefined,
-    searchLsbClass: isSearchActive ? appliedSearchLsbClass : undefined,
-    searchMorphology: isSearchActive ? appliedSearchMorphology : undefined,
+    searchTotalClassificationsMin: isSearchActive ? (appliedSearchTotalClassificationsMin || undefined) : undefined,
+    searchTotalClassificationsMax: isSearchActive ? (appliedSearchTotalClassificationsMax || undefined) : undefined,
     searchAwesome: isSearchActive ? appliedSearchAwesome : undefined,
     searchValidRedshift: isSearchActive ? appliedSearchValidRedshift : undefined,
     searchVisibleNucleus: isSearchActive ? appliedSearchVisibleNucleus : undefined,
   });
 
   const searchBounds = useQuery(api.galaxies_browse.getGalaxySearchBounds);
-  const classificationOptions = useQuery(api.galaxies_browse.getClassificationSearchOptions);
   const userPrefs = useQuery(api.users.getUserPreferences);
 
   // Computed values
   const currentBounds = galaxyData?.currentBounds;
-  const totalPages = galaxyData ? Math.ceil(galaxyData.total / pageSize) : 1;
-  const hasPrevious = page > 1;
-  const hasNext = page < totalPages;
+  const hasPrevious = cursorStack.length > 0;
+  const hasNext = !!galaxyData?.hasNext;
 
   // Check if there are pending changes
   const hasPendingChanges = isSearchActive && (
@@ -224,9 +213,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     searchMeanMueMin !== appliedSearchMeanMueMin ||
     searchMeanMueMax !== appliedSearchMeanMueMax ||
     searchNucleus !== appliedSearchNucleus ||
-    searchClassificationStatus !== appliedSearchClassificationStatus ||
-    searchLsbClass !== appliedSearchLsbClass ||
-    searchMorphology !== appliedSearchMorphology ||
+    searchTotalClassificationsMin !== appliedSearchTotalClassificationsMin ||
+    searchTotalClassificationsMax !== appliedSearchTotalClassificationsMax ||
     searchAwesome !== appliedSearchAwesome ||
     searchValidRedshift !== appliedSearchValidRedshift ||
     searchVisibleNucleus !== appliedSearchVisibleNucleus
@@ -250,9 +238,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     searchMeanMueMin,
     searchMeanMueMax,
     searchNucleus,
-    searchClassificationStatus,
-    searchLsbClass,
-    searchMorphology,
+    searchTotalClassificationsMin,
+    searchTotalClassificationsMax,
     searchAwesome,
     searchValidRedshift,
     searchVisibleNucleus,
@@ -266,7 +253,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === "object") {
           if (parsed.pageSize && Number.isFinite(parsed.pageSize)) setPageSize(parsed.pageSize);
-          if (parsed.page && Number.isFinite(parsed.page)) setPage(parsed.page);
+          // page number is derived from cursor history now; don't restore it directly
           if (parsed.sortBy) setSortBy(parsed.sortBy);
           if (parsed.sortOrder) setSortOrder(parsed.sortOrder);
           if (parsed.filter) setFilter(parsed.filter);
@@ -336,17 +323,13 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
             setSearchNucleus(parsed.searchNucleus);
             setAppliedSearchNucleus(parsed.searchNucleus);
           }
-          if (parsed.searchClassificationStatus) {
-            setSearchClassificationStatus(parsed.searchClassificationStatus);
-            setAppliedSearchClassificationStatus(parsed.searchClassificationStatus);
+          if (typeof parsed.searchTotalClassificationsMin === "string") {
+            setSearchTotalClassificationsMin(parsed.searchTotalClassificationsMin);
+            setAppliedSearchTotalClassificationsMin(parsed.searchTotalClassificationsMin);
           }
-          if (typeof parsed.searchLsbClass === "string") {
-            setSearchLsbClass(parsed.searchLsbClass);
-            setAppliedSearchLsbClass(parsed.searchLsbClass);
-          }
-          if (typeof parsed.searchMorphology === "string") {
-            setSearchMorphology(parsed.searchMorphology);
-            setAppliedSearchMorphology(parsed.searchMorphology);
+          if (typeof parsed.searchTotalClassificationsMax === "string") {
+            setSearchTotalClassificationsMax(parsed.searchTotalClassificationsMax);
+            setAppliedSearchTotalClassificationsMax(parsed.searchTotalClassificationsMax);
           }
           if (typeof parsed.searchAwesome === "boolean") {
             setSearchAwesome(parsed.searchAwesome);
@@ -372,7 +355,6 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   useEffect(() => {
     if (!didHydrateFromStorage.current) return;
     const data = {
-      page,
       pageSize,
       sortBy,
       sortOrder,
@@ -393,9 +375,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
       searchMeanMueMin: appliedSearchMeanMueMin,
       searchMeanMueMax: appliedSearchMeanMueMax,
       searchNucleus: appliedSearchNucleus,
-      searchClassificationStatus: appliedSearchClassificationStatus,
-      searchLsbClass: appliedSearchLsbClass,
-      searchMorphology: appliedSearchMorphology,
+      searchTotalClassificationsMin: appliedSearchTotalClassificationsMin,
+      searchTotalClassificationsMax: appliedSearchTotalClassificationsMax,
       searchAwesome: appliedSearchAwesome,
       searchValidRedshift: appliedSearchValidRedshift,
       searchVisibleNucleus: appliedSearchVisibleNucleus,
@@ -405,11 +386,14 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     } catch (e) {
       console.warn("Failed to save galaxy browser settings", e);
     }
-  }, [page, pageSize, sortBy, sortOrder, filter, appliedSearchId, appliedSearchRaMin, appliedSearchRaMax, appliedSearchDecMin, appliedSearchDecMax, appliedSearchReffMin, appliedSearchReffMax, appliedSearchQMin, appliedSearchQMax, appliedSearchPaMin, appliedSearchPaMax, appliedSearchMagMin, appliedSearchMagMax, appliedSearchMeanMueMin, appliedSearchMeanMueMax, appliedSearchNucleus]);
+  }, [pageSize, sortBy, sortOrder, filter, appliedSearchId, appliedSearchRaMin, appliedSearchRaMax, appliedSearchDecMin, appliedSearchDecMax, appliedSearchReffMin, appliedSearchReffMax, appliedSearchQMin, appliedSearchQMax, appliedSearchPaMin, appliedSearchPaMax, appliedSearchMagMin, appliedSearchMagMax, appliedSearchMeanMueMin, appliedSearchMeanMueMax, appliedSearchNucleus, appliedSearchTotalClassificationsMin, appliedSearchTotalClassificationsMax]);
 
   useEffect(() => {
     if (!didHydrateFromStorage.current) return;
+    // reset cursor-based pagination
     setPage(1);
+    setCursor(null);
+    setCursorStack([]);
   }, [filter, sortBy, sortOrder, pageSize, isSearchActive]);
 
   useEffect(() => {
@@ -423,14 +407,22 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     handleSortUtil(field, sortBy, sortOrder, setSortBy, setSortOrder);
   };
 
-  const handleJumpToPage = () => {
-    handleJumpToPageUtil(jumpToPage, totalPages, setPage, setJumpToPage);
+  const goNext = () => {
+    if (!galaxyData?.hasNext) return;
+    setCursorStack((prev) => [...prev, cursor ?? ""]);
+    setCursor(galaxyData?.cursor ?? null);
+    setPage((p) => p + 1);
   };
 
-  const handleJumpKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter") {
-      handleJumpToPage();
-    }
+  const goPrev = () => {
+    if (cursorStack.length === 0) return;
+    setCursorStack((prev) => {
+      const copy = [...prev];
+      const prevCursor = copy.pop() ?? null;
+      setCursor(prevCursor || null);
+      return copy;
+    });
+    setPage((p) => Math.max(1, p - 1));
   };
 
   const applySearch = () => {
@@ -450,14 +442,15 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setAppliedSearchMeanMueMin(searchMeanMueMin);
     setAppliedSearchMeanMueMax(searchMeanMueMax);
     setAppliedSearchNucleus(searchNucleus);
-    setAppliedSearchClassificationStatus(searchClassificationStatus);
-    setAppliedSearchLsbClass(searchLsbClass);
-    setAppliedSearchMorphology(searchMorphology);
+    setAppliedSearchTotalClassificationsMin(searchTotalClassificationsMin);
+    setAppliedSearchTotalClassificationsMax(searchTotalClassificationsMax);
     setAppliedSearchAwesome(searchAwesome);
     setAppliedSearchValidRedshift(searchValidRedshift);
     setAppliedSearchVisibleNucleus(searchVisibleNucleus);
     setIsSearchActive(true);
     setPage(1);
+    setCursor(null);
+    setCursorStack([]);
   };
 
   const clearSearch = () => {
@@ -477,9 +470,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setSearchMeanMueMin("");
     setSearchMeanMueMax("");
     setSearchNucleus(undefined);
-    setSearchClassificationStatus(undefined);
-    setSearchLsbClass("");
-    setSearchMorphology("");
+    setSearchTotalClassificationsMin("");
+    setSearchTotalClassificationsMax("");
     setSearchAwesome(undefined);
     setSearchValidRedshift(undefined);
     setSearchVisibleNucleus(undefined);
@@ -499,14 +491,15 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setAppliedSearchMeanMueMin("");
     setAppliedSearchMeanMueMax("");
     setAppliedSearchNucleus(undefined);
-    setAppliedSearchClassificationStatus(undefined);
-    setAppliedSearchLsbClass("");
-    setAppliedSearchMorphology("");
+    setAppliedSearchTotalClassificationsMin("");
+    setAppliedSearchTotalClassificationsMax("");
     setAppliedSearchAwesome(undefined);
     setAppliedSearchValidRedshift(undefined);
     setAppliedSearchVisibleNucleus(undefined);
     setIsSearchActive(false);
     setPage(1);
+    setCursor(null);
+    setCursorStack([]);
   };
 
   // Utility functions
@@ -533,9 +526,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
       searchMeanMueMin,
       searchMeanMueMax,
       searchNucleus,
-      searchClassificationStatus,
-      searchLsbClass,
-      searchMorphology,
+      searchTotalClassificationsMin,
+      searchTotalClassificationsMax,
       searchAwesome,
       searchValidRedshift,
       searchVisibleNucleus,
@@ -556,9 +548,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
       searchMeanMueMin: appliedSearchMeanMueMin,
       searchMeanMueMax: appliedSearchMeanMueMax,
       searchNucleus: appliedSearchNucleus,
-      searchClassificationStatus: appliedSearchClassificationStatus,
-      searchLsbClass: appliedSearchLsbClass,
-      searchMorphology: appliedSearchMorphology,
+      searchTotalClassificationsMin: appliedSearchTotalClassificationsMin,
+      searchTotalClassificationsMax: appliedSearchTotalClassificationsMax,
       searchAwesome: appliedSearchAwesome,
       searchValidRedshift: appliedSearchValidRedshift,
       searchVisibleNucleus: appliedSearchVisibleNucleus,
@@ -572,7 +563,6 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   return {
     // State
     page,
-    setPage,
     pageSize,
     setPageSize,
     sortBy,
@@ -581,8 +571,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setSortOrder,
     filter,
     setFilter,
-    jumpToPage,
-    setJumpToPage,
+    goNext,
+    goPrev,
 
     // Search state
     searchId,
@@ -617,12 +607,10 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setSearchMeanMueMax,
     searchNucleus,
     setSearchNucleus,
-    searchClassificationStatus,
-    setSearchClassificationStatus,
-    searchLsbClass,
-    setSearchLsbClass,
-    searchMorphology,
-    setSearchMorphology,
+    searchTotalClassificationsMin,
+    setSearchTotalClassificationsMin,
+    searchTotalClassificationsMax,
+    setSearchTotalClassificationsMax,
     searchAwesome,
     setSearchAwesome,
     searchValidRedshift,
@@ -636,12 +624,10 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     // Queries
     galaxyData,
     searchBounds,
-    classificationOptions,
     userPrefs,
 
     // Computed values
-    currentBounds,
-    totalPages,
+  currentBounds,
     hasPrevious,
     hasNext,
     previewImageName,
@@ -654,8 +640,6 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
     // Handlers
     handleSort,
-    handleJumpToPage,
-    handleJumpKeyPress,
     applySearch,
     clearSearch,
   };

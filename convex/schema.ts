@@ -6,6 +6,7 @@ import { authTables } from "@convex-dev/auth/server";
 // Core galaxy schema (after splitting large nested photometry & thuruthipilly tables)
 export const galaxySchemaDefinition = {
   id: v.string(),
+  numericId: v.optional(v.int64()), // Added later for easier sorting
   ra: v.number(),
   dec: v.number(),
   reff: v.number(),
@@ -33,6 +34,17 @@ export const galaxySchemaDefinition = {
     thur_cls: v.optional(v.string()),
     thur_cls_n: v.optional(v.number()),
   }),
+
+  // galaxyAssignmentStats
+  totalClassifications: v.optional(v.int64()),
+
+  numVisibleNucleus: v.optional(v.int64()),
+  numAwesomeFlag: v.optional(v.int64()),
+
+  totalAssigned: v.optional(v.int64()),
+  perUser: v.optional(v.record(v.string(), v.int64())),
+  lastAssignedAt: v.optional(v.number()),
+
 };
 
 // Photometry per band (g, r, i) – Sersic parameters only
@@ -152,24 +164,9 @@ export const thuruthipillySchema = {
 
 const applicationTables = {
   // Galaxy data
-  // galaxies: defineTable({
-  //   id: v.string(), // External galaxy ID
-  //   ra: v.number(), // Right ascension
-  //   dec: v.number(), // Declination
-  //   reff: v.number(), // Effective radius
-  //   q: v.number(), // Axis ratio
-  //   pa: v.number(), // Position angle
-  //   nucleus: v.boolean(), // Has nucleus
-  //   // imageUrl: v.optional(v.string()), // URL to galaxy image
-  //   // Legacy fields for existing data
-  //   isActive: v.optional(v.boolean()),
-  //   redshift_x: v.optional(v.number()),
-  //   redshift_y: v.optional(v.number()),
-  //   x: v.optional(v.number()),
-  //   y: v.optional(v.number()),
-  // }).index("by_external_id", ["id"]),
   galaxies: defineTable(galaxySchemaDefinition)
     .index("by_external_id", ["id"])
+    .index("by_numeric_id", ["numericId"]) // primary numeric cursor/sort
     // Indexes to support ordering/filtering in paginated browser
     .index("by_ra", ["ra"]) // right ascension
     .index("by_dec", ["dec"]) // declination
@@ -178,7 +175,26 @@ const applicationTables = {
     .index("by_pa", ["pa"]) // position angle
     .index("by_nucleus", ["nucleus"]) // nucleus boolean for grouping
     .index("by_mag", ["mag"]) // optional magnitude for grouping
-    .index("by_mean_mue", ["mean_mue"]), // optional mean surface brightness for grouping
+    .index("by_mean_mue", ["mean_mue"]) // optional mean surface brightness for grouping
+    // Compound indexes (staged) to accelerate common filter+sort combos
+    // .index("by_ra_dec", ["ra", "dec"]) // range on ra, eq on dec
+    // .index("by_nucleus_mag", ["nucleus", "mag"]) // eq nucleus, range/order on mag
+    // .index("by_nucleus_mean_mue", ["nucleus", "mean_mue"]) // eq nucleus, range/order on mean_mue
+    // .index("by_nucleus_q", ["nucleus", "q"]) // eq on nucleus, range/order on q
+    // .index("by_reff_mean_mue", ["reff", "mean_mue"]) // range/order on reff, then eq on mean_mue
+    // .index("by_reff_mag", ["reff", "mag"]) // range/order on reff, then eq on mag
+    // .index("by_nucleus_reff_mean_mue", ["nucleus", "reff", "mean_mue"]) // eq nucleus, then range/order on reff
+    // Indexes starting with numericId for stable default ordering plus filters
+    .index("by_numericId_nucleus", ["numericId", "nucleus"]) 
+    .index("by_numericId_mag", ["numericId", "mag"]) 
+    .index("by_numericId_mean_mue", ["numericId", "mean_mue"]) 
+    .index("by_numericId_q", ["numericId", "q"]) 
+    .index("by_numericId_reff", ["numericId", "reff"]) 
+    // Additional starters for magnitude/mean_mue and structural params
+    // .index("by_mean_mue_reff", ["mean_mue", "reff"]) 
+    // .index("by_mag_reff", ["mag", "reff"]) 
+    // .index("by_q_reff", ["q", "reff"]) 
+    .index("by_reff_q", ["reff", "q"]),
 
   // Split photometry tables (one doc per galaxy per band)
   galaxies_photometry_g: defineTable(photometryBandSchema).index("by_galaxy", ["galaxyRef"]),

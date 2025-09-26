@@ -35,12 +35,10 @@ interface GalaxyBrowserSearchFormProps {
   setSearchMeanMueMax: (value: string) => void;
   searchNucleus: boolean | undefined;
   setSearchNucleus: (value: boolean | undefined) => void;
-  searchClassificationStatus: "classified" | "unclassified" | "skipped" | undefined;
-  setSearchClassificationStatus: (value: "classified" | "unclassified" | "skipped" | undefined) => void;
-  searchLsbClass: string;
-  setSearchLsbClass: (value: string) => void;
-  searchMorphology: string;
-  setSearchMorphology: (value: string) => void;
+  searchTotalClassificationsMin: string;
+  setSearchTotalClassificationsMin: (value: string) => void;
+  searchTotalClassificationsMax: string;
+  setSearchTotalClassificationsMax: (value: string) => void;
   searchAwesome: boolean | undefined;
   setSearchAwesome: (value: boolean | undefined) => void;
   searchValidRedshift: boolean | undefined;
@@ -58,9 +56,6 @@ interface GalaxyBrowserSearchFormProps {
   // Utility functions
   getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue', type: 'min' | 'max') => string;
   getInputClass: (field: string, baseClass: string) => string;
-
-  // Data
-  classificationOptions: any;
 }
 
 export function GalaxyBrowserSearchForm({
@@ -96,12 +91,10 @@ export function GalaxyBrowserSearchForm({
   setSearchMeanMueMax,
   searchNucleus,
   setSearchNucleus,
-  searchClassificationStatus,
-  setSearchClassificationStatus,
-  searchLsbClass,
-  setSearchLsbClass,
-  searchMorphology,
-  setSearchMorphology,
+  searchTotalClassificationsMin,
+  setSearchTotalClassificationsMin,
+  searchTotalClassificationsMax,
+  setSearchTotalClassificationsMax,
   searchAwesome,
   setSearchAwesome,
   searchValidRedshift,
@@ -115,7 +108,6 @@ export function GalaxyBrowserSearchForm({
   clearSearch,
   getPlaceholderText,
   getInputClass,
-  classificationOptions,
 }: GalaxyBrowserSearchFormProps) {
   return (
     <div className="mb-6">
@@ -313,49 +305,30 @@ export function GalaxyBrowserSearchForm({
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Classification Status
+            Total Classifications
           </label>
-          <select
-            value={searchClassificationStatus || ""}
-            onChange={(e) => setSearchClassificationStatus(e.target.value ? e.target.value as "classified" | "unclassified" | "skipped" : undefined)}
-            className={getInputClass('searchClassificationStatus', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-          >
-            <option value="">Any Status</option>
-            <option value="classified">Classified</option>
-            <option value="unclassified">Unclassified</option>
-            <option value="skipped">Skipped</option>
-          </select>
+          <div className="flex space-x-2">
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={searchTotalClassificationsMin}
+              onChange={(e) => setSearchTotalClassificationsMin(e.target.value)}
+              placeholder="Min"
+              className={getInputClass('searchTotalClassificationsMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+            />
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={searchTotalClassificationsMax}
+              onChange={(e) => setSearchTotalClassificationsMax(e.target.value)}
+              placeholder="Max"
+              className={getInputClass('searchTotalClassificationsMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+            />
+          </div>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            LSB Class
-          </label>
-          <select
-            value={searchLsbClass}
-            onChange={(e) => setSearchLsbClass(e.target.value)}
-            className={getInputClass('searchLsbClass', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-          >
-            <option value="">Any LSB Class</option>
-            {classificationOptions?.lsbClasses.map((lsbClass: string) => (
-              <option key={lsbClass} value={lsbClass}>{lsbClass}</option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Morphology
-          </label>
-          <select
-            value={searchMorphology}
-            onChange={(e) => setSearchMorphology(e.target.value)}
-            className={getInputClass('searchMorphology', "w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-          >
-            <option value="">Any Morphology</option>
-            {classificationOptions?.morphologies.map((morphology: string) => (
-              <option key={morphology} value={morphology}>{morphology}</option>
-            ))}
-          </select>
-        </div>
+
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Visible Nucleus
