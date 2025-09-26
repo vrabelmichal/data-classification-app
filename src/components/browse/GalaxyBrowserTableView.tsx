@@ -56,10 +56,31 @@ export function GalaxyBrowserTableView({
   const { galaxies } = galaxyData;
 
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+    <div className="relative">
+      {/* Action column - fixed position, always visible */}
+      <div className="absolute right-0 top-0 bottom-0 w-32 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 z-10">
+        <div className="!h-14 border-b border-gray-200 dark:border-gray-700 flex items-center justify-center">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
+            Action
+          </span>
+        </div>
+        {galaxies.map((galaxy: any) => (
+          <div key={`action-${galaxy._id}`} className="!h-20 border-b border-gray-200 dark:border-gray-700 flex items-center justify-center px-3">
+            <Link
+              to={`/classify/${galaxy.id}`}
+              className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
+            >
+              Classify
+            </Link>
+          </div>
+        ))}
+      </div>
+
+      {/* Scrollable table content */}
+      <div className="overflow-x-auto pr-32 max-w-full">
+        <table className="w-max divide-y divide-gray-200 dark:divide-gray-700">
         <thead className="bg-gray-50 dark:bg-gray-900">
-          <tr>
+          <tr className="!h-14">
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
               Image
             </th>
@@ -162,14 +183,11 @@ export function GalaxyBrowserTableView({
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
               Thur CLS N
             </th>
-            <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
-              Action
-            </th>
           </tr>
         </thead>
         <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
           {galaxies.map((galaxy: any) => (
-            <tr key={galaxy._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
+            <tr key={galaxy._id} className="!h-20 hover:bg-gray-50 dark:hover:bg-gray-700">
               <td className="px-6 py-4 whitespace-nowrap">
                 <div className="w-16 h-16">
                   <ImageViewer
@@ -231,18 +249,11 @@ export function GalaxyBrowserTableView({
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                 {galaxy.misc?.thur_cls_n || "—"}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap text-right">
-                <Link
-                  to={`/classify/${galaxy.id}`}
-                  className="inline-flex items-center px-3 py-1.5 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
-                >
-                  Classify
-                </Link>
-              </td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
     </div>
   );
 }
