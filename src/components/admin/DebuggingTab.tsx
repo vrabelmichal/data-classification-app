@@ -283,6 +283,25 @@ export function DebuggingTab() {
       <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Debugging Tools</h1>
       
       <div className="grid grid-cols-2 gap-6">
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-4">🧪 Generate Mock Data</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            Generate 100 mock galaxies for testing and development purposes.
+          </p>
+          <button
+            onClick={() => void (async () => { await handleGenerateMockGalaxies(); })()}
+            disabled={generatingMock}
+            className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            {generatingMock && (
+              <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            {generatingMock ? 'Generating...' : 'Generate Mock Galaxies'}
+          </button>
+        </div>
+
+
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-green-600 dark:text-green-400 mb-4">🌱 Seed Galaxy Assignment Stats</h2>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
@@ -318,23 +337,6 @@ export function DebuggingTab() {
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Clear Galaxy IDs Aggregate</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            This will clear the galaxy IDs aggregate. This action cannot be undone.
-          </p>
-          <button
-            onClick={() => void (async () => { await handleClearGalaxyIdsAggregate(); })()}
-            disabled={clearingAggregate}
-            className="inline-flex items-center justify-center bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
-          >
-            {clearingAggregate && (
-              <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            )}
-            {clearingAggregate ? 'Clearing...' : 'Clear Galaxy IDs Aggregate'}
-          </button>
-        </div>
-        
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-orange-600 dark:text-orange-400 mb-4">🔨 Rebuild Galaxy IDs Table</h2>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
             Rebuild galaxyIds table from galaxies table. Clears the table first, then rebuilds with sequential numericIds. Processes in batches of 200 to avoid timeouts and will continue until all galaxies are processed.
@@ -358,26 +360,42 @@ export function DebuggingTab() {
           </div>
         </div>
 
-
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-orange-600 dark:text-orange-400 mb-4">🔨 Rebuild Galaxy IDs Table</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Clear Galaxy IDs Aggregate</h2>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            Rebuild galaxyIds table from galaxies table. Clears the table first, then rebuilds with sequential numericIds. Processes in batches of 200 to avoid timeouts and will continue until all galaxies are processed.
+            This will clear the galaxy IDs aggregate. This action cannot be undone.
+          </p>
+          <button
+            onClick={() => void (async () => { await handleClearGalaxyIdsAggregate(); })()}
+            disabled={clearingAggregate}
+            className="inline-flex items-center justify-center bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            {clearingAggregate && (
+              <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            {clearingAggregate ? 'Clearing...' : 'Clear Galaxy IDs Aggregate'}
+          </button>
+        </div>
+        
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-yellow-600 dark:text-yellow-400 mb-4">🔨 Rebuild Galaxy IDs Aggregate</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            Rebuild galaxy IDs aggregate from scratch. Processes in batches of 200 to avoid timeouts and will continue until all galaxy IDs are processed. Required after clearing the aggregate or if it becomes corrupted.
           </p>
           <div className="flex items-center justify-between mb-4">
             <button
-              onClick={() => void (async () => { await handleRebuildGalaxyIdsTable(); })()}
-              disabled={rebuildingGalaxyIdsTable}
-              className="inline-flex items-center justify-center bg-orange-600 hover:bg-orange-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              onClick={() => void (async () => { await handleRebuildGalaxyIdsAggregate(); })()}
+              disabled={rebuildingGalaxyIdsAggregate}
+              className="inline-flex items-center justify-center bg-yellow-600 hover:bg-yellow-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
-              {rebuildingGalaxyIdsTable && (
+              {rebuildingGalaxyIdsAggregate && (
                 <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               )}
-              {rebuildingGalaxyIdsTable ? 'Rebuilding...' : 'Rebuild IDs Table'}
+              {rebuildingGalaxyIdsAggregate ? 'Rebuilding...' : 'Rebuild IDs Aggregate'}
             </button>
-            {rebuildIdsTableProgress > 0 && (
-              <div className="text-sm font-medium text-orange-600 dark:text-orange-400">
-                {rebuildIdsTableProgress.toLocaleString()} processed
+            {rebuildIdsProgress > 0 && (
+              <div className="text-sm font-medium text-yellow-600 dark:text-yellow-400">
+                {rebuildIdsProgress.toLocaleString()} processed
               </div>
             )}
           </div>
@@ -422,23 +440,6 @@ export function DebuggingTab() {
               </div>
             )}
           </div>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-blue-600 dark:text-blue-400 mb-4">🧪 Generate Mock Data</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            Generate 100 mock galaxies for testing and development purposes.
-          </p>
-          <button
-            onClick={() => void (async () => { await handleGenerateMockGalaxies(); })()}
-            disabled={generatingMock}
-            className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
-          >
-            {generatingMock && (
-              <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            )}
-            {generatingMock ? 'Generating...' : 'Generate Mock Galaxies'}
-          </button>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
