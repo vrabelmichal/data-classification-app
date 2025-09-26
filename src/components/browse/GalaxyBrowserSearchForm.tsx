@@ -39,6 +39,18 @@ interface GalaxyBrowserSearchFormProps {
   setSearchTotalClassificationsMin: (value: string) => void;
   searchTotalClassificationsMax: string;
   setSearchTotalClassificationsMax: (value: string) => void;
+  searchNumVisibleNucleusMin: string;
+  setSearchNumVisibleNucleusMin: (value: string) => void;
+  searchNumVisibleNucleusMax: string;
+  setSearchNumVisibleNucleusMax: (value: string) => void;
+  searchNumAwesomeFlagMin: string;
+  setSearchNumAwesomeFlagMin: (value: string) => void;
+  searchNumAwesomeFlagMax: string;
+  setSearchNumAwesomeFlagMax: (value: string) => void;
+  searchTotalAssignedMin: string;
+  setSearchTotalAssignedMin: (value: string) => void;
+  searchTotalAssignedMax: string;
+  setSearchTotalAssignedMax: (value: string) => void;
   searchAwesome: boolean | undefined;
   setSearchAwesome: (value: boolean | undefined) => void;
   searchValidRedshift: boolean | undefined;
@@ -95,12 +107,18 @@ export function GalaxyBrowserSearchForm({
   setSearchTotalClassificationsMin,
   searchTotalClassificationsMax,
   setSearchTotalClassificationsMax,
-  searchAwesome,
-  setSearchAwesome,
-  searchValidRedshift,
-  setSearchValidRedshift,
-  searchVisibleNucleus,
-  setSearchVisibleNucleus,
+  searchNumVisibleNucleusMin,
+  setSearchNumVisibleNucleusMin,
+  searchNumVisibleNucleusMax,
+  setSearchNumVisibleNucleusMax,
+  searchNumAwesomeFlagMin,
+  setSearchNumAwesomeFlagMin,
+  searchNumAwesomeFlagMax,
+  setSearchNumAwesomeFlagMax,
+  searchTotalAssignedMin,
+  setSearchTotalAssignedMin,
+  searchTotalAssignedMax,
+  setSearchTotalAssignedMax,
   isSearchActive,
   hasPendingChanges,
   hasAnySearchValues,
@@ -328,34 +346,81 @@ export function GalaxyBrowserSearchForm({
             />
           </div>
         </div>
-
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Visible Nucleus
+            Visible Nucleus Count
           </label>
-          <label className="flex items-center cursor-pointer">
+          <div className="flex space-x-2">
             <input
-              type="checkbox"
-              checked={searchVisibleNucleus === true}
-              onChange={(e) => setSearchVisibleNucleus(e.target.checked ? true : undefined)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 mr-2"
+              type="number"
+              step="1"
+              min="0"
+              value={searchNumVisibleNucleusMin}
+              onChange={(e) => setSearchNumVisibleNucleusMin(e.target.value)}
+              placeholder="Min"
+              className={getInputClass('searchNumVisibleNucleusMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
-            <span className="text-sm text-gray-600 dark:text-gray-300">Only show galaxies with visible nucleus</span>
-          </label>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={searchNumVisibleNucleusMax}
+              onChange={(e) => setSearchNumVisibleNucleusMax(e.target.value)}
+              placeholder="Max"
+              className={getInputClass('searchNumVisibleNucleusMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+            />
+          </div>
         </div>
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Awesome Flag
+            Awesome Flag Count
           </label>
-          <label className="flex items-center cursor-pointer">
+          <div className="flex space-x-2">
             <input
-              type="checkbox"
-              checked={searchAwesome === true}
-              onChange={(e) => setSearchAwesome(e.target.checked ? true : undefined)}
-              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded dark:bg-gray-700 dark:border-gray-600 mr-2"
+              type="number"
+              step="1"
+              min="0"
+              value={searchNumAwesomeFlagMin}
+              onChange={(e) => setSearchNumAwesomeFlagMin(e.target.value)}
+              placeholder="Min"
+              className={getInputClass('searchNumAwesomeFlagMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
-            <span className="text-sm text-gray-600 dark:text-gray-300">Only show awesome galaxies</span>
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={searchNumAwesomeFlagMax}
+              onChange={(e) => setSearchNumAwesomeFlagMax(e.target.value)}
+              placeholder="Max"
+              className={getInputClass('searchNumAwesomeFlagMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            Total Assigned
           </label>
+          <div className="flex space-x-2">
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={searchTotalAssignedMin}
+              onChange={(e) => setSearchTotalAssignedMin(e.target.value)}
+              placeholder="Min"
+              className={getInputClass('searchTotalAssignedMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+            />
+            <input
+              type="number"
+              step="1"
+              min="0"
+              value={searchTotalAssignedMax}
+              onChange={(e) => setSearchTotalAssignedMax(e.target.value)}
+              placeholder="Max"
+              className={getInputClass('searchTotalAssignedMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+            />
+          </div>
         </div>
       </div>
       <div className="flex items-center space-x-4">

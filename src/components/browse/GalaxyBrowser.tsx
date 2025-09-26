@@ -373,7 +373,7 @@ export function GalaxyBrowser() {
         <p className="text-sm text-gray-600 dark:text-gray-300">
           Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, total)} of {total} galaxies
         </p>
-        {!aggregatesPopulated && total > 0 && (
+        {/* {!aggregatesPopulated && total > 0 && (
           <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
             <div className="flex">
               <div className="flex-shrink-0">
@@ -394,7 +394,7 @@ export function GalaxyBrowser() {
               </div>
             </div>
           </div>
-        )}
+        )} */}
       </div>
 
       {/* Desktop Table View */}

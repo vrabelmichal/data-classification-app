@@ -123,6 +123,12 @@ export const hasAnySearchValues = (values: Record<string, any>): boolean => {
     values.searchNucleus !== undefined ||
     values.searchTotalClassificationsMin !== "" ||
     values.searchTotalClassificationsMax !== "" ||
+    values.searchNumVisibleNucleusMin !== "" ||
+    values.searchNumVisibleNucleusMax !== "" ||
+    values.searchNumAwesomeFlagMin !== "" ||
+    values.searchNumAwesomeFlagMax !== "" ||
+    values.searchTotalAssignedMin !== "" ||
+    values.searchTotalAssignedMax !== "" ||
     values.searchAwesome !== undefined ||
     values.searchValidRedshift !== undefined ||
     values.searchVisibleNucleus !== undefined

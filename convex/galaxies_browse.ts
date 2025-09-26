@@ -50,6 +50,12 @@ export const browseGalaxies = query({
     searchNucleus: v.optional(v.boolean()),
     searchTotalClassificationsMin: v.optional(v.string()),
     searchTotalClassificationsMax: v.optional(v.string()),
+    searchNumVisibleNucleusMin: v.optional(v.string()),
+    searchNumVisibleNucleusMax: v.optional(v.string()),
+    searchNumAwesomeFlagMin: v.optional(v.string()),
+    searchNumAwesomeFlagMax: v.optional(v.string()),
+    searchTotalAssignedMin: v.optional(v.string()),
+    searchTotalAssignedMax: v.optional(v.string()),
     searchAwesome: v.optional(v.boolean()),
     searchValidRedshift: v.optional(v.boolean()),
     searchVisibleNucleus: v.optional(v.boolean()),
@@ -103,6 +109,12 @@ export const browseGalaxies = query({
       searchNucleus,
       searchTotalClassificationsMin,
       searchTotalClassificationsMax,
+      searchNumVisibleNucleusMin,
+      searchNumVisibleNucleusMax,
+      searchNumAwesomeFlagMin,
+      searchNumAwesomeFlagMax,
+      searchTotalAssignedMin,
+      searchTotalAssignedMax,
       searchAwesome,
       searchValidRedshift,
       searchVisibleNucleus,
@@ -249,39 +261,17 @@ export const browseGalaxies = query({
 
     // We rely on server-side filtering above; no additional in-memory filtering/pagination here
     let searchFilteredTotal = 0;
-
-    // Enrich with classification and skip data - REMOVED: no joins
-    const galaxiesToEnrich = galaxies;
-    
-    // Ensure all galaxies have numericId
-    const galaxiesWithIds = await Promise.all(galaxiesToEnrich.map(async (galaxy) => {
-      if (galaxy.numericId !== undefined) {
-        return galaxy; // Already has numericId
-      }
-      // Get numericId from galaxyIds table
-      const galaxyIdRecord = await ctx.db.query("galaxyIds").withIndex("by_external_id", q => q.eq("id", galaxy.id)).unique();
-      return { ...galaxy, numericId: galaxyIdRecord ? galaxyIdRecord.numericId : BigInt(0) };
-    }));
-    
-    const enriched = galaxiesWithIds.map((galaxy) => {
-      // No classification/skipped enrichment
-      const status = (galaxy.totalClassifications || 0) > 0 ? "classified" : "unclassified";
-      return { ...galaxy, status };
-    });
-
-    // Apply status filters
-    let finalGalaxies = enriched;
     
     if (filter === "classified") {
-      finalGalaxies = enriched.filter(g => (g.totalClassifications || 0) > 0);
+      galaxies = galaxies.filter(g => (g.totalClassifications || 0) > 0);
       // Get total count of classified galaxies (those with totalClassifications > 0)
       // For simplicity, set to length; in future, could compute total
-      searchFilteredTotal = finalGalaxies.length;
+      
     }
     else if (filter === "unclassified") {
-      finalGalaxies = enriched.filter(g => (g.totalClassifications || 0) === 0);
+      galaxies = galaxies.filter(g => (g.totalClassifications || 0) === 0);
       // Total unknown without full scan; leave as 0
-      searchFilteredTotal = 0;
+      
     }
     else if (filter === "my_sequence") {
       // Get user's sequence
@@ -292,18 +282,18 @@ export const browseGalaxies = query({
       
       if (userSequence && userSequence.galaxyExternalIds) {
         const sequenceIds = new Set(userSequence.galaxyExternalIds);
-        finalGalaxies = enriched.filter(g => sequenceIds.has(g.id));
-        searchFilteredTotal = userSequence.galaxyExternalIds.length;
+        galaxies = galaxies.filter(g => sequenceIds.has(g.id));
+        
       } else {
         // No sequence found, return empty array
-        finalGalaxies = [];
-        searchFilteredTotal = 0;
+        galaxies = [];
+        
       }
     }
 
     // Apply classification-based search filters
     if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
-      finalGalaxies = finalGalaxies.filter(g => {
+      galaxies = galaxies.filter(g => {
         const total = g.totalClassifications || 0;
         if (searchTotalClassificationsMin && total < parseInt(searchTotalClassificationsMin)) return false;
         if (searchTotalClassificationsMax && total > parseInt(searchTotalClassificationsMax)) return false;
@@ -311,8 +301,39 @@ export const browseGalaxies = query({
       });
       
       // Update total count for classification searches
-      searchFilteredTotal = finalGalaxies.length;
     }
+
+    // Apply numVisibleNucleus search filters
+    if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
+      galaxies = galaxies.filter(g => {
+        const total = g.numVisibleNucleus || 0;
+        if (searchNumVisibleNucleusMin && total < parseInt(searchNumVisibleNucleusMin)) return false;
+        if (searchNumVisibleNucleusMax && total > parseInt(searchNumVisibleNucleusMax)) return false;
+        return true;
+      });
+    }
+
+    // Apply numAwesomeFlag search filters
+    if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
+      galaxies = galaxies.filter(g => {
+        const total = g.numAwesomeFlag || 0;
+        if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
+        if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
+        return true;
+      });
+    }
+
+    // Apply totalAssigned search filters
+    if (searchTotalAssignedMin || searchTotalAssignedMax) {
+      galaxies = galaxies.filter(g => {
+        const total = g.totalAssigned || 0;
+        if (searchTotalAssignedMin && total < parseInt(searchTotalAssignedMin)) return false;
+        if (searchTotalAssignedMax && total > parseInt(searchTotalAssignedMax)) return false;
+        return true;
+      });
+    }
+
+    searchFilteredTotal = galaxies.length;
 
     // Get total count for pagination info
     const total = searchFilteredTotal; // unknown overall; 0 unless a specific narrow search was performed
@@ -321,15 +342,15 @@ export const browseGalaxies = query({
     const hasPrevious = false; // client tracks previous cursors
 
     // Calculate bounds of current result set for placeholders
-    const resultGalaxies = finalGalaxies;
-    const raValues = resultGalaxies.map(g => g.ra).filter(v => !isNaN(v));
-    const decValues = resultGalaxies.map(g => g.dec).filter(v => !isNaN(v));
-    const reffValues = resultGalaxies.map(g => g.reff).filter(v => !isNaN(v));
-    const qValues = resultGalaxies.map(g => g.q).filter(v => !isNaN(v));
-    const paValues = resultGalaxies.map(g => g.pa).filter(v => !isNaN(v));
-    const magValues = resultGalaxies.map(g => g.mag).filter(v => v !== undefined && !isNaN(v));
-    const meanMueValues = resultGalaxies.map(g => g.mean_mue).filter(v => v !== undefined && !isNaN(v));
-    const nucleusCount = resultGalaxies.filter(g => g.nucleus === true).length;
+
+    const raValues = galaxies.map(g => g.ra).filter(v => !isNaN(v));
+    const decValues = galaxies.map(g => g.dec).filter(v => !isNaN(v));
+    const reffValues = galaxies.map(g => g.reff).filter(v => !isNaN(v));
+    const qValues = galaxies.map(g => g.q).filter(v => !isNaN(v));
+    const paValues = galaxies.map(g => g.pa).filter(v => !isNaN(v));
+    const magValues = galaxies.map(g => g.mag).filter(v => v !== undefined && !isNaN(v));
+    const meanMueValues = galaxies.map(g => g.mean_mue).filter(v => v !== undefined && !isNaN(v));
+    const nucleusCount = galaxies.filter(g => g.nucleus === true).length;
 
     const currentBounds = {
       ra: {
@@ -362,12 +383,12 @@ export const browseGalaxies = query({
       },
       nucleus: {
         hasNucleus: nucleusCount > 0,
-        totalCount: resultGalaxies.length,
+        totalCount: galaxies.length,
       },
     };
 
     return {
-      galaxies: finalGalaxies,
+      galaxies: galaxies,
       total,
       hasNext,
       hasPrevious,
@@ -395,6 +416,10 @@ export const getGalaxySearchBounds = query({
         mag: { min: null, max: null },
         mean_mue: { min: null, max: null },
         nucleus: { hasNucleus: false, totalCount: 0 },
+        totalClassifications: { min: null, max: null },
+        numVisibleNucleus: { min: null, max: null },
+        numAwesomeFlag: { min: null, max: null },
+        totalAssigned: { min: null, max: null },
       };
     }
 
@@ -411,6 +436,10 @@ export const getGalaxySearchBounds = query({
         mag: { min: null, max: null },
         mean_mue: { min: null, max: null },
         nucleus: { hasNucleus: false, totalCount: 0 },
+        totalClassifications: { min: null, max: null },
+        numVisibleNucleus: { min: null, max: null },
+        numAwesomeFlag: { min: null, max: null },
+        totalAssigned: { min: null, max: null },
       };
     }
 
@@ -422,6 +451,10 @@ export const getGalaxySearchBounds = query({
     const paValues = allGalaxies.map(g => g.pa).filter(v => !isNaN(v));
     const magValues = allGalaxies.map(g => g.mag).filter(v => v !== undefined && !isNaN(v));
     const meanMueValues = allGalaxies.map(g => g.mean_mue).filter(v => v !== undefined && !isNaN(v));
+    const totalClassificationsValues = allGalaxies.map(g => Number(g.totalClassifications || 0)).filter(v => v >= 0);
+    const numVisibleNucleusValues = allGalaxies.map(g => Number(g.numVisibleNucleus || 0)).filter(v => v >= 0);
+    const numAwesomeFlagValues = allGalaxies.map(g => Number(g.numAwesomeFlag || 0)).filter(v => v >= 0);
+    const totalAssignedValues = allGalaxies.map(g => Number(g.totalAssigned || 0)).filter(v => v >= 0);
 
     // Count galaxies with nucleus
     const nucleusCount = allGalaxies.filter(g => g.nucleus === true).length;
@@ -458,6 +491,22 @@ export const getGalaxySearchBounds = query({
       nucleus: {
         hasNucleus: nucleusCount > 0,
         totalCount: allGalaxies.length,
+      },
+      totalClassifications: {
+        min: totalClassificationsValues.length > 0 ? Math.min(...totalClassificationsValues) : null,
+        max: totalClassificationsValues.length > 0 ? Math.max(...totalClassificationsValues) : null,
+      },
+      numVisibleNucleus: {
+        min: numVisibleNucleusValues.length > 0 ? Math.min(...numVisibleNucleusValues) : null,
+        max: numVisibleNucleusValues.length > 0 ? Math.max(...numVisibleNucleusValues) : null,
+      },
+      numAwesomeFlag: {
+        min: numAwesomeFlagValues.length > 0 ? Math.min(...numAwesomeFlagValues) : null,
+        max: numAwesomeFlagValues.length > 0 ? Math.max(...numAwesomeFlagValues) : null,
+      },
+      totalAssigned: {
+        min: totalAssignedValues.length > 0 ? Math.min(...totalAssignedValues) : null,
+        max: totalAssignedValues.length > 0 ? Math.max(...totalAssignedValues) : null,
       },
     };
   },

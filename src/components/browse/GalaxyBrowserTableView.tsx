@@ -42,29 +42,6 @@ export function GalaxyBrowserTableView({
     );
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "classified":
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400">
-            Classified
-          </span>
-        );
-      case "skipped":
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400">
-            Skipped
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400">
-            Unclassified
-          </span>
-        );
-    }
-  };
-
   if (!galaxyData) {
     return (
       <div className="flex justify-center items-center py-16">
@@ -168,7 +145,22 @@ export function GalaxyBrowserTableView({
               </div>
             </th>
             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
-              Status
+              Classifications
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
+              Visible Nuclei
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
+              Awesome Flags
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
+              Total Assigned
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
+              Paper
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
+              Thur CLS N
             </th>
             <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
               Action
@@ -221,8 +213,23 @@ export function GalaxyBrowserTableView({
               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
                 {galaxy.mean_mue !== undefined ? galaxy.mean_mue.toFixed(2) : "—"}
               </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                {getStatusBadge(galaxy.status)}
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                {galaxy.totalClassifications || 0}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                {galaxy.numVisibleNucleus || 0}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                {galaxy.numAwesomeFlag || 0}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                {galaxy.totalAssigned || 0}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                {galaxy.misc?.paper || "—"}
+              </td>
+              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
+                {galaxy.misc?.thur_cls_n || "—"}
               </td>
               <td className="px-6 py-4 whitespace-nowrap text-right">
                 <Link
