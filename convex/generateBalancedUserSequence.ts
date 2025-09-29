@@ -54,6 +54,15 @@ export const generateBalancedUserSequence = mutation({
       }
     }
 
+    // Check if user already has a sequence assigned
+    const existingSequence = await ctx.db
+      .query("galaxySequences")
+      .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+      .unique();
+    if (existingSequence) {
+      throw new Error("User already has a sequence assigned");
+    }
+
     const warnings = validateParams({
       expectedUsers,
       minAssignmentsK: K,
@@ -62,6 +71,12 @@ export const generateBalancedUserSequence = mutation({
     }).map((w) => w.message);
 
     console.log(`Starting balanced sequence generation: N=${expectedUsers}, K=${K}, M=${M}, S=${S}, allowOverAssign=${allowOverAssign}, dryRun=${dryRun}`);
+
+    // Check if there are any galaxies available before proceeding
+    const galaxiesExist = (await ctx.db.query("galaxies").take(1)).length > 0;
+    if (!galaxiesExist) {
+      throw new Error("No galaxies available for sequence generation");
+    }
 
     // Get galaxies, ordered by totalAssigned and numericId
     console.log(`Fetching galaxies for processing...`);
@@ -158,15 +173,6 @@ export const generateBalancedUserSequence = mutation({
     let success = false;
     if (!dryRun) {
       console.log(`Creating sequence for user ${targetUserId} with ${selectedIds.length} galaxies`);
-      const existingSequence = await ctx.db
-        .query("galaxySequences")
-        .withIndex("by_user", (q) => q.eq("userId", targetUserId))
-        .unique();
-      if (existingSequence) {
-        console.log(`Deleting existing sequence ${existingSequence._id}`);
-        await ctx.db.delete(existingSequence._id);
-      }
-
       if (selectedIds.length > 0) {
         const newSequence = await ctx.db.insert("galaxySequences", {
           userId: targetUserId,

@@ -21,7 +21,7 @@ you can clear and rebuild with galaxiesAggregate.clear(ctx) followed by backfill
 */
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { galaxyIdsAggregate } from "./galaxies_aggregates";
 
 
@@ -137,5 +137,36 @@ export const generateRandomUserSequence = mutation({
             : undefined,
         };
   },
+});
+
+
+export const userHasSequence = query({
+    args: {
+        userId: v.optional(v.id("users")),
+    },
+    handler: async (ctx, args) => {
+        const currentUserId = await getAuthUserId(ctx);
+        if (!currentUserId) throw new Error("Not authenticated");
+
+        const targetUserId = args.userId || currentUserId;
+
+        // Admin check if checking another user
+        if (targetUserId !== currentUserId) {
+            const currentProfile = await ctx.db
+                .query("userProfiles")
+                .withIndex("by_user", (q) => q.eq("userId", currentUserId))
+                .unique();
+            if (!currentProfile || currentProfile.role !== "admin") {
+                throw new Error("Admin access required");
+            }
+        }
+
+        const sequence = await ctx.db
+            .query("galaxySequences")
+            .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+            .unique();
+
+        return !!sequence;
+    },
 });
 
