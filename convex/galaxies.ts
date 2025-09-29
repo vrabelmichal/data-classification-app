@@ -384,7 +384,7 @@ export const fillGalaxyNumericId = mutation({
       updated += 1;
     }
 
-    console.log(`[fillGalaxyNumericId] Processed batch. Updated: ${updated} galaxies, cursor: ${continueCursor || 'null'}, isDone: ${isDone}`);
+    console.log(`[fillGalaxyNumericId] Processed batch. Updated: ${updated} galaxies, startNumericId: ${startNumericId}, cursor: ${continueCursor || 'null'}, isDone: ${isDone}`);
 
     if (isDone) {
       console.log(`[fillGalaxyNumericId] Completed fillGalaxyNumericId. Total updated: ${updated}`);

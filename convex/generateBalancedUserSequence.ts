@@ -63,66 +63,58 @@ export const generateBalancedUserSequence = mutation({
 
     console.log(`Starting balanced sequence generation: N=${expectedUsers}, K=${K}, M=${M}, S=${S}, allowOverAssign=${allowOverAssign}, dryRun=${dryRun}`);
 
-    // Build async streams from Convex index, batched.
-    async function* underKStream(): AsyncIterable<StatsDoc> {
-      let cursor: string | null = null;
-      let batchCount = 0;
-      while (true) {
-        const { page, isDone, continueCursor } = await ctx.db
-          .query("galaxies")
-          .withIndex("by_totalAssigned_numericId", (q) => q.lt("totalAssigned", BigInt(K)))
-          .paginate({
-            numItems: BATCH,
-            cursor,
-          });
-        console.log(`Under-K stream batch ${batchCount}: got ${page.length} galaxies, isDone=${isDone}, cursor=${continueCursor?.substring(0, 20)}...`);
-        for (const doc of page) {
-          // console.log(`Under-K galaxy ${doc.id}: totalAssigned=${doc.totalAssigned}, numericId=${doc.numericId}`);
-          yield {
-            _id: doc._id,
-            galaxyExternalId: doc.id,
-            numericId: doc.numericId!,
-            totalAssigned: doc.totalAssigned!,
-            perUser: doc.perUser,
-            lastAssignedAt: doc.lastAssignedAt,
-          } as StatsDoc;
-        }
-        if (isDone) break;
-        cursor = continueCursor;
-        batchCount++;
+    // Get galaxies, ordered by totalAssigned and numericId
+    console.log(`Fetching galaxies for processing...`);
+
+    let iterator: AsyncIterator<any> | undefined;
+
+    // Create lazy streams that yield StatsDoc on demand
+    async function* createStream(fromOverK = false): AsyncIterable<StatsDoc> {
+      if (!iterator) {
+        const query = allowOverAssign
+          ? ctx.db.query("galaxies").withIndex("by_totalAssigned_numericId")
+          : ctx.db.query("galaxies").withIndex("by_totalAssigned_numericId", (q) =>
+              q.lt("totalAssigned", BigInt(K))
+            );
+        iterator = query[Symbol.asyncIterator]();
       }
-      console.log(`Under-K stream completed: ${batchCount} batches`);
+
+      while (true) {
+        const result = await iterator.next();
+        if (result.done) break;
+        const doc = result.value;
+
+        const statsDoc: StatsDoc = {
+          _id: doc._id,
+          galaxyExternalId: doc.id,
+          numericId: doc.numericId!,
+          totalAssigned: doc.totalAssigned!,
+          perUser: doc.perUser,
+          lastAssignedAt: doc.lastAssignedAt,
+        };
+
+        const isOverK = statsDoc.totalAssigned >= BigInt(K);
+        if (fromOverK) {
+          if (!isOverK) continue; // Shouldn't happen in ordered query
+          yield statsDoc;
+        } else {
+          if (isOverK) break;
+          yield statsDoc;
+        }
+      }
+    }
+
+    async function* underKStream(): AsyncIterable<StatsDoc> {
+      yield* createStream(false);
     }
 
     async function* overKStream(): AsyncIterable<StatsDoc> {
-      let cursor: string | null = null;
-      let batchCount = 0;
-      while (true) {
-        const { page, isDone, continueCursor } = await ctx.db
-          .query("galaxies")
-          .withIndex("by_totalAssigned_numericId", (q) => q.gte("totalAssigned", BigInt(K)))
-          .paginate({
-            numItems: BATCH,
-            cursor,
-          });
-        console.log(`Over-K stream batch ${batchCount}: got ${page.length} galaxies, isDone=${isDone}, cursor=${continueCursor?.substring(0, 20)}...`);
-        for (const doc of page) {
-          // console.log(`Over-K galaxy ${doc.id}: totalAssigned=${doc.totalAssigned}, numericId=${doc.numericId}`);
-          yield {
-            _id: doc._id,
-            galaxyExternalId: doc.id,
-            numericId: doc.numericId!,
-            totalAssigned: doc.totalAssigned!,
-            perUser: doc.perUser,
-            lastAssignedAt: doc.lastAssignedAt,
-          } as StatsDoc;
-        }
-        if (isDone) break;
-        cursor = continueCursor;
-        batchCount++;
-      }
-      console.log(`Over-K stream completed: ${batchCount} batches`);
+      if (!allowOverAssign) return;
+      yield* createStream(true);
     }
+
+    // Note: We can't easily count total galaxies without consuming the streams
+    // So we'll log counts after selection if needed
 
     const selectionParams: SelectionParams = {
       targetUserId,
@@ -193,7 +185,7 @@ export const generateBalancedUserSequence = mutation({
       console.log(`Updating stats for ${selectedDocs.length} galaxies`);
       const now = Date.now();
       for (const doc of selectedDocs) {
-        console.log(`Processing galaxy ${doc.galaxyExternalId} (${doc._id}): current totalAssigned=${doc.totalAssigned}`);
+        // console.log(`Processing galaxy ${doc.galaxyExternalId} (${doc._id}): current totalAssigned=${doc.totalAssigned}`);
         const latest = await ctx.db.get(doc._id as any);
         if (!latest) {
           console.log(`Galaxy ${doc.galaxyExternalId} not found, skipping`);
@@ -201,13 +193,13 @@ export const generateBalancedUserSequence = mutation({
         }
         // Type assertion since we know this is a galaxies document
         const statsDoc = latest as any;
-        console.log(`Latest galaxy data: totalAssigned=${statsDoc.totalAssigned}, perUser=${JSON.stringify(statsDoc.perUser)}`);
+        // console.log(`Latest galaxy data: totalAssigned=${statsDoc.totalAssigned}, perUser=${JSON.stringify(statsDoc.perUser)}`);
         const perUser = { ...(statsDoc.perUser ?? {}) };
         const prev = perUser[targetUserId] ?? BigInt(0);
-        console.log(`User ${targetUserId} previous count: ${prev}, cap M=${M}`);
+        // console.log(`User ${targetUserId} previous count: ${prev}, cap M=${M}`);
         if (prev >= BigInt(M)) {
           // Race-safety check: skip if cap reached since selection time.
-          console.log(`Skipping galaxy ${doc.galaxyExternalId}: user cap reached`);
+          // console.log(`Skipping galaxy ${doc.galaxyExternalId}: user cap reached`);
           continue;
         }
         perUser[targetUserId] = prev + BigInt(1);
@@ -218,7 +210,7 @@ export const generateBalancedUserSequence = mutation({
           perUser,
           lastAssignedAt: now,
         });
-        console.log(`Successfully updated galaxy ${doc.galaxyExternalId}`);
+        // console.log(`Successfully updated galaxy ${doc.galaxyExternalId}`);
       }
 
       const userProfile = await ctx.db
