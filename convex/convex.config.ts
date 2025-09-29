@@ -13,8 +13,8 @@ app.use(aggregate, { name: "galaxiesByReff" });
 app.use(aggregate, { name: "galaxiesByQ" });
 app.use(aggregate, { name: "galaxiesByPa" });
 app.use(aggregate, { name: "galaxiesByNucleus" });
-app.use(aggregate, { name: "galaxiesByCreationTime" });
 app.use(aggregate, { name: "galaxiesByMag" });
 app.use(aggregate, { name: "galaxiesByMeanMue" });
+app.use(aggregate, { name: "galaxiesByNumericId" });
 
 export default app;

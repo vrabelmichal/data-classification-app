@@ -9,8 +9,8 @@ export interface AssignmentStats {
   _id?: string; // optional (used on Convex docs)
   galaxyExternalId: string; // Id<"galaxyIds"> serialized as string for portability
   numericId: string | number | bigint; // used for stable tie ordering
-  totalAssigned: number;
-  perUser?: Record<UserId, number>;
+  totalAssigned: bigint;
+  perUser?: Record<UserId, bigint>;
 }
 
 export interface SelectionParams {
@@ -72,8 +72,8 @@ export function validateParams(opts: {
 }
 
 // Helper to safely read per-user count.
-function perUserCount(doc: AssignmentStats, userId: UserId): number {
-  return (doc.perUser ?? {})[userId] ?? 0;
+function perUserCount(doc: AssignmentStats, userId: UserId): bigint {
+  return (doc.perUser ?? {})[userId] ?? BigInt(0);
 }
 
 // Core selection over two ordered streams:
@@ -174,8 +174,8 @@ export function arrayToOverKStream(
 }
 
 function byTotalThenNumeric(a: AssignmentStats, b: AssignmentStats): number {
-  const dt = a.totalAssigned - b.totalAssigned;
-  if (dt !== 0) return dt;
+  if (a.totalAssigned < b.totalAssigned) return -1;
+  if (a.totalAssigned > b.totalAssigned) return 1;
   // Compare numericId lexicographically if strings, numerically if numbers or bigint.
   if (typeof a.numericId === "number" && typeof b.numericId === "number") {
     return a.numericId - b.numericId;
@@ -212,11 +212,11 @@ export function applySelectionInMemory(
   // 'now' unused here but mirrors server updates if you add timestamps.
   for (const d of docs) {
     const perUser = { ...(d.perUser ?? {}) };
-    const prev = perUser[targetUserId] ?? 0;
-    if (prev < perUserCapM) {
-      perUser[targetUserId] = prev + 1;
+    const prev = perUser[targetUserId] ?? BigInt(0);
+    if (prev < BigInt(perUserCapM)) {
+      perUser[targetUserId] = prev + BigInt(1);
       d.perUser = perUser;
-      d.totalAssigned = d.totalAssigned + 1;
+      d.totalAssigned = d.totalAssigned + BigInt(1);
     }
   }
   return docs;

@@ -76,15 +76,6 @@ export const galaxiesByNucleus = new TableAggregate<{
   sortKey: (doc) => doc.nucleus,
 });
 
-// Aggregate for galaxies sorted by creation time (number)
-export const galaxiesByCreationTime = new TableAggregate<{
-  Key: number;
-  DataModel: DataModel;
-  TableName: "galaxies";
-}>(components.galaxiesByCreationTime, {
-  sortKey: (doc) => doc._creationTime,
-});
-
 // Aggregate for galaxies sorted by magnitude (number, optional)
 export const galaxiesByMag = new TableAggregate<{
   Key: number;
@@ -101,6 +92,15 @@ export const galaxiesByMeanMue = new TableAggregate<{
   TableName: "galaxies";
 }>(components.galaxiesByMeanMue, {
   sortKey: (doc) => doc.mean_mue ?? Number.MAX_SAFE_INTEGER, // Use max value for undefined to sort at end
+});
+
+// Aggregate for galaxies sorted by numericId (bigint)
+export const galaxiesByNumericId = new TableAggregate<{
+  Key: bigint;
+  DataModel: DataModel;
+  TableName: "galaxies";
+}>(components.galaxiesByNumericId, {
+  sortKey: (doc) => doc.numericId ?? BigInt(Number.MAX_SAFE_INTEGER),
 });
 
 // Helper function to get the appropriate aggregate based on sort field
@@ -120,14 +120,12 @@ export function getGalaxiesAggregate(sortBy: string) {
       return galaxiesByPa;
     case "nucleus":
       return galaxiesByNucleus;
-    case "_creationTime":
-      return galaxiesByCreationTime;
     case "mag":
       return galaxiesByMag;
     case "mean_mue":
       return galaxiesByMeanMue;
     case "numericId":
-      return galaxyIdsAggregate;
+      return galaxiesByNumericId;
     default:
       return galaxiesById; // fallback
   }
@@ -243,9 +241,9 @@ export const clearGalaxyAggregates = mutation({
     await galaxiesByQ.clear(ctx);
     await galaxiesByPa.clear(ctx);
     await galaxiesByNucleus.clear(ctx);
-    await galaxiesByCreationTime.clear(ctx);
     await galaxiesByMag.clear(ctx);
     await galaxiesByMeanMue.clear(ctx);
+    await galaxiesByNumericId.clear(ctx);
     // await galaxyIdsAggregate.clear(ctx);
   },
 });
@@ -284,7 +282,6 @@ export const rebuildGalaxyAggregates = mutation({
       await galaxiesByQ.clear(ctx);
       await galaxiesByPa.clear(ctx);
       await galaxiesByNucleus.clear(ctx);
-      await galaxiesByCreationTime.clear(ctx);
       await galaxiesByMag.clear(ctx);
       await galaxiesByMeanMue.clear(ctx);
       // await galaxyIdsAggregate.clear(ctx);
@@ -317,9 +314,9 @@ export const rebuildGalaxyAggregates = mutation({
       await galaxiesByQ.insert(ctx, galaxy);
       await galaxiesByPa.insert(ctx, galaxy);
       await galaxiesByNucleus.insert(ctx, galaxy);
-      await galaxiesByCreationTime.insert(ctx, galaxy);
       await galaxiesByMag.insert(ctx, galaxy);
       await galaxiesByMeanMue.insert(ctx, galaxy);
+      await galaxiesByNumericId.insert(ctx, galaxy);
       processed += 1;
     }
 
@@ -368,9 +365,9 @@ export const getAggregateInfo = query({
       galaxiesByQCount,
       galaxiesByPaCount,
       galaxiesByNucleusCount,
-      galaxiesByCreationTimeCount,
       galaxiesByMagCount,
       galaxiesByMeanMueCount,
+      galaxiesByNumericIdCount,
     ] = await Promise.all([
       galaxyIdsAggregate.count(ctx),
       galaxiesById.count(ctx),
@@ -380,9 +377,9 @@ export const getAggregateInfo = query({
       galaxiesByQ.count(ctx),
       galaxiesByPa.count(ctx),
       galaxiesByNucleus.count(ctx),
-      galaxiesByCreationTime.count(ctx),
       galaxiesByMag.count(ctx),
       galaxiesByMeanMue.count(ctx),
+      galaxiesByNumericId.count(ctx),
     ]);
 
     // Get min/max values for numeric aggregates
@@ -399,12 +396,12 @@ export const getAggregateInfo = query({
       galaxiesByQMax,
       galaxiesByPaMin,
       galaxiesByPaMax,
-      galaxiesByCreationTimeMin,
-      galaxiesByCreationTimeMax,
       galaxiesByMagMin,
       galaxiesByMagMax,
       galaxiesByMeanMueMin,
       galaxiesByMeanMueMax,
+      galaxiesByNumericIdMin,
+      galaxiesByNumericIdMax,
     ] = await Promise.all([
       galaxyIdsAggregate.min(ctx).then(item => item?.key),
       galaxyIdsAggregate.max(ctx).then(item => item?.key),
@@ -418,12 +415,12 @@ export const getAggregateInfo = query({
       galaxiesByQ.max(ctx).then(item => item?.key),
       galaxiesByPa.min(ctx).then(item => item?.key),
       galaxiesByPa.max(ctx).then(item => item?.key),
-      galaxiesByCreationTime.min(ctx).then(item => item?.key),
-      galaxiesByCreationTime.max(ctx).then(item => item?.key),
       galaxiesByMag.min(ctx).then(item => item?.key),
       galaxiesByMag.max(ctx).then(item => item?.key),
       galaxiesByMeanMue.min(ctx).then(item => item?.key),
       galaxiesByMeanMue.max(ctx).then(item => item?.key),
+      galaxiesByNumericId.min(ctx).then(item => item?.key),
+      galaxiesByNumericId.max(ctx).then(item => item?.key),
     ]);
 
     // Get nucleus counts (true/false)
@@ -473,11 +470,6 @@ export const getAggregateInfo = query({
         trueCount: nucleusTrueCount,
         falseCount: nucleusFalseCount,
       },
-      galaxiesByCreationTime: {
-        count: galaxiesByCreationTimeCount,
-        min: galaxiesByCreationTimeMin,
-        max: galaxiesByCreationTimeMax,
-      },
       galaxiesByMag: {
         count: galaxiesByMagCount,
         min: galaxiesByMagMin,
@@ -487,6 +479,11 @@ export const getAggregateInfo = query({
         count: galaxiesByMeanMueCount,
         min: galaxiesByMeanMueMin,
         max: galaxiesByMeanMueMax,
+      },
+      galaxiesByNumericId: {
+        count: galaxiesByNumericIdCount,
+        min: galaxiesByNumericIdMin,
+        max: galaxiesByNumericIdMax,
       },
     };
   },

@@ -12,10 +12,10 @@ import {
   galaxiesByQ,
   galaxiesByPa,
   galaxiesByNucleus,
-  galaxiesByCreationTime,
   galaxiesByMag,
   galaxiesByMeanMue,
-  galaxyIdsAggregate
+  galaxyIdsAggregate,
+  galaxiesByNumericId
 } from "./galaxies_aggregates";
 
 
@@ -49,11 +49,6 @@ export const deleteAllGalaxies = mutation({
       Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
     );
     
-    // Delete galaxyAssignmentStats
-    await ctx.db.query("galaxyAssignmentStats").collect().then(docs => 
-      Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
-    );
-    
     // Delete galaxyIds table
     await ctx.db.query("galaxyIds").collect().then(docs => 
       Promise.all(docs.map(doc => ctx.db.delete(doc._id)))
@@ -72,9 +67,9 @@ export const deleteAllGalaxies = mutation({
     await galaxiesByQ.clear(ctx);
     await galaxiesByPa.clear(ctx);
     await galaxiesByNucleus.clear(ctx);
-    await galaxiesByCreationTime.clear(ctx);
     await galaxiesByMag.clear(ctx);
     await galaxiesByMeanMue.clear(ctx);
+    await galaxiesByNumericId.clear(ctx);
     
     // Clear the aggregate
     await galaxyIdsAggregate.clear(ctx);
@@ -104,24 +99,10 @@ export async function insertGalaxy(
     galaxy.mean_mue = photometryBand.sersic.mean_mue;
   }
 
-  // Insert core row first
-  const galaxyRef = await ctx.db.insert("galaxies", galaxy);
-  const galaxyDoc = await ctx.db.get(galaxyRef);
-  if (!galaxyDoc) throw new Error("Failed to insert galaxy");
-
-  // Maintain galaxy aggregates (run in parallel for better performance)
-  await Promise.all([
-    galaxiesById.insert(ctx, galaxyDoc),
-    galaxiesByRa.insert(ctx, galaxyDoc),
-    galaxiesByDec.insert(ctx, galaxyDoc),
-    galaxiesByReff.insert(ctx, galaxyDoc),
-    galaxiesByQ.insert(ctx, galaxyDoc),
-    galaxiesByPa.insert(ctx, galaxyDoc),
-    galaxiesByNucleus.insert(ctx, galaxyDoc),
-    galaxiesByCreationTime.insert(ctx, galaxyDoc),
-    galaxiesByMag.insert(ctx, galaxyDoc),
-    galaxiesByMeanMue.insert(ctx, galaxyDoc),
-  ]);
+  // Set default assignment stats
+  galaxy.totalAssigned = galaxy.totalAssigned ?? BigInt(0);
+  galaxy.perUser = galaxy.perUser ?? {};
+  galaxy.lastAssignedAt = galaxy.lastAssignedAt ?? undefined;
 
   // if numericId is not provided, find the max numericId and increment or set to 1 if none exist, 
   //   use galaxyIdsAggregate to find max value of numericId
@@ -134,21 +115,32 @@ export async function insertGalaxy(
     resolvedNumericId = numbericId;
   }
 
+  // Set the numericId in the galaxy object before inserting
+  galaxy.numericId = resolvedNumericId;
+
+  // Insert core row first
+  const galaxyRef = await ctx.db.insert("galaxies", galaxy);
+  const insertedGalaxy = await ctx.db.get(galaxyRef);
+  if (!insertedGalaxy) throw new Error("Failed to insert galaxy");
+
+  // Maintain galaxy aggregates
+  await galaxiesById.insert(ctx, insertedGalaxy);
+  await galaxiesByRa.insert(ctx, insertedGalaxy);
+  await galaxiesByDec.insert(ctx, insertedGalaxy);
+  await galaxiesByReff.insert(ctx, insertedGalaxy);
+  await galaxiesByQ.insert(ctx, insertedGalaxy);
+  await galaxiesByPa.insert(ctx, insertedGalaxy);
+  await galaxiesByNucleus.insert(ctx, insertedGalaxy);
+  await galaxiesByMag.insert(ctx, insertedGalaxy);
+  await galaxiesByMeanMue.insert(ctx, insertedGalaxy);
+  await galaxiesByNumericId.insert(ctx, insertedGalaxy);
+
   // Maintain galaxyIds aggregate table
   const galaxyId_id = await ctx.db.insert("galaxyIds", { id: galaxy.id, galaxyRef, numericId: resolvedNumericId });
   const galaxyId_doc = await ctx.db.get(galaxyId_id);
   if (galaxyId_doc) {
     await galaxyIdsAggregate.insert(ctx, galaxyId_doc);
   }
-
-  // Insert galaxyAssignmentStats
-  await ctx.db.insert("galaxyAssignmentStats", {
-    galaxyExternalId: galaxy.id,
-    numericId: resolvedNumericId,
-    totalAssigned: 0,
-    perUser: {},
-    lastAssignedAt: undefined,
-  });
 
   // Per-band photometry tables
   if (photometryBand) {
@@ -339,6 +331,74 @@ export const fillGalaxyMagAndMeanMue = mutation({
       cursor: continueCursor,
       isDone,
       message: updated > 0 ? `Updated ${updated} galaxies with mag/mean_mue` : "No galaxies needed updating",
+    };
+  },
+});
+
+export const fillGalaxyNumericId = mutation({
+  args: {
+    maxToUpdate: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+    startNumericId: v.optional(v.int64()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Admin only
+    const currentProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+    if (!currentProfile || currentProfile.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    const limit = args.maxToUpdate ? Math.max(1, Math.floor(args.maxToUpdate)) : UPDATE_BATCH_SIZE;
+    let updated = 0;
+    let cursor = args.cursor || null;
+    let startNumericId = args.startNumericId || BigInt(1);
+
+    // Clear aggregate on first call
+    if (!cursor) {
+      console.log(`[fillGalaxyNumericId] Starting fillGalaxyNumericId with startNumericId: ${startNumericId}`);
+      await galaxiesByNumericId.clear(ctx);
+    }
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("galaxies")
+      .paginate({
+        numItems: limit,
+        cursor,
+      });
+
+    // Sort by _creationTime to assign numericId in creation order
+    page.sort((a, b) => a._creationTime - b._creationTime);
+
+    for (const galaxy of page) {
+      const numericId = startNumericId + BigInt(updated);
+      
+      await ctx.db.patch(galaxy._id, { numericId });
+      const updatedGalaxy = { ...galaxy, numericId };
+      await galaxiesByNumericId.insert(ctx, updatedGalaxy);
+      updated += 1;
+    }
+
+    console.log(`[fillGalaxyNumericId] Processed batch. Updated: ${updated} galaxies, cursor: ${continueCursor || 'null'}, isDone: ${isDone}`);
+
+    if (isDone) {
+      console.log(`[fillGalaxyNumericId] Completed fillGalaxyNumericId. Total updated: ${updated}`);
+    }
+
+    const nextStartNumericId = startNumericId + BigInt(updated);
+
+    return {
+      updated,
+      limit,
+      cursor: continueCursor,
+      isDone,
+      nextStartNumericId,
+      message: updated > 0 ? `Updated ${updated} galaxies with sequential numericId starting from ${startNumericId}` : "No galaxies to process",
     };
   },
 });

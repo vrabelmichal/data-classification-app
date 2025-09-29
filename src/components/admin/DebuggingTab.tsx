@@ -10,6 +10,7 @@ export function DebuggingTab() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [seedingStats, setSeedingStats] = useState(false);
   const [seedingCursor, setSeedingCursor] = useState<string | null>(null);
+  const [resetTotalAssigned, setResetTotalAssigned] = useState(false);
   const [clearingGalaxyAggregates, setClearingGalaxyAggregates] = useState(false);
   const [rebuildingGalaxyAggregates, setRebuildingGalaxyAggregates] = useState(false);
   const [rebuildCursor, setRebuildCursor] = useState<string | null>(null);
@@ -19,6 +20,8 @@ export function DebuggingTab() {
   const [rebuildIdsProgress, setRebuildIdsProgress] = useState<number>(0);
   const [fillingMagMeanMue, setFillingMagMeanMue] = useState(false);
   const [fillingCursor, setFillingCursor] = useState<string | null>(null);
+  const [fillingNumericId, setFillingNumericId] = useState(false);
+  const [fillingNumericIdCursor, setFillingNumericIdCursor] = useState<string | null>(null);
   const [rebuildingGalaxyIdsTable, setRebuildingGalaxyIdsTable] = useState(false);
   const [rebuildIdsTableCursor, setRebuildIdsTableCursor] = useState<string | null>(null);
   const [rebuildIdsTableProgress, setRebuildIdsTableProgress] = useState<number>(0);
@@ -31,6 +34,7 @@ export function DebuggingTab() {
   const deleteAllGalaxies = useMutation(api.galaxies.deleteAllGalaxies);
   const seedGalaxyAssignmentStats = useMutation(api.seedGalaxyAssignmentStats.seedGalaxyAssignmentStats);
   const fillGalaxyMagAndMeanMue = useMutation(api.galaxies.fillGalaxyMagAndMeanMue);
+  const fillGalaxyNumericId = useMutation(api.galaxies.fillGalaxyNumericId);
   const rebuildGalaxyIdsTable = useMutation(api.galaxies.rebuildGalaxyIdsTable);
 
   const aggregateInfo = useQuery(api.galaxies_aggregates.getAggregateInfo);
@@ -87,6 +91,7 @@ export function DebuggingTab() {
       while (iterations < maxIterations) {
         const result = await seedGalaxyAssignmentStats({
           cursor: currentCursor || undefined,
+          resetTotalAssigned,
         });
         totalSeeded += result.seeded;
         currentCursor = result.cursor;
@@ -236,6 +241,40 @@ export function DebuggingTab() {
     }
   };
 
+  const handleFillGalaxyNumericId = async () => {
+    try {
+      setFillingNumericId(true);
+      let totalUpdated = 0;
+      let iterations = 0;
+      let currentCursor = fillingNumericIdCursor;
+      const maxIterations = 10000; // safety limit
+
+      while (iterations < maxIterations) {
+        const result = await fillGalaxyNumericId({
+          cursor: currentCursor || undefined,
+        });
+        totalUpdated += result.updated;
+        currentCursor = result.cursor;
+        setFillingNumericIdCursor(result.cursor);
+
+        if (result.isDone || result.updated === 0) break;
+        iterations++;
+      }
+
+      // Reset cursor when done
+      if (currentCursor === null) {
+        setFillingNumericIdCursor(null);
+      }
+
+      toast.success(`Filled numericId for ${totalUpdated} galaxies across ${iterations + 1} batches`);
+    } catch (error) {
+      toast.error("Failed to fill galaxy numericId");
+      console.error(error);
+    } finally {
+      setFillingNumericId(false);
+    }
+  };
+
   const handleRebuildGalaxyIdsTable = async () => {
     if (!confirm("Rebuild galaxy IDs table? This will clear and rebuild the galaxyIds table from the galaxies table. This may take some time for large datasets and will process in batches.")) return;
     try {
@@ -307,6 +346,20 @@ export function DebuggingTab() {
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
             Seed galaxy assignment stats for all galaxies that don't have them yet. Processes in batches of 500 to avoid timeouts and will continue until all galaxies are processed.
           </p>
+          <div className="mb-4">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={resetTotalAssigned}
+                onChange={(e) => setResetTotalAssigned(e.target.checked)}
+                className="mr-2"
+                disabled={seedingStats}
+              />
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Reset totalAssigned to 0 (useful after removing user sequences)
+              </span>
+            </label>
+          </div>
           <button
             onClick={() => void (async () => { await handleSeedGalaxyAssignmentStats(); })()}
             disabled={seedingStats}
@@ -333,6 +386,23 @@ export function DebuggingTab() {
               <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             )}
             {fillingMagMeanMue ? 'Filling...' : 'Fill Mag & Mean μ'}
+          </button>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-teal-600 dark:text-teal-400 mb-4">🔢 Fill Galaxy Numeric ID</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+            Fill missing numericId values in galaxies table using data from galaxyIds table. Processes in batches of 200 to avoid timeouts and will continue until all galaxies are processed.
+          </p>
+          <button
+            onClick={() => void (async () => { await handleFillGalaxyNumericId(); })()}
+            disabled={fillingNumericId}
+            className="inline-flex items-center justify-center bg-teal-600 hover:bg-teal-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+          >
+            {fillingNumericId && (
+              <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            )}
+            {fillingNumericId ? 'Filling...' : 'Fill Numeric ID'}
           </button>
         </div>
 
@@ -543,16 +613,6 @@ export function DebuggingTab() {
                   <div>Total: {aggregateInfo.galaxiesByNucleus.count.toLocaleString()}</div>
                   <div>With Nucleus: {aggregateInfo.galaxiesByNucleus.trueCount.toLocaleString()}</div>
                   <div>Without Nucleus: {aggregateInfo.galaxiesByNucleus.falseCount.toLocaleString()}</div>
-                </div>
-              </div>
-
-              {/* Galaxies by Creation Time */}
-              <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
-                <h4 className="font-medium text-gray-900 dark:text-white mb-2">Galaxies by Creation Time</h4>
-                <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-                  <div>Count: {aggregateInfo.galaxiesByCreationTime.count.toLocaleString()}</div>
-                  <div>Earliest: {aggregateInfo.galaxiesByCreationTime.min ? new Date(aggregateInfo.galaxiesByCreationTime.min).toLocaleDateString() : 'N/A'}</div>
-                  <div>Latest: {aggregateInfo.galaxiesByCreationTime.max ? new Date(aggregateInfo.galaxiesByCreationTime.max).toLocaleDateString() : 'N/A'}</div>
                 </div>
               </div>
 

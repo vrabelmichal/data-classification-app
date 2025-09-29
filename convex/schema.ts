@@ -194,7 +194,9 @@ const applicationTables = {
     // .index("by_mean_mue_reff", ["mean_mue", "reff"]) 
     // .index("by_mag_reff", ["mag", "reff"]) 
     // .index("by_q_reff", ["q", "reff"]) 
-    .index("by_reff_q", ["reff", "q"]),
+    .index("by_reff_q", ["reff", "q"])
+
+    .index("by_totalAssigned_numericId", ["totalAssigned", "numericId"]),
 
   // Split photometry tables (one doc per galaxy per band)
   galaxies_photometry_g: defineTable(photometryBandSchema).index("by_galaxy", ["galaxyRef"]),
@@ -212,16 +214,6 @@ const applicationTables = {
     galaxyRef: v.id("galaxies"),
     numericId: v.int64(),
   }).index("by_external_id", ["id"]).index("by_numeric_id", ["numericId"]),
-
-  galaxyAssignmentStats: defineTable({
-    galaxyExternalId: v.string(),
-    numericId: v.int64(),
-    totalAssigned: v.number(),
-    perUser: v.optional(v.record(v.string(), v.number())),
-    lastAssignedAt: v.optional(v.number()),
-  })
-    .index("by_galaxy", ["galaxyExternalId"])
-    .index("by_total_numeric", ["totalAssigned", "numericId"]),
 
   // User profiles
   userProfiles: defineTable({

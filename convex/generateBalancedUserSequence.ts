@@ -9,11 +9,11 @@ import {
 } from "./lib/assignmentCore";
 
 type StatsDoc = {
-  _id: any; // Id<"galaxyAssignmentStats">
-  galaxyExternalId: string; // Id<"galaxyIds"> serialized
+  _id: any; // Id<"galaxies">
+  galaxyExternalId: string; // galaxy id
   numericId: bigint;
-  totalAssigned: number;
-  perUser?: Record<string, number>;
+  totalAssigned: bigint;
+  perUser?: Record<string, bigint>;
   lastAssignedAt?: number;
 };
 
@@ -61,37 +61,67 @@ export const generateBalancedUserSequence = mutation({
       sequenceSize: S,
     }).map((w) => w.message);
 
+    console.log(`Starting balanced sequence generation: N=${expectedUsers}, K=${K}, M=${M}, S=${S}, allowOverAssign=${allowOverAssign}, dryRun=${dryRun}`);
+
     // Build async streams from Convex index, batched.
     async function* underKStream(): AsyncIterable<StatsDoc> {
-      const base = ctx.db
-        .query("galaxyAssignmentStats")
-        .withIndex("by_total_numeric", (q) => q.lt("totalAssigned", K));
       let cursor: string | null = null;
+      let batchCount = 0;
       while (true) {
-        const { page, isDone, continueCursor } = await base.paginate({
-          numItems: BATCH,
-          cursor,
-        });
-        for (const doc of page) yield doc as StatsDoc;
+        const { page, isDone, continueCursor } = await ctx.db
+          .query("galaxies")
+          .withIndex("by_totalAssigned_numericId", (q) => q.lt("totalAssigned", BigInt(K)))
+          .paginate({
+            numItems: BATCH,
+            cursor,
+          });
+        console.log(`Under-K stream batch ${batchCount}: got ${page.length} galaxies, isDone=${isDone}, cursor=${continueCursor?.substring(0, 20)}...`);
+        for (const doc of page) {
+          // console.log(`Under-K galaxy ${doc.id}: totalAssigned=${doc.totalAssigned}, numericId=${doc.numericId}`);
+          yield {
+            _id: doc._id,
+            galaxyExternalId: doc.id,
+            numericId: doc.numericId!,
+            totalAssigned: doc.totalAssigned!,
+            perUser: doc.perUser,
+            lastAssignedAt: doc.lastAssignedAt,
+          } as StatsDoc;
+        }
         if (isDone) break;
         cursor = continueCursor;
+        batchCount++;
       }
+      console.log(`Under-K stream completed: ${batchCount} batches`);
     }
 
     async function* overKStream(): AsyncIterable<StatsDoc> {
-      const base = ctx.db
-        .query("galaxyAssignmentStats")
-        .withIndex("by_total_numeric", (q) => q.gte("totalAssigned", K));
       let cursor: string | null = null;
+      let batchCount = 0;
       while (true) {
-        const { page, isDone, continueCursor } = await base.paginate({
-          numItems: BATCH,
-          cursor,
-        });
-        for (const doc of page) yield doc as StatsDoc;
+        const { page, isDone, continueCursor } = await ctx.db
+          .query("galaxies")
+          .withIndex("by_totalAssigned_numericId", (q) => q.gte("totalAssigned", BigInt(K)))
+          .paginate({
+            numItems: BATCH,
+            cursor,
+          });
+        console.log(`Over-K stream batch ${batchCount}: got ${page.length} galaxies, isDone=${isDone}, cursor=${continueCursor?.substring(0, 20)}...`);
+        for (const doc of page) {
+          // console.log(`Over-K galaxy ${doc.id}: totalAssigned=${doc.totalAssigned}, numericId=${doc.numericId}`);
+          yield {
+            _id: doc._id,
+            galaxyExternalId: doc.id,
+            numericId: doc.numericId!,
+            totalAssigned: doc.totalAssigned!,
+            perUser: doc.perUser,
+            lastAssignedAt: doc.lastAssignedAt,
+          } as StatsDoc;
+        }
         if (isDone) break;
         cursor = continueCursor;
+        batchCount++;
       }
+      console.log(`Over-K stream completed: ${batchCount} batches`);
     }
 
     const selectionParams: SelectionParams = {
@@ -114,6 +144,9 @@ export const generateBalancedUserSequence = mutation({
       allowOverAssign ? overKStream() : undefined
     );
 
+    console.log(`Selection completed: selected ${selectedIds.length} galaxies, overAssignedCount=${overAssignedCount}, exhaustedUnderK=${exhaustedUnderK}, exhaustedAll=${exhaustedAll}`);
+    console.log(`Selected galaxy IDs: ${selectedIds.slice(0, 10).join(', ')}${selectedIds.length > 10 ? '...' : ''}`);
+
     if (overAssignedCount > 0) {
       warnings.push(
         `Warning: ${overAssignedCount} entries were assigned with ` +
@@ -132,46 +165,60 @@ export const generateBalancedUserSequence = mutation({
     // Replace user's sequence (unless dryRun)
     let success = false;
     if (!dryRun) {
+      console.log(`Creating sequence for user ${targetUserId} with ${selectedIds.length} galaxies`);
       const existingSequence = await ctx.db
         .query("galaxySequences")
         .withIndex("by_user", (q) => q.eq("userId", targetUserId))
         .unique();
       if (existingSequence) {
+        console.log(`Deleting existing sequence ${existingSequence._id}`);
         await ctx.db.delete(existingSequence._id);
       }
 
       if (selectedIds.length > 0) {
-        await ctx.db.insert("galaxySequences", {
+        const newSequence = await ctx.db.insert("galaxySequences", {
           userId: targetUserId,
           galaxyExternalIds: selectedIds,
           currentIndex: 0,
           numClassified: 0,
           numSkipped: 0,
         });
+        console.log(`Created new sequence ${newSequence}`);
         success = true;
       }
     }
 
     // Update stats counters for each chosen galaxy (unless dryRun)
     if (!dryRun) {
+      console.log(`Updating stats for ${selectedDocs.length} galaxies`);
       const now = Date.now();
       for (const doc of selectedDocs) {
+        console.log(`Processing galaxy ${doc.galaxyExternalId} (${doc._id}): current totalAssigned=${doc.totalAssigned}`);
         const latest = await ctx.db.get(doc._id as any);
-        if (!latest) continue;
-        // Type assertion since we know this is a galaxyAssignmentStats document
-        const statsDoc = latest as any;
-        const perUser = { ...(statsDoc.perUser ?? {}) };
-        const prev = perUser[targetUserId] ?? 0;
-        if (prev >= M) {
-          // Race-safety check: skip if cap reached since selection time.
+        if (!latest) {
+          console.log(`Galaxy ${doc.galaxyExternalId} not found, skipping`);
           continue;
         }
-        perUser[targetUserId] = prev + 1;
+        // Type assertion since we know this is a galaxies document
+        const statsDoc = latest as any;
+        console.log(`Latest galaxy data: totalAssigned=${statsDoc.totalAssigned}, perUser=${JSON.stringify(statsDoc.perUser)}`);
+        const perUser = { ...(statsDoc.perUser ?? {}) };
+        const prev = perUser[targetUserId] ?? BigInt(0);
+        console.log(`User ${targetUserId} previous count: ${prev}, cap M=${M}`);
+        if (prev >= BigInt(M)) {
+          // Race-safety check: skip if cap reached since selection time.
+          console.log(`Skipping galaxy ${doc.galaxyExternalId}: user cap reached`);
+          continue;
+        }
+        perUser[targetUserId] = prev + BigInt(1);
+        const newTotalAssigned = (statsDoc.totalAssigned ?? BigInt(0)) + BigInt(1);
+        // console.log(`Updating galaxy ${doc.galaxyExternalId}: totalAssigned ${statsDoc.totalAssigned ?? BigInt(0)} -> ${newTotalAssigned}, perUser[${targetUserId}] ${prev} -> ${prev + BigInt(1)}`);
         await ctx.db.patch(statsDoc._id, {
-          totalAssigned: statsDoc.totalAssigned + 1,
+          totalAssigned: newTotalAssigned,
           perUser,
           lastAssignedAt: now,
         });
+        console.log(`Successfully updated galaxy ${doc.galaxyExternalId}`);
       }
 
       const userProfile = await ctx.db
@@ -179,10 +226,12 @@ export const generateBalancedUserSequence = mutation({
         .withIndex("by_user", (q) => q.eq("userId", targetUserId))
         .unique();
       if (userProfile) {
+        console.log(`Marking user profile ${userProfile._id} as sequenceGenerated=true`);
         await ctx.db.patch(userProfile._id, { sequenceGenerated: true });
       }
     }
 
+    console.log(`Completed balanced sequence generation: success=${dryRun ? true : success}, generated=${selectedIds.length}/${S}`);
     return {
       success: dryRun ? true : success,
       requested: S,

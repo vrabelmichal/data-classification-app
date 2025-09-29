@@ -11,6 +11,8 @@ export const seedGalaxyAssignmentStats = mutation({
     maxToSeed: v.optional(v.number()),
     // Optional: cursor to resume from previous run
     cursor: v.optional(v.string()),
+    // Optional: reset totalAssigned to 0 (useful after sequences are removed)
+    resetTotalAssigned: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -28,31 +30,45 @@ export const seedGalaxyAssignmentStats = mutation({
     const limit = args.maxToSeed ? Math.max(1, Math.floor(args.maxToSeed)) : SEED_BATCH;
     let seeded = 0;
     let cursor = args.cursor || null;
+    const resetTotalAssigned = !!args.resetTotalAssigned;
+
+    // Log for first batch
+    if (!args.cursor) {
+      console.log(`Starting galaxy assignment stats seeding: processing first batch of up to ${limit} galaxies${resetTotalAssigned ? ' (resetting totalAssigned)' : ''}`);
+    }
 
     const { page, isDone, continueCursor } = await ctx.db
-      .query("galaxyIds")
+      .query("galaxies")
       .withIndex("by_numeric_id")
       .paginate({
         numItems: limit,
         cursor,
       });
 
-    for (const g of page) {
-      // Check if stats exist
-      const existing = await ctx.db
-        .query("galaxyAssignmentStats")
-        .withIndex("by_galaxy", (q) => q.eq("galaxyExternalId", g.id))
-        .unique();
-      if (!existing) {
-        await ctx.db.insert("galaxyAssignmentStats", {
-          galaxyExternalId: g.id,
-          numericId: g.numericId, // adjust to your actual type
-          totalAssigned: 0,
-          perUser: {},
-          lastAssignedAt: undefined,
+    for (const galaxy of page) {
+      // Check if we need to seed stats
+      const needsSeeding = galaxy.totalAssigned === undefined ||
+                          galaxy.perUser === undefined ||
+                          resetTotalAssigned;
+
+      if (needsSeeding) {
+        await ctx.db.patch(galaxy._id, {
+          totalAssigned: resetTotalAssigned ? BigInt(0) : (galaxy.totalAssigned ?? BigInt(0)),
+          perUser: resetTotalAssigned ? {} : (galaxy.perUser ?? {}),
+          lastAssignedAt: resetTotalAssigned ? undefined : (galaxy.lastAssignedAt ?? undefined),
         });
         seeded += 1;
       }
+    }
+
+    // Log for intermediate batches (not first, not last)
+    if (args.cursor && !isDone) {
+      console.log(`Processed intermediate batch: ${resetTotalAssigned ? 'reset' : 'seeded'} ${seeded} galaxies (${page.length} total in batch), continuing with cursor ${continueCursor}`);
+    }
+
+    // Log for last batch
+    if (isDone) {
+      console.log(`Completed galaxy assignment stats seeding: processed final batch, ${resetTotalAssigned ? 'reset' : 'seeded'} ${seeded} galaxies (${page.length} total in batch), no more data to process`);
     }
 
     return {
@@ -62,8 +78,12 @@ export const seedGalaxyAssignmentStats = mutation({
       isDone,
       message:
         seeded > 0
-          ? `Seeded ${seeded} galaxyAssignmentStats docs`
-          : "No new stats were seeded",
+          ? resetTotalAssigned
+            ? `Reset ${seeded} galaxy assignment stats`
+            : `Seeded ${seeded} galaxy stats`
+          : resetTotalAssigned
+            ? "No galaxy assignment stats were reset"
+            : "No new stats were seeded",
     };
   },
 });
