@@ -174,12 +174,16 @@ export const userHasSequence = query({
 export const removeUserSequence = mutation({
     args: {
         targetUserId: v.id("users"),
+        batchSize: v.optional(v.number()),
+        batchIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
         const userId = await getAuthUserId(ctx);
         if (!userId) throw new Error("Not authenticated");
 
         const targetUserId = args.targetUserId;
+        const batchSize = args.batchSize || 500;
+        const batchIndex = args.batchIndex || 0;
 
         // Admin check - only admins can remove sequences
         const currentProfile = await ctx.db
@@ -200,59 +204,78 @@ export const removeUserSequence = mutation({
             throw new Error("User does not have a sequence");
         }
 
-        console.log(`Removing sequence for user ${targetUserId} with ${sequence.galaxyExternalIds?.length || 0} galaxies`);
+        const totalGalaxies = sequence.galaxyExternalIds?.length || 0;
+        const startIndex = batchIndex * batchSize;
+        const endIndex = Math.min(startIndex + batchSize, totalGalaxies);
+        const batchGalaxies = sequence.galaxyExternalIds?.slice(startIndex, endIndex) || [];
+        const totalBatches = Math.ceil(totalGalaxies / batchSize);
+        const isLastBatch = endIndex >= totalGalaxies;
 
-        // Update galaxy counters for each galaxy in the sequence
-        if (sequence.galaxyExternalIds && sequence.galaxyExternalIds.length > 0) {
-            for (const galaxyExternalId of sequence.galaxyExternalIds) {
-                // Find the galaxy by external ID
-                const galaxy = await ctx.db
-                    .query("galaxies")
-                    .withIndex("by_external_id", (q) => q.eq("id", galaxyExternalId))
-                    .unique();
+        console.log(`Processing batch ${batchIndex + 1} of ${totalBatches}, galaxies ${startIndex}-${endIndex - 1} (${batchGalaxies.length} galaxies)`);
 
-                if (galaxy) {
-                    // Update totalAssigned and perUser counters
-                    const perUser = { ...(galaxy.perUser ?? {}) };
-                    const prevUserCount = perUser[targetUserId] ?? BigInt(0);
+        // Process this batch
+        let processed = 0;
+        for (const galaxyExternalId of batchGalaxies) {
+            // Find the galaxy by external ID
+            const galaxy = await ctx.db
+                .query("galaxies")
+                .withIndex("by_external_id", (q) => q.eq("id", galaxyExternalId))
+                .unique();
 
-                    if (prevUserCount > BigInt(0)) {
-                        // Remove this user from perUser
-                        delete perUser[targetUserId];
+            if (galaxy) {
+                // Update totalAssigned and perUser counters
+                const perUser = { ...(galaxy.perUser ?? {}) };
+                const prevUserCount = perUser[targetUserId] ?? BigInt(0);
 
-                        // Decrement totalAssigned
-                        const newTotalAssigned = (galaxy.totalAssigned ?? BigInt(0)) - prevUserCount;
+                if (prevUserCount > BigInt(0)) {
+                    // Remove this user from perUser
+                    delete perUser[targetUserId];
 
-                        await ctx.db.patch(galaxy._id, {
-                            totalAssigned: newTotalAssigned,
-                            perUser: Object.keys(perUser).length > 0 ? perUser : undefined,
-                        });
+                    // Decrement totalAssigned
+                    const newTotalAssigned = (galaxy.totalAssigned ?? BigInt(0)) - prevUserCount;
 
-                        console.log(`Updated galaxy ${galaxyExternalId}: totalAssigned ${galaxy.totalAssigned} -> ${newTotalAssigned}, removed user ${targetUserId}`);
-                    }
-                } else {
-                    console.log(`Galaxy ${galaxyExternalId} not found, skipping`);
+                    await ctx.db.patch(galaxy._id, {
+                        totalAssigned: newTotalAssigned,
+                        perUser: Object.keys(perUser).length > 0 ? perUser : undefined,
+                    });
                 }
+            } else {
+                console.log(`Galaxy ${galaxyExternalId} not found, skipping`);
             }
+            processed++;
         }
 
-        // Delete the sequence
-        await ctx.db.delete(sequence._id);
+        console.log(`Completed batch ${batchIndex + 1} of ${totalBatches}, processed ${processed} galaxies`);
 
-        // Update user profile if needed
-        const userProfile = await ctx.db
-            .query("userProfiles")
-            .withIndex("by_user", (q) => q.eq("userId", targetUserId))
-            .unique();
-        if (userProfile && userProfile.sequenceGenerated) {
-            await ctx.db.patch(userProfile._id, { sequenceGenerated: false });
+        // If this is the last batch, clean up
+        if (isLastBatch) {
+            // Delete the sequence
+            await ctx.db.delete(sequence._id);
+
+            // Update user profile if needed
+            const userProfile = await ctx.db
+                .query("userProfiles")
+                .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+                .unique();
+            if (userProfile && userProfile.sequenceGenerated) {
+                await ctx.db.patch(userProfile._id, { sequenceGenerated: false });
+            }
+
+            console.log(`Successfully removed sequence for user ${targetUserId} with ${totalGalaxies} galaxies`);
         }
 
-        console.log(`Successfully removed sequence for user ${targetUserId}`);
         return {
             success: true,
-            message: `Removed sequence with ${sequence.galaxyExternalIds?.length || 0} galaxies`,
-            galaxiesRemoved: sequence.galaxyExternalIds?.length || 0,
+            message: isLastBatch
+                ? `Removed sequence with ${totalGalaxies} galaxies`
+                : `Processed batch ${batchIndex + 1}/${totalBatches} (${processed} galaxies)`,
+            batchIndex,
+            totalBatches,
+            processedInBatch: processed,
+            totalProcessed: endIndex,
+            totalGalaxies,
+            isLastBatch,
+            galaxiesRemoved: isLastBatch ? totalGalaxies : undefined,
         };
     },
 });

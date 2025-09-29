@@ -10,6 +10,13 @@ interface RemoveUserSequenceProps {
 export function RemoveUserSequence({ users }: RemoveUserSequenceProps) {
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [removingSequence, setRemovingSequence] = useState(false);
+  const [progress, setProgress] = useState<{
+    currentBatch: number;
+    totalBatches: number;
+    processedGalaxies: number;
+    totalGalaxies: number;
+    message: string;
+  } | null>(null);
 
   const usersWithSequences = useQuery(api.galaxies_sequence.getUsersWithSequences);
 
@@ -23,21 +30,49 @@ export function RemoveUserSequence({ users }: RemoveUserSequenceProps) {
 
     try {
       setRemovingSequence(true);
-      const result = await removeUserSequence({
-        targetUserId: selectedUserId as any,
-      });
+      setProgress(null);
 
-      if (result.success) {
-        toast.success(`Removed sequence with ${result.galaxiesRemoved} galaxies`);
-        setSelectedUserId(""); // Reset selection
-      } else {
-        toast.error("Failed to remove sequence");
+      const batchSize = 500;
+      let batchIndex = 0;
+      let totalProcessed = 0;
+      let totalBatches = 1; // Will be updated from first response
+
+      while (true) {
+        const result = await removeUserSequence({
+          targetUserId: selectedUserId as any,
+          batchSize,
+          batchIndex,
+        });
+
+        if (!result.success) {
+          throw new Error("Failed to remove sequence batch");
+        }
+
+        totalProcessed = result.totalProcessed;
+        totalBatches = result.totalBatches;
+
+        setProgress({
+          currentBatch: batchIndex + 1,
+          totalBatches,
+          processedGalaxies: totalProcessed,
+          totalGalaxies: result.totalGalaxies,
+          message: result.message,
+        });
+
+        if (result.isLastBatch) {
+          toast.success(`Removed sequence with ${result.galaxiesRemoved} galaxies`);
+          setSelectedUserId(""); // Reset selection
+          break;
+        }
+
+        batchIndex++;
       }
     } catch (error) {
       toast.error("Failed to remove sequence");
       console.error(error);
     } finally {
       setRemovingSequence(false);
+      setProgress(null);
     }
   };
 
@@ -81,6 +116,28 @@ export function RemoveUserSequence({ users }: RemoveUserSequenceProps) {
           )}
           {removingSequence ? 'Removing Sequence...' : 'Remove Sequence'}
         </button>
+
+        {progress && (
+          <div className="mt-4 p-4 bg-red-100 dark:bg-red-800/20 rounded-lg border border-red-300 dark:border-red-600">
+            <div className="flex items-center space-x-2 mb-2">
+              <div className="h-2 bg-red-200 dark:bg-red-700 rounded-full flex-1">
+                <div
+                  className="h-2 bg-red-600 rounded-full transition-all duration-300"
+                  style={{ width: `${(progress.processedGalaxies / progress.totalGalaxies) * 100}%` }}
+                />
+              </div>
+              <span className="text-sm font-medium text-red-900 dark:text-red-100">
+                {progress.processedGalaxies}/{progress.totalGalaxies}
+              </span>
+            </div>
+            <p className="text-sm text-red-800 dark:text-red-200">
+              {progress.message}
+            </p>
+            <p className="text-xs text-red-700 dark:text-red-300 mt-1">
+              Batch {progress.currentBatch} of {progress.totalBatches}
+            </p>
+          </div>
+        )}
 
         {selectedUserId && (
           <p className="text-xs text-red-600 dark:text-red-400">
