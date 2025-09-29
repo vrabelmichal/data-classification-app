@@ -2,7 +2,7 @@ import { usePageTitle } from "../../hooks/usePageTitle";
 import { useGalaxyBrowser } from "./useGalaxyBrowser";
 import { GalaxyBrowserSearchForm } from "./GalaxyBrowserSearchForm";
 import { GalaxyBrowserControls } from "./GalaxyBrowserControls";
-import { GalaxyBrowserTableView } from "./GalaxyBrowserTableView";
+import { GalaxyBrowserSimpleTableView } from "./GalaxyBrowserSimpleTableView";
 import { GalaxyBrowserMobileCards } from "./GalaxyBrowserMobileCards";
 // Cursor-based pagination handled in controls; standalone pagination removed
 
@@ -399,7 +399,7 @@ export function GalaxyBrowser() {
 
       {/* Desktop Table View */}
       <div className="hidden lg:block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-        <GalaxyBrowserTableView
+        <GalaxyBrowserSimpleTableView
           galaxyData={galaxyData}
           userPrefs={userPrefs}
           previewImageName={previewImageName}
