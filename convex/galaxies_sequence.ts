@@ -170,3 +170,186 @@ export const userHasSequence = query({
     },
 });
 
+
+export const removeUserSequence = mutation({
+    args: {
+        targetUserId: v.id("users"),
+    },
+    handler: async (ctx, args) => {
+        const userId = await getAuthUserId(ctx);
+        if (!userId) throw new Error("Not authenticated");
+
+        const targetUserId = args.targetUserId;
+
+        // Admin check - only admins can remove sequences
+        const currentProfile = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_user", (q) => q.eq("userId", userId))
+            .unique();
+        if (!currentProfile || currentProfile.role !== "admin") {
+            throw new Error("Admin access required");
+        }
+
+        // Get the user's sequence
+        const sequence = await ctx.db
+            .query("galaxySequences")
+            .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+            .unique();
+
+        if (!sequence) {
+            throw new Error("User does not have a sequence");
+        }
+
+        console.log(`Removing sequence for user ${targetUserId} with ${sequence.galaxyExternalIds?.length || 0} galaxies`);
+
+        // Update galaxy counters for each galaxy in the sequence
+        if (sequence.galaxyExternalIds && sequence.galaxyExternalIds.length > 0) {
+            for (const galaxyExternalId of sequence.galaxyExternalIds) {
+                // Find the galaxy by external ID
+                const galaxy = await ctx.db
+                    .query("galaxies")
+                    .withIndex("by_external_id", (q) => q.eq("id", galaxyExternalId))
+                    .unique();
+
+                if (galaxy) {
+                    // Update totalAssigned and perUser counters
+                    const perUser = { ...(galaxy.perUser ?? {}) };
+                    const prevUserCount = perUser[targetUserId] ?? BigInt(0);
+
+                    if (prevUserCount > BigInt(0)) {
+                        // Remove this user from perUser
+                        delete perUser[targetUserId];
+
+                        // Decrement totalAssigned
+                        const newTotalAssigned = (galaxy.totalAssigned ?? BigInt(0)) - prevUserCount;
+
+                        await ctx.db.patch(galaxy._id, {
+                            totalAssigned: newTotalAssigned,
+                            perUser: Object.keys(perUser).length > 0 ? perUser : undefined,
+                        });
+
+                        console.log(`Updated galaxy ${galaxyExternalId}: totalAssigned ${galaxy.totalAssigned} -> ${newTotalAssigned}, removed user ${targetUserId}`);
+                    }
+                } else {
+                    console.log(`Galaxy ${galaxyExternalId} not found, skipping`);
+                }
+            }
+        }
+
+        // Delete the sequence
+        await ctx.db.delete(sequence._id);
+
+        // Update user profile if needed
+        const userProfile = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+            .unique();
+        if (userProfile && userProfile.sequenceGenerated) {
+            await ctx.db.patch(userProfile._id, { sequenceGenerated: false });
+        }
+
+        console.log(`Successfully removed sequence for user ${targetUserId}`);
+        return {
+            success: true,
+            message: `Removed sequence with ${sequence.galaxyExternalIds?.length || 0} galaxies`,
+            galaxiesRemoved: sequence.galaxyExternalIds?.length || 0,
+        };
+    },
+});
+
+
+export const getUsersWithSequences = query({
+    handler: async (ctx) => {
+        const currentUserId = await getAuthUserId(ctx);
+        if (!currentUserId) throw new Error("Not authenticated");
+
+        // Admin check
+        const currentProfile = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_user", (q) => q.eq("userId", currentUserId))
+            .unique();
+        if (!currentProfile || currentProfile.role !== "admin") {
+            throw new Error("Admin access required");
+        }
+
+        // Get all sequences
+        const sequences = await ctx.db.query("galaxySequences").collect();
+
+        // Get user profiles for users with sequences
+        const usersWithSequences = await Promise.all(
+            sequences.map(async (sequence) => {
+                const userProfile = await ctx.db
+                    .query("userProfiles")
+                    .withIndex("by_user", (q) => q.eq("userId", sequence.userId))
+                    .unique();
+
+                if (userProfile) {
+                    // Get user information
+                    const user = await ctx.db.get(sequence.userId);
+                    
+                    return {
+                        ...userProfile,
+                        user: user ? {
+                            name: user.name,
+                            email: user.email,
+                        } : null,
+                        sequenceInfo: {
+                            galaxyCount: sequence.galaxyExternalIds?.length || 0,
+                            currentIndex: sequence.currentIndex,
+                            numClassified: sequence.numClassified,
+                            numSkipped: sequence.numSkipped,
+                        }
+                    };
+                }
+                return null;
+            })
+        );
+
+        return usersWithSequences.filter(user => user !== null);
+    },
+});
+
+
+export const getUsersWithoutSequences = query({
+    handler: async (ctx) => {
+        const currentUserId = await getAuthUserId(ctx);
+        if (!currentUserId) throw new Error("Not authenticated");
+
+        // Admin check
+        const currentProfile = await ctx.db
+            .query("userProfiles")
+            .withIndex("by_user", (q) => q.eq("userId", currentUserId))
+            .unique();
+        if (!currentProfile || currentProfile.role !== "admin") {
+            throw new Error("Admin access required");
+        }
+
+        // Get all user profiles
+        const allUserProfiles = await ctx.db.query("userProfiles").collect();
+
+        // Get all users with sequences
+        const sequences = await ctx.db.query("galaxySequences").collect();
+        const usersWithSequences = new Set(sequences.map(seq => seq.userId));
+
+        // Filter to users without sequences
+        const usersWithoutSequences = await Promise.all(
+            allUserProfiles
+                .filter(profile => !usersWithSequences.has(profile.userId))
+                .map(async (profile) => {
+                    // Get user information
+                    const user = await ctx.db.get(profile.userId);
+                    
+                    return {
+                        ...profile,
+                        user: user ? {
+                            name: user.name,
+                            email: user.email,
+                        } : null,
+                    };
+                })
+        );
+
+        return usersWithoutSequences;
+    },
+});
+
