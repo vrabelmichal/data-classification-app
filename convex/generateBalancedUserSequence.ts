@@ -17,7 +17,7 @@ type StatsDoc = {
   lastAssignedAt?: number;
 };
 
-const MAX_SEQUENCE = 200_000;
+const MAX_SEQUENCE = 8192;
 const BATCH = 1000;
 
 export const generateBalancedUserSequence = mutation({
@@ -186,60 +186,133 @@ export const generateBalancedUserSequence = mutation({
       }
     }
 
-    // Update stats counters for each chosen galaxy (unless dryRun)
-    if (!dryRun) {
-      console.log(`Updating stats for ${selectedDocs.length} galaxies`);
-      const now = Date.now();
-      for (const doc of selectedDocs) {
-        // console.log(`Processing galaxy ${doc.galaxyExternalId} (${doc._id}): current totalAssigned=${doc.totalAssigned}`);
-        const latest = await ctx.db.get(doc._id as any);
-        if (!latest) {
-          console.log(`Galaxy ${doc.galaxyExternalId} not found, skipping`);
-          continue;
-        }
-        // Type assertion since we know this is a galaxies document
-        const statsDoc = latest as any;
-        // console.log(`Latest galaxy data: totalAssigned=${statsDoc.totalAssigned}, perUser=${JSON.stringify(statsDoc.perUser)}`);
-        const perUser = { ...(statsDoc.perUser ?? {}) };
-        const prev = perUser[targetUserId] ?? BigInt(0);
-        // console.log(`User ${targetUserId} previous count: ${prev}, cap M=${M}`);
-        if (prev >= BigInt(M)) {
-          // Race-safety check: skip if cap reached since selection time.
-          // console.log(`Skipping galaxy ${doc.galaxyExternalId}: user cap reached`);
-          continue;
-        }
-        perUser[targetUserId] = prev + BigInt(1);
-        const newTotalAssigned = (statsDoc.totalAssigned ?? BigInt(0)) + BigInt(1);
-        // console.log(`Updating galaxy ${doc.galaxyExternalId}: totalAssigned ${statsDoc.totalAssigned ?? BigInt(0)} -> ${newTotalAssigned}, perUser[${targetUserId}] ${prev} -> ${prev + BigInt(1)}`);
-        await ctx.db.patch(statsDoc._id, {
-          totalAssigned: newTotalAssigned,
-          perUser,
-          lastAssignedAt: now,
-        });
-        // console.log(`Successfully updated galaxy ${doc.galaxyExternalId}`);
-      }
+    // Note: Stats updates are now handled separately in batches via updateGalaxyAssignmentStats
+    // User profile update will happen after all stats updates are complete
 
-      const userProfile = await ctx.db
-        .query("userProfiles")
-        .withIndex("by_user", (q) => q.eq("userId", targetUserId))
-        .unique();
-      if (userProfile) {
-        console.log(`Marking user profile ${userProfile._id} as sequenceGenerated=true`);
-        await ctx.db.patch(userProfile._id, { sequenceGenerated: true });
-      }
-    }
+    // Calculate batches needed for stats update (batch size 500)
+    const STATS_BATCH_SIZE = 500;
+    const statsBatchesNeeded = Math.ceil(selectedIds.length / STATS_BATCH_SIZE);
 
-    console.log(`Completed balanced sequence generation: success=${dryRun ? true : success}, generated=${selectedIds.length}/${S}`);
+    console.log(`Completed balanced sequence generation: success=${dryRun ? true : success}, generated=${selectedIds.length}/${S}, stats batches needed=${statsBatchesNeeded}`);
     return {
       success: dryRun ? true : success,
       requested: S,
       generated: selectedIds.length,
+      selectedIds: dryRun ? undefined : selectedIds, // Only return IDs for non-dry-run to enable stats updates
+      statsBatchesNeeded: dryRun ? 0 : statsBatchesNeeded,
+      statsBatchSize: STATS_BATCH_SIZE,
       minAssignmentsPerEntry: K,
       perUserCap: M,
       expectedUsers,
       allowOverAssign,
       dryRun,
       warnings: warnings.length ? warnings : undefined,
+    };
+  },
+});
+
+export const updateGalaxyAssignmentStats = mutation({
+  args: {
+    targetUserId: v.id("users"),
+    batchIndex: v.number(),
+    batchSize: v.optional(v.number()),
+    perUserCapM: v.number(), // Need this for race-safety check
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const { targetUserId, batchIndex, batchSize = 500, perUserCapM: M } = args;
+
+    // Admin check if updating for another user
+    if (targetUserId !== userId) {
+      const currentProfile = await ctx.db
+        .query("userProfiles")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .unique();
+      if (!currentProfile || currentProfile.role !== "admin") {
+        throw new Error("Admin access required");
+      }
+    }
+
+    // Get the user's sequence
+    const sequence = await ctx.db
+      .query("galaxySequences")
+      .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+      .unique();
+
+    if (!sequence) {
+      throw new Error("User does not have a sequence");
+    }
+
+    const totalGalaxies = sequence.galaxyExternalIds?.length || 0;
+    const startIndex = batchIndex * batchSize;
+    const endIndex = Math.min(startIndex + batchSize, totalGalaxies);
+    const batchGalaxyIds = sequence.galaxyExternalIds?.slice(startIndex, endIndex) || [];
+    const totalBatches = Math.ceil(totalGalaxies / batchSize);
+    const isLastBatch = endIndex >= totalGalaxies;
+
+    console.log(`Processing stats update batch ${batchIndex + 1} of ${totalBatches}, galaxies ${startIndex}-${endIndex - 1} (${batchGalaxyIds.length} galaxies)`);
+
+    // Update stats for this batch
+    let processed = 0;
+    const now = Date.now();
+    for (const galaxyExternalId of batchGalaxyIds) {
+      // Find the galaxy by external ID
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q) => q.eq("id", galaxyExternalId))
+        .unique();
+
+      if (!galaxy) {
+        console.log(`Galaxy ${galaxyExternalId} not found, skipping`);
+        continue;
+      }
+
+      // Update totalAssigned and perUser counters
+      const perUser = { ...(galaxy.perUser ?? {}) };
+      const prev = perUser[targetUserId] ?? BigInt(0);
+
+      if (prev >= BigInt(M)) {
+        // Race-safety check: skip if cap reached
+        console.log(`Skipping galaxy ${galaxyExternalId}: user cap M=${M} reached`);
+        continue;
+      }
+
+      perUser[targetUserId] = prev + BigInt(1);
+      const newTotalAssigned = (galaxy.totalAssigned ?? BigInt(0)) + BigInt(1);
+
+      await ctx.db.patch(galaxy._id, {
+        totalAssigned: newTotalAssigned,
+        perUser,
+        lastAssignedAt: now,
+      });
+
+      processed++;
+    }
+
+    console.log(`Completed stats update batch ${batchIndex + 1} of ${totalBatches}, processed ${processed} galaxies`);
+
+    // If this is the last batch, update the user profile
+    if (isLastBatch) {
+      const userProfile = await ctx.db
+        .query("userProfiles")
+        .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+        .unique();
+      if (userProfile) {
+        console.log(`Marking user profile ${userProfile._id} as sequenceGenerated=true after completing all stats updates`);
+        await ctx.db.patch(userProfile._id, { sequenceGenerated: true });
+      }
+    }
+
+    return {
+      success: true,
+      batchIndex,
+      totalBatches,
+      processedInBatch: processed,
+      totalProcessed: endIndex,
+      totalGalaxies,
+      isLastBatch,
     };
   },
 });
