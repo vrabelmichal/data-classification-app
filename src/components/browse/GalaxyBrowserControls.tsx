@@ -110,9 +110,9 @@ export function GalaxyBrowserControls({
             onChange={(e) => setPageSize(Number(e.target.value))}
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white"
           >
+            <option value={5}>5</option>
             <option value={10}>10</option>
             <option value={25}>25</option>
-            <option value={50}>50</option>
             <option value={100}>100</option>
             <option value={200}>200</option>
           </select>
