@@ -59,6 +59,16 @@ export const submitClassification = mutation({
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
+    // Check user profile and confirmation status
+    const userProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (!userProfile || !userProfile.isConfirmed) {
+      throw new Error("Account not confirmed");
+    }
+
     // Check if already classified
     const existing = await ctx.db
       .query("classifications")

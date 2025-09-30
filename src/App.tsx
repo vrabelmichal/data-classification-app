@@ -2,8 +2,9 @@ import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
-import { SignOutButton } from "./SignOutButton";
 import { PasswordReset } from "./PasswordReset";
+import { AccountPendingConfirmation } from "./components/AccountPendingConfirmation";
+import { Toaster } from "sonner";
 import { Navigation } from "./components/layout/Navigation";
 import { ClassificationInterface } from "./components/classification/ClassificationInterface";
 import { GalaxyBrowser } from "./components/browse/GalaxyBrowser";
@@ -12,13 +13,12 @@ import { Statistics } from "./components/statistics/Statistics";
 import { UserSettings } from "./components/settings/UserSettings";
 import { Help } from "./components/help/Help";
 import { AdminPanel } from "./components/admin/AdminPanel";
-import { Toaster } from "sonner";
 
 function App() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  const userProfile = useQuery(api.users.getUserProfile);
   const appName = systemSettings?.appName || "Galaxy Classification App";
 
-  // Navigation items defined here and passed into Navigation
   const navigationItems = [
     { id: "classify", label: "Classify", icon: "🔬", path: "/classify", element: <ClassificationInterface /> },
     { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: <GalaxyBrowser /> },
@@ -68,25 +68,35 @@ function App() {
           </div>
         </Unauthenticated>
         <Authenticated>
-          <div className="flex flex-col custom-lg:flex-row min-h-screen overflow-x-hidden">
-            <Navigation navigationItems={navigationItems} appName={appName} />
-            <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64 min-w-0">
-              <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
-                <Routes>
-                  <Route index element={<ClassificationInterface />} />
-                  <Route path="/reset" element={<Navigate to="/settings" replace />} />
-                  <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
-                  {navigationItems.map((item) => (
-                    <Route 
-                      key={item.id} 
-                      path={item.id === "admin" ? `${item.path}/*` : item.path} 
-                      element={item.element} 
-                    />
-                  ))}
-                </Routes>
+          {userProfile === undefined ? (
+            <div className="flex items-center justify-center min-h-screen">
+              <div className="text-center">
+                <p className="text-gray-600 dark:text-gray-300">Loading...</p>
               </div>
             </div>
-          </div>
+          ) : !userProfile?.isConfirmed ? (
+            <AccountPendingConfirmation />
+          ) : (
+            <div className="flex flex-col custom-lg:flex-row min-h-screen overflow-x-hidden">
+              <Navigation navigationItems={navigationItems} appName={appName} />
+              <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64 min-w-0">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
+                  <Routes>
+                    <Route index element={<ClassificationInterface />} />
+                    <Route path="/reset" element={<Navigate to="/settings" replace />} />
+                    <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
+                    {navigationItems.map((item) => (
+                      <Route
+                        key={item.id}
+                        path={item.id === "admin" ? `${item.path}/*` : item.path}
+                        element={item.element}
+                      />
+                    ))}
+                  </Routes>
+                </div>
+              </div>
+            </div>
+          )}
         </Authenticated>
         <Toaster position="top-right" />
       </BrowserRouter>
