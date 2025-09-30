@@ -52,9 +52,8 @@ export function GalaxyBrowserLightTableView({
   const { galaxies } = galaxyData;
 
   return (
-    <div className="max-w-full overflow-x-auto">
-      <div className="inline-block min-w-full align-top">
-        <table className="min-w-[1200px] border-collapse border border-gray-300 text-sm text-gray-700 dark:text-gray-200">
+    <div className="w-full overflow-x-auto">
+      <table className="w-full min-w-[1200px] border-collapse border border-gray-300 text-sm text-gray-700 dark:text-gray-200">
           <thead className="bg-gray-100 dark:bg-gray-900/40">
             <tr>
               <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -185,7 +184,6 @@ export function GalaxyBrowserLightTableView({
             ))}
           </tbody>
         </table>
-      </div>
     </div>
   );
 }
