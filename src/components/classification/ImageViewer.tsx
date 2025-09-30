@@ -124,35 +124,53 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
           />
 
           {/* centered large image */}
-            <div className="relative max-w-full max-h-full rounded-lg overflow-hidden shadow-lg bg-white dark:bg-gray-900">
-            <img
-              src={imageUrl}
-              alt={alt}
-              onClick={(e) => e.stopPropagation()}
-              className="block max-w-[90vw] max-h-[90vh] object-contain"
-              style={{ filter: `contrast(${contrast})` }}
-            />
-            {/* Half-light radius circle overlay for modal */}
-            {ellipseParams && (
-              <svg
-                viewBox={`0 0 ${imageWidth || HALF_LIGHT_IMAGE_SIZE} ${imageHeight || HALF_LIGHT_IMAGE_SIZE}`}
-                className="absolute inset-0 w-full h-full pointer-events-none"
-                style={{ filter: `contrast(${contrast})` }}
-              >
-                <ellipse
-                  cx={ellipseParams.cx}
-                  cy={ellipseParams.cy}
-                  rx={ellipseParams.rx}
-                  ry={ellipseParams.ry}
-                  fill="none"
-                  stroke="magenta"
-                  strokeWidth={2}
-                  vectorEffect="non-scaling-stroke"
-                  transform={`rotate(${ellipseParams.rotation}, ${ellipseParams.cx}, ${ellipseParams.cy})`}
+          <div
+            className="relative z-10 flex max-h-full max-w-full items-center justify-center"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Enlarged image viewer"
+          >
+            <div className="relative flex max-h-[90vh] max-w-[90vw] flex-col items-center gap-4 overflow-y-auto overflow-x-hidden">
+              <div className="relative">
+                <img
+                  src={imageUrl}
+                  alt={alt}
+                  onClick={(e) => e.stopPropagation()}
+                  className="block max-h-[85vh] max-w-[90vw] object-contain"
+                  style={{ filter: `contrast(${contrast})` }}
                 />
-              </svg>
-            )}
+                {/* Half-light radius circle overlay for modal */}
+                {ellipseParams && (
+                  <svg
+                    viewBox={`0 0 ${imageWidth || HALF_LIGHT_IMAGE_SIZE} ${imageHeight || HALF_LIGHT_IMAGE_SIZE}`}
+                    className="absolute inset-0 h-full w-full pointer-events-none"
+                    style={{ filter: `contrast(${contrast})` }}
+                  >
+                    <ellipse
+                      cx={ellipseParams.cx}
+                      cy={ellipseParams.cy}
+                      rx={ellipseParams.rx}
+                      ry={ellipseParams.ry}
+                      fill="none"
+                      stroke="magenta"
+                      strokeWidth={2}
+                      vectorEffect="non-scaling-stroke"
+                      transform={`rotate(${ellipseParams.rotation}, ${ellipseParams.cx}, ${ellipseParams.cy})`}
+                    />
+                  </svg>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsZoomed(false)}
+                className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-gray-900 text-white transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200"
+                aria-label="Close enlarged image"
+              >
+                <span aria-hidden="true" className="text-xl font-semibold">×</span>
+              </button>
             </div>
+          </div>
         </div>
       )}
     </div>
