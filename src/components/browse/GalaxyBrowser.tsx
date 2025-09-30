@@ -287,7 +287,7 @@ export function GalaxyBrowser() {
   const { galaxies, total, aggregatesPopulated } = galaxyData;
 
   return (
-    <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
+    <div className="w-full min-w-0 mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Galaxy Browser</h1>
@@ -398,7 +398,7 @@ export function GalaxyBrowser() {
       </div>
 
       {/* Desktop Table View */}
-      <div className="hidden lg:block bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+      <div className="hidden lg:block w-full min-w-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto overflow-y-hidden">
         <GalaxyBrowserLightTableView
           galaxyData={galaxyData}
           userPrefs={userPrefs}

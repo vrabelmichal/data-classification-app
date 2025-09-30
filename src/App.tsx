@@ -68,10 +68,10 @@ function App() {
           </div>
         </Unauthenticated>
         <Authenticated>
-          <div className="flex flex-col custom-lg:flex-row h-screen">
+          <div className="flex flex-col custom-lg:flex-row min-h-screen overflow-x-hidden">
             <Navigation navigationItems={navigationItems} appName={appName} />
-            <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64">
-              <div className="flex-1 overflow-auto">
+            <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64 min-w-0">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
                 <Routes>
                   <Route index element={<ClassificationInterface />} />
                   <Route path="/reset" element={<Navigate to="/settings" replace />} />

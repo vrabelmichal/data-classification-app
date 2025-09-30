@@ -43,8 +43,8 @@ export function GalaxyBrowserLightTableView({
 
   if (!galaxyData) {
     return (
-      <div className="p-4 text-center">
-        <div>Updating results...</div>
+      <div className="p-6 text-center text-sm text-gray-600 dark:text-gray-300">
+        Updating results...
       </div>
     );
   }
@@ -52,86 +52,140 @@ export function GalaxyBrowserLightTableView({
   const { galaxies } = galaxyData;
 
   return (
-    <div className="overflow-x-auto pr-32">
-      <table className="w-max border-collapse border border-gray-300">
-      <thead className="bg-gray-100">
-        <tr>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold">Image</th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort("numericId")}>
-            # {getSortIcon("numericId")}
-          </th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort("id")}>
-            Galaxy ID {getSortIcon("id")}
-          </th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort("ra")}>
-            RA {getSortIcon("ra")}
-          </th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort("dec")}>
-            Dec {getSortIcon("dec")}
-          </th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort("reff")}>
-            Reff {getSortIcon("reff")}
-          </th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort("q")}>
-            q {getSortIcon("q")}
-          </th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort("nucleus")}>
-            Nucleus {getSortIcon("nucleus")}
-          </th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort("mag")}>
-            Mag {getSortIcon("mag")}
-          </th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold cursor-pointer hover:bg-gray-200" onClick={() => handleSort("mean_mue")}>
-            μ₀ {getSortIcon("mean_mue")}
-          </th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold">Classifications</th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold">Visible Nuclei</th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold">Awesome Flags</th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold">Total Assigned</th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold">Paper</th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold">Thur CLS N</th>
-          <th className="border border-gray-300 px-2 py-1 text-left font-semibold">Action</th>
-        </tr>
-      </thead>
-      <tbody>
-        {galaxies.map((galaxy: any, index: number) => (
-          <tr key={galaxy._id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-            <td className="border border-gray-300 px-2 py-1">
-              <div className="w-16 h-16">
-                <ImageViewer
-                  imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
-                  alt={`Galaxy ${galaxy.id}`}
-                  preferences={userPrefs}
-                />
-              </div>
-            </td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.numericId?.toString() || "—"}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.id}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.ra.toFixed(4)}°</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.dec.toFixed(4)}°</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.reff.toFixed(2)}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.q.toFixed(3)}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.nucleus ? "Yes" : "No"}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.mag !== undefined ? galaxy.mag.toFixed(2) : "—"}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.mean_mue !== undefined ? galaxy.mean_mue.toFixed(2) : "—"}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.totalClassifications || 0}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.numVisibleNucleus || 0}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.numAwesomeFlag || 0}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.totalAssigned || 0}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.misc?.paper || "—"}</td>
-            <td className="border border-gray-300 px-2 py-1">{galaxy.misc?.thur_cls_n || "—"}</td>
-            <td className="border border-gray-300 px-2 py-1">
-              <Link
-                to={`/classify/${galaxy.id}`}
-                className="inline-block px-3 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600"
+    <div className="max-w-full overflow-x-auto">
+      <div className="inline-block min-w-full align-top">
+        <table className="min-w-[1200px] border-collapse border border-gray-300 text-sm text-gray-700 dark:text-gray-200">
+          <thead className="bg-gray-100 dark:bg-gray-900/40">
+            <tr>
+              <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Image
+              </th>
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("numericId")}
               >
-                Classify
-              </Link>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+                # {getSortIcon("numericId")}
+              </th>
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("id")}
+              >
+                Galaxy ID {getSortIcon("id")}
+              </th>
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("ra")}
+              >
+                RA {getSortIcon("ra")}
+              </th>
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("dec")}
+              >
+                Dec {getSortIcon("dec")}
+              </th>
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("reff")}
+              >
+                Reff {getSortIcon("reff")}
+              </th>
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("q")}
+              >
+                q {getSortIcon("q")}
+              </th>
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("nucleus")}
+              >
+                Nucleus {getSortIcon("nucleus")}
+              </th>
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("mag")}
+              >
+                Mag {getSortIcon("mag")}
+              </th>
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("mean_mue")}
+              >
+                μ₀ {getSortIcon("mean_mue")}
+              </th>
+              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+                Classifications
+              </th>
+              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+                Visible Nuclei
+              </th>
+              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+                Awesome Flags
+              </th>
+              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+                Total Assigned
+              </th>
+              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+                Paper
+              </th>
+              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+                Thur CLS N
+              </th>
+              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {galaxies.map((galaxy: any, index: number) => (
+              <tr
+                key={galaxy._id}
+                className={index % 2 === 0 ? "bg-white dark:bg-gray-900/10" : "bg-gray-50 dark:bg-gray-900/30"}
+              >
+                <td className="border border-gray-300 px-3 py-2 align-top">
+                  <div className="h-16 w-16 overflow-hidden rounded">
+                    <ImageViewer
+                      imageUrl={getImageUrl(galaxy.id, previewImageName, {
+                        quality: userPrefs?.imageQuality || "medium",
+                      })}
+                      alt={`Galaxy ${galaxy.id}`}
+                      preferences={userPrefs}
+                    />
+                  </div>
+                </td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numericId?.toString() || "—"}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.id}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.ra.toFixed(4)}°</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.dec.toFixed(4)}°</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.reff.toFixed(2)}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.q.toFixed(3)}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.nucleus ? "Yes" : "No"}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">
+                  {galaxy.mag !== undefined ? galaxy.mag.toFixed(2) : "—"}
+                </td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">
+                  {galaxy.mean_mue !== undefined ? galaxy.mean_mue.toFixed(2) : "—"}
+                </td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.totalClassifications || 0}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numVisibleNucleus || 0}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numAwesomeFlag || 0}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.totalAssigned || 0}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.paper || "—"}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.thur_cls_n || "—"}</td>
+                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">
+                  <Link
+                    to={`/classify/${galaxy.id}`}
+                    className="inline-flex items-center rounded bg-blue-500 px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-500"
+                  >
+                    Classify
+                  </Link>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
