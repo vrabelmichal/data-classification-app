@@ -52,11 +52,12 @@ export function GalaxyBrowserLightTableView({
   const { galaxies } = galaxyData;
 
   return (
-    <div className="w-full overflow-x-auto">
-      <table className="w-full min-w-[1200px] border-collapse border border-gray-300 text-sm text-gray-700 dark:text-gray-200">
+    <div className="galaxy-table-container relative w-full overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-900/40">
+      <div className="galaxy-table-scroll-wrapper galaxy-table-scroll relative max-w-full overflow-x-auto">
+        <table className="galaxy-table w-full min-w-[1200px] border-collapse text-sm text-gray-700 dark:text-gray-200">
           <thead className="bg-gray-100 dark:bg-gray-900/40">
             <tr>
-              <th className="border border-gray-300 px-3 py-2 text-left font-semibold text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <th className="border border-gray-300 px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Image
               </th>
               <th
@@ -131,59 +132,64 @@ export function GalaxyBrowserLightTableView({
               <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
                 Thur CLS N
               </th>
-              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+              <th className="galaxy-sticky-col galaxy-sticky-col-header border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
                 Action
               </th>
             </tr>
           </thead>
           <tbody>
-            {galaxies.map((galaxy: any, index: number) => (
-              <tr
-                key={galaxy._id}
-                className={index % 2 === 0 ? "bg-white dark:bg-gray-900/10" : "bg-gray-50 dark:bg-gray-900/30"}
-              >
-                <td className="border border-gray-300 px-3 py-2 align-top">
-                  <div className="h-16 w-16 overflow-hidden rounded">
-                    <ImageViewer
-                      imageUrl={getImageUrl(galaxy.id, previewImageName, {
-                        quality: userPrefs?.imageQuality || "medium",
-                      })}
-                      alt={`Galaxy ${galaxy.id}`}
-                      preferences={userPrefs}
-                    />
-                  </div>
-                </td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numericId?.toString() || "—"}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.id}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.ra.toFixed(4)}°</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.dec.toFixed(4)}°</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.reff.toFixed(2)}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.q.toFixed(3)}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.nucleus ? "Yes" : "No"}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">
-                  {galaxy.mag !== undefined ? galaxy.mag.toFixed(2) : "—"}
-                </td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">
-                  {galaxy.mean_mue !== undefined ? galaxy.mean_mue.toFixed(2) : "—"}
-                </td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.totalClassifications || 0}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numVisibleNucleus || 0}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numAwesomeFlag || 0}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.totalAssigned || 0}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.paper || "—"}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.thur_cls_n || "—"}</td>
-                <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">
-                  <Link
-                    to={`/classify/${galaxy.id}`}
-                    className="inline-flex items-center rounded bg-blue-500 px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-500"
+            {galaxies.map((galaxy: any, index: number) => {
+              const rowBackgroundClass = index % 2 === 0 ? "bg-white dark:bg-gray-900/10" : "bg-gray-50 dark:bg-gray-900/30";
+              const stickyCellBackgroundClass = index % 2 === 0 ? "bg-white dark:bg-gray-900/20" : "bg-gray-50 dark:bg-gray-900/40";
+
+              return (
+                <tr key={galaxy._id} className={rowBackgroundClass}>
+                  <td className="border border-gray-300 px-3 py-2 align-top">
+                    <div className="h-16 w-16 overflow-hidden rounded">
+                      <ImageViewer
+                        imageUrl={getImageUrl(galaxy.id, previewImageName, {
+                          quality: userPrefs?.imageQuality || "medium",
+                        })}
+                        alt={`Galaxy ${galaxy.id}`}
+                        preferences={userPrefs}
+                      />
+                    </div>
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numericId?.toString() || "—"}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.id}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.ra.toFixed(4)}°</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.dec.toFixed(4)}°</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.reff.toFixed(2)}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.q.toFixed(3)}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.nucleus ? "Yes" : "No"}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">
+                    {galaxy.mag !== undefined ? galaxy.mag.toFixed(2) : "—"}
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">
+                    {galaxy.mean_mue !== undefined ? galaxy.mean_mue.toFixed(2) : "—"}
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.totalClassifications || 0}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numVisibleNucleus || 0}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numAwesomeFlag || 0}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.totalAssigned || 0}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.paper || "—"}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.thur_cls_n || "—"}</td>
+                  <td
+                    className={`galaxy-sticky-col border border-gray-300 px-3 py-2 whitespace-nowrap ${stickyCellBackgroundClass}`}
                   >
-                    Classify
-                  </Link>
-                </td>
-              </tr>
-            ))}
+                    <Link
+                      to={`/classify/${galaxy.id}`}
+                      className="inline-flex items-center rounded bg-blue-500 px-3 py-1 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-500"
+                    >
+                      Classify
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+      </div>
     </div>
   );
 }
