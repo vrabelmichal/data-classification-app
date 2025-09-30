@@ -29,153 +29,56 @@ export function GalaxyBrowserMobileCards({
   const { galaxies } = galaxyData;
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-      {/* Table container with relative positioning for sticky action column */}
-      <div className="relative">
-        {/* Action column - fixed position, always visible */}
-        <div className="absolute right-0 top-0 bottom-0 w-24 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 z-10">
-          <div className="h-14 border-b border-gray-200 dark:border-gray-700 flex items-center justify-center">
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider">
-              Action
-            </span>
-          </div>
-          {galaxies.map((galaxy: any) => (
-            <div key={`action-${galaxy._id}`} className="h-20 border-b border-gray-200 dark:border-gray-700 flex items-center justify-center px-2">
-              <Link
-                to={`/classify/${galaxy.id}`}
-                className="inline-flex items-center px-2 py-1.5 rounded-md text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
-              >
-                Classify
-              </Link>
+    <div className="space-y-4">
+      {galaxies.map((galaxy: any) => (
+        <div
+          key={galaxy._id}
+          className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 space-y-4 sm:space-y-0">
+            <div className="flex-shrink-0 w-full sm:w-1/3 aspect-square">
+              <ImageViewer
+                imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
+                alt={`Galaxy ${galaxy.id}`}
+                preferences={userPrefs}
+              />
             </div>
-          ))}
-        </div>
 
-        {/* Scrollable table content */}
-        <div className="overflow-x-auto pr-24">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-900">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-20">
-                  Image
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-16">
-                  #
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider min-w-24">
-                  Galaxy ID
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-20">
-                  RA
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-20">
-                  Dec
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-16">
-                  Reff
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-12">
-                  q
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-20">
-                  Nucleus
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-16">
-                  Mag
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-16">
-                  μ₀
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-24">
-                  Classifications
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-24">
-                  Visible Nuclei
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-24">
-                  Awesome Flags
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider w-24">
-                  Total Assigned
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider min-w-20">
-                  Paper
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 tracking-wider min-w-24">
-                  Thur CLS N
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-              {galaxies.map((galaxy: any) => (
-                <tr key={galaxy._id} className="h-20">
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <div className="w-12 h-12">
-                      <ImageViewer
-                        imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
-                        alt={`Galaxy ${galaxy.id}`}
-                        preferences={userPrefs}
-                      />
-                    </div>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {galaxy.numericId?.toString() || "—"}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                    {galaxy.id}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.ra.toFixed(4)}°
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.dec.toFixed(4)}°
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.reff.toFixed(2)}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.q.toFixed(3)}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap">
-                    <span className={cn(
-                      "inline-flex items-center px-2 py-1 rounded-full text-xs font-medium",
-                      galaxy.nucleus
-                        ? "bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400"
-                        : "bg-gray-100 text-gray-800 dark:bg-gray-900/20 dark:text-gray-400"
-                    )}>
-                      {galaxy.nucleus ? "Yes" : "No"}
-                    </span>
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.mag !== undefined ? galaxy.mag.toFixed(2) : "—"}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.mean_mue !== undefined ? galaxy.mean_mue.toFixed(2) : "—"}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.totalClassifications || 0}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.numVisibleNucleus || 0}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.numAwesomeFlag || 0}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.totalAssigned || 0}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.misc?.paper || "—"}
-                  </td>
-                  <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-300">
-                    {galaxy.misc?.thur_cls_n || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                  {galaxy.id}
+                </h3>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-300 mb-3">
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">#:</span> {galaxy.numericId?.toString() || "—"}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">RA:</span> {galaxy.ra.toFixed(4)}°</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Dec:</span> {galaxy.dec.toFixed(4)}°</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Reff:</span> {galaxy.reff.toFixed(2)}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">q:</span> {galaxy.q.toFixed(3)}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Nucleus:</span> {galaxy.nucleus ? "Yes" : "No"}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Mag:</span> {galaxy.mag !== undefined ? galaxy.mag.toFixed(2) : "—"}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">μ₀:</span> {galaxy.mean_mue !== undefined ? galaxy.mean_mue.toFixed(2) : "—"}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Classifications:</span> {galaxy.totalClassifications || 0}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Visible Nuclei:</span> {galaxy.numVisibleNucleus || 0}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Awesome Flags:</span> {galaxy.numAwesomeFlag || 0}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Total Assigned:</span> {galaxy.totalAssigned || 0}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Paper:</span> {galaxy.misc?.paper || "—"}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Thur CLS N:</span> {galaxy.misc?.thur_cls_n || "—"}</div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-4 flex justify-end">
+            <Link
+              to={`/classify/${galaxy.id}`}
+              className="inline-flex items-center px-3 py-2 rounded-md text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 dark:focus:ring-offset-gray-800"
+            >
+              Classify
+            </Link>
+          </div>
         </div>
-      </div>
+      ))}
     </div>
   );
 }
