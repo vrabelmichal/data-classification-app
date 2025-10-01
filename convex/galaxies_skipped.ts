@@ -1,6 +1,6 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { getOptionalUserId, requireConfirmedUser } from "./lib/auth";
 
 
 // Get skipped galaxies for current user
@@ -8,7 +8,7 @@ import { query, mutation } from "./_generated/server";
 export const getSkippedGalaxies = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) return [];
 
     const skippedRecords = await ctx.db
@@ -38,7 +38,7 @@ export const getSkippedGalaxies = query({
 export const isGalaxySkipped = query({
   args: { galaxyExternalId: v.string() },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) return false;
 
     const existing = await ctx.db
@@ -56,18 +56,7 @@ export const removeFromSkipped = mutation({
     skippedId: v.id("skippedGalaxies"),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check user profile and confirmation status
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!userProfile || !userProfile.isConfirmed) {
-      throw new Error("Account not confirmed");
-    }
+    const { userId } = await requireConfirmedUser(ctx);
 
     const skipped = await ctx.db.get(args.skippedId);
     if (!skipped) throw new Error("Skipped record not found");
@@ -101,18 +90,7 @@ export const skipGalaxy = mutation({
     comments: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check user profile and confirmation status
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!userProfile || !userProfile.isConfirmed) {
-      throw new Error("Account not confirmed");
-    }
+    const { userId } = await requireConfirmedUser(ctx);
 
     // Check if already skipped
     const existing = await ctx.db

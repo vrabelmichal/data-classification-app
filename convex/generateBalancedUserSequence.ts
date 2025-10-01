@@ -1,5 +1,5 @@
 // convex/generateBalancedUserSequence.ts
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireAdmin, requireUserId } from "./lib/auth";
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
 import {
@@ -31,8 +31,7 @@ export const generateBalancedUserSequence = mutation({
     dryRun: v.optional(v.boolean()), // default false
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const userId = await requireUserId(ctx);
 
     const targetUserId = args.targetUserId ?? userId;
     const expectedUsers = Math.max(1, Math.floor(args.expectedUsers));
@@ -45,13 +44,7 @@ export const generateBalancedUserSequence = mutation({
 
     // Admin check if generating for another user
     if (targetUserId !== userId) {
-      const currentProfile = await ctx.db
-        .query("userProfiles")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .unique();
-      if (!currentProfile || currentProfile.role !== "admin") {
-        throw new Error("Admin access required");
-      }
+        await requireAdmin(ctx);
     }
 
     // Check if user already has a sequence assigned
@@ -219,20 +212,13 @@ export const updateGalaxyAssignmentStats = mutation({
     perUserCapM: v.number(), // Need this for race-safety check
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const userId = await requireUserId(ctx);
 
     const { targetUserId, batchIndex, batchSize = 500, perUserCapM: M } = args;
 
     // Admin check if updating for another user
     if (targetUserId !== userId) {
-      const currentProfile = await ctx.db
-        .query("userProfiles")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .unique();
-      if (!currentProfile || currentProfile.role !== "admin") {
-        throw new Error("Admin access required");
-      }
+      await requireAdmin(ctx);
     }
 
     // Get the user's sequence

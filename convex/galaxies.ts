@@ -1,6 +1,6 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireAdmin } from "./lib/auth";
 import { Id } from "./_generated/dataModel";
 import { MutationCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
@@ -23,11 +23,7 @@ export const deleteAllGalaxies = mutation({
   args: {},
   handler: async (ctx) => {
     // make sure only admin can call this
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    // Check if user is admin
-    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
     // Delete all documents from galaxy-related tables
     // Note: We need to delete in the correct order due to foreign key references
@@ -220,17 +216,7 @@ export const rebuildGalaxyIdsTable = mutation({
     startNumericId: v.optional(v.int64()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Admin only
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-    if (!currentProfile || currentProfile.role !== "admin") {
-      throw new Error("Admin access required");
-    }
+    await requireAdmin(ctx);
 
     let cursor = args.cursor || null;
     let processed = 0;
@@ -280,17 +266,7 @@ export const fillGalaxyMagAndMeanMue = mutation({
     cursor: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Admin only
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-    if (!currentProfile || currentProfile.role !== "admin") {
-      throw new Error("Admin access required");
-    }
+    await requireAdmin(ctx);
 
     const limit = args.maxToUpdate ? Math.max(1, Math.floor(args.maxToUpdate)) : UPDATE_BATCH_SIZE;
     let updated = 0;
@@ -342,17 +318,7 @@ export const fillGalaxyNumericId = mutation({
     startNumericId: v.optional(v.int64()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Admin only
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-    if (!currentProfile || currentProfile.role !== "admin") {
-      throw new Error("Admin access required");
-    }
+    await requireAdmin(ctx);
 
     const limit = args.maxToUpdate ? Math.max(1, Math.floor(args.maxToUpdate)) : UPDATE_BATCH_SIZE;
     let updated = 0;

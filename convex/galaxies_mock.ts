@@ -1,5 +1,5 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation } from "./_generated/server";
+import { requireAdmin } from "./lib/auth";
 
 
 // Generate mock galaxies (admin only)
@@ -7,17 +7,7 @@ import { mutation } from "./_generated/server";
 export const generateMockGalaxies = mutation({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!currentProfile || currentProfile.role !== "admin") {
-      throw new Error("Admin access required");
-    }
+    await requireAdmin(ctx);
 
     // Generate 100 mock galaxies (minimal nested structures matching schema)
     const mockGalaxies = [] as any[];

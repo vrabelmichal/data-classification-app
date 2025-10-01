@@ -19,10 +19,10 @@ run a one-off backfill mutation that paginates through galaxies and calls
 await galaxiesAggregate.insertIfDoesNotExist(ctx, doc) for each. If desynchronized,
 you can clear and rebuild with galaxiesAggregate.clear(ctx) followed by backfill.
 */
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { galaxyIdsAggregate } from "./galaxies_aggregates";
+import { requireAdmin, requireUserId } from "./lib/auth";
 
 
 
@@ -32,8 +32,7 @@ export const generateRandomUserSequence = mutation({
         sequenceSize: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
-        const userId = await getAuthUserId(ctx);
-        if (!userId) throw new Error("Not authenticated");
+        const userId = await requireUserId(ctx);
 
         const targetUserId = args.targetUserId || userId;
         const requestedSize = args.sequenceSize || 50;
@@ -41,13 +40,7 @@ export const generateRandomUserSequence = mutation({
         const sequenceSize = Math.min(Math.max(1, requestedSize), MAX_SEQUENCE);
 
         if (targetUserId !== userId) {
-            const currentProfile = await ctx.db
-                .query("userProfiles")
-                .withIndex("by_user", (q) => q.eq("userId", userId))
-                .unique();
-            if (!currentProfile || currentProfile.role !== "admin") {
-                throw new Error("Admin access required");
-            }
+            await requireAdmin(ctx);
         }
         
         // Obtain total count via aggregate (O(log n)). If zero, bail.
@@ -145,20 +138,13 @@ export const userHasSequence = query({
         userId: v.optional(v.id("users")),
     },
     handler: async (ctx, args) => {
-        const currentUserId = await getAuthUserId(ctx);
-        if (!currentUserId) throw new Error("Not authenticated");
+        const currentUserId = await requireUserId(ctx);
 
         const targetUserId = args.userId || currentUserId;
 
         // Admin check if checking another user
         if (targetUserId !== currentUserId) {
-            const currentProfile = await ctx.db
-                .query("userProfiles")
-                .withIndex("by_user", (q) => q.eq("userId", currentUserId))
-                .unique();
-            if (!currentProfile || currentProfile.role !== "admin") {
-                throw new Error("Admin access required");
-            }
+            await requireAdmin(ctx);
         }
 
         const sequence = await ctx.db
@@ -178,21 +164,14 @@ export const removeUserSequence = mutation({
         batchIndex: v.optional(v.number()),
     },
     handler: async (ctx, args) => {
-        const userId = await getAuthUserId(ctx);
-        if (!userId) throw new Error("Not authenticated");
+        const userId = await requireUserId(ctx);
 
         const targetUserId = args.targetUserId;
         const batchSize = args.batchSize || 500;
         const batchIndex = args.batchIndex || 0;
 
         // Admin check - only admins can remove sequences
-        const currentProfile = await ctx.db
-            .query("userProfiles")
-            .withIndex("by_user", (q) => q.eq("userId", userId))
-            .unique();
-        if (!currentProfile || currentProfile.role !== "admin") {
-            throw new Error("Admin access required");
-        }
+        await requireAdmin(ctx);
 
         // Get the user's sequence
         const sequence = await ctx.db
@@ -283,17 +262,7 @@ export const removeUserSequence = mutation({
 
 export const getUsersWithSequences = query({
     handler: async (ctx) => {
-        const currentUserId = await getAuthUserId(ctx);
-        if (!currentUserId) throw new Error("Not authenticated");
-
-        // Admin check
-        const currentProfile = await ctx.db
-            .query("userProfiles")
-            .withIndex("by_user", (q) => q.eq("userId", currentUserId))
-            .unique();
-        if (!currentProfile || currentProfile.role !== "admin") {
-            throw new Error("Admin access required");
-        }
+        await requireAdmin(ctx);
 
         // Get all sequences
         const sequences = await ctx.db.query("galaxySequences").collect();
@@ -335,17 +304,7 @@ export const getUsersWithSequences = query({
 
 export const getUsersWithoutSequences = query({
     handler: async (ctx) => {
-        const currentUserId = await getAuthUserId(ctx);
-        if (!currentUserId) throw new Error("Not authenticated");
-
-        // Admin check
-        const currentProfile = await ctx.db
-            .query("userProfiles")
-            .withIndex("by_user", (q) => q.eq("userId", currentUserId))
-            .unique();
-        if (!currentProfile || currentProfile.role !== "admin") {
-            throw new Error("Admin access required");
-        }
+        await requireAdmin(ctx);
 
         // Get all user profiles
         const allUserProfiles = await ctx.db.query("userProfiles").collect();

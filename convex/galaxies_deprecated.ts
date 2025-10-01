@@ -1,6 +1,6 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
+import { getOptionalUserId } from "./lib/auth";
 
 
 // Get galaxy by position in sequence
@@ -10,7 +10,7 @@ export const getGalaxyByPosition = query({
     position: v.number(), // 1-based position
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) return null;
 
     // Get user's current sequence

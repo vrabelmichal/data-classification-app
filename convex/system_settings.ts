@@ -1,23 +1,13 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { requireAdmin } from "./lib/auth";
 
 
 // Admin: Get system settings
 export const getSystemSettings = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!currentProfile || currentProfile.role !== "admin") {
-      throw new Error("Admin access required");
-    }
+    await requireAdmin(ctx);
 
     const settings = await ctx.db.query("systemSettings").collect();
 
@@ -56,7 +46,7 @@ export const getPublicSystemSettings = query({
     }, {} as Record<string, any>);
 
     // Whitelist of settings that are safe to expose to non-admin users
-    const publicSettingsWhitelist = ["allowAnonymous", "appName", "debugAdminMode"];
+    const publicSettingsWhitelist = ["allowAnonymous", "appName", "debugAdminMode", "appVersion"];
 
     // Only return whitelisted settings
     const publicSettings: Record<string, any> = {};
@@ -92,19 +82,10 @@ export const updateSystemSettings = mutation({
     emailFrom: v.optional(v.string()),
     appName: v.optional(v.string()),
     debugAdminMode: v.optional(v.boolean()),
+    appVersion: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!currentProfile || currentProfile.role !== "admin") {
-      throw new Error("Admin access required");
-    }
+    await requireAdmin(ctx);
 
     if (args.allowAnonymous !== undefined) {
       const existing = await ctx.db
@@ -166,6 +147,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "debugAdminMode",
           value: args.debugAdminMode,
+        });
+      }
+    }
+
+    if (args.appVersion !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "appVersion"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.appVersion });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "appVersion",
+          value: args.appVersion,
         });
       }
     }

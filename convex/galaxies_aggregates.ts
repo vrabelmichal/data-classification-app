@@ -1,9 +1,9 @@
 import { TableAggregate } from "@convex-dev/aggregate";
 import { components } from "./_generated/api";
 import { DataModel } from "./_generated/dataModel";
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { requireAdmin } from "./lib/auth";
 
 export const galaxyIdsAggregate = new TableAggregate<{
   Key: bigint;
@@ -140,11 +140,7 @@ export const clearGalaxyIdsAggregate = mutation({
   args: {},
   handler: async (ctx) => {
     // make sure only admin can call this
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    // Check if user is admin
-    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
     await galaxyIdsAggregate.clear(ctx);
   },
@@ -158,11 +154,7 @@ export const rebuildGalaxyIdsAggregate = mutation({
   },
   handler: async (ctx, args) => {
     // make sure only admin can call this
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    // Check if user is admin
-    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
     
     // Calculate total batches on first run
     let totalBatches = 0;
@@ -228,11 +220,7 @@ export const clearGalaxyAggregates = mutation({
   args: {},
   handler: async (ctx) => {
     // make sure only admin can call this
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    // Check if user is admin
-    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
     await galaxiesById.clear(ctx);
     await galaxiesByRa.clear(ctx);
@@ -256,11 +244,7 @@ export const rebuildGalaxyAggregates = mutation({
   },
   handler: async (ctx, args) => {
     // make sure only admin can call this
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    // Check if user is admin
-    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
     // Calculate total batches on first run
     let totalBatches = 0;
@@ -349,11 +333,7 @@ export const getAggregateInfo = query({
   args: {},
   handler: async (ctx) => {
     // make sure only admin can call this
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-    // Check if user is admin
-    const profile = await ctx.db.query("userProfiles").withIndex("by_user", (q) => q.eq("userId", userId)).unique();
-    if (!profile || profile.role !== "admin") throw new Error("Not authorized");
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
     // Get counts for all aggregates
     const [

@@ -1,6 +1,6 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getOptionalUserId, requireUserId } from "./lib/auth";
 
 
 // Get next galaxy for classification
@@ -8,7 +8,7 @@ import { v } from "convex/values";
 export const getNextGalaxyToClassify = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) return null;
 
     // Get user's current sequence
@@ -83,7 +83,7 @@ export const getGalaxyNavigation = query({
     currentGalaxyExternalId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) return null;
 
     // Get user's current sequence
@@ -139,8 +139,7 @@ export const navigateToGalaxyInSequence = mutation({
         currentGalaxyExternalId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
-        const userId = await getAuthUserId(ctx);
-        if (!userId) throw new Error("Not authenticated");
+    const userId = await requireUserId(ctx);
 
         // Get user's current sequence
         const sequence = await ctx.db

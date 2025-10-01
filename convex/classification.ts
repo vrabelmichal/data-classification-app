@@ -1,6 +1,6 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { getOptionalUserId, requireConfirmedUser } from "./lib/auth";
 
 
 // Get progress
@@ -8,7 +8,7 @@ import { v } from "convex/values";
 export const getProgress = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) return null;
 
     // Get user's current sequence
@@ -56,18 +56,7 @@ export const submitClassification = mutation({
     timeSpent: v.number(),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Check user profile and confirmation status
-    const userProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (!userProfile || !userProfile.isConfirmed) {
-      throw new Error("Account not confirmed");
-    }
+    const { userId, profile } = await requireConfirmedUser(ctx);
 
     // Check if already classified
     const existing = await ctx.db
@@ -116,17 +105,10 @@ export const submitClassification = mutation({
       });
 
       // Update user's classification count
-      const userProfile = await ctx.db
-        .query("userProfiles")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .unique();
-
-      if (userProfile) {
-        await ctx.db.patch(userProfile._id, {
-          classificationsCount: userProfile.classificationsCount + 1,
-          lastActiveAt: Date.now(),
-        });
-      }
+      await ctx.db.patch(profile._id, {
+        classificationsCount: profile.classificationsCount + 1,
+        lastActiveAt: Date.now(),
+      });
 
       // update user's galaxy sequence details, if the galaxy is part of their current sequence
       const sequence = await ctx.db
@@ -151,7 +133,7 @@ export const submitClassification = mutation({
 export const getUserClassificationForGalaxy = query({
   args: { galaxyExternalId: v.string() },
   handler: async (ctx, { galaxyExternalId }) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) return null;
 
     // Direct lookup of classification by user and galaxy external id

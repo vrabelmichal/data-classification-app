@@ -1,6 +1,6 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
+import { requireUserId } from "./lib/auth";
 
 
 // Navigate to specific galaxy in sequence  // TODO: investigate if this can be query
@@ -11,8 +11,7 @@ export const navigateToGalaxy = mutation({
     currentGalaxyId: v.optional(v.id("galaxies")),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const userId = await requireUserId(ctx);
 
     // Get user's current sequence
     const sequence = await ctx.db

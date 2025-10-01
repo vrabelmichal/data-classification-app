@@ -1,6 +1,6 @@
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { query } from "./_generated/server";
+import { getOptionalUserId } from "./lib/auth";
 // Aggregates are not used in this implementation; we rely on Convex indexes + paginate
 
 
@@ -61,7 +61,7 @@ export const browseGalaxies = query({
     searchVisibleNucleus: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) {
       return {
         galaxies: [],
@@ -405,7 +405,7 @@ export const browseGalaxies = query({
 export const getGalaxySearchBounds = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) {
       return {
         ra: { min: null, max: null },
@@ -514,7 +514,7 @@ export const getGalaxySearchBounds = query({
 export const getClassificationSearchOptions = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     if (!userId) {
       return {
         lsbClasses: [],

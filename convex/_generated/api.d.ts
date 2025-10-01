@@ -28,6 +28,7 @@ import type * as generateBalancedUserSequence from "../generateBalancedUserSeque
 import type * as http from "../http.js";
 import type * as images from "../images.js";
 import type * as lib_assignmentCore from "../lib/assignmentCore.js";
+import type * as lib_auth from "../lib/auth.js";
 import type * as router from "../router.js";
 import type * as seedGalaxyAssignmentStats from "../seedGalaxyAssignmentStats.js";
 import type * as system_settings from "../system_settings.js";
@@ -68,6 +69,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   images: typeof images;
   "lib/assignmentCore": typeof lib_assignmentCore;
+  "lib/auth": typeof lib_auth;
   router: typeof router;
   seedGalaxyAssignmentStats: typeof seedGalaxyAssignmentStats;
   system_settings: typeof system_settings;

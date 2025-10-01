@@ -1,6 +1,6 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { getOptionalUserId } from "./lib/auth";
 
 // Get image URL for a galaxy image with optional quality override
 export const getImageUrl = query({
@@ -10,7 +10,7 @@ export const getImageUrl = query({
     quality: v.optional(v.union(v.literal("high"), v.literal("medium"), v.literal("low"))),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await getOptionalUserId(ctx);
     
     // Get user preferences for image quality if not specified
     let imageQuality = args.quality;
@@ -46,7 +46,7 @@ export const getGalaxyImageUrls = query({
     console.log("Galaxy Image Request", args.galaxyId);
     console.log("Requested imageNames:", args.imageNames);
 
-    const userId = await getAuthUserId(ctx);
+  const userId = await getOptionalUserId(ctx);
     
     console.log("User ID:", userId);
 

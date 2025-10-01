@@ -1,7 +1,7 @@
 // convex/seedGalaxyAssignmentStats.ts
-import { getAuthUserId } from "@convex-dev/auth/server";
 import { v } from "convex/values";
 import { mutation } from "./_generated/server";
+import { requireAdmin } from "./lib/auth";
 
 const SEED_BATCH = 500;
 
@@ -15,17 +15,7 @@ export const seedGalaxyAssignmentStats = mutation({
     resetTotalAssigned: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    // Admin only
-    const currentProfile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-    if (!currentProfile || currentProfile.role !== "admin") {
-      throw new Error("Admin access required");
-    }
+    await requireAdmin(ctx);
 
     const limit = args.maxToSeed ? Math.max(1, Math.floor(args.maxToSeed)) : SEED_BATCH;
     let seeded = 0;
