@@ -285,7 +285,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
   const controlIconButtonClasses = "inline-flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
   const controlTextButtonClasses = "inline-flex items-center justify-center rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
-  const panContainerClasses = `relative flex max-h-[85vh] max-w-[90vw] items-center justify-center overflow-auto rounded-lg ${canPan ? 'cursor-grab active:cursor-grabbing' : 'cursor-auto'} ${isDragging ? 'cursor-grabbing' : ''}`;
+  const panContainerClasses = `relative flex w-full max-h-[85vh] items-center justify-center overflow-auto rounded-lg sm:w-auto sm:max-w-[90vw] ${canPan ? 'cursor-grab active:cursor-grabbing' : 'cursor-auto'} ${isDragging ? 'cursor-grabbing' : ''}`;
 
   // Calculate scale factors for half-light overlay
   const scaleX = imageWidth ? imageWidth / HALF_LIGHT_ORIGINAL_SIZE : HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
@@ -357,7 +357,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
       {/* Modal + backdrop rendered when zoomed. Image modal must be above overlay/backdrop. */}
       {isZoomed && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-0 py-2 sm:px-4 sm:py-4">
           {/* backdrop */}
           <div
             className="absolute inset-0 bg-black bg-opacity-50"
@@ -365,7 +365,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
           {/* centered large image */}
           <div
-            className="relative z-10 flex max-h-full max-w-full flex-col items-center gap-4"
+            className="relative z-10 flex w-full max-h-full flex-col items-center gap-4 px-2 sm:w-auto sm:max-w-[90vw] sm:px-0"
             role="dialog"
             aria-modal="true"
             aria-label="Enlarged image viewer"
