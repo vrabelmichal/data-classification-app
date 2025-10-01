@@ -13,11 +13,39 @@ import { Statistics } from "./components/statistics/Statistics";
 import { UserSettings } from "./components/settings/UserSettings";
 import { Help } from "./components/help/Help";
 import { AdminPanel } from "./components/admin/AdminPanel";
+import { useState, useEffect } from "react";
 
 function App() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const userProfile = useQuery(api.users.getUserProfile);
   const appName = systemSettings?.appName || "Galaxy Classification App";
+  
+  // Version checking state
+  const [currentVersion, setCurrentVersion] = useState<string | null>(null);
+  const [showVersionUpdate, setShowVersionUpdate] = useState(false);
+  
+  // Check for version updates
+  useEffect(() => {
+    if (systemSettings?.appVersion !== undefined && systemSettings?.appVersion !== null) {
+      const serverVersion = systemSettings.appVersion;
+      if (currentVersion === null) {
+        // First load - set current version
+        setCurrentVersion(serverVersion);
+      } else if (currentVersion !== serverVersion) {
+        // Version changed - show update prompt
+        setShowVersionUpdate(true);
+      }
+    }
+  }, [systemSettings?.appVersion, currentVersion]);
+
+  const handleRefresh = () => {
+    window.location.reload();
+  };
+
+  const dismissVersionUpdate = () => {
+    setShowVersionUpdate(false);
+    setCurrentVersion(systemSettings?.appVersion || null);
+  };
 
   const navigationItems = [
     { id: "classify", label: "Classify", icon: "🔬", path: "/classify", element: <ClassificationInterface /> },
@@ -31,6 +59,31 @@ function App() {
 
   return (
     <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Version Update Bar */}
+      {showVersionUpdate && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-blue-600 text-white px-4 py-2 flex items-center justify-between shadow-lg">
+          <div className="flex items-center space-x-2">
+            <span className="text-sm font-medium">
+              A new version of the app is available. Please refresh to update.
+            </span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={dismissVersionUpdate}
+              className="text-blue-200 hover:text-white text-sm underline"
+            >
+              Dismiss
+            </button>
+            <button
+              onClick={handleRefresh}
+              className="bg-white text-blue-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-50 transition-colors"
+            >
+              Refresh
+            </button>
+          </div>
+        </div>
+      )}
+      
       <BrowserRouter>
         <Unauthenticated>
           <div className="flex items-center justify-center min-h-screen">
@@ -77,7 +130,7 @@ function App() {
           ) : !userProfile?.isConfirmed ? (
             <AccountPendingConfirmation />
           ) : (
-            <div className="flex flex-col custom-lg:flex-row min-h-screen overflow-x-hidden">
+            <div className={`flex flex-col custom-lg:flex-row min-h-screen overflow-x-hidden ${showVersionUpdate ? 'pt-10' : ''}`}>
               <Navigation navigationItems={navigationItems} appName={appName} />
               <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64 min-w-0">
                 <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">

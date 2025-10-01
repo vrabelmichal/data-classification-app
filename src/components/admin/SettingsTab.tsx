@@ -15,6 +15,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     emailFrom: systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk",
     appName: systemSettings.appName || "Galaxy Classification App",
     debugAdminMode: systemSettings.debugAdminMode || false,
+    appVersion: systemSettings.appVersion || "",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -26,6 +27,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       emailFrom: systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk",
       appName: systemSettings.appName || "Galaxy Classification App",
       debugAdminMode: systemSettings.debugAdminMode || false,
+      appVersion: systemSettings.appVersion || "",
     });
     setHasChanges(false);
   }, [systemSettings]);
@@ -36,11 +38,13 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     const originalEmailFrom = systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk";
     const originalAppName = systemSettings.appName || "Galaxy Classification App";
     const originalDebugAdminMode = systemSettings.debugAdminMode || false;
+    const originalAppVersion = systemSettings.appVersion || "";
     setHasChanges(
       localSettings.allowAnonymous !== originalAllowAnonymous ||
       localSettings.emailFrom !== originalEmailFrom ||
       localSettings.appName !== originalAppName ||
-      localSettings.debugAdminMode !== originalDebugAdminMode
+      localSettings.debugAdminMode !== originalDebugAdminMode ||
+      localSettings.appVersion !== originalAppVersion
     );
   }, [localSettings, systemSettings]);
 
@@ -59,6 +63,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         emailFrom: localSettings.emailFrom,
         appName: localSettings.appName,
         debugAdminMode: localSettings.debugAdminMode,
+        appVersion: localSettings.appVersion,
       });
       toast.success("Settings updated successfully");
       setHasChanges(false);
@@ -153,6 +158,22 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
             onChange={(e) => handleSettingChange("emailFrom", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="noreply@galaxies.michalvrabel.sk"
+          />
+        </label>
+
+        <label className="block">
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            Application Version
+          </span>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+            Current version of the application. Leave empty for no version checking.
+          </p>
+          <input
+            type="text"
+            value={localSettings.appVersion}
+            onChange={(e) => handleSettingChange("appVersion", e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            placeholder="e.g. 1.0.0"
           />
         </label>
       </div>
