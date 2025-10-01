@@ -192,6 +192,31 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     setZoom(clampZoomValue(1));
   };
 
+  useEffect(() => {
+    if (!isZoomed) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      switch (e.key) {
+        case 'Escape':
+          handleCloseZoom();
+          break;
+        case '+':
+        case '=':
+          handleZoomIn();
+          break;
+        case '-':
+          handleZoomOut();
+          break;
+        case '1':
+          handleOneToOne();
+          break;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isZoomed, handleCloseZoom, handleZoomIn, handleZoomOut, handleOneToOne]);
+
   const endPointerPan = (pointerId: number) => {
     const container = panContainerRef.current;
     if (!container) {
@@ -336,7 +361,6 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
           {/* backdrop */}
           <div
             className="absolute inset-0 bg-black bg-opacity-50"
-            onClick={handleCloseZoom}
           />
 
           {/* centered large image */}
