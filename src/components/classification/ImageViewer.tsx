@@ -14,6 +14,9 @@ const ZOOM_STEP = 1.25;
 // Background color for the zoomed image container (set to "white", "transparent", or any CSS color)
 const ZOOMED_IMAGE_BACKGROUND = "white";
 
+// Enable pixelated rendering for zoomed images (set to true for pixelation, false for smooth interpolation)
+const ENABLE_PIXELATED_ZOOM = true;
+
 const clampZoomValue = (value: number) => Math.min(Math.max(value, MIN_ZOOM), MAX_ZOOM);
 
 interface ImageViewerProps {
@@ -366,6 +369,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
                     maxWidth: "none",
                     maxHeight: "none",
                     filter: `contrast(${contrast})`,
+                    imageRendering: ENABLE_PIXELATED_ZOOM ? 'pixelated' : 'auto',
                   }}
                 />
                 {/* Half-light radius circle overlay for modal */}
