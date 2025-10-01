@@ -283,8 +283,8 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     endPointerPan(e.pointerId);
   };
 
-  const controlIconButtonClasses = "inline-flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
-  const controlTextButtonClasses = "inline-flex items-center justify-center rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
+  const controlIconButtonClasses = "inline-flex h-[60px] w-[60px] items-center justify-center rounded-full bg-gray-900 text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
+  const controlTextButtonClasses = "inline-flex items-center justify-center rounded-full bg-gray-900 px-6 py-3 text-xl font-medium text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
   const panContainerClasses = `relative flex w-full max-h-[85vh] items-center justify-center overflow-auto rounded-lg sm:w-auto sm:max-w-[90vw] ${canPan ? 'cursor-grab active:cursor-grabbing' : 'cursor-auto'} ${isDragging ? 'cursor-grabbing' : ''}`;
 
   // Calculate scale factors for half-light overlay
@@ -421,14 +421,14 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={handleZoomOut}
                 className={controlIconButtonClasses}
                 aria-label="Zoom out"
               >
-                <span aria-hidden="true" className="text-lg font-semibold">−</span>
+                <span aria-hidden="true" className="text-2xl font-semibold">−</span>
               </button>
               <button
                 type="button"
@@ -436,7 +436,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
                 className={controlIconButtonClasses}
                 aria-label="Zoom in"
               >
-                <span aria-hidden="true" className="text-lg font-semibold">+</span>
+                <span aria-hidden="true" className="text-2xl font-semibold">+</span>
               </button>
               <button
                 type="button"
@@ -445,7 +445,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
                 aria-label="Scale image to fit"
                 disabled={Math.abs(zoom - fitScale) < 0.01}
               >
-                Scaled
+                <span aria-hidden="true" className="text-2xl">⤢</span>
               </button>
               <button
                 type="button"
@@ -462,7 +462,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
                 className={controlIconButtonClasses}
                 aria-label="Close enlarged image"
               >
-                <span aria-hidden="true" className="text-xl font-semibold">×</span>
+                <span aria-hidden="true" className="text-3xl font-semibold">×</span>
               </button>
             </div>
           </div>
