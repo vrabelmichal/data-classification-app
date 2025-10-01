@@ -11,6 +11,9 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
 const ZOOM_STEP = 1.25;
 
+// Background color for the zoomed image container (set to "white", "transparent", or any CSS color)
+const ZOOMED_IMAGE_BACKGROUND = "white";
+
 const clampZoomValue = (value: number) => Math.min(Math.max(value, MIN_ZOOM), MAX_ZOOM);
 
 interface ImageViewerProps {
@@ -343,7 +346,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
             <div
               ref={panContainerRef}
               className={panContainerClasses}
-              style={{ touchAction: canPan ? "none" : "auto" }}
+              style={{ touchAction: canPan ? "none" : "auto", backgroundColor: ZOOMED_IMAGE_BACKGROUND }}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
