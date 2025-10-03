@@ -284,7 +284,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   };
 
   const controlIconButtonClasses = "inline-flex h-[60px] w-[60px] items-center justify-center rounded-full bg-gray-900 text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
-  const controlTextButtonClasses = "inline-flex items-center justify-center rounded-full bg-gray-900 px-6 py-3 text-xl font-medium text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
+  const controlTextButtonClasses = "inline-flex items-center justify-center rounded-full bg-gray-900 px-5 py-2 text-xl font-medium text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
   const panContainerClasses = `relative flex w-full max-h-[85vh] items-center justify-center overflow-auto rounded-lg sm:w-auto sm:max-w-[90vw] ${canPan ? 'cursor-grab active:cursor-grabbing' : 'cursor-auto'} ${isDragging ? 'cursor-grabbing' : ''}`;
 
   // Calculate scale factors for half-light overlay
@@ -310,6 +310,53 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
       </div>
     );
   }
+
+  const controlButtons = (
+    <>
+      <button
+        type="button"
+        onClick={handleZoomOut}
+        className={controlIconButtonClasses}
+        aria-label="Zoom out"
+      >
+        <span aria-hidden="true" className="text-2xl font-semibold">−</span>
+      </button>
+      <button
+        type="button"
+        onClick={handleZoomIn}
+        className={controlIconButtonClasses}
+        aria-label="Zoom in"
+      >
+        <span aria-hidden="true" className="text-2xl font-semibold">+</span>
+      </button>
+      <button
+        type="button"
+        onClick={handleResetToFit}
+        className={controlTextButtonClasses}
+        aria-label="Scale image to fit"
+        disabled={Math.abs(zoom - fitScale) < 0.01}
+      >
+        <span aria-hidden="true" className="text-2xl">⤢</span>
+      </button>
+      <button
+        type="button"
+        onClick={handleOneToOne}
+        className={controlTextButtonClasses}
+        aria-label="Reset image to 1:1 scale"
+        disabled={Math.abs(zoom - 1) < 0.01}
+      >
+        1:1
+      </button>
+      <button
+        type="button"
+        onClick={handleCloseZoom}
+        className={controlIconButtonClasses}
+        aria-label="Close enlarged image"
+      >
+        <span aria-hidden="true" className="text-3xl font-semibold">×</span>
+      </button>
+    </>
+  );
 
   return (
     <div className="relative w-full h-full">
@@ -365,7 +412,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
           {/* centered large image */}
           <div
-            className="relative z-10 flex w-full max-h-full flex-col items-center gap-4 px-2 sm:w-auto sm:max-w-[90vw] sm:px-0"
+            className="relative z-10 flex w-full max-h-full flex-col items-center gap-4 px-2 pb-32 sm:w-auto sm:max-w-[90vw] sm:px-0 sm:pb-0"
             role="dialog"
             aria-modal="true"
             aria-label="Enlarged image viewer"
@@ -421,49 +468,16 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={handleZoomOut}
-                className={controlIconButtonClasses}
-                aria-label="Zoom out"
-              >
-                <span aria-hidden="true" className="text-2xl font-semibold">−</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleZoomIn}
-                className={controlIconButtonClasses}
-                aria-label="Zoom in"
-              >
-                <span aria-hidden="true" className="text-2xl font-semibold">+</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleResetToFit}
-                className={controlTextButtonClasses}
-                aria-label="Scale image to fit"
-                disabled={Math.abs(zoom - fitScale) < 0.01}
-              >
-                <span aria-hidden="true" className="text-2xl">⤢</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleOneToOne}
-                className={controlTextButtonClasses}
-                aria-label="Reset image to 1:1 scale"
-                disabled={Math.abs(zoom - 1) < 0.01}
-              >
-                1:1
-              </button>
-              <button
-                type="button"
-                onClick={handleCloseZoom}
-                className={controlIconButtonClasses}
-                aria-label="Close enlarged image"
-              >
-                <span aria-hidden="true" className="text-3xl font-semibold">×</span>
-              </button>
+            <div className="hidden w-full justify-center sm:flex">
+              <div className="flex flex-wrap items-center justify-center gap-3 rounded-full bg-white/40 px-4 py-3 text-white backdrop-blur">
+                {controlButtons}
+              </div>
+            </div>
+          </div>
+
+          <div className="sm:hidden pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex justify-center ">
+            <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-full bg-white/40 px-2 py-2 text-white backdrop-blur">
+              {controlButtons}
             </div>
           </div>
         </div>
