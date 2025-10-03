@@ -178,7 +178,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const [appliedSearchValidRedshift, setAppliedSearchValidRedshift] = useState<boolean | undefined>(undefined);
   const [appliedSearchVisibleNucleus, setAppliedSearchVisibleNucleus] = useState<boolean | undefined>(undefined);
 
-  const previewImageName = "aplpy_defaults_unmasked";
+  const previewImageName = "aplpy_arcsinh_p001_100_vmid01_masked";
 
   // Queries
   const galaxyData = useQuery(api.galaxies_browse.browseGalaxies, {
