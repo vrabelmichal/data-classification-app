@@ -3,12 +3,15 @@ import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { toast } from "sonner";
 import { ImageViewer } from "../classification/ImageViewer";
+import { getImageUrl } from "../../images";
 
 export function SkippedGalaxies() {
   usePageTitle("Skipped Galaxies");
   const skippedGalaxies = useQuery(api.galaxies_skipped.getSkippedGalaxies);
   const removeFromSkipped = useMutation(api.galaxies_skipped.removeFromSkipped);
   const userPrefs = useQuery(api.users.getUserPreferences);
+
+  const previewImageName = "aplpy_arcsinh_p001_100_vmid01_masked";
 
   const handleRemoveFromSkipped = async (skippedId: any) => {
     try {
@@ -59,20 +62,22 @@ export function SkippedGalaxies() {
               className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden"
             >
               <div className="aspect-square p-4">
-                {(item.galaxy as any)?.imageUrl ? (
+                {/* {(item.galaxy as any)?.imageUrl ? ( */}
                   <ImageViewer
-                    imageUrl={(item.galaxy as any).imageUrl}
+                    imageUrl={getImageUrl(item.galaxy.id, previewImageName, {
+                                                                  quality: userPrefs?.imageQuality || "medium",
+                                                                })}
                     alt={`Galaxy ${(item.galaxy as any).id}`}
                     preferences={userPrefs}
                   />
-                ) : (
+                {/* ) : (
                   <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
                     <div className="text-center text-gray-500 dark:text-gray-400">
                       <div className="text-4xl mb-2">🌌</div>
                       <p className="text-sm">No image</p>
                     </div>
                   </div>
-                )}
+                )} */}
               </div>
 
               <div className="p-4 border-t border-gray-200 dark:border-gray-700">
