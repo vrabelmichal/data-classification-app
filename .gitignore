@@ -27,3 +27,6 @@ dist-ssr
 package-lock.json
 
 .backup
+
+# Image display configuration (keep .example files)
+static/config/images.json
