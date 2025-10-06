@@ -8,9 +8,16 @@ import { ImageViewer } from "./ImageViewer";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { useParams, useNavigate } from "react-router";
 import { getImageUrl } from "../../images";
+import { loadImageDisplaySettings } from "../../images/displaySettings";
 import { usePageTitle } from "../../hooks/usePageTitle";
 
 // let lastSelectedMorphology: number | null = null;
+
+const imageDisplaySettings = loadImageDisplaySettings();
+const classificationImageSettings = imageDisplaySettings.classification;
+const imageContrastGroups = classificationImageSettings.contrastGroups;
+const defaultContrastGroupIndex = classificationImageSettings.defaultGroupIndex;
+const defaultPreviewImageName = imageDisplaySettings.previewImageName;
 
 export function ClassificationInterface() {
   // State for additional galaxy details
@@ -33,7 +40,7 @@ export function ClassificationInterface() {
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [contrast, setContrast] = useState(1.0);
-  const [currentContrastGroup, setCurrentContrastGroup] = useState(0);
+  const [currentContrastGroup, setCurrentContrastGroup] = useState(defaultContrastGroupIndex);
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const quickInputRef = useRef<HTMLInputElement>(null);
   // Track last applied classification doc so we don't overwrite user edits repeatedly
@@ -72,54 +79,34 @@ export function ClassificationInterface() {
 
   // ----
 
-  const imageContrastGroups: Array<Record<string, string>> = [
-    {
-      "g_zscale_masked": "Masked g-Band (zscale)",
-      "residual_zscale": "Residual (zscale)",
-      "model_100_0": "Galfit Model (100%)",
-      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh\n(p0.01–100, vmid=0.1)",
-      "aplpy_defaults_unmasked": "APLpy Defaults\n(unmasked)",
-      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear\n(p1_995 wide, unmasked)"
-    },
-    {
-      "g_99_9_masked": "Masked g-Band (99.9%)",
-      "residual_100_0": "Residual (100%)",
-      "model_99_9": "Galfit Model (99.9%)",
-      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh\n(p0.01–100, vmid=0.1)",
-      "aplpy_zscale_unmasked": "APLpy Zscale\n(unmasked)",
-      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear\n(p1_995 wide, unmasked)"
-    },
-    {
-      "g_99_7_masked": "Masked g-Band (99.7%)",
-      "residual_99_7": "Residual (99.7%)",
-      "model_99_7": "Galfit Model (99.7%)",
-      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh\n(p0.01–100, vmid=0.1)",
-      "aplpy_zscale_unmasked": "APLpy Zscale\n(unmasked)",
-      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear\n(p1_995 wide, unmasked)"
-    },
-    {
-      "g_99_0_masked": "Masked g-Band (99.0%)",
-      "residual_99_7": "Residual (99.7%)",
-      "model_99_7": "Galfit Model (99.7%)",
-      "aplpy_arcsinh_p001_100_vmid01_masked": "APLpy Arcsinh\n(p0.01–100, vmid=0.1)",
-      "aplpy_zscale_unmasked": "APLpy Zscale\n(unmasked)",
-      "aplpy_linear_p1_995_wide_unmasked": "APLpy Linear\n(p1_995 wide, unmasked)"
-    }
-  ]
-
   // Determine which galaxy ID to use: by external param or generated sequence
   const resolvedGalaxyId = routeGalaxyId
     ? galaxyByExternalId?.id
     : galaxy?.id;
   
   // Get current contrast group images
-  const currentImageGroup = imageContrastGroups[currentContrastGroup];
+  const currentImageGroup = imageContrastGroups[currentContrastGroup] ?? imageContrastGroups[defaultContrastGroupIndex];
+  
+  // Function to process image labels: make parenthetical parts small
+  const processImageLabel = (label: string) => {
+    const lines = label.split('\n');
+    if (lines.length === 2 && lines[1].startsWith('(') && lines[1].endsWith(')')) {
+      return (
+        <>
+          {lines[0]}
+          <br />
+          <small className="text-xs">{lines[1]}</small>
+        </>
+      );
+    }
+    return label;
+  };
   
   // Create imageTypes array with resolved URLs using the current contrast group
-  const imageTypes = Object.entries(currentImageGroup).map(([key, label]) => ({
+  const imageTypes = currentImageGroup.map(({ key, label }) => ({
     key,
-    // Replace literal "\n" sequences with real newlines so we can rely on whitespace-pre-line
-    name: label.replace(/\\n/g, '\n'),
+    name: label,
+    displayName: processImageLabel(label),
     url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, { 
       quality: userPrefs?.imageQuality || "medium" 
     }) : null,
@@ -130,14 +117,14 @@ export function ClassificationInterface() {
     if (numColumns === 3) return 0; // default order
     if (key.includes('g_') && key.includes('_masked')) return 1;
     if (numColumns === 1) {
-      if (key === 'aplpy_arcsinh_p001_100_vmid01_masked') return 2;
+      if (key === defaultPreviewImageName) return 2;
       if (key.includes('residual')) return 3;
-      if (key.includes('aplpy') && key !== 'aplpy_arcsinh_p001_100_vmid01_masked') return 4;
+      if (key.includes('aplpy') && key !== defaultPreviewImageName) return 4;
       if (key.includes('model')) return 5;
     } else if (numColumns === 2) {
       if (key.includes('residual')) return 2;
-      if (key === 'aplpy_arcsinh_p001_100_vmid01_masked') return 3;
-      if (key.includes('aplpy') && key !== 'aplpy_arcsinh_p001_100_vmid01_masked') return 4;
+      if (key === defaultPreviewImageName) return 3;
+      if (key.includes('aplpy') && key !== defaultPreviewImageName) return 4;
       if (key.includes('model')) return 5;
     }
     return 6; // fallback
@@ -821,8 +808,8 @@ export function ClassificationInterface() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {sortedImageTypes.map((imageType, index) => (
                 <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center whitespace-pre-line">
-                    {imageType.name}
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center">
+                    {imageType.displayName}
                   </h3>
                   <div className="aspect-square">
                     {imageType.url ? (
@@ -1008,8 +995,8 @@ export function ClassificationInterface() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {sortedImageTypes.map((imageType, index) => (
               <div key={index} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center whitespace-pre-line">
-                  {imageType.name}
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center">
+                  {imageType.displayName}
                 </h3>
                 <div className="aspect-square">
                   {imageType.url ? (

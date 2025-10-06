@@ -4,6 +4,7 @@ import { usePageTitle } from "../../hooks/usePageTitle";
 import { toast } from "sonner";
 import { ImageViewer } from "../classification/ImageViewer";
 import { getImageUrl } from "../../images";
+import { getPreviewImageName } from "../../images/displaySettings";
 
 export function SkippedGalaxies() {
   usePageTitle("Skipped Galaxies");
@@ -11,7 +12,7 @@ export function SkippedGalaxies() {
   const removeFromSkipped = useMutation(api.galaxies_skipped.removeFromSkipped);
   const userPrefs = useQuery(api.users.getUserPreferences);
 
-  const previewImageName = "aplpy_arcsinh_p001_100_vmid01_masked";
+  const previewImageName = getPreviewImageName();
 
   const handleRemoveFromSkipped = async (skippedId: any) => {
     try {

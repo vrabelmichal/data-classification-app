@@ -10,6 +10,7 @@ import {
   handleSort as handleSortUtil,
   hasAnySearchValues
 } from "./galaxyBrowserUtils";
+import { getPreviewImageName } from "../../images/displaySettings";
 
 export interface UseGalaxyBrowserReturn {
   // State
@@ -178,7 +179,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const [appliedSearchValidRedshift, setAppliedSearchValidRedshift] = useState<boolean | undefined>(undefined);
   const [appliedSearchVisibleNucleus, setAppliedSearchVisibleNucleus] = useState<boolean | undefined>(undefined);
 
-  const previewImageName = "aplpy_arcsinh_p001_100_vmid01_masked";
+  const previewImageName = getPreviewImageName();
 
   // Queries
   const galaxyData = useQuery(api.galaxies_browse.browseGalaxies, {
