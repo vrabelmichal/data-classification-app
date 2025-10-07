@@ -68,6 +68,18 @@ export function GalaxyBrowser() {
     setSearchTotalClassificationsMin,
     searchTotalClassificationsMax,
     setSearchTotalClassificationsMax,
+    searchNumVisibleNucleusMin,
+    setSearchNumVisibleNucleusMin,
+    searchNumVisibleNucleusMax,
+    setSearchNumVisibleNucleusMax,
+    searchNumAwesomeFlagMin,
+    setSearchNumAwesomeFlagMin,
+    searchNumAwesomeFlagMax,
+    setSearchNumAwesomeFlagMax,
+    searchTotalAssignedMin,
+    setSearchTotalAssignedMin,
+    searchTotalAssignedMax,
+    setSearchTotalAssignedMax,
     searchAwesome,
     setSearchAwesome,
     searchValidRedshift,
@@ -146,6 +158,18 @@ export function GalaxyBrowser() {
               setSearchTotalClassificationsMin={setSearchTotalClassificationsMin}
               searchTotalClassificationsMax={searchTotalClassificationsMax}
               setSearchTotalClassificationsMax={setSearchTotalClassificationsMax}
+              searchNumVisibleNucleusMin={searchNumVisibleNucleusMin}
+              setSearchNumVisibleNucleusMin={setSearchNumVisibleNucleusMin}
+              searchNumVisibleNucleusMax={searchNumVisibleNucleusMax}
+              setSearchNumVisibleNucleusMax={setSearchNumVisibleNucleusMax}
+              searchNumAwesomeFlagMin={searchNumAwesomeFlagMin}
+              setSearchNumAwesomeFlagMin={setSearchNumAwesomeFlagMin}
+              searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
+              setSearchNumAwesomeFlagMax={setSearchNumAwesomeFlagMax}
+              searchTotalAssignedMin={searchTotalAssignedMin}
+              setSearchTotalAssignedMin={setSearchTotalAssignedMin}
+              searchTotalAssignedMax={searchTotalAssignedMax}
+              setSearchTotalAssignedMax={setSearchTotalAssignedMax}
               searchAwesome={searchAwesome}
               setSearchAwesome={setSearchAwesome}
               searchValidRedshift={searchValidRedshift}
@@ -239,6 +263,18 @@ export function GalaxyBrowser() {
               setSearchTotalClassificationsMin={setSearchTotalClassificationsMin}
               searchTotalClassificationsMax={searchTotalClassificationsMax}
               setSearchTotalClassificationsMax={setSearchTotalClassificationsMax}
+              searchNumVisibleNucleusMin={searchNumVisibleNucleusMin}
+              setSearchNumVisibleNucleusMin={setSearchNumVisibleNucleusMin}
+              searchNumVisibleNucleusMax={searchNumVisibleNucleusMax}
+              setSearchNumVisibleNucleusMax={setSearchNumVisibleNucleusMax}
+              searchNumAwesomeFlagMin={searchNumAwesomeFlagMin}
+              setSearchNumAwesomeFlagMin={setSearchNumAwesomeFlagMin}
+              searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
+              setSearchNumAwesomeFlagMax={setSearchNumAwesomeFlagMax}
+              searchTotalAssignedMin={searchTotalAssignedMin}
+              setSearchTotalAssignedMin={setSearchTotalAssignedMin}
+              searchTotalAssignedMax={searchTotalAssignedMax}
+              setSearchTotalAssignedMax={setSearchTotalAssignedMax}
               searchAwesome={searchAwesome}
               setSearchAwesome={setSearchAwesome}
               searchValidRedshift={searchValidRedshift}
@@ -335,6 +371,18 @@ export function GalaxyBrowser() {
           setSearchTotalClassificationsMin={setSearchTotalClassificationsMin}
           searchTotalClassificationsMax={searchTotalClassificationsMax}
           setSearchTotalClassificationsMax={setSearchTotalClassificationsMax}
+          searchNumVisibleNucleusMin={searchNumVisibleNucleusMin}
+          setSearchNumVisibleNucleusMin={setSearchNumVisibleNucleusMin}
+          searchNumVisibleNucleusMax={searchNumVisibleNucleusMax}
+          setSearchNumVisibleNucleusMax={setSearchNumVisibleNucleusMax}
+          searchNumAwesomeFlagMin={searchNumAwesomeFlagMin}
+          setSearchNumAwesomeFlagMin={setSearchNumAwesomeFlagMin}
+          searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
+          setSearchNumAwesomeFlagMax={setSearchNumAwesomeFlagMax}
+          searchTotalAssignedMin={searchTotalAssignedMin}
+          setSearchTotalAssignedMin={setSearchTotalAssignedMin}
+          searchTotalAssignedMax={searchTotalAssignedMax}
+          setSearchTotalAssignedMax={setSearchTotalAssignedMax}
           searchAwesome={searchAwesome}
           setSearchAwesome={setSearchAwesome}
           searchValidRedshift={searchValidRedshift}
