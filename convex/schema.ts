@@ -177,12 +177,12 @@ const applicationTables = {
     .index("by_mag", ["mag"]) // optional magnitude for grouping
     .index("by_mean_mue", ["mean_mue"]) // optional mean surface brightness for grouping
     // Compound indexes (staged) to accelerate common filter+sort combos
-    // .index("by_ra_dec", ["ra", "dec"]) // range on ra, eq on dec
-    // .index("by_nucleus_mag", ["nucleus", "mag"]) // eq nucleus, range/order on mag
-    // .index("by_nucleus_mean_mue", ["nucleus", "mean_mue"]) // eq nucleus, range/order on mean_mue
-    // .index("by_nucleus_q", ["nucleus", "q"]) // eq on nucleus, range/order on q
-    // .index("by_reff_mean_mue", ["reff", "mean_mue"]) // range/order on reff, then eq on mean_mue
-    // .index("by_reff_mag", ["reff", "mag"]) // range/order on reff, then eq on mag
+    .index("by_ra_dec", ["ra", "dec"]) // range on ra, eq on dec
+    .index("by_nucleus_mag", ["nucleus", "mag"]) // eq nucleus, range/order on mag
+    .index("by_nucleus_mean_mue", ["nucleus", "mean_mue"]) // eq nucleus, range/order on mean_mue
+    .index("by_nucleus_q", ["nucleus", "q"]) // eq on nucleus, range/order on q
+    .index("by_reff_mean_mue", ["reff", "mean_mue"]) // range/order on reff, then eq on mean_mue
+    .index("by_reff_mag", ["reff", "mag"]) // range/order on reff, then eq on mag
     // .index("by_nucleus_reff_mean_mue", ["nucleus", "reff", "mean_mue"]) // eq nucleus, then range/order on reff
     // Indexes starting with numericId for stable default ordering plus filters
     .index("by_numericId_nucleus", ["numericId", "nucleus"]) 
@@ -191,10 +191,9 @@ const applicationTables = {
     .index("by_numericId_q", ["numericId", "q"]) 
     .index("by_numericId_reff", ["numericId", "reff"]) 
     // Additional starters for magnitude/mean_mue and structural params
-    // .index("by_mean_mue_reff", ["mean_mue", "reff"]) 
-    // .index("by_mag_reff", ["mag", "reff"]) 
-    // .index("by_q_reff", ["q", "reff"]) 
-    .index("by_reff_q", ["reff", "q"])
+    .index("by_mean_mue_reff", ["mean_mue", "reff"]) 
+    .index("by_mag_reff", ["mag", "reff"]) 
+    .index("by_q_reff", ["q", "reff"]) 
 
     .index("by_totalAssigned_numericId", ["totalAssigned", "numericId"]),
 
