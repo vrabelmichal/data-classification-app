@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
-import { getOptionalUserId, requireConfirmedUser } from "./lib/auth";
+import { query, mutation } from "../_generated/server";
+import { getOptionalUserId, requireConfirmedUser } from "../lib/auth";
 
 
 // Get skipped galaxies for current user

@@ -1,5 +1,5 @@
 import { httpRouter } from "convex/server";
-import { ingestGalaxiesHttp, ping } from "./galaxies_batch_ingest";
+import { ingestGalaxiesHttp, ping } from "./galaxies/batch_ingest";
 
 const http = httpRouter();
 

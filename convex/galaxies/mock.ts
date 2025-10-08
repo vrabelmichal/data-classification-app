@@ -1,5 +1,5 @@
-import { mutation } from "./_generated/server";
-import { requireAdmin } from "./lib/auth";
+import { mutation } from "../_generated/server";
+import { requireAdmin } from "../lib/auth";
 
 
 // Generate mock galaxies (admin only)

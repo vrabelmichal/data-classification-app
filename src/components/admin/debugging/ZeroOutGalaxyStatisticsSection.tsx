@@ -7,7 +7,7 @@ export function ZeroOutGalaxyStatisticsSection() {
   const [zeroingStatistics, setZeroingStatistics] = useState(false);
   const [zeroingCursor, setZeroingCursor] = useState<string | null>(null);
   const [totalProcessed, setTotalProcessed] = useState(0);
-  const zeroOutGalaxyStatistics = useMutation(api.galaxies.zeroOutGalaxyStatistics);
+  const zeroOutGalaxyStatistics = useMutation(api.galaxies.maintenance.zeroOutGalaxyStatistics);
 
   const handleZeroOutGalaxyStatistics = async () => {
     try {

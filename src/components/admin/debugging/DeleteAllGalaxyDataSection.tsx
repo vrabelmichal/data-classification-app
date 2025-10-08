@@ -9,7 +9,7 @@ interface DeleteAllGalaxyDataSectionProps {
 
 export function DeleteAllGalaxyDataSection({ onShowDeleteModal }: DeleteAllGalaxyDataSectionProps) {
   const [deletingGalaxies, setDeletingGalaxies] = useState(false);
-  const deleteAllGalaxies = useMutation(api.galaxies.deleteAllGalaxies);
+  const deleteAllGalaxies = useMutation(api.galaxies.maintenance.deleteAllGalaxies);
 
   const handleDeleteAllGalaxies = async () => {
     try {

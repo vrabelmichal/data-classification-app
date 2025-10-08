@@ -53,29 +53,29 @@ export function ClassificationInterface() {
   // "skip" prevevents the query from running
 
   const galaxyByExternalId = useQuery(
-    api.galaxies_navigation.getGalaxyByExternalId,
+    api.galaxies.navigation.getGalaxyByExternalId,
     routeGalaxyId ? { externalId: routeGalaxyId } : "skip"
   );
-  const galaxy = useQuery(api.galaxies_navigation.getNextGalaxyToClassify, routeGalaxyId ? "skip" : {});
+  const galaxy = useQuery(api.galaxies.navigation.getNextGalaxyToClassify, routeGalaxyId ? "skip" : {});
 
   const progress = useQuery(api.classification.getProgress);
   const userPrefs = useQuery(api.users.getUserPreferences);
   const userProfile = useQuery(api.users.getUserProfile);
 
   const navigation = useQuery(
-    api.galaxies_navigation.getGalaxyNavigation,
+    api.galaxies.navigation.getGalaxyNavigation,
     currentGalaxy ? { currentGalaxyExternalId: currentGalaxy.id } : {}
   );
 
-  const isSkipped = useQuery(api.galaxies_skipped.isGalaxySkipped, currentGalaxy ? { galaxyExternalId: currentGalaxy.id } : "skip");
+  const isSkipped = useQuery(api.galaxies.skipped.isGalaxySkipped, currentGalaxy ? { galaxyExternalId: currentGalaxy.id } : "skip");
 
 
   const submitClassification = useMutation(api.classification.submitClassification);
-  const skipGalaxy = useMutation(api.galaxies_skipped.skipGalaxy);
+  const skipGalaxy = useMutation(api.galaxies.skipped.skipGalaxy);
   // const generateSequence = useMutation(api.galaxies.generateUserSequence);
-  const navigateToGalaxy = useMutation(api.galaxies_navigation.navigateToGalaxyInSequence);
+  const navigateToGalaxy = useMutation(api.galaxies.navigation.navigateToGalaxyInSequence);
 
-  const loadAdditionalDetails = useMutation(api.galaxies.getAdditionalGalaxyDetailsByExternalId);
+  const loadAdditionalDetails = useMutation(api.galaxies.core.getAdditionalGalaxyDetailsByExternalId);
 
   // ----
 

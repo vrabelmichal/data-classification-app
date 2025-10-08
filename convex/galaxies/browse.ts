@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
-import { getOptionalUserId } from "./lib/auth";
+import { query } from "../_generated/server";
+import { getOptionalUserId } from "../lib/auth";
 import {
   galaxiesByRa,
   galaxiesByDec,
@@ -14,7 +14,7 @@ import {
   galaxiesByNumVisibleNucleus,
   galaxiesByNumAwesomeFlag,
   galaxiesByTotalAssigned,
-} from "./galaxies_aggregates";
+} from "./aggregates";
 // Aggregates are not used in this implementation; we rely on Convex indexes + paginate
 
 

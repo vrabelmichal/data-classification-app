@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 export function ClearGalaxyAggregatesSection() {
   const [clearingGalaxyAggregates, setClearingGalaxyAggregates] = useState(false);
-  const clearGalaxyAggregates = useMutation(api.galaxies_aggregates.clearGalaxyAggregates);
+  const clearGalaxyAggregates = useMutation(api.galaxies.aggregates.clearGalaxyAggregates);
 
   const handleClearGalaxyAggregates = async () => {
     if (!confirm("Clear galaxy aggregates? This will affect pagination performance until aggregates are rebuilt.")) return;

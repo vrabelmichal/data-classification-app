@@ -6,7 +6,7 @@ import { toast } from "sonner";
 export function FillGalaxyMagMeanMueSection() {
   const [fillingMagMeanMue, setFillingMagMeanMue] = useState(false);
   const [fillingCursor, setFillingCursor] = useState<string | null>(null);
-  const fillGalaxyMagAndMeanMue = useMutation(api.galaxies.fillGalaxyMagAndMeanMue);
+  const fillGalaxyMagAndMeanMue = useMutation(api.galaxies.maintenance.fillGalaxyMagAndMeanMue);
 
   const handleFillGalaxyMagAndMeanMue = async () => {
     try {

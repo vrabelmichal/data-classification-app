@@ -23,7 +23,7 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
     message: string;
   } | null>(null);
 
-  const usersWithoutSequences = useQuery(api.galaxies_sequence.getUsersWithoutSequences);
+  const usersWithoutSequences = useQuery(api.galaxies.sequence.getUsersWithoutSequences);
 
   const generateBalancedUserSequence = useMutation(api.generateBalancedUserSequence.generateBalancedUserSequence);
   const updateGalaxyAssignmentStats = useMutation(api.generateBalancedUserSequence.updateGalaxyAssignmentStats);

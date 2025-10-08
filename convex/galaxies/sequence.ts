@@ -20,9 +20,9 @@ await galaxiesAggregate.insertIfDoesNotExist(ctx, doc) for each. If desynchroniz
 you can clear and rebuild with galaxiesAggregate.clear(ctx) followed by backfill.
 */
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
-import { galaxyIdsAggregate } from "./galaxies_aggregates";
-import { requireAdmin, requireUserId } from "./lib/auth";
+import { mutation, query } from "../_generated/server";
+import { galaxyIdsAggregate } from "./aggregates";
+import { requireAdmin, requireUserId } from "../lib/auth";
 
 
 

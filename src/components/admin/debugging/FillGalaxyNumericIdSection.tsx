@@ -12,7 +12,7 @@ export function FillGalaxyNumericIdSection() {
     totalProcessed: number;
     currentNumericId: bigint;
   } | null>(null);
-  const fillGalaxyNumericId = useMutation(api.galaxies.fillGalaxyNumericId);
+  const fillGalaxyNumericId = useMutation(api.galaxies.maintenance.fillGalaxyNumericId);
 
   const handleFillGalaxyNumericId = async () => {
     try {

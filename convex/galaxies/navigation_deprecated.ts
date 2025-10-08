@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
-import { requireUserId } from "./lib/auth";
+import { mutation } from "../_generated/server";
+import { requireUserId } from "../lib/auth";
 
 
 // Navigate to specific galaxy in sequence  // TODO: investigate if this can be query

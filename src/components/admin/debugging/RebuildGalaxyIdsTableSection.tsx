@@ -7,7 +7,7 @@ export function RebuildGalaxyIdsTableSection() {
   const [rebuildingGalaxyIdsTable, setRebuildingGalaxyIdsTable] = useState(false);
   const [rebuildIdsTableCursor, setRebuildIdsTableCursor] = useState<string | null>(null);
   const [rebuildIdsTableProgress, setRebuildIdsTableProgress] = useState<number>(0);
-  const rebuildGalaxyIdsTable = useMutation(api.galaxies.rebuildGalaxyIdsTable);
+  const rebuildGalaxyIdsTable = useMutation(api.galaxies.maintenance.rebuildGalaxyIdsTable);
 
   const handleRebuildGalaxyIdsTable = async () => {
     if (!confirm("Rebuild galaxy IDs table? This will clear and rebuild the galaxyIds table from the galaxies table. This may take some time for large datasets and will process in batches.")) return;

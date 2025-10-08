@@ -3,10 +3,10 @@ import {
   httpAction,
   internalMutation,
   type MutationCtx,
-} from "./_generated/server";
-import { internal } from "./_generated/api";
+} from "../_generated/server";
+import { internal } from "../_generated/api";
 import { v } from "convex/values";
-import { galaxySchemaDefinition, photometryBandSchema, photometryBandSchemaR, photometryBandSchemaI, sourceExtractorSchema, thuruthipillySchema } from "./schema";
+import { galaxySchemaDefinition, photometryBandSchema, photometryBandSchemaR, photometryBandSchemaI, sourceExtractorSchema, thuruthipillySchema } from "../schema";
 // Ingestion now expects each array element shaped as:
 // {
 //   galaxy: { core galaxy fields },
@@ -16,8 +16,8 @@ import { galaxySchemaDefinition, photometryBandSchema, photometryBandSchemaR, ph
 //   sourceExtractor?: { g:{}, r:{}, i:{}, y?:{}, z?:{} },
 //   thuruthipilly?: { ... }
 // }
-import { insertGalaxy } from "./galaxies";
-import { galaxyIdsAggregate } from "./galaxies_aggregates";
+import { insertGalaxy } from "./core";
+import { galaxyIdsAggregate } from "./aggregates";
 
 /**
  * Constant-time comparison to avoid timing leaks.
@@ -191,7 +191,7 @@ export const ingestGalaxiesHttp = httpAction(async (ctx, request) => {
   // 3) Call internal mutation via internal reference
   try {
     const results = await ctx.runMutation(
-      internal.galaxies_batch_ingest.insertGalaxiesBatchInternal,
+      internal.galaxies.batch_ingest.insertGalaxiesBatchInternal,
       body as any // Convex validates against `batchArgs` at runtime
     );
 

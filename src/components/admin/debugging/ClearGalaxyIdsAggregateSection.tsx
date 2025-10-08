@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 export function ClearGalaxyIdsAggregateSection() {
   const [clearingAggregate, setClearingAggregate] = useState(false);
-  const clearGalaxyIdsAggregate = useMutation(api.galaxies_aggregates.clearGalaxyIdsAggregate);
+  const clearGalaxyIdsAggregate = useMutation(api.galaxies.aggregates.clearGalaxyIdsAggregate);
 
   const handleClearGalaxyIdsAggregate = async () => {
     if (!confirm("Clear galaxy IDs aggregate? This cannot be undone.")) return;

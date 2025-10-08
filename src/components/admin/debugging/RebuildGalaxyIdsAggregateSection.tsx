@@ -7,7 +7,7 @@ export function RebuildGalaxyIdsAggregateSection() {
   const [rebuildingGalaxyIdsAggregate, setRebuildingGalaxyIdsAggregate] = useState(false);
   const [rebuildIdsCursor, setRebuildIdsCursor] = useState<string | null>(null);
   const [rebuildIdsProgress, setRebuildIdsProgress] = useState<number>(0);
-  const rebuildGalaxyIdsAggregate = useMutation(api.galaxies_aggregates.rebuildGalaxyIdsAggregate);
+  const rebuildGalaxyIdsAggregate = useMutation(api.galaxies.aggregates.rebuildGalaxyIdsAggregate);
 
   const handleRebuildGalaxyIdsAggregate = async () => {
     if (!confirm("Rebuild galaxy IDs aggregate? This may take some time for large datasets and will process in batches.")) return;

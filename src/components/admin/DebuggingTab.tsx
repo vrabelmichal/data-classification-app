@@ -21,7 +21,7 @@ import {
 export function DebuggingTab() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingGalaxies, setDeletingGalaxies] = useState(false);
-  const deleteAllGalaxies = useMutation(api.galaxies.deleteAllGalaxies);
+  const deleteAllGalaxies = useMutation(api.galaxies.maintenance.deleteAllGalaxies);
 
   const handleDeleteAllGalaxies = async () => {
     try {

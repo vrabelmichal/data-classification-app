@@ -1,9 +1,9 @@
 import { TableAggregate } from "@convex-dev/aggregate";
-import { components } from "./_generated/api";
-import { DataModel } from "./_generated/dataModel";
-import { mutation, query } from "./_generated/server";
+import { components } from "../_generated/api";
+import { DataModel } from "../_generated/dataModel";
+import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
-import { requireAdmin } from "./lib/auth";
+import { requireAdmin } from "../lib/auth";
 
 export const galaxyIdsAggregate = new TableAggregate<{
   Key: bigint;

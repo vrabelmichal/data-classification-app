@@ -8,8 +8,8 @@ import { getPreviewImageName } from "../../images/displaySettings";
 
 export function SkippedGalaxies() {
   usePageTitle("Skipped Galaxies");
-  const skippedGalaxies = useQuery(api.galaxies_skipped.getSkippedGalaxies);
-  const removeFromSkipped = useMutation(api.galaxies_skipped.removeFromSkipped);
+  const skippedGalaxies = useQuery(api.galaxies.skipped.getSkippedGalaxies);
+  const removeFromSkipped = useMutation(api.galaxies.skipped.removeFromSkipped);
   const userPrefs = useQuery(api.users.getUserPreferences);
 
   const previewImageName = getPreviewImageName();

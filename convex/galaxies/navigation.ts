@@ -1,6 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
-import { getOptionalUserId, requireUserId } from "./lib/auth";
+import { getOptionalUserId, requireUserId } from "../lib/auth";
 
 
 // Get next galaxy for classification

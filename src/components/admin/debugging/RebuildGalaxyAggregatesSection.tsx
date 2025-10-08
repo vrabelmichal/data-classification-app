@@ -10,7 +10,7 @@ export function RebuildGalaxyAggregatesSection() {
   const [totalGalaxies, setTotalGalaxies] = useState<number | null>(null);
   const [currentBatch, setCurrentBatch] = useState<number>(0);
   const stopRebuildingRef = useRef(false);
-  const rebuildGalaxyAggregates = useMutation(api.galaxies_aggregates.rebuildGalaxyAggregates);
+  const rebuildGalaxyAggregates = useMutation(api.galaxies.aggregates.rebuildGalaxyAggregates);
 
   const handleRebuildGalaxyAggregates = async () => {
     if (!confirm("Rebuild galaxy aggregates? This may take some time for large datasets and will process in batches.")) return;

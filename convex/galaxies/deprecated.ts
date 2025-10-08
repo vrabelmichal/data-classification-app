@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { query } from "./_generated/server";
-import { getOptionalUserId } from "./lib/auth";
+import { query } from "../_generated/server";
+import { getOptionalUserId } from "../lib/auth";
 
 
 // Get galaxy by position in sequence

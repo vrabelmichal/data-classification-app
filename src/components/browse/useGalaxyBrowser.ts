@@ -182,7 +182,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const previewImageName = getPreviewImageName();
 
   // Queries
-  const galaxyData = useQuery(api.galaxies_browse.browseGalaxies, {
+  const galaxyData = useQuery(api.galaxies.browse.browseGalaxies, {
     offset: 0,
     numItems: pageSize,
     cursor: cursor ?? undefined,
@@ -218,7 +218,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     searchVisibleNucleus: isSearchActive ? appliedSearchVisibleNucleus : undefined,
   });
 
-  const searchBounds = useQuery(api.galaxies_browse.getGalaxySearchBounds);
+  const searchBounds = useQuery(api.galaxies.browse.getGalaxySearchBounds);
   const userPrefs = useQuery(api.users.getUserPreferences);
 
   // Computed values

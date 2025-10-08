@@ -2,8 +2,8 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 
 export function AggregateInformationSection() {
-  const aggregateInfo = useQuery(api.galaxies_aggregates.getAggregateInfo);
-  const searchBounds = useQuery(api.galaxies_browse.getGalaxySearchBounds);
+  const aggregateInfo = useQuery(api.galaxies.aggregates.getAggregateInfo);
+  const searchBounds = useQuery(api.galaxies.browse.getGalaxySearchBounds);
 
   return (
     <div className="mt-12">
