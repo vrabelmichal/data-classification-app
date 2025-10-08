@@ -221,12 +221,45 @@ export function ClassificationInterface() {
 
   // Handle quick input change
   const handleQuickInputChange = (value: string) => {
-    setQuickInput(value);
-    parseQuickInput(value);
+    // Only allow specific characters: -, 0, 1, a, r, n
+    const allowedChars = /^[-01arn]*$/;
+    const filteredValue = value.split('').filter(char => allowedChars.test(char)).join('');
+    setQuickInput(filteredValue);
+    parseQuickInput(filteredValue);
   };
 
   // Handle quick input key events
   const handleQuickInputKeyDown = (e: React.KeyboardEvent) => {
+    // Handle Shift+P for Previous
+    if (e.shiftKey && e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      handlePrevious();
+      return;
+    }
+    
+    // Handle Shift+N for Next
+    if (e.shiftKey && e.key.toLowerCase() === 'n') {
+      e.preventDefault();
+      handleNext();
+      return;
+    }
+    
+    // Handle Shift+S for Skip
+    if (e.shiftKey && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      handleSkip();
+      return;
+    }
+    
+    // Handle 'c' for contrast toggle
+    if (e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      const nextGroup = (currentContrastGroup + 1) % imageContrastGroups.length;
+      setCurrentContrastGroup(nextGroup);
+      toast.info(`View Group: ${nextGroup + 1} of ${imageContrastGroups.length}`);
+      return;
+    }
+    
     if (e.key === 'Enter' && lsbClass !== null && morphology !== null) {
       e.preventDefault();
       handleSubmit();
@@ -348,7 +381,25 @@ export function ClassificationInterface() {
   // Simplified keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in input fields
+      // Handle Shift+P, Shift+N, Shift+S regardless of focus (global shortcuts)
+      if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        switch (e.key.toLowerCase()) {
+          case 'p':
+            e.preventDefault();
+            handlePrevious();
+            return;
+          case 'n':
+            e.preventDefault();
+            handleNext();
+            return;
+          case 's':
+            e.preventDefault();
+            handleSkip();
+            return;
+        }
+      }
+      
+      // Don't trigger shortcuts when typing in input fields (for non-Shift shortcuts)
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return
       }

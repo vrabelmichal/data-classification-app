@@ -187,6 +187,18 @@ export function Help() {
                   <span className="text-gray-600 dark:text-gray-300">Skip</span>
                   <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">S</kbd>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Global Previous</span>
+                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+P</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Global Next</span>
+                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+N</kbd>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Global Skip</span>
+                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+S</kbd>
+                </div>
               </div>
             </div>
             <div>
@@ -203,8 +215,12 @@ export function Help() {
               </div>
             </div>
             <div>
-              <h3 className="font-medium text-gray-900 dark:text-white mb-2">Quick Input Flags</h3>
+              <h3 className="font-medium text-gray-900 dark:text-white mb-2">Quick Input Field</h3>
               <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Allowed characters</span>
+                  <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">-,0,1,a,r,n</span>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-300">Awesome flag</span>
                   <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">A</kbd>
@@ -217,9 +233,13 @@ export function Help() {
                   <span className="text-gray-600 dark:text-gray-300">Visible nucleus</span>
                   <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">N</kbd>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Cycle contrast</span>
+                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">C</kbd>
+                </div>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Use these in the quick input field
+                Only allowed characters can be typed. Shift shortcuts work globally.
               </p>
             </div>
           </div>
