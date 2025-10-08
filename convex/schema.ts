@@ -195,7 +195,12 @@ const applicationTables = {
     .index("by_mag_reff", ["mag", "reff"]) 
     .index("by_q_reff", ["q", "reff"]) 
 
-    .index("by_totalAssigned_numericId", ["totalAssigned", "numericId"]),
+    .index("by_totalAssigned_numericId", ["totalAssigned", "numericId"])
+
+    // Indexes for aggregate fields
+    .index("by_totalClassifications", ["totalClassifications"])
+    .index("by_numVisibleNucleus", ["numVisibleNucleus"])
+    .index("by_numAwesomeFlag", ["numAwesomeFlag"]),
 
   // Split photometry tables (one doc per galaxy per band)
   galaxies_photometry_g: defineTable(photometryBandSchema).index("by_galaxy", ["galaxyRef"]),

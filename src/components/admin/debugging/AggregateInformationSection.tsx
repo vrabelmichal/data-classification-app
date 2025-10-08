@@ -3,6 +3,7 @@ import { api } from "../../../../convex/_generated/api";
 
 export function AggregateInformationSection() {
   const aggregateInfo = useQuery(api.galaxies_aggregates.getAggregateInfo);
+  const searchBounds = useQuery(api.galaxies_browse.getGalaxySearchBounds);
 
   return (
     <div className="mt-12">
@@ -107,6 +108,154 @@ export function AggregateInformationSection() {
                 <div>Count: {aggregateInfo.galaxiesByMeanMue.count.toLocaleString()}</div>
                 <div>Min: {aggregateInfo.galaxiesByMeanMue.min?.toFixed(4) ?? 'N/A'}</div>
                 <div>Max: {aggregateInfo.galaxiesByMeanMue.max?.toFixed(4) ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Galaxies by Total Classifications */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Galaxies by Total Classifications</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Count: {aggregateInfo.galaxiesByTotalClassifications?.count.toLocaleString() ?? 'N/A'}</div>
+                <div>Min: {aggregateInfo.galaxiesByTotalClassifications?.min ?? 'N/A'}</div>
+                <div>Max: {aggregateInfo.galaxiesByTotalClassifications?.max ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Galaxies by Num Visible Nucleus */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Galaxies by Num Visible Nucleus</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Count: {aggregateInfo.galaxiesByNumVisibleNucleus?.count.toLocaleString() ?? 'N/A'}</div>
+                <div>Min: {aggregateInfo.galaxiesByNumVisibleNucleus?.min ?? 'N/A'}</div>
+                <div>Max: {aggregateInfo.galaxiesByNumVisibleNucleus?.max ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Galaxies by Num Awesome Flag */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Galaxies by Num Awesome Flag</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Count: {aggregateInfo.galaxiesByNumAwesomeFlag?.count.toLocaleString() ?? 'N/A'}</div>
+                <div>Min: {aggregateInfo.galaxiesByNumAwesomeFlag?.min ?? 'N/A'}</div>
+                <div>Max: {aggregateInfo.galaxiesByNumAwesomeFlag?.max ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Galaxies by Total Assigned */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Galaxies by Total Assigned</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Count: {aggregateInfo.galaxiesByTotalAssigned?.count.toLocaleString() ?? 'N/A'}</div>
+                <div>Min: {aggregateInfo.galaxiesByTotalAssigned?.min ?? 'N/A'}</div>
+                <div>Max: {aggregateInfo.galaxiesByTotalAssigned?.max ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds RA */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - RA</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.ra.min?.toFixed(4) ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.ra.max?.toFixed(4) ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Dec */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Dec</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.dec.min?.toFixed(4) ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.dec.max?.toFixed(4) ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Reff */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Reff</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.reff.min?.toFixed(4) ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.reff.max?.toFixed(4) ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Q */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Q</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.q.min?.toFixed(4) ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.q.max?.toFixed(4) ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds PA */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - PA</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.pa.min?.toFixed(4) ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.pa.max?.toFixed(4) ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Mag */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Mag</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.mag.min?.toFixed(4) ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.mag.max?.toFixed(4) ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Mean μ */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Mean μ</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.mean_mue.min?.toFixed(4) ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.mean_mue.max?.toFixed(4) ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Nucleus */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Nucleus</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Has Nucleus: {searchBounds?.nucleus.hasNucleus ? 'Yes' : 'No'}</div>
+                <div>Total Count: {searchBounds?.nucleus.totalCount.toLocaleString() ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Total Classifications */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Total Classifications</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.totalClassifications.min ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.totalClassifications.max ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Num Visible Nucleus */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Num Visible Nucleus</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.numVisibleNucleus.min ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.numVisibleNucleus.max ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Num Awesome Flag */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Num Awesome Flag</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.numAwesomeFlag.min ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.numAwesomeFlag.max ?? 'N/A'}</div>
+              </div>
+            </div>
+
+            {/* Search Bounds Total Assigned */}
+            <div className="bg-gray-50 dark:bg-gray-700 rounded p-4">
+              <h4 className="font-medium text-gray-900 dark:text-white mb-2">Search Bounds - Total Assigned</h4>
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+                <div>Min: {searchBounds?.totalAssigned.min ?? 'N/A'}</div>
+                <div>Max: {searchBounds?.totalAssigned.max ?? 'N/A'}</div>
               </div>
             </div>
           </div>

@@ -1,6 +1,20 @@
 import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { getOptionalUserId } from "./lib/auth";
+import {
+  galaxiesByRa,
+  galaxiesByDec,
+  galaxiesByReff,
+  galaxiesByQ,
+  galaxiesByPa,
+  galaxiesByMag,
+  galaxiesByMeanMue,
+  galaxiesByNucleus,
+  galaxiesByTotalClassifications,
+  galaxiesByNumVisibleNucleus,
+  galaxiesByNumAwesomeFlag,
+  galaxiesByTotalAssigned,
+} from "./galaxies_aggregates";
 // Aggregates are not used in this implementation; we rely on Convex indexes + paginate
 
 
@@ -423,90 +437,109 @@ export const getGalaxySearchBounds = query({
       };
     }
 
-    // Get all galaxies to calculate bounds
-    const allGalaxies = await ctx.db.query("galaxies").collect();
-
-    if (allGalaxies.length === 0) {
-      return {
-        ra: { min: null, max: null },
-        dec: { min: null, max: null },
-        reff: { min: null, max: null },
-        q: { min: null, max: null },
-        pa: { min: null, max: null },
-        mag: { min: null, max: null },
-        mean_mue: { min: null, max: null },
-        nucleus: { hasNucleus: false, totalCount: 0 },
-        totalClassifications: { min: null, max: null },
-        numVisibleNucleus: { min: null, max: null },
-        numAwesomeFlag: { min: null, max: null },
-        totalAssigned: { min: null, max: null },
-      };
-    }
-
-    // Calculate min/max for numeric fields
-    const raValues = allGalaxies.map(g => g.ra).filter(v => !isNaN(v));
-    const decValues = allGalaxies.map(g => g.dec).filter(v => !isNaN(v));
-    const reffValues = allGalaxies.map(g => g.reff).filter(v => !isNaN(v));
-    const qValues = allGalaxies.map(g => g.q).filter(v => !isNaN(v));
-    const paValues = allGalaxies.map(g => g.pa).filter(v => !isNaN(v));
-    const magValues = allGalaxies.map(g => g.mag).filter(v => v !== undefined && !isNaN(v));
-    const meanMueValues = allGalaxies.map(g => g.mean_mue).filter(v => v !== undefined && !isNaN(v));
-    const totalClassificationsValues = allGalaxies.map(g => Number(g.totalClassifications || 0)).filter(v => v >= 0);
-    const numVisibleNucleusValues = allGalaxies.map(g => Number(g.numVisibleNucleus || 0)).filter(v => v >= 0);
-    const numAwesomeFlagValues = allGalaxies.map(g => Number(g.numAwesomeFlag || 0)).filter(v => v >= 0);
-    const totalAssignedValues = allGalaxies.map(g => Number(g.totalAssigned || 0)).filter(v => v >= 0);
-
-    // Count galaxies with nucleus
-    const nucleusCount = allGalaxies.filter(g => g.nucleus === true).length;
+    // Use aggregates for all fields that have them
+    const [
+      galaxiesByRaMin,
+      galaxiesByRaMax,
+      galaxiesByDecMin,
+      galaxiesByDecMax,
+      galaxiesByReffMin,
+      galaxiesByReffMax,
+      galaxiesByQMin,
+      galaxiesByQMax,
+      galaxiesByPaMin,
+      galaxiesByPaMax,
+      galaxiesByMagMin,
+      galaxiesByMagMax,
+      galaxiesByMeanMueMin,
+      galaxiesByMeanMueMax,
+      nucleusTrueCount,
+      totalGalaxiesCount,
+      galaxiesByTotalClassificationsMin,
+      galaxiesByTotalClassificationsMax,
+      galaxiesByNumVisibleNucleusMin,
+      galaxiesByNumVisibleNucleusMax,
+      galaxiesByNumAwesomeFlagMin,
+      galaxiesByNumAwesomeFlagMax,
+      galaxiesByTotalAssignedMin,
+      galaxiesByTotalAssignedMax,
+    ] = await Promise.all([
+      galaxiesByRa.min(ctx).then(item => item?.key),
+      galaxiesByRa.max(ctx).then(item => item?.key),
+      galaxiesByDec.min(ctx).then(item => item?.key),
+      galaxiesByDec.max(ctx).then(item => item?.key),
+      galaxiesByReff.min(ctx).then(item => item?.key),
+      galaxiesByReff.max(ctx).then(item => item?.key),
+      galaxiesByQ.min(ctx).then(item => item?.key),
+      galaxiesByQ.max(ctx).then(item => item?.key),
+      galaxiesByPa.min(ctx).then(item => item?.key),
+      galaxiesByPa.max(ctx).then(item => item?.key),
+      galaxiesByMag.min(ctx).then(item => item?.key),
+      galaxiesByMag.max(ctx).then(item => item?.key),
+      galaxiesByMeanMue.min(ctx).then(item => item?.key),
+      galaxiesByMeanMue.max(ctx).then(item => item?.key),
+      galaxiesByNucleus.count(ctx, {
+        bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } }
+      }),
+      galaxiesByNucleus.count(ctx),
+      galaxiesByTotalClassifications.min(ctx).then(item => item?.key),
+      galaxiesByTotalClassifications.max(ctx).then(item => item?.key),
+      galaxiesByNumVisibleNucleus.min(ctx).then(item => item?.key),
+      galaxiesByNumVisibleNucleus.max(ctx).then(item => item?.key),
+      galaxiesByNumAwesomeFlag.min(ctx).then(item => item?.key),
+      galaxiesByNumAwesomeFlag.max(ctx).then(item => item?.key),
+      galaxiesByTotalAssigned.min(ctx).then(item => item?.key),
+      galaxiesByTotalAssigned.max(ctx).then(item => item?.key),
+    ]);
 
     return {
       ra: {
-        min: raValues.length > 0 ? Math.min(...raValues) : null,
-        max: raValues.length > 0 ? Math.max(...raValues) : null,
+        min: galaxiesByRaMin ?? null,
+        max: galaxiesByRaMax ?? null,
       },
       dec: {
-        min: decValues.length > 0 ? Math.min(...decValues) : null,
-        max: decValues.length > 0 ? Math.max(...decValues) : null,
+        min: galaxiesByDecMin ?? null,
+        max: galaxiesByDecMax ?? null,
       },
       reff: {
-        min: reffValues.length > 0 ? Math.min(...reffValues) : null,
-        max: reffValues.length > 0 ? Math.max(...reffValues) : null,
+        min: galaxiesByReffMin ?? null,
+        max: galaxiesByReffMax ?? null,
       },
       q: {
-        min: qValues.length > 0 ? Math.min(...qValues) : null,
-        max: qValues.length > 0 ? Math.max(...qValues) : null,
+        min: galaxiesByQMin ?? null,
+        max: galaxiesByQMax ?? null,
       },
       pa: {
-        min: paValues.length > 0 ? Math.min(...paValues) : null,
-        max: paValues.length > 0 ? Math.max(...paValues) : null,
+        min: galaxiesByPaMin ?? null,
+        max: galaxiesByPaMax ?? null,
       },
       mag: {
-        min: magValues.length > 0 ? Math.min(...(magValues as number[])) : null,
-        max: magValues.length > 0 ? Math.max(...(magValues as number[])) : null,
+        min: galaxiesByMagMin ?? null,
+        max: galaxiesByMagMax ?? null,
       },
       mean_mue: {
-        min: meanMueValues.length > 0 ? Math.min(...(meanMueValues as number[])) : null,
-        max: meanMueValues.length > 0 ? Math.max(...(meanMueValues as number[])) : null,
+        min: galaxiesByMeanMueMin ?? null,
+        max: galaxiesByMeanMueMax ?? null,
       },
       nucleus: {
-        hasNucleus: nucleusCount > 0,
-        totalCount: allGalaxies.length,
+        hasNucleus: nucleusTrueCount > 0,
+        totalCount: totalGalaxiesCount,
       },
       totalClassifications: {
-        min: totalClassificationsValues.length > 0 ? Math.min(...totalClassificationsValues) : null,
-        max: totalClassificationsValues.length > 0 ? Math.max(...totalClassificationsValues) : null,
+        min: galaxiesByTotalClassificationsMin ?? null,
+        max: galaxiesByTotalClassificationsMax ?? null,
       },
       numVisibleNucleus: {
-        min: numVisibleNucleusValues.length > 0 ? Math.min(...numVisibleNucleusValues) : null,
-        max: numVisibleNucleusValues.length > 0 ? Math.max(...numVisibleNucleusValues) : null,
+        min: galaxiesByNumVisibleNucleusMin ?? null,
+        max: galaxiesByNumVisibleNucleusMax ?? null,
       },
       numAwesomeFlag: {
-        min: numAwesomeFlagValues.length > 0 ? Math.min(...numAwesomeFlagValues) : null,
-        max: numAwesomeFlagValues.length > 0 ? Math.max(...numAwesomeFlagValues) : null,
+        min: galaxiesByNumAwesomeFlagMin ?? null,
+        max: galaxiesByNumAwesomeFlagMax ?? null,
       },
       totalAssigned: {
-        min: totalAssignedValues.length > 0 ? Math.min(...totalAssignedValues) : null,
-        max: totalAssignedValues.length > 0 ? Math.max(...totalAssignedValues) : null,
+        min: galaxiesByTotalAssignedMin ?? null,
+        max: galaxiesByTotalAssignedMax ?? null,
       },
     };
   },
