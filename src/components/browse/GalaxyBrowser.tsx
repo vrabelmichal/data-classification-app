@@ -8,7 +8,7 @@ import { GalaxyBrowserMobileCards } from "./GalaxyBrowserMobileCards";
 
 export type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus" | "numericId";
 export type SortOrder = "asc" | "desc";
-export type FilterType = "all" | "my_sequence" | "classified" | "unclassified";
+export type FilterType = "all" | "my_sequence" | "classified" | "unclassified" | "skipped";
 
 export function GalaxyBrowser() {
   usePageTitle("Browse Galaxies");

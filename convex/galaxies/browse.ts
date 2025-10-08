@@ -18,6 +18,76 @@ import {
 // Aggregates are not used in this implementation; we rely on Convex indexes + paginate
 
 
+const SKIPPED_CURSOR_PREFIX = "SKIPPED:";
+
+const parseSkippedCursor = (cursor: string | null) => {
+  if (!cursor || !cursor.startsWith(SKIPPED_CURSOR_PREFIX)) {
+    return 0;
+  }
+  const rawOffset = Number.parseInt(cursor.slice(SKIPPED_CURSOR_PREFIX.length), 10);
+  return Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+};
+
+const serializeSkippedCursor = (offset: number) => `${SKIPPED_CURSOR_PREFIX}${offset}`;
+
+const computeBounds = (galaxies: any[]) => {
+  const raValues = galaxies.map((g) => g.ra).filter((v) => typeof v === "number" && !Number.isNaN(v));
+  const decValues = galaxies.map((g) => g.dec).filter((v) => typeof v === "number" && !Number.isNaN(v));
+  const reffValues = galaxies.map((g) => g.reff).filter((v) => typeof v === "number" && !Number.isNaN(v));
+  const qValues = galaxies.map((g) => g.q).filter((v) => typeof v === "number" && !Number.isNaN(v));
+  const paValues = galaxies.map((g) => g.pa).filter((v) => typeof v === "number" && !Number.isNaN(v));
+  const magValues = galaxies.map((g) => g.mag).filter((v) => typeof v === "number" && !Number.isNaN(v));
+  const meanMueValues = galaxies.map((g) => g.mean_mue).filter((v) => typeof v === "number" && !Number.isNaN(v));
+  const nucleusCount = galaxies.filter((g) => g.nucleus === true).length;
+
+  return {
+    ra: {
+      min: raValues.length > 0 ? Math.min(...raValues) : null,
+      max: raValues.length > 0 ? Math.max(...raValues) : null,
+    },
+    dec: {
+      min: decValues.length > 0 ? Math.min(...decValues) : null,
+      max: decValues.length > 0 ? Math.max(...decValues) : null,
+    },
+    reff: {
+      min: reffValues.length > 0 ? Math.min(...reffValues) : null,
+      max: reffValues.length > 0 ? Math.max(...reffValues) : null,
+    },
+    q: {
+      min: qValues.length > 0 ? Math.min(...qValues) : null,
+      max: qValues.length > 0 ? Math.max(...qValues) : null,
+    },
+    pa: {
+      min: paValues.length > 0 ? Math.min(...paValues) : null,
+      max: paValues.length > 0 ? Math.max(...paValues) : null,
+    },
+    mag: {
+      min: magValues.length > 0 ? Math.min(...magValues) : null,
+      max: magValues.length > 0 ? Math.max(...magValues) : null,
+    },
+    mean_mue: {
+      min: meanMueValues.length > 0 ? Math.min(...meanMueValues) : null,
+      max: meanMueValues.length > 0 ? Math.max(...meanMueValues) : null,
+    },
+    nucleus: {
+      hasNucleus: nucleusCount > 0,
+      totalCount: galaxies.length,
+    },
+  };
+};
+
+type Sortable =
+  | "numericId"
+  | "id"
+  | "ra"
+  | "dec"
+  | "reff"
+  | "q"
+  | "pa"
+  | "mag"
+  | "mean_mue"
+  | "nucleus";
+
 // Browse galaxies with offset-based pagination for proper page navigation
 
 export const browseGalaxies = query({
@@ -43,7 +113,8 @@ export const browseGalaxies = query({
       v.literal("all"),
       v.literal("my_sequence"),
       v.literal("classified"),
-      v.literal("unclassified")
+      v.literal("unclassified"),
+      v.literal("skipped")
     )),
     searchTerm: v.optional(v.string()), // Keep for backward compatibility
     searchId: v.optional(v.string()),
@@ -134,7 +205,8 @@ export const browseGalaxies = query({
       searchVisibleNucleus,
     } = args;
 
-    type Sortable = "numericId" | "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus";
+    const normalizedSortOrder: "asc" | "desc" = sortOrder === "desc" ? "desc" : "asc";
+
     const allowedSort: Record<Sortable, { index: string; field: string }> = {
       numericId: { index: "by_numeric_id", field: "numericId" },
       id: { index: "by_external_id", field: "id" },
@@ -150,6 +222,42 @@ export const browseGalaxies = query({
     const requestedSort = (Object.keys(allowedSort) as Sortable[]).includes(sortBy as Sortable)
       ? (sortBy as Sortable)
       : "numericId";
+
+    if (filter === "skipped") {
+      return await handleSkippedGalaxies({
+        ctx,
+        userId,
+        cursor,
+        numItems,
+  sortOrder: normalizedSortOrder,
+        requestedSort,
+        sortField: allowedSort[requestedSort].field,
+        searchId,
+        searchRaMin,
+        searchRaMax,
+        searchDecMin,
+        searchDecMax,
+        searchReffMin,
+        searchReffMax,
+        searchQMin,
+        searchQMax,
+        searchPaMin,
+        searchPaMax,
+        searchMagMin,
+        searchMagMax,
+        searchMeanMueMin,
+        searchMeanMueMax,
+        searchNucleus,
+        searchTotalClassificationsMin,
+        searchTotalClassificationsMax,
+        searchNumVisibleNucleusMin,
+        searchNumVisibleNucleusMax,
+        searchNumAwesomeFlagMin,
+        searchNumAwesomeFlagMax,
+        searchTotalAssignedMin,
+        searchTotalAssignedMax,
+      });
+    }
 
     // Pick best index starting with the sort key and optionally second fields based on filters
     let indexName = allowedSort[requestedSort].index;
@@ -250,7 +358,7 @@ export const browseGalaxies = query({
     let q: any = indexBuilder
       ? qBase.withIndex(indexName as any, indexBuilder as any)
       : qBase.withIndex(indexName as any);
-    q = q.order(sortOrder as any);
+  q = q.order(normalizedSortOrder as any);
 
     // Apply additional filters via chained .filter calls
   if (searchId) q = q.filter((f: any) => f.eq(f.field("id"), searchId.trim()));
@@ -357,49 +465,7 @@ export const browseGalaxies = query({
 
     // Calculate bounds of current result set for placeholders
 
-    const raValues = galaxies.map(g => g.ra).filter(v => !isNaN(v));
-    const decValues = galaxies.map(g => g.dec).filter(v => !isNaN(v));
-    const reffValues = galaxies.map(g => g.reff).filter(v => !isNaN(v));
-    const qValues = galaxies.map(g => g.q).filter(v => !isNaN(v));
-    const paValues = galaxies.map(g => g.pa).filter(v => !isNaN(v));
-    const magValues = galaxies.map(g => g.mag).filter(v => v !== undefined && !isNaN(v));
-    const meanMueValues = galaxies.map(g => g.mean_mue).filter(v => v !== undefined && !isNaN(v));
-    const nucleusCount = galaxies.filter(g => g.nucleus === true).length;
-
-    const currentBounds = {
-      ra: {
-        min: raValues.length > 0 ? Math.min(...raValues) : null,
-        max: raValues.length > 0 ? Math.max(...raValues) : null,
-      },
-      dec: {
-        min: decValues.length > 0 ? Math.min(...decValues) : null,
-        max: decValues.length > 0 ? Math.max(...decValues) : null,
-      },
-      reff: {
-        min: reffValues.length > 0 ? Math.min(...reffValues) : null,
-        max: reffValues.length > 0 ? Math.max(...reffValues) : null,
-      },
-      q: {
-        min: qValues.length > 0 ? Math.min(...qValues) : null,
-        max: qValues.length > 0 ? Math.max(...qValues) : null,
-      },
-      pa: {
-        min: paValues.length > 0 ? Math.min(...paValues) : null,
-        max: paValues.length > 0 ? Math.max(...paValues) : null,
-      },
-      mag: {
-        min: magValues.length > 0 ? Math.min(...(magValues as number[])) : null,
-        max: magValues.length > 0 ? Math.max(...(magValues as number[])) : null,
-      },
-      mean_mue: {
-        min: meanMueValues.length > 0 ? Math.min(...(meanMueValues as number[])) : null,
-        max: meanMueValues.length > 0 ? Math.max(...(meanMueValues as number[])) : null,
-      },
-      nucleus: {
-        hasNucleus: nucleusCount > 0,
-        totalCount: galaxies.length,
-      },
-    };
+    const currentBounds = computeBounds(galaxies);
 
     return {
       galaxies: galaxies,
@@ -414,6 +480,254 @@ export const browseGalaxies = query({
     };
   },
 });
+
+interface HandleSkippedOptions {
+  ctx: any;
+  userId: string;
+  cursor: string | null;
+  numItems: number;
+  sortOrder: "asc" | "desc";
+  requestedSort: Sortable;
+  sortField: string;
+  searchId?: string;
+  searchRaMin?: string;
+  searchRaMax?: string;
+  searchDecMin?: string;
+  searchDecMax?: string;
+  searchReffMin?: string;
+  searchReffMax?: string;
+  searchQMin?: string;
+  searchQMax?: string;
+  searchPaMin?: string;
+  searchPaMax?: string;
+  searchMagMin?: string;
+  searchMagMax?: string;
+  searchMeanMueMin?: string;
+  searchMeanMueMax?: string;
+  searchNucleus?: boolean;
+  searchTotalClassificationsMin?: string;
+  searchTotalClassificationsMax?: string;
+  searchNumVisibleNucleusMin?: string;
+  searchNumVisibleNucleusMax?: string;
+  searchNumAwesomeFlagMin?: string;
+  searchNumAwesomeFlagMax?: string;
+  searchTotalAssignedMin?: string;
+  searchTotalAssignedMax?: string;
+}
+
+const handleSkippedGalaxies = async (options: HandleSkippedOptions) => {
+  const {
+    ctx,
+    userId,
+    cursor,
+    numItems,
+    sortOrder,
+    requestedSort,
+    sortField,
+    searchId,
+    searchRaMin,
+    searchRaMax,
+    searchDecMin,
+    searchDecMax,
+    searchReffMin,
+    searchReffMax,
+    searchQMin,
+    searchQMax,
+    searchPaMin,
+    searchPaMax,
+    searchMagMin,
+    searchMagMax,
+    searchMeanMueMin,
+    searchMeanMueMax,
+    searchNucleus,
+    searchTotalClassificationsMin,
+    searchTotalClassificationsMax,
+    searchNumVisibleNucleusMin,
+    searchNumVisibleNucleusMax,
+    searchNumAwesomeFlagMin,
+    searchNumAwesomeFlagMax,
+    searchTotalAssignedMin,
+    searchTotalAssignedMax,
+  } = options;
+
+  const initialOffset = parseSkippedCursor(cursor);
+
+  const skippedRecords = await ctx.db
+    .query("skippedGalaxies")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .collect();
+
+  if (skippedRecords.length === 0) {
+    return {
+      galaxies: [],
+      total: 0,
+      hasNext: false,
+      hasPrevious: initialOffset > 0,
+      totalPages: 0,
+      aggregatesPopulated: false,
+      cursor: null,
+      isDone: true,
+      currentBounds: computeBounds([]),
+    };
+  }
+
+  const skippedGalaxies = (await Promise.all(
+    skippedRecords.map(async (record: any) => {
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q: any) => q.eq("id", record.galaxyExternalId))
+        .unique();
+      if (!galaxy) return null;
+      return {
+        ...galaxy,
+        skippedRecordId: record._id,
+        skippedAt: record._creationTime,
+        skippedComments: record.comments ?? null,
+      };
+    })
+  )).filter((item): item is any => item !== null);
+
+  let filtered = skippedGalaxies;
+
+  if (searchId) {
+    const trimmed = searchId.trim();
+    filtered = filtered.filter((g) => g.id === trimmed);
+  }
+  const applyNumericFilter = (
+    values: any[],
+    field: string,
+    min?: string,
+    max?: string,
+  ) => {
+    if (!min && !max) return values;
+    const minVal = min !== undefined && min !== null && min !== "" ? Number.parseFloat(min) : undefined;
+    const maxVal = max !== undefined && max !== null && max !== "" ? Number.parseFloat(max) : undefined;
+    return values.filter((g) => {
+      const value = g[field];
+      if (typeof value !== "number" || Number.isNaN(value)) return false;
+      if (minVal !== undefined && value < minVal) return false;
+      if (maxVal !== undefined && value > maxVal) return false;
+      return true;
+    });
+  };
+
+  filtered = applyNumericFilter(filtered, "ra", searchRaMin, searchRaMax);
+  filtered = applyNumericFilter(filtered, "dec", searchDecMin, searchDecMax);
+  filtered = applyNumericFilter(filtered, "reff", searchReffMin, searchReffMax);
+  filtered = applyNumericFilter(filtered, "q", searchQMin, searchQMax);
+  filtered = applyNumericFilter(filtered, "pa", searchPaMin, searchPaMax);
+  filtered = applyNumericFilter(filtered, "mag", searchMagMin, searchMagMax);
+  filtered = applyNumericFilter(filtered, "mean_mue", searchMeanMueMin, searchMeanMueMax);
+
+  if (searchNucleus !== undefined) {
+    const desired = !!searchNucleus;
+    filtered = filtered.filter((g) => !!g.nucleus === desired);
+  }
+
+  if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
+    const minVal = searchTotalClassificationsMin ? Number.parseInt(searchTotalClassificationsMin, 10) : undefined;
+    const maxVal = searchTotalClassificationsMax ? Number.parseInt(searchTotalClassificationsMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.totalClassifications === "number" ? g.totalClassifications : Number(g.totalClassifications ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
+    const minVal = searchNumVisibleNucleusMin ? Number.parseInt(searchNumVisibleNucleusMin, 10) : undefined;
+    const maxVal = searchNumVisibleNucleusMax ? Number.parseInt(searchNumVisibleNucleusMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.numVisibleNucleus === "number" ? g.numVisibleNucleus : Number(g.numVisibleNucleus ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
+    const minVal = searchNumAwesomeFlagMin ? Number.parseInt(searchNumAwesomeFlagMin, 10) : undefined;
+    const maxVal = searchNumAwesomeFlagMax ? Number.parseInt(searchNumAwesomeFlagMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.numAwesomeFlag === "number" ? g.numAwesomeFlag : Number(g.numAwesomeFlag ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  if (searchTotalAssignedMin || searchTotalAssignedMax) {
+    const minVal = searchTotalAssignedMin ? Number.parseInt(searchTotalAssignedMin, 10) : undefined;
+    const maxVal = searchTotalAssignedMax ? Number.parseInt(searchTotalAssignedMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.totalAssigned === "number" ? g.totalAssigned : Number(g.totalAssigned ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  const missingNumericValue = sortOrder === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+  filtered.sort((a, b) => {
+    if (requestedSort === "id") {
+      const aVal = typeof a[sortField] === "string" ? a[sortField] : "";
+      const bVal = typeof b[sortField] === "string" ? b[sortField] : "";
+      const cmp = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: "base" });
+      if (cmp !== 0) {
+        return sortOrder === "asc" ? cmp : -cmp;
+      }
+    } else if (requestedSort === "nucleus") {
+      const aVal = a[sortField] ? 1 : 0;
+      const bVal = b[sortField] ? 1 : 0;
+      if (aVal !== bVal) {
+        return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+      }
+    } else {
+      const aVal = typeof a[sortField] === "number" && !Number.isNaN(a[sortField]) ? a[sortField] : missingNumericValue;
+      const bVal = typeof b[sortField] === "number" && !Number.isNaN(b[sortField]) ? b[sortField] : missingNumericValue;
+      if (aVal !== bVal) {
+        return sortOrder === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+      }
+    }
+
+    const aNumeric = typeof a.numericId === "number" ? a.numericId : Number.POSITIVE_INFINITY;
+    const bNumeric = typeof b.numericId === "number" ? b.numericId : Number.POSITIVE_INFINITY;
+    if (aNumeric !== bNumeric) {
+      return aNumeric - bNumeric;
+    }
+
+    const aId = typeof a.id === "string" ? a.id : "";
+    const bId = typeof b.id === "string" ? b.id : "";
+    return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: "base" });
+  });
+
+  const total = filtered.length;
+  const safeOffset = total === 0 ? 0 : Math.max(0, Math.min(initialOffset, Math.max(total - numItems, 0)));
+  const paged = filtered.slice(safeOffset, safeOffset + numItems);
+
+  const hasNext = safeOffset + paged.length < total;
+  const nextCursor = hasNext ? serializeSkippedCursor(safeOffset + paged.length) : null;
+  const hasPrevious = safeOffset > 0;
+  const totalPages = total > 0 ? Math.ceil(total / numItems) : 0;
+
+  return {
+    galaxies: paged,
+    total,
+    hasNext,
+    hasPrevious,
+    totalPages,
+    aggregatesPopulated: false,
+    cursor: nextCursor,
+    isDone: !hasNext,
+    currentBounds: computeBounds(paged),
+  };
+};
 
 // Get min/max values for search field prefill
 export const getGalaxySearchBounds = query({
