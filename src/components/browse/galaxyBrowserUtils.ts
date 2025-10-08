@@ -30,7 +30,7 @@ export type SearchField =
  * Get placeholder text for search bounds based on field type and min/max
  */
 export const getPlaceholderText = (
-  field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue',
+  field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned',
   type: 'min' | 'max',
   bounds?: any,
   isSearchActive?: boolean,
@@ -58,6 +58,11 @@ export const getPlaceholderText = (
       return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(3)}`;
     case 'pa':
       return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(1)}`;
+    case 'totalClassifications':
+    case 'numVisibleNucleus':
+    case 'numAwesomeFlag':
+    case 'totalAssigned':
+      return `${type === 'min' ? 'Min' : 'Max'}: ${value}`;
     default:
       return type === 'min' ? 'Min' : 'Max';
   }
@@ -90,13 +95,14 @@ export const hasFieldChanged = (
       case 'searchMagMax': return currentValues.searchMagMax !== "";
       case 'searchMeanMueMin': return currentValues.searchMeanMueMin !== "";
       case 'searchMeanMueMax': return currentValues.searchMeanMueMax !== "";
-      case 'searchNucleus': return currentValues.searchNucleus !== undefined;
-      case 'searchClassificationStatus': return currentValues.searchClassificationStatus !== undefined;
-      case 'searchLsbClass': return currentValues.searchLsbClass !== "";
-      case 'searchMorphology': return currentValues.searchMorphology !== "";
-      case 'searchAwesome': return currentValues.searchAwesome !== undefined;
-      case 'searchValidRedshift': return currentValues.searchValidRedshift !== undefined;
-      case 'searchVisibleNucleus': return currentValues.searchVisibleNucleus !== undefined;
+      case 'searchTotalClassificationsMin': return currentValues.searchTotalClassificationsMin !== "";
+      case 'searchTotalClassificationsMax': return currentValues.searchTotalClassificationsMax !== "";
+      case 'searchNumVisibleNucleusMin': return currentValues.searchNumVisibleNucleusMin !== "";
+      case 'searchNumVisibleNucleusMax': return currentValues.searchNumVisibleNucleusMax !== "";
+      case 'searchNumAwesomeFlagMin': return currentValues.searchNumAwesomeFlagMin !== "";
+      case 'searchNumAwesomeFlagMax': return currentValues.searchNumAwesomeFlagMax !== "";
+      case 'searchTotalAssignedMin': return currentValues.searchTotalAssignedMin !== "";
+      case 'searchTotalAssignedMax': return currentValues.searchTotalAssignedMax !== "";
       default: return false;
     }
   }

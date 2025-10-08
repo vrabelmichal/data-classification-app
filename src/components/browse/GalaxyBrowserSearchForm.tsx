@@ -66,7 +66,7 @@ interface GalaxyBrowserSearchFormProps {
   clearSearch: () => void;
 
   // Utility functions
-  getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue', type: 'min' | 'max') => string;
+  getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned', type: 'min' | 'max') => string;
   getInputClass: (field: string, baseClass: string) => string;
 }
 
@@ -332,7 +332,7 @@ export function GalaxyBrowserSearchForm({
               min="0"
               value={searchTotalClassificationsMin}
               onChange={(e) => setSearchTotalClassificationsMin(e.target.value)}
-              placeholder="Min"
+              placeholder={getPlaceholderText('totalClassifications', 'min')}
               className={getInputClass('searchTotalClassificationsMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
             <input
@@ -341,7 +341,7 @@ export function GalaxyBrowserSearchForm({
               min="0"
               value={searchTotalClassificationsMax}
               onChange={(e) => setSearchTotalClassificationsMax(e.target.value)}
-              placeholder="Max"
+              placeholder={getPlaceholderText('totalClassifications', 'max')}
               className={getInputClass('searchTotalClassificationsMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
           </div>
@@ -357,7 +357,7 @@ export function GalaxyBrowserSearchForm({
               min="0"
               value={searchNumVisibleNucleusMin}
               onChange={(e) => setSearchNumVisibleNucleusMin(e.target.value)}
-              placeholder="Min"
+              placeholder={getPlaceholderText('numVisibleNucleus', 'min')}
               className={getInputClass('searchNumVisibleNucleusMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
             <input
@@ -366,7 +366,7 @@ export function GalaxyBrowserSearchForm({
               min="0"
               value={searchNumVisibleNucleusMax}
               onChange={(e) => setSearchNumVisibleNucleusMax(e.target.value)}
-              placeholder="Max"
+              placeholder={getPlaceholderText('numVisibleNucleus', 'max')}
               className={getInputClass('searchNumVisibleNucleusMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
           </div>
@@ -382,7 +382,7 @@ export function GalaxyBrowserSearchForm({
               min="0"
               value={searchNumAwesomeFlagMin}
               onChange={(e) => setSearchNumAwesomeFlagMin(e.target.value)}
-              placeholder="Min"
+              placeholder={getPlaceholderText('numAwesomeFlag', 'min')}
               className={getInputClass('searchNumAwesomeFlagMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
             <input
@@ -391,7 +391,7 @@ export function GalaxyBrowserSearchForm({
               min="0"
               value={searchNumAwesomeFlagMax}
               onChange={(e) => setSearchNumAwesomeFlagMax(e.target.value)}
-              placeholder="Max"
+              placeholder={getPlaceholderText('numAwesomeFlag', 'max')}
               className={getInputClass('searchNumAwesomeFlagMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
           </div>
@@ -408,7 +408,7 @@ export function GalaxyBrowserSearchForm({
               min="0"
               value={searchTotalAssignedMin}
               onChange={(e) => setSearchTotalAssignedMin(e.target.value)}
-              placeholder="Min"
+              placeholder={getPlaceholderText('totalAssigned', 'min')}
               className={getInputClass('searchTotalAssignedMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
             <input
@@ -417,7 +417,7 @@ export function GalaxyBrowserSearchForm({
               min="0"
               value={searchTotalAssignedMax}
               onChange={(e) => setSearchTotalAssignedMax(e.target.value)}
-              placeholder="Max"
+              placeholder={getPlaceholderText('totalAssigned', 'max')}
               className={getInputClass('searchTotalAssignedMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
             />
           </div>

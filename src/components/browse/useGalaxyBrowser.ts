@@ -97,7 +97,7 @@ export interface UseGalaxyBrowserReturn {
   previewImageName: string;
 
   // Utility functions
-  getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue', type: 'min' | 'max') => string;
+  getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned', type: 'min' | 'max') => string;
   hasFieldChanged: (field: string) => boolean;
   getInputClass: (field: string, baseClass: string) => string;
   hasAnySearchValues: boolean;
@@ -594,7 +594,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   };
 
   // Utility functions
-  const getPlaceholderTextWrapper = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue', type: 'min' | 'max') => {
+  const getPlaceholderTextWrapper = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned', type: 'min' | 'max') => {
     const bounds = isSearchActive && currentBounds ? currentBounds : searchBounds;
     return getPlaceholderText(field, type, bounds);
   };
