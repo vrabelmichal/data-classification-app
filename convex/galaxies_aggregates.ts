@@ -287,16 +287,27 @@ export const rebuildGalaxyAggregates = mutation({
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
     // Calculate total batches on first run
-    let totalBatches = 0;
+    let totalGalaxies: number | undefined = undefined;
+    let totalBatches: number | undefined = undefined;
+    let batchNumber = 0;
     if (!args.cursor) {
-      const totalGalaxies = await ctx.db.query("galaxies").collect().then(galaxies => galaxies.length);
-      totalBatches = Math.ceil(totalGalaxies / REBUILD_GALAXIES_TABLE_AGGREGATE_BATCH_SIZE);
-      console.log(`[rebuildGalaxyAggregates] Starting rebuild operation. Total galaxies: ${totalGalaxies}, Total batches: ${totalBatches}, Batch size: ${REBUILD_GALAXIES_TABLE_AGGREGATE_BATCH_SIZE}`);
+      try {
+        totalGalaxies = await galaxyIdsAggregate.count(ctx);
+        totalBatches = Math.ceil(totalGalaxies / REBUILD_GALAXIES_TABLE_AGGREGATE_BATCH_SIZE);
+        console.log(`[rebuildGalaxyAggregates] Starting rebuild operation. Total galaxies: ${totalGalaxies}, Total batches: ${totalBatches}, Batch size: ${REBUILD_GALAXIES_TABLE_AGGREGATE_BATCH_SIZE}`);
+      } catch (error) {
+        console.log(`[rebuildGalaxyAggregates] Starting rebuild operation. Unable to determine total galaxies from aggregate (may not be built yet). Batch size: ${REBUILD_GALAXIES_TABLE_AGGREGATE_BATCH_SIZE}`);
+      }
     } else {
       console.log(`[rebuildGalaxyAggregates] Resuming rebuild operation. Cursor: ${args.cursor}, clearOnly: ${args.clearOnly || false}`);
     }
 
-    // Clear existing aggregates only on first run (when no cursor)
+    if (args.clearOnly) {
+      console.log('[rebuildGalaxyAggregates] Clear-only operation completed');
+      return { message: "Clear-only operation completed" };
+    }
+
+    // If no cursor, clear aggregates and return, indicating clearing is done
     if (!args.cursor) {
       console.log('[rebuildGalaxyAggregates] Clearing existing aggregates...');
       await galaxiesById.clear(ctx);
@@ -313,22 +324,34 @@ export const rebuildGalaxyAggregates = mutation({
       await galaxiesByNumAwesomeFlag.clear(ctx);
       await galaxiesByTotalAssigned.clear(ctx);
       await galaxiesByNumericId.clear(ctx);
-      // await galaxyIdsAggregate.clear(ctx);
-      console.log('[rebuildGalaxyAggregates] Aggregates cleared successfully');
+      console.log('[rebuildGalaxyAggregates] Aggregates cleared successfully. Ready to start processing.');
+      
+      return {
+        processed: 0,
+        isDone: false,
+        continueCursor: "start_processing",
+        totalGalaxies,
+        totalBatches,
+        batchNumber: 0,
+        message: "Galaxy aggregates cleared successfully. Ready to start rebuilding.",
+      };
     }
 
-    if (args.clearOnly) {
-      console.log('[rebuildGalaxyAggregates] Clear-only operation completed');
-      return { message: "Aggregates cleared successfully" };
+    // If cursor is "start_processing", start processing the first batch
+    let actualCursor: string | null = null;
+    if (args.cursor === "start_processing") {
+      actualCursor = null;
+    } else {
+      actualCursor = args.cursor;
     }
 
     // Rebuild aggregates from galaxies in batches
-    console.log(`[rebuildGalaxyAggregates] Fetching batch with cursor: ${args.cursor || 'null'}`);
+    console.log(`[rebuildGalaxyAggregates] Fetching batch with cursor: ${actualCursor || 'null'}`);
     const { page, isDone, continueCursor } = await ctx.db
       .query("galaxies")
       .paginate({
         numItems: REBUILD_GALAXIES_TABLE_AGGREGATE_BATCH_SIZE,
-        cursor: args.cursor || null,
+        cursor: actualCursor,
       });
 
     console.log(`[rebuildGalaxyAggregates] Retrieved ${page.length} galaxies for processing. isDone: ${isDone}, continueCursor: ${continueCursor || 'null'}`);
@@ -353,15 +376,10 @@ export const rebuildGalaxyAggregates = mutation({
       processed += 1;
     }
 
-    // Also rebuild galaxyIdsAggregate from galaxyIds table
-    // if (!args.cursor) {
-    //   console.log('[rebuildGalaxyAggregates] Rebuilding galaxyIdsAggregate...');
-    //   const allGalaxyIds = await ctx.db.query("galaxyIds").collect();
-    //   for (const galaxyId of allGalaxyIds) {
-    //     await galaxyIdsAggregate.insert(ctx, galaxyId);
-    //   }
-    //   console.log(`[rebuildGalaxyAggregates] Inserted ${allGalaxyIds.length} records into galaxyIdsAggregate`);
-    // }
+    // Log progress for intermediate batches (not first or last, and every 5th batch)
+    if (args.cursor !== "start_processing" && !isDone && batchNumber > 0 && batchNumber % 5 === 0) {
+      console.log(`[rebuildGalaxyAggregates] Progress: Processed batch ${batchNumber}/${totalBatches}, ${processed} galaxies in this batch`);
+    }
 
     if (isDone) {
       console.log(`[rebuildGalaxyAggregates] Completed final batch. Total processed in batch: ${processed}`);
@@ -371,6 +389,9 @@ export const rebuildGalaxyAggregates = mutation({
       processed,
       isDone,
       continueCursor,
+      totalGalaxies,
+      totalBatches,
+      batchNumber: batchNumber || undefined,
       message: isDone
         ? `Galaxy aggregates rebuilt successfully. Processed ${processed} galaxies in final batch.`
         : `Processed ${processed} galaxies. Continue with cursor: ${continueCursor}`,

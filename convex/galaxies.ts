@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAdmin } from "./lib/auth";
 import { Id } from "./_generated/dataModel";
@@ -209,6 +209,7 @@ export const getAdditionalGalaxyDetailsByExternalId = mutation({
 });
 
 export const UPDATE_BATCH_SIZE = 200;
+export const ZERO_OUT_BATCH_SIZE = 1000;
 
 export const rebuildGalaxyIdsTable = mutation({
   args: {
@@ -368,3 +369,63 @@ export const fillGalaxyNumericId = mutation({
     };
   },
 });
+
+export const zeroOutGalaxyStatistics = mutation({
+  args: {
+    maxToUpdate: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const limit = args.maxToUpdate ? Math.max(1, Math.floor(args.maxToUpdate)) : ZERO_OUT_BATCH_SIZE;
+    let updated = 0;
+    let cursor = args.cursor || null;
+    let totalProcessed = 0; // Track total across all batches
+
+    // Log start of operation
+    if (!cursor) {
+      console.log(`[zeroOutGalaxyStatistics] Starting zero-out of galaxy statistics`);
+    }
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("galaxies")
+      .paginate({
+        numItems: limit,
+        cursor,
+      });
+
+    for (const galaxy of page) {
+      // Always update to ensure all statistics are zero
+      const update: Partial<Doc<'galaxies'>> = {
+        totalClassifications: BigInt(0),
+        numVisibleNucleus: BigInt(0),
+        numAwesomeFlag: BigInt(0),
+      };
+      await ctx.db.patch(galaxy._id, update);
+      updated += 1;
+      totalProcessed += 1;
+    }
+
+    // Log progress occasionally (every 10 batches, but not first or last)
+    if (!isDone && cursor && totalProcessed > 0 && (totalProcessed / limit) % 10 === 0) {
+      console.log(`[zeroOutGalaxyStatistics] Processed ${totalProcessed} galaxies so far`);
+    }
+
+    // Log completion
+    if (isDone) {
+      console.log(`[zeroOutGalaxyStatistics] Completed zero-out of galaxy statistics for ${totalProcessed} total galaxies`);
+    }
+
+    return {
+      updated,
+      limit,
+      cursor: continueCursor,
+      isDone,
+      totalProcessed,
+      message: updated > 0 ? `Zeroed out statistics for ${updated} galaxies` : "No galaxies to process",
+    };
+  },
+});
+
+

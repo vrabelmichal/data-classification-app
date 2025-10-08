@@ -15,6 +15,7 @@ import {
   DeleteAllGalaxyDataSection,
   AggregateInformationSection,
   DeleteConfirmationModal,
+  ZeroOutGalaxyStatisticsSection,
 } from "./debugging";
 
 export function DebuggingTab() {
@@ -50,6 +51,7 @@ export function DebuggingTab() {
         <RebuildGalaxyIdsAggregateSection />
         <ClearGalaxyAggregatesSection />
         <RebuildGalaxyAggregatesSection />
+        <ZeroOutGalaxyStatisticsSection />
         <DeleteAllGalaxyDataSection onShowDeleteModal={() => setShowDeleteModal(true)} />
       </div>
 
