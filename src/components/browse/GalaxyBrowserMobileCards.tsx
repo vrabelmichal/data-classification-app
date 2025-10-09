@@ -36,7 +36,7 @@ export function GalaxyBrowserMobileCards({
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4"
         >
           <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 space-y-4 sm:space-y-0">
-            <div className="flex-shrink-0 w-full sm:w-1/3 aspect-square">
+            <div className="flex-shrink-0 w-full sm:w-1/3 max-w-64 max-h-64 aspect-square mx-auto sm:mx-0">
               <ImageViewer
                 imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
                 alt={`Galaxy ${galaxy.id}`}
