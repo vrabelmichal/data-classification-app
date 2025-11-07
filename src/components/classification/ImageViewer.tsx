@@ -163,15 +163,19 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
   const centerContent = useCallback(() => {
     const container = panContainerRef.current;
-    if (!container) {
+    if (!container || !imageWidth || !imageHeight) {
       return;
     }
 
-    const targetScrollLeft = Math.max(0, (scaledWidth - container.clientWidth) / 2);
-    const targetScrollTop = Math.max(0, (scaledHeight - container.clientHeight) / 2);
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    // Calculate scroll position to center the image
+    const targetScrollLeft = Math.max(0, (scaledWidth - containerWidth) / 2);
+    const targetScrollTop = Math.max(0, (scaledHeight - containerHeight) / 2);
     container.scrollLeft = targetScrollLeft;
     container.scrollTop = targetScrollTop;
-  }, [scaledWidth, scaledHeight]);
+  }, [scaledWidth, scaledHeight, imageWidth, imageHeight]);
 
   useEffect(() => {
     if (!panContainerRef.current) {
@@ -196,13 +200,59 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   const canPan = zoom > fitScale + 0.01;
 
   const handleZoomIn = () => {
+    const container = panContainerRef.current;
+    if (!container || !imageWidth || !imageHeight) {
+      shouldCenterRef.current = false;
+      setZoom((prev) => clampZoomValue(prev * ZOOM_STEP));
+      return;
+    }
+
+    // Calculate current center point in image coordinates
+    const currentScrollLeft = container.scrollLeft;
+    const currentScrollTop = container.scrollTop;
+    const centerX = (currentScrollLeft + container.clientWidth / 2) / scaledWidth;
+    const centerY = (currentScrollTop + container.clientHeight / 2) / scaledHeight;
+
     shouldCenterRef.current = false;
-    setZoom((prev) => clampZoomValue(prev * ZOOM_STEP));
+    const newZoom = clampZoomValue(zoom * ZOOM_STEP);
+    setZoom(newZoom);
+
+    // Schedule adjustment for after zoom is applied
+    requestAnimationFrame(() => {
+      if (!container) return;
+      const newScaledWidth = imageWidth * newZoom;
+      const newScaledHeight = imageHeight * newZoom;
+      container.scrollLeft = centerX * newScaledWidth - container.clientWidth / 2;
+      container.scrollTop = centerY * newScaledHeight - container.clientHeight / 2;
+    });
   };
 
   const handleZoomOut = () => {
+    const container = panContainerRef.current;
+    if (!container || !imageWidth || !imageHeight) {
+      shouldCenterRef.current = false;
+      setZoom((prev) => clampZoomValue(prev / ZOOM_STEP));
+      return;
+    }
+
+    // Calculate current center point in image coordinates
+    const currentScrollLeft = container.scrollLeft;
+    const currentScrollTop = container.scrollTop;
+    const centerX = (currentScrollLeft + container.clientWidth / 2) / scaledWidth;
+    const centerY = (currentScrollTop + container.clientHeight / 2) / scaledHeight;
+
     shouldCenterRef.current = false;
-    setZoom((prev) => clampZoomValue(prev / ZOOM_STEP));
+    const newZoom = clampZoomValue(zoom / ZOOM_STEP);
+    setZoom(newZoom);
+
+    // Schedule adjustment for after zoom is applied
+    requestAnimationFrame(() => {
+      if (!container) return;
+      const newScaledWidth = imageWidth * newZoom;
+      const newScaledHeight = imageHeight * newZoom;
+      container.scrollLeft = centerX * newScaledWidth - container.clientWidth / 2;
+      container.scrollTop = centerY * newScaledHeight - container.clientHeight / 2;
+    });
   };
 
   const handleResetToFit = () => {
@@ -345,7 +395,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
   const controlIconButtonClasses = "inline-flex h-[60px] w-[60px] items-center justify-center rounded-full bg-gray-900 text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
   const controlTextButtonClasses = "inline-flex items-center justify-center rounded-full bg-gray-900 px-5 py-2 text-xl font-medium text-white shadow transition hover:bg-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:bg-gray-100 dark:text-gray-900 dark:hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50";
-  const panContainerClasses = `relative flex w-auto max-w-full max-h-[85vh] items-center justify-center overflow-auto rounded-lg sm:max-w-[90vw] ${canPan ? 'cursor-grab active:cursor-grabbing' : 'cursor-auto'} ${isDragging ? 'cursor-grabbing' : ''}`;
+  const panContainerClasses = `relative w-auto max-w-full max-h-[85vh] overflow-auto rounded-lg sm:max-w-[90vw] ${canPan ? 'cursor-grab active:cursor-grabbing' : 'cursor-auto'} ${isDragging ? 'cursor-grabbing' : ''}`;
 
   // Calculate scale factors for half-light overlay
   const scaleX = imageWidth ? imageWidth / HALF_LIGHT_ORIGINAL_SIZE : HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
@@ -491,17 +541,22 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
               onPointerCancel={handlePointerCancel}
               onPointerLeave={handlePointerLeave}
             >
-              <div className="relative">
+              <div 
+                className="relative"
+                style={{
+                  width: scaledWidth,
+                  height: scaledHeight,
+                  margin: '0 auto',
+                }}
+              >
                 <img
                   src={imageUrl}
                   alt={alt}
                   draggable={false}
-                  className="select-none pointer-events-none"
+                  className="block select-none pointer-events-none"
                   style={{
-                    width: scaledWidth,
-                    height: scaledHeight,
-                    maxWidth: "none",
-                    maxHeight: "none",
+                    width: '100%',
+                    height: '100%',
                     filter: `contrast(${contrast})`,
                     imageRendering: ENABLE_PIXELATED_ZOOM ? 'pixelated' : 'auto',
                   }}
