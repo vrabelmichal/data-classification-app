@@ -1,5 +1,11 @@
-import { ImageViewer } from "./ImageViewer";
+import { ImageViewer, type DefaultZoomOptions } from "./ImageViewer";
 import type { ImageType, GalaxyData, UserPreferences } from "./types";
+
+const SMALL_IMAGE_DEFAULT_ZOOM: DefaultZoomOptions = {
+  mode: "multiple",
+  value: 2,
+  applyIfOriginalSizeBelow: 500,
+};
 
 interface GalaxyImagesProps {
   imageTypes: ImageType[];
@@ -35,6 +41,7 @@ export function GalaxyImages({
                 alt={`${displayGalaxy.id} - ${imageType.name}`}
                 preferences={userPrefs}
                 contrast={contrast}
+                defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
                 {...(shouldShowEllipse(imageType.name) && {
                   reff: displayGalaxy.reff_pixels,
                   pa: displayGalaxy.pa,
