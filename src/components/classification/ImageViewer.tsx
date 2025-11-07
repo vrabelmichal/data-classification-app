@@ -11,7 +11,7 @@ const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
 const ZOOM_STEP = 1.25;
 
-// Background color for the zoomed image container (set to "white", "transparent", or any CSS color)
+// Background color for the zoomed image container
 const ZOOMED_IMAGE_BACKGROUND = "white";
 
 // Enable pixelated rendering for zoomed images (set to true for pixelation, false for smooth interpolation)
@@ -65,13 +65,6 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
-    console.log('[handleImageLoad] Image loaded:', { 
-      url: imageUrl, 
-      width: img.naturalWidth, 
-      height: img.naturalHeight,
-      isZoomed,
-      shouldRespectDefaultZoom: shouldRespectDefaultZoomRef.current 
-    });
     setImageWidth(img.naturalWidth);
     setImageHeight(img.naturalHeight);
     setIsLoading(false);
@@ -99,12 +92,6 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     }
     defaultZoomAppliedRef.current = false;
     shouldRespectDefaultZoomRef.current = !!defaultZoomOptions;
-    console.log('[handleImageClick] Image clicked:', { 
-      imageUrl, 
-      shouldRespectDefaultZoom: shouldRespectDefaultZoomRef.current,
-      defaultZoomOptions,
-      currentImageDimensions: { imageWidth, imageHeight }
-    });
     setIsZoomed(true);
   };
 
@@ -121,31 +108,18 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     const scale = Math.min(clientWidth / imageWidth, clientHeight / imageHeight, 1);
     setFitScale(scale);
     
-    console.log('[computeFitScale]', { 
-      updateZoom, 
-      scale, 
-      hasDefaultZoom: !!defaultZoomOptions, 
-      shouldRespectDefaultZoom: shouldRespectDefaultZoomRef.current,
-      defaultZoomApplied: defaultZoomAppliedRef.current,
-      imageWidth,
-      imageHeight
-    });
 
     if (updateZoom) {
       shouldCenterRef.current = true;
       const shouldSkipFitZoom = shouldRespectDefaultZoomRef.current && !defaultZoomAppliedRef.current;
-      console.log('[computeFitScale] updateZoom decision:', { shouldSkipFitZoom });
       if (!shouldSkipFitZoom) {
-        console.log('[computeFitScale] SETTING ZOOM TO FIT:', scale);
         setZoom(clampZoomValue(scale));
       } else {
-        console.log('[computeFitScale] SKIPPING - waiting for default zoom');
       }
     }
   }, [imageWidth, imageHeight]);
 
   useEffect(() => {
-    console.log('[Effect: isZoomed changed]', { isZoomed, shouldRespectDefaultZoom: shouldRespectDefaultZoomRef.current, defaultZoomApplied: defaultZoomAppliedRef.current });
     if (!isZoomed) {
       pointerStateRef.current = null;
       setIsDragging(false);
@@ -153,11 +127,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     }
 
     const raf = window.requestAnimationFrame(() => {
-      console.log('[RAF callback] About to call computeFitScale', { shouldRespectDefaultZoom: shouldRespectDefaultZoomRef.current, defaultZoomApplied: defaultZoomAppliedRef.current });
-      // Only update zoom to fit if we're not using default zoom
-      // If we ARE using default zoom, just compute the fit scale but don't update zoom
       const shouldUpdateZoom = !shouldRespectDefaultZoomRef.current;
-      console.log('[RAF callback] shouldUpdateZoom:', shouldUpdateZoom);
       computeFitScale(shouldUpdateZoom);
     });
 
@@ -178,13 +148,11 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   }, [isZoomed, computeFitScale]);
 
   useEffect(() => {
-    console.log('[Effect: dimensions changed]', { isZoomed, imageWidth, imageHeight, shouldRespectDefaultZoom: shouldRespectDefaultZoomRef.current, defaultZoomApplied: defaultZoomAppliedRef.current });
     if (!isZoomed) {
       return;
     }
     // Don't update zoom if we're waiting for default zoom to be applied
     const shouldUpdateZoom = !shouldRespectDefaultZoomRef.current || defaultZoomAppliedRef.current;
-    console.log('[Effect: dimensions changed] shouldUpdateZoom:', shouldUpdateZoom);
     computeFitScale(shouldUpdateZoom);
   }, [imageWidth, imageHeight, isZoomed, computeFitScale]);
 
@@ -273,33 +241,19 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   }, [isZoomed, handleCloseZoom, handleZoomIn, handleZoomOut, handleOneToOne]);
 
   useEffect(() => {
-    console.log('[Effect: default zoom]', { 
-      isZoomed, 
-      hasDefaultZoom: !!defaultZoomOptions, 
-      imageWidth, 
-      imageHeight,
-      alreadyApplied: defaultZoomAppliedRef.current,
-      defaultZoomOptions
-    });
-    
     if (!isZoomed || !defaultZoomOptions || !imageWidth || !imageHeight) {
-      console.log('[Effect: default zoom] Early exit - conditions not met');
       return;
     }
 
     if (defaultZoomAppliedRef.current) {
-      console.log('[Effect: default zoom] Early exit - already applied');
       return;
     }
 
     const maxDimension = Math.max(imageWidth, imageHeight);
-    console.log('[Effect: default zoom] Checking threshold:', { maxDimension, threshold: defaultZoomOptions.applyIfOriginalSizeBelow });
-    
     if (
       defaultZoomOptions.applyIfOriginalSizeBelow !== undefined &&
       maxDimension >= defaultZoomOptions.applyIfOriginalSizeBelow
     ) {
-      console.log('[Effect: default zoom] Image too large, skipping');
       defaultZoomAppliedRef.current = true;
       return;
     }
@@ -313,16 +267,12 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
       desiredZoom = defaultZoomOptions.value;
     }
 
-    console.log('[Effect: default zoom] Calculated:', { mode: defaultZoomOptions.mode, value: defaultZoomOptions.value, desiredZoom });
-
     if (desiredZoom !== null && Number.isFinite(desiredZoom) && desiredZoom > 0) {
       defaultZoomAppliedRef.current = true;
       shouldCenterRef.current = true;
       const clamped = clampZoomValue(desiredZoom);
-      console.log('[Effect: default zoom] *** APPLYING DEFAULT ZOOM ***', { desiredZoom, clamped });
       setZoom(clamped);
     } else {
-      console.log('[Effect: default zoom] Invalid zoom, marking as applied');
       defaultZoomAppliedRef.current = true;
     }
   }, [isZoomed, defaultZoomOptions, imageWidth, imageHeight]);
@@ -477,11 +427,9 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
       )}
 
       {/* Thumbnail / inline image */}
-      {/* <p>Default zoom: {defaultZoomOptions?.mode} {defaultZoomOptions?.value}</p> */}
       <img
         src={imageUrl}
         alt={alt}
-        title={defaultZoomOptions ? `Default zoom: ${defaultZoomOptions.mode} ${defaultZoomOptions.value}` : undefined}
         onLoad={handleImageLoad}
         onError={handleImageError}
         onClick={handleImageClick}
@@ -534,7 +482,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
               className={panContainerClasses}
               style={{
                 touchAction: canPan ? "none" : "auto",
-                backgroundColor: canPan ? ZOOMED_IMAGE_BACKGROUND : "transparent",
+                backgroundColor: ZOOMED_IMAGE_BACKGROUND,
               }}
               onClick={(e) => e.stopPropagation()}
               onPointerDown={handlePointerDown}
