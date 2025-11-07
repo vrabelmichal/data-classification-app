@@ -7,6 +7,7 @@ import { ImageViewer } from "../classification/ImageViewer";
 import { getImageUrl } from "../../images";
 import { getPreviewImageName } from "../../images/displaySettings";
 import { useState } from "react";
+import {SMALL_IMAGE_DEFAULT_ZOOM} from "../classification/GalaxyImages";
 
 const ITEMS_PER_PAGE = 16;
 const CARD_VIEW_THRESHOLD = 1;
@@ -104,6 +105,7 @@ export function SkippedGalaxies() {
                   })}
                   alt={`Galaxy ${item.galaxy.id}`}
                   preferences={userPrefs}
+                  defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
                 />
               </div>
 
@@ -169,6 +171,7 @@ export function SkippedGalaxies() {
                       })}
                       alt={`Galaxy ${item.galaxy.id}`}
                       preferences={userPrefs}
+                      defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
                     />
                   </div>
 
@@ -274,6 +277,7 @@ export function SkippedGalaxies() {
                               })}
                               alt={`Galaxy ${item.galaxy.id}`}
                               preferences={userPrefs}
+                              defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
                             />
                           </div>
                         </td>

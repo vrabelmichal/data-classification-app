@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { ImageViewer } from "../classification/ImageViewer";
 import { cn } from "../../lib/utils";
 import { getImageUrl } from "../../images";
+import {SMALL_IMAGE_DEFAULT_ZOOM} from "../classification/GalaxyImages";
 
 interface GalaxyBrowserMobileCardsProps {
   galaxyData: any;
@@ -41,6 +42,7 @@ export function GalaxyBrowserMobileCards({
                 imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
                 alt={`Galaxy ${galaxy.id}`}
                 preferences={userPrefs}
+                defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
               />
             </div>
 

@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { ImageViewer } from "../classification/ImageViewer";
 import { getImageUrl } from "../../images";
 import type { SortField } from "./GalaxyBrowser";
+import {SMALL_IMAGE_DEFAULT_ZOOM} from "../classification/GalaxyImages";
 
 interface GalaxyBrowserLightTableViewProps {
   galaxyData: any;
@@ -152,6 +153,7 @@ export function GalaxyBrowserLightTableView({
                         })}
                         alt={`Galaxy ${galaxy.id}`}
                         preferences={userPrefs}
+                        defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
                       />
                     </div>
                   </td>

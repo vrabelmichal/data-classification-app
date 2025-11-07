@@ -1,7 +1,7 @@
 import { ImageViewer, type DefaultZoomOptions } from "./ImageViewer";
 import type { ImageType, GalaxyData, UserPreferences } from "./types";
 
-const SMALL_IMAGE_DEFAULT_ZOOM: DefaultZoomOptions = {
+export const SMALL_IMAGE_DEFAULT_ZOOM: DefaultZoomOptions = {
   mode: "multiple",
   value: 2,
   applyIfOriginalSizeBelow: 500,
