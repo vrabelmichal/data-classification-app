@@ -18,6 +18,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     appVersion: systemSettings.appVersion || "",
     failedFittingMode: systemSettings.failedFittingMode || "checkbox",
     failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? 0,
+    showAwesomeFlag: systemSettings.showAwesomeFlag ?? true,
+    showValidRedshift: systemSettings.showValidRedshift ?? true,
+    showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -32,6 +35,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       appVersion: systemSettings.appVersion || "",
       failedFittingMode: systemSettings.failedFittingMode || "checkbox",
       failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? 0,
+      showAwesomeFlag: systemSettings.showAwesomeFlag ?? true,
+      showValidRedshift: systemSettings.showValidRedshift ?? true,
+      showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
     });
     setHasChanges(false);
   }, [systemSettings]);
@@ -45,6 +51,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     const originalAppVersion = systemSettings.appVersion || "";
     const originalFailedFittingMode = systemSettings.failedFittingMode || "checkbox";
     const originalFailedFittingFallbackLsbClass = systemSettings.failedFittingFallbackLsbClass ?? 0;
+    const originalShowAwesomeFlag = systemSettings.showAwesomeFlag ?? true;
+    const originalShowValidRedshift = systemSettings.showValidRedshift ?? true;
+    const originalShowVisibleNucleus = systemSettings.showVisibleNucleus ?? true;
     setHasChanges(
       localSettings.allowAnonymous !== originalAllowAnonymous ||
       localSettings.emailFrom !== originalEmailFrom ||
@@ -52,7 +61,10 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       localSettings.debugAdminMode !== originalDebugAdminMode ||
       localSettings.appVersion !== originalAppVersion ||
       localSettings.failedFittingMode !== originalFailedFittingMode ||
-      localSettings.failedFittingFallbackLsbClass !== originalFailedFittingFallbackLsbClass
+      localSettings.failedFittingFallbackLsbClass !== originalFailedFittingFallbackLsbClass ||
+      localSettings.showAwesomeFlag !== originalShowAwesomeFlag ||
+      localSettings.showValidRedshift !== originalShowValidRedshift ||
+      localSettings.showVisibleNucleus !== originalShowVisibleNucleus
     );
   }, [localSettings, systemSettings]);
 
@@ -74,6 +86,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         appVersion: localSettings.appVersion,
         failedFittingMode: localSettings.failedFittingMode as "checkbox" | "legacy",
         failedFittingFallbackLsbClass: localSettings.failedFittingFallbackLsbClass,
+        showAwesomeFlag: localSettings.showAwesomeFlag,
+        showValidRedshift: localSettings.showValidRedshift,
+        showVisibleNucleus: localSettings.showVisibleNucleus,
       });
       toast.success("Settings updated successfully");
       setHasChanges(false);
@@ -231,6 +246,68 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
               </select>
             </label>
           )}
+        </div>
+
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+            Classification Checkbox Visibility
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Control which checkboxes are visible in the classification interface.
+          </p>
+
+          <div className="space-y-3">
+            <label className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  Show "Awesome" Checkbox
+                </span>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Allow users to flag galaxies as awesome
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={localSettings.showAwesomeFlag}
+                onChange={(e) => handleSettingChange("showAwesomeFlag", e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+            </label>
+
+            <label className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  Show "Valid Redshift" Checkbox
+                </span>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Allow users to mark if the galaxy has a valid redshift
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={localSettings.showValidRedshift}
+                onChange={(e) => handleSettingChange("showValidRedshift", e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+            </label>
+
+            <label className="flex items-center justify-between">
+              <div>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">
+                  Show "Visible Nucleus" Checkbox
+                </span>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Allow users to mark if a visible nucleus is present
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={localSettings.showVisibleNucleus}
+                onChange={(e) => handleSettingChange("showVisibleNucleus", e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+            </label>
+          </div>
         </div>
       </div>
       

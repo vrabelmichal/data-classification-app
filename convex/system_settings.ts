@@ -35,6 +35,15 @@ export const getSystemSettings = query({
     if (settingsMap.failedFittingFallbackLsbClass === undefined) {
       settingsMap.failedFittingFallbackLsbClass = 0; // Default to Non-LSB (0)
     }
+    if (settingsMap.showAwesomeFlag === undefined) {
+      settingsMap.showAwesomeFlag = true;
+    }
+    if (settingsMap.showValidRedshift === undefined) {
+      settingsMap.showValidRedshift = true;
+    }
+    if (settingsMap.showVisibleNucleus === undefined) {
+      settingsMap.showVisibleNucleus = true;
+    }
 
     return settingsMap;
   },
@@ -52,7 +61,7 @@ export const getPublicSystemSettings = query({
     }, {} as Record<string, any>);
 
     // Whitelist of settings that are safe to expose to non-admin users
-    const publicSettingsWhitelist = ["allowAnonymous", "appName", "debugAdminMode", "appVersion", "failedFittingMode", "failedFittingFallbackLsbClass"];
+    const publicSettingsWhitelist = ["allowAnonymous", "appName", "debugAdminMode", "appVersion", "failedFittingMode", "failedFittingFallbackLsbClass", "showAwesomeFlag", "showValidRedshift", "showVisibleNucleus"];
 
     // Only return whitelisted settings
     const publicSettings: Record<string, any> = {};
@@ -79,6 +88,15 @@ export const getPublicSystemSettings = query({
         if (key === "failedFittingFallbackLsbClass") {
           publicSettings[key] = 0;
         }
+        if (key === "showAwesomeFlag") {
+          publicSettings[key] = true;
+        }
+        if (key === "showValidRedshift") {
+          publicSettings[key] = true;
+        }
+        if (key === "showVisibleNucleus") {
+          publicSettings[key] = true;
+        }
       }
     }
 
@@ -97,6 +115,9 @@ export const updateSystemSettings = mutation({
     appVersion: v.optional(v.string()),
     failedFittingMode: v.optional(v.union(v.literal("checkbox"), v.literal("legacy"))),
     failedFittingFallbackLsbClass: v.optional(v.number()),
+    showAwesomeFlag: v.optional(v.boolean()),
+    showValidRedshift: v.optional(v.boolean()),
+    showVisibleNucleus: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -209,6 +230,54 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "failedFittingFallbackLsbClass",
           value: args.failedFittingFallbackLsbClass,
+        });
+      }
+    }
+
+    if (args.showAwesomeFlag !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "showAwesomeFlag"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.showAwesomeFlag });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "showAwesomeFlag",
+          value: args.showAwesomeFlag,
+        });
+      }
+    }
+
+    if (args.showValidRedshift !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "showValidRedshift"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.showValidRedshift });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "showValidRedshift",
+          value: args.showValidRedshift,
+        });
+      }
+    }
+
+    if (args.showVisibleNucleus !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "showVisibleNucleus"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.showVisibleNucleus });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "showVisibleNucleus",
+          value: args.showVisibleNucleus,
         });
       }
     }

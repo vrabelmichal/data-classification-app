@@ -6,7 +6,10 @@ export function useClassificationForm(
   currentGalaxy: any,
   existingClassification: any,
   formLocked: boolean,
-  failedFittingMode: "legacy" | "checkbox" = "checkbox"
+  failedFittingMode: "legacy" | "checkbox" = "checkbox",
+  showAwesomeFlag: boolean = true,
+  showValidRedshift: boolean = true,
+  showVisibleNucleus: boolean = true
 ) {
   const [lsbClass, setLsbClass] = useState<number | null>(null);
   const [morphology, setMorphology] = useState<number | null>(null);
@@ -55,17 +58,20 @@ export function useClassificationForm(
         existingClassification.valid_redshift,
         existingClassification.visible_nucleus || false,
         existingClassification.failed_fitting || false,
-        failedFittingMode
+        failedFittingMode,
+        showAwesomeFlag,
+        showValidRedshift,
+        showVisibleNucleus
       )
     );
     lastAppliedClassificationId.current = existingClassification._id;
-  }, [existingClassification?._id, currentGalaxy?._id, failedFittingMode]);
+  }, [existingClassification?._id, currentGalaxy?._id, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus]);
 
   const handleQuickInputChange = (value: string) => {
-    const filteredValue = filterQuickInput(value, failedFittingMode);
+    const filteredValue = filterQuickInput(value, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus);
     setQuickInput(filteredValue);
     
-    const parsed = parseQuickInput(filteredValue, failedFittingMode);
+    const parsed = parseQuickInput(filteredValue, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus);
     // Always set the parsed values, even if they're null or false
     // This ensures that deleting characters properly clears the form
     setLsbClass(parsed.lsbClass);
@@ -79,32 +85,32 @@ export function useClassificationForm(
   // Wrapper setters that also update quick input with the new values
   const setLsbClassAndUpdate = (value: number | null) => {
     setLsbClass(value);
-    setQuickInput(buildQuickInputString(value, morphology, awesomeFlag, validRedshift, visibleNucleus, failedFitting, failedFittingMode));
+    setQuickInput(buildQuickInputString(value, morphology, awesomeFlag, validRedshift, visibleNucleus, failedFitting, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus));
   };
 
   const setMorphologyAndUpdate = (value: number | null) => {
     setMorphology(value);
-    setQuickInput(buildQuickInputString(lsbClass, value, awesomeFlag, validRedshift, visibleNucleus, failedFitting, failedFittingMode));
+    setQuickInput(buildQuickInputString(lsbClass, value, awesomeFlag, validRedshift, visibleNucleus, failedFitting, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus));
   };
 
   const setAwesomeFlagAndUpdate = (value: boolean) => {
     setAwesomeFlag(value);
-    setQuickInput(buildQuickInputString(lsbClass, morphology, value, validRedshift, visibleNucleus, failedFitting, failedFittingMode));
+    setQuickInput(buildQuickInputString(lsbClass, morphology, value, validRedshift, visibleNucleus, failedFitting, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus));
   };
 
   const setValidRedshiftAndUpdate = (value: boolean) => {
     setValidRedshift(value);
-    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, value, visibleNucleus, failedFitting, failedFittingMode));
+    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, value, visibleNucleus, failedFitting, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus));
   };
 
   const setVisibleNucleusAndUpdate = (value: boolean) => {
     setVisibleNucleus(value);
-    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, validRedshift, value, failedFitting, failedFittingMode));
+    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, validRedshift, value, failedFitting, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus));
   };
 
   const setFailedFittingAndUpdate = (value: boolean) => {
     setFailedFitting(value);
-    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, validRedshift, visibleNucleus, value, failedFittingMode));
+    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, validRedshift, visibleNucleus, value, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus));
   };
 
   const canSubmit = lsbClass !== null && morphology !== null;

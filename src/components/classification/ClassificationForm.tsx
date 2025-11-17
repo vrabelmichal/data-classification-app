@@ -14,6 +14,9 @@ interface ClassificationFormProps {
   formLocked: boolean;
   displayGalaxy: GalaxyData;
   failedFittingMode: "legacy" | "checkbox";
+  showAwesomeFlag?: boolean;
+  showValidRedshift?: boolean;
+  showVisibleNucleus?: boolean;
   onLsbClassChange: (value: number) => void;
   onMorphologyChange: (value: number) => void;
   onAwesomeFlagChange: (value: boolean) => void;
@@ -34,6 +37,9 @@ export function ClassificationForm({
   formLocked,
   displayGalaxy,
   failedFittingMode,
+  showAwesomeFlag = true,
+  showValidRedshift = true,
+  showVisibleNucleus = true,
   onLsbClassChange,
   onMorphologyChange,
   onAwesomeFlagChange,
@@ -120,49 +126,55 @@ export function ClassificationForm({
             </label>
           )}
 
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={awesomeFlag}
-              onChange={(e) => onAwesomeFlagChange(e.target.checked)}
-              disabled={formLocked}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-            />
-            <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
-              Awesome
-            </span>
-          </label>
+          {showAwesomeFlag && (
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={awesomeFlag}
+                onChange={(e) => onAwesomeFlagChange(e.target.checked)}
+                disabled={formLocked}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
+                Awesome
+              </span>
+            </label>
+          )}
 
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={validRedshift}
-              onChange={(e) => onValidRedshiftChange(e.target.checked)}
-              disabled={formLocked}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-            />
-            <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
-              Valid redshift
-            </span>
-          </label>
+          {showValidRedshift && (
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={validRedshift}
+                onChange={(e) => onValidRedshiftChange(e.target.checked)}
+                disabled={formLocked}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
+                Valid redshift
+              </span>
+            </label>
+          )}
 
-          <label 
-            className={cn(
-              "flex items-center cursor-pointer", 
-              displayGalaxy.nucleus ? "bg-yellow-50 dark:bg-yellow-900/20" : ""
-            )}
-          >
-            <input
-              type="checkbox"
-              checked={visibleNucleus}
-              onChange={(e) => onVisibleNucleusChange(e.target.checked)}
-              disabled={formLocked}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-            />
-            <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
-              Visible nucleus
-            </span>
-          </label>
+          {showVisibleNucleus && (
+            <label 
+              className={cn(
+                "flex items-center cursor-pointer", 
+                displayGalaxy.nucleus ? "bg-yellow-50 dark:bg-yellow-900/20" : ""
+              )}
+            >
+              <input
+                type="checkbox"
+                checked={visibleNucleus}
+                onChange={(e) => onVisibleNucleusChange(e.target.checked)}
+                disabled={formLocked}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
+                Visible nucleus
+              </span>
+            </label>
+          )}
         </div>
       </div>
 
