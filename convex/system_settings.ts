@@ -29,6 +29,12 @@ export const getSystemSettings = query({
     if (settingsMap.debugAdminMode === undefined) {
       settingsMap.debugAdminMode = false;
     }
+    if (settingsMap.failedFittingMode === undefined) {
+      settingsMap.failedFittingMode = "checkbox"; // "checkbox" or "legacy"
+    }
+    if (settingsMap.failedFittingFallbackLsbClass === undefined) {
+      settingsMap.failedFittingFallbackLsbClass = 0; // Default to Non-LSB (0)
+    }
 
     return settingsMap;
   },
@@ -46,7 +52,7 @@ export const getPublicSystemSettings = query({
     }, {} as Record<string, any>);
 
     // Whitelist of settings that are safe to expose to non-admin users
-    const publicSettingsWhitelist = ["allowAnonymous", "appName", "debugAdminMode", "appVersion"];
+    const publicSettingsWhitelist = ["allowAnonymous", "appName", "debugAdminMode", "appVersion", "failedFittingMode", "failedFittingFallbackLsbClass"];
 
     // Only return whitelisted settings
     const publicSettings: Record<string, any> = {};
@@ -67,6 +73,12 @@ export const getPublicSystemSettings = query({
         if (key === "debugAdminMode") {
           publicSettings[key] = false;
         }
+        if (key === "failedFittingMode") {
+          publicSettings[key] = "checkbox";
+        }
+        if (key === "failedFittingFallbackLsbClass") {
+          publicSettings[key] = 0;
+        }
       }
     }
 
@@ -83,6 +95,8 @@ export const updateSystemSettings = mutation({
     appName: v.optional(v.string()),
     debugAdminMode: v.optional(v.boolean()),
     appVersion: v.optional(v.string()),
+    failedFittingMode: v.optional(v.union(v.literal("checkbox"), v.literal("legacy"))),
+    failedFittingFallbackLsbClass: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -163,6 +177,38 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "appVersion",
           value: args.appVersion,
+        });
+      }
+    }
+
+    if (args.failedFittingMode !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "failedFittingMode"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.failedFittingMode });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "failedFittingMode",
+          value: args.failedFittingMode,
+        });
+      }
+    }
+
+    if (args.failedFittingFallbackLsbClass !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "failedFittingFallbackLsbClass"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.failedFittingFallbackLsbClass });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "failedFittingFallbackLsbClass",
+          value: args.failedFittingFallbackLsbClass,
         });
       }
     }

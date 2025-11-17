@@ -16,6 +16,8 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     appName: systemSettings.appName || "Galaxy Classification App",
     debugAdminMode: systemSettings.debugAdminMode || false,
     appVersion: systemSettings.appVersion || "",
+    failedFittingMode: systemSettings.failedFittingMode || "checkbox",
+    failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? 0,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -28,6 +30,8 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       appName: systemSettings.appName || "Galaxy Classification App",
       debugAdminMode: systemSettings.debugAdminMode || false,
       appVersion: systemSettings.appVersion || "",
+      failedFittingMode: systemSettings.failedFittingMode || "checkbox",
+      failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? 0,
     });
     setHasChanges(false);
   }, [systemSettings]);
@@ -39,16 +43,20 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     const originalAppName = systemSettings.appName || "Galaxy Classification App";
     const originalDebugAdminMode = systemSettings.debugAdminMode || false;
     const originalAppVersion = systemSettings.appVersion || "";
+    const originalFailedFittingMode = systemSettings.failedFittingMode || "checkbox";
+    const originalFailedFittingFallbackLsbClass = systemSettings.failedFittingFallbackLsbClass ?? 0;
     setHasChanges(
       localSettings.allowAnonymous !== originalAllowAnonymous ||
       localSettings.emailFrom !== originalEmailFrom ||
       localSettings.appName !== originalAppName ||
       localSettings.debugAdminMode !== originalDebugAdminMode ||
-      localSettings.appVersion !== originalAppVersion
+      localSettings.appVersion !== originalAppVersion ||
+      localSettings.failedFittingMode !== originalFailedFittingMode ||
+      localSettings.failedFittingFallbackLsbClass !== originalFailedFittingFallbackLsbClass
     );
   }, [localSettings, systemSettings]);
 
-  const handleSettingChange = (key: string, value: boolean | string) => {
+  const handleSettingChange = (key: string, value: boolean | string | number) => {
     setLocalSettings(prev => ({
       ...prev,
       [key]: value,
@@ -64,6 +72,8 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         appName: localSettings.appName,
         debugAdminMode: localSettings.debugAdminMode,
         appVersion: localSettings.appVersion,
+        failedFittingMode: localSettings.failedFittingMode as "checkbox" | "legacy",
+        failedFittingFallbackLsbClass: localSettings.failedFittingFallbackLsbClass,
       });
       toast.success("Settings updated successfully");
       setHasChanges(false);
@@ -176,6 +186,52 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
             placeholder="e.g. 1.0.0"
           />
         </label>
+
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+            Failed Fitting Configuration
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Configure how users report galaxies with failed fitting analysis.
+          </p>
+
+          <label className="block mb-4">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              Failed Fitting Mode
+            </span>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+              Choose how users indicate failed fitting: separate checkbox (recommended) or legacy "-" option
+            </p>
+            <select
+              value={localSettings.failedFittingMode}
+              onChange={(e) => handleSettingChange("failedFittingMode", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            >
+              <option value="checkbox">Checkbox Mode (Separate checkbox for failed fitting)</option>
+              <option value="legacy">Legacy Mode (Use "-" option in LSB classification)</option>
+            </select>
+          </label>
+
+          {localSettings.failedFittingMode === "legacy" && (
+            <label className="block">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Failed Fitting Fallback LSB Classification
+              </span>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                In legacy mode, when user selects "-" (failed fitting), this LSB classification will be stored
+              </p>
+              <select
+                value={localSettings.failedFittingFallbackLsbClass}
+                onChange={(e) => handleSettingChange("failedFittingFallbackLsbClass", parseInt(e.target.value))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value={-1}>Failed Fitting (-1)</option>
+                <option value={0}>Non-LSB (0)</option>
+                <option value={1}>LSB (1)</option>
+              </select>
+            </label>
+          )}
+        </div>
       </div>
       
       {hasChanges && (

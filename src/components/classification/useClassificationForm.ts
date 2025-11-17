@@ -5,13 +5,15 @@ import type { ClassificationFormState } from "./types";
 export function useClassificationForm(
   currentGalaxy: any,
   existingClassification: any,
-  formLocked: boolean
+  formLocked: boolean,
+  failedFittingMode: "legacy" | "checkbox" = "checkbox"
 ) {
   const [lsbClass, setLsbClass] = useState<number | null>(null);
   const [morphology, setMorphology] = useState<number | null>(null);
   const [awesomeFlag, setAwesomeFlag] = useState(false);
   const [validRedshift, setValidRedshift] = useState(false);
   const [visibleNucleus, setVisibleNucleus] = useState(false);
+  const [failedFitting, setFailedFitting] = useState(false);
   const [comments, setComments] = useState("");
   const [quickInput, setQuickInput] = useState("");
   const quickInputRef = useRef<HTMLInputElement>(null);
@@ -25,6 +27,7 @@ export function useClassificationForm(
     setAwesomeFlag(false);
     setValidRedshift(false);
     setVisibleNucleus(false);
+    setFailedFitting(false);
     setComments("");
     setQuickInput("");
     lastAppliedClassificationId.current = null;
@@ -42,6 +45,7 @@ export function useClassificationForm(
     setAwesomeFlag(existingClassification.awesome_flag);
     setValidRedshift(existingClassification.valid_redshift);
     setVisibleNucleus(existingClassification.visible_nucleus || false);
+    setFailedFitting(existingClassification.failed_fitting || false);
     setComments(existingClassification.comments || "");
     setQuickInput(
       buildQuickInputString(
@@ -49,17 +53,19 @@ export function useClassificationForm(
         existingClassification.morphology,
         existingClassification.awesome_flag,
         existingClassification.valid_redshift,
-        existingClassification.visible_nucleus || false
+        existingClassification.visible_nucleus || false,
+        existingClassification.failed_fitting || false,
+        failedFittingMode
       )
     );
     lastAppliedClassificationId.current = existingClassification._id;
-  }, [existingClassification?._id, currentGalaxy?._id]);
+  }, [existingClassification?._id, currentGalaxy?._id, failedFittingMode]);
 
   const handleQuickInputChange = (value: string) => {
-    const filteredValue = filterQuickInput(value);
+    const filteredValue = filterQuickInput(value, failedFittingMode);
     setQuickInput(filteredValue);
     
-    const parsed = parseQuickInput(filteredValue);
+    const parsed = parseQuickInput(filteredValue, failedFittingMode);
     // Always set the parsed values, even if they're null or false
     // This ensures that deleting characters properly clears the form
     setLsbClass(parsed.lsbClass);
@@ -67,32 +73,38 @@ export function useClassificationForm(
     setAwesomeFlag(parsed.awesomeFlag);
     setValidRedshift(parsed.validRedshift);
     setVisibleNucleus(parsed.visibleNucleus);
+    setFailedFitting(parsed.failedFitting);
   };
 
   // Wrapper setters that also update quick input with the new values
   const setLsbClassAndUpdate = (value: number | null) => {
     setLsbClass(value);
-    setQuickInput(buildQuickInputString(value, morphology, awesomeFlag, validRedshift, visibleNucleus));
+    setQuickInput(buildQuickInputString(value, morphology, awesomeFlag, validRedshift, visibleNucleus, failedFitting, failedFittingMode));
   };
 
   const setMorphologyAndUpdate = (value: number | null) => {
     setMorphology(value);
-    setQuickInput(buildQuickInputString(lsbClass, value, awesomeFlag, validRedshift, visibleNucleus));
+    setQuickInput(buildQuickInputString(lsbClass, value, awesomeFlag, validRedshift, visibleNucleus, failedFitting, failedFittingMode));
   };
 
   const setAwesomeFlagAndUpdate = (value: boolean) => {
     setAwesomeFlag(value);
-    setQuickInput(buildQuickInputString(lsbClass, morphology, value, validRedshift, visibleNucleus));
+    setQuickInput(buildQuickInputString(lsbClass, morphology, value, validRedshift, visibleNucleus, failedFitting, failedFittingMode));
   };
 
   const setValidRedshiftAndUpdate = (value: boolean) => {
     setValidRedshift(value);
-    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, value, visibleNucleus));
+    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, value, visibleNucleus, failedFitting, failedFittingMode));
   };
 
   const setVisibleNucleusAndUpdate = (value: boolean) => {
     setVisibleNucleus(value);
-    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, validRedshift, value));
+    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, validRedshift, value, failedFitting, failedFittingMode));
+  };
+
+  const setFailedFittingAndUpdate = (value: boolean) => {
+    setFailedFitting(value);
+    setQuickInput(buildQuickInputString(lsbClass, morphology, awesomeFlag, validRedshift, visibleNucleus, value, failedFittingMode));
   };
 
   const canSubmit = lsbClass !== null && morphology !== null;
@@ -108,6 +120,8 @@ export function useClassificationForm(
     setValidRedshift: setValidRedshiftAndUpdate,
     visibleNucleus,
     setVisibleNucleus: setVisibleNucleusAndUpdate,
+    failedFitting,
+    setFailedFitting: setFailedFittingAndUpdate,
     comments,
     setComments,
     quickInput,

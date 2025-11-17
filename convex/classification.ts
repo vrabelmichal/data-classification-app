@@ -51,12 +51,35 @@ export const submitClassification = mutation({
     awesome_flag: v.boolean(),
     valid_redshift: v.boolean(),
     visible_nucleus: v.optional(v.boolean()),
+    failed_fitting: v.optional(v.boolean()),
     comments: v.optional(v.string()),
     sky_bkg: v.optional(v.number()),
     timeSpent: v.number(),
   },
   handler: async (ctx, args) => {
     const { userId, profile } = await requireConfirmedUser(ctx);
+
+    // Get system settings for failed fitting mode
+    const failedFittingModeDoc = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", "failedFittingMode"))
+      .unique();
+    const failedFittingMode = failedFittingModeDoc?.value || "checkbox";
+
+    const fallbackLsbClassDoc = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", "failedFittingFallbackLsbClass"))
+      .unique();
+    const fallbackLsbClass = fallbackLsbClassDoc?.value ?? 0;
+
+    // Handle legacy mode: translate lsb_class=-1 to failed_fitting flag
+    let finalLsbClass = args.lsb_class;
+    let finalFailedFitting = args.failed_fitting || false;
+
+    if (failedFittingMode === "legacy" && args.lsb_class === -1) {
+      finalFailedFitting = true;
+      finalLsbClass = fallbackLsbClass;
+    }
 
     // Check if already classified
     const existing = await ctx.db
@@ -68,11 +91,12 @@ export const submitClassification = mutation({
     if (existing) {
       // Update existing classification
       await ctx.db.patch(existing._id, {
-        lsb_class: args.lsb_class,
+        lsb_class: finalLsbClass,
         morphology: args.morphology,
         awesome_flag: args.awesome_flag,
         valid_redshift: args.valid_redshift,
         visible_nucleus: args.visible_nucleus,
+        failed_fitting: finalFailedFitting,
         comments: args.comments,
         sky_bkg: args.sky_bkg,
         timeSpent: existing.timeSpent + args.timeSpent, // accumulate time spent
@@ -94,11 +118,12 @@ export const submitClassification = mutation({
       await ctx.db.insert("classifications", {
         userId,
         galaxyExternalId: args.galaxyExternalId,
-        lsb_class: args.lsb_class,
+        lsb_class: finalLsbClass,
         morphology: args.morphology,
         awesome_flag: args.awesome_flag,
         valid_redshift: args.valid_redshift,
         visible_nucleus: args.visible_nucleus,
+        failed_fitting: finalFailedFitting,
         comments: args.comments,
         sky_bkg: args.sky_bkg,
         timeSpent: args.timeSpent,

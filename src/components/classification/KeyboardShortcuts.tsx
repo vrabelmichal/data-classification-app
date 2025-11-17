@@ -1,9 +1,10 @@
 interface KeyboardShortcutsProps {
   isOpen: boolean;
   onClose: () => void;
+  failedFittingMode: "legacy" | "checkbox";
 }
 
-export function KeyboardShortcuts({ isOpen, onClose }: KeyboardShortcutsProps) {
+export function KeyboardShortcuts({ isOpen, onClose, failedFittingMode }: KeyboardShortcutsProps) {
   if (!isOpen) return null;
 
   const shortcuts = [
@@ -27,10 +28,14 @@ export function KeyboardShortcuts({ isOpen, onClose }: KeyboardShortcutsProps) {
     {
       category: "Quick Input",
       items: [
-        { key: "Focus on input field", description: "Type classification directly (only -,0,1,a,r,n allowed)" },
+        { 
+          key: "Focus on input field", 
+          description: `Type classification directly (only -, 0, 1, 2, a, r, n${failedFittingMode === "checkbox" ? ", f" : ""} allowed)` 
+        },
         { key: "A (in input)", description: "Toggle Awesome flag" },
         { key: "R (in input)", description: "Toggle Valid redshift flag" },
         { key: "N (in input)", description: "Toggle Visible nucleus flag" },
+        ...(failedFittingMode === "checkbox" ? [{ key: "F (in input)", description: "Toggle Failed fitting flag" }] : []),
         { key: "C (in input)", description: "Cycle contrast groups" },
         { key: "Enter (in input)", description: "Submit classification" },
       ],
@@ -87,12 +92,22 @@ export function KeyboardShortcuts({ isOpen, onClose }: KeyboardShortcutsProps) {
                 Quick Input Format
               </h4>
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                Type directly in the "Input by typing" field (only these characters allowed: -, 0, 1, a, r, n):
+                Type directly in the "Input by typing" field (allowed characters: -, 0, 1, 2, a, r, n{failedFittingMode === "checkbox" ? ", f" : ""}):
               </p>
               <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-                <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">-1</code> = Failed fitting, Featureless</li>
-                <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">0-</code> = Non-LSB, Featureless</li>
-                <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">12arn</code> = LSB, ETG (Ell), Awesome, Valid redshift, Visible nucleus</li>
+                {failedFittingMode === "legacy" ? (
+                  <>
+                    <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">-1</code> = Failed fitting, Featureless</li>
+                    <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">0-</code> = Non-LSB, Featureless</li>
+                    <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">12arn</code> = LSB, ETG (Ell), Awesome, Valid redshift, Visible nucleus</li>
+                  </>
+                ) : (
+                  <>
+                    <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">0-</code> = Non-LSB, Featureless</li>
+                    <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">12arnf</code> = LSB, ETG (Ell), Awesome, Valid redshift, Visible nucleus, Failed fitting</li>
+                    <li><code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">01f</code> = Non-LSB, LTG (Sp), Failed fitting</li>
+                  </>
+                )}
               </ul>
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
                 <strong>Global shortcuts:</strong> Shift+P/N/S work anywhere in the interface. <strong>Quick input:</strong> Only allowed characters can be typed - others are filtered out.

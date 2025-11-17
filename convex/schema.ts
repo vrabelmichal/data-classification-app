@@ -250,6 +250,7 @@ const applicationTables = {
     awesome_flag: v.boolean(),
     valid_redshift: v.boolean(),
     visible_nucleus: v.optional(v.boolean()), // User confirmation of visible nucleus
+    failed_fitting: v.optional(v.boolean()), // Indicates fitting failed (replaces lsb_class=-1 in new mode)
     comments: v.optional(v.string()),
     sky_bkg: v.optional(v.number()),
     timeSpent: v.number(), // milliseconds

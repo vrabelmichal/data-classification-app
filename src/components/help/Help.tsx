@@ -5,6 +5,7 @@ import { api } from "../../../convex/_generated/api";
 export function Help() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const appName = systemSettings?.appName || "Galaxy Classification App";
+  const failedFittingMode = (systemSettings?.failedFittingMode as "legacy" | "checkbox") || "checkbox";
 
   usePageTitle("Help");
   return (
@@ -51,15 +52,17 @@ export function Help() {
             <div>
               <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">LSB Classification</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-                    <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
-                    Failed Fitting
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    The fitting process failed or could not be completed for this galaxy.
-                  </p>
-                </div>
+                {failedFittingMode === "legacy" && (
+                  <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
+                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
+                      <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                      Failed Fitting
+                    </h4>
+                    <p className="text-sm text-gray-600 dark:text-gray-300">
+                      The fitting process failed or could not be completed for this galaxy.
+                    </p>
+                  </div>
+                )}
                 
                 <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
                   <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
@@ -82,7 +85,10 @@ export function Help() {
                 </div>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Set the LSB classification using the controls in the classification form, or use the quick-input field (first character: "-" for failed fitting, "0" for Non-LSB, "1" for LSB).
+                {failedFittingMode === "legacy" 
+                  ? 'Set the LSB classification using the controls in the classification form, or use the quick-input field (first character: "-" for failed fitting, "0" for Non-LSB, "1" for LSB).'
+                  : 'Set the LSB classification using the controls in the classification form, or use the quick-input field (first character: "0" for Non-LSB, "1" for LSB). Failed fitting is indicated by a separate checkbox or "f" flag in quick input.'
+                }
               </p>
             </div>
 
@@ -144,6 +150,15 @@ export function Help() {
             Classification Flags
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {failedFittingMode === "checkbox" && (
+              <div>
+                <h3 className="font-medium text-gray-900 dark:text-white mb-2">Failed Fitting (Press F)</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Check this if the fitting process failed or could not be completed for this galaxy.
+                  This is a separate flag in checkbox mode.
+                </p>
+              </div>
+            )}
             <div>
               <h3 className="font-medium text-gray-900 dark:text-white mb-2">Awesome Flag (Press A)</h3>
               <p className="text-sm text-gray-600 dark:text-gray-300">
@@ -156,6 +171,12 @@ export function Help() {
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 Check this if you believe the redshift measurement for this galaxy appears reliable 
                 based on the image quality and galaxy features.
+              </p>
+            </div>
+            <div>
+              <h3 className="font-medium text-gray-900 dark:text-white mb-2">Visible Nucleus (Press N)</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                Check this if you can see a clear nucleus or central concentration in the galaxy.
               </p>
             </div>
           </div>
@@ -219,7 +240,9 @@ export function Help() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-300">Allowed characters</span>
-                  <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">-,0,1,a,r,n</span>
+                  <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
+                    -,0,1,2,a,r,n{failedFittingMode === "checkbox" ? ",f" : ""}
+                  </span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-300">Awesome flag</span>
@@ -233,6 +256,12 @@ export function Help() {
                   <span className="text-gray-600 dark:text-gray-300">Visible nucleus</span>
                   <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">N</kbd>
                 </div>
+                {failedFittingMode === "checkbox" && (
+                  <div className="flex justify-between">
+                    <span className="text-gray-600 dark:text-gray-300">Failed fitting</span>
+                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">F</kbd>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-300">Cycle contrast</span>
                   <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">C</kbd>

@@ -1,11 +1,11 @@
-import { ALLOWED_QUICK_INPUT_CHARS } from "./constants";
+import { ALLOWED_QUICK_INPUT_CHARS_LEGACY, ALLOWED_QUICK_INPUT_CHARS_CHECKBOX } from "./constants";
 
 /**
  * Parse quick input string and extract classification values
- * Handles any order of characters: flags (a,r,n) can be anywhere,
+ * Handles any order of characters: flags (a,r,n,f) can be anywhere,
  * LSB and morphology are determined by position in the non-flag characters
  */
-export function parseQuickInput(input: string) {
+export function parseQuickInput(input: string, mode: "legacy" | "checkbox" = "checkbox") {
   const cleanInput = input.toLowerCase().trim();
   if (!cleanInput) {
     return {
@@ -14,6 +14,7 @@ export function parseQuickInput(input: string) {
       awesomeFlag: false,
       validRedshift: false,
       visibleNucleus: false,
+      failedFitting: false,
     };
   }
 
@@ -21,19 +22,25 @@ export function parseQuickInput(input: string) {
   const awesomeFlag = cleanInput.includes('a');
   const validRedshift = cleanInput.includes('r');
   const visibleNucleus = cleanInput.includes('n');
+  const failedFitting = mode === "checkbox" ? cleanInput.includes('f') : false;
 
   // Extract only the LSB/morphology characters (-, 0, 1, 2)
   // by filtering out the flag characters
+  let flagChars = ['a', 'r', 'n'];
+  if (mode === "checkbox") {
+    flagChars.push('f');
+  }
+  
   const lsbMorphChars = cleanInput
     .split('')
-    .filter(char => char === '-' || char === '0' || char === '1' || char === '2')
+    .filter(char => !flagChars.includes(char))
     .join('');
 
   // First character is LSB class
   let lsbClass = null;
   if (lsbMorphChars.length > 0) {
     const lsbChar = lsbMorphChars[0];
-    if (lsbChar === '-') lsbClass = -1;
+    if (mode === "legacy" && lsbChar === '-') lsbClass = -1;
     else if (lsbChar === '0') lsbClass = 0;
     else if (lsbChar === '1') lsbClass = 1;
   }
@@ -54,6 +61,7 @@ export function parseQuickInput(input: string) {
     awesomeFlag,
     validRedshift,
     visibleNucleus,
+    failedFitting,
   };
 }
 
@@ -65,7 +73,9 @@ export function buildQuickInputString(
   morph: number | null,
   awesome: boolean,
   redshift: boolean,
-  nucleus: boolean = false
+  nucleus: boolean = false,
+  failedFitting: boolean = false,
+  mode: "legacy" | "checkbox" = "checkbox"
 ) {
   let str = "";
   if (lsb !== null) str += lsb === -1 ? "-" : lsb.toString();
@@ -73,14 +83,16 @@ export function buildQuickInputString(
   if (redshift) str += "r";
   if (awesome) str += "a";
   if (nucleus) str += "n";
+  if (mode === "checkbox" && failedFitting) str += "f";
   return str;
 }
 
 /**
  * Filter input to only allow valid quick input characters
  */
-export function filterQuickInput(value: string): string {
-  return value.split('').filter(char => ALLOWED_QUICK_INPUT_CHARS.test(char)).join('');
+export function filterQuickInput(value: string, mode: "legacy" | "checkbox" = "checkbox"): string {
+  const allowedPattern = mode === "legacy" ? ALLOWED_QUICK_INPUT_CHARS_LEGACY : ALLOWED_QUICK_INPUT_CHARS_CHECKBOX;
+  return value.split('').filter(char => allowedPattern.test(char)).join('');
 }
 
 /**

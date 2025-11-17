@@ -66,6 +66,7 @@ export function ClassificationInterface() {
   const progress = useQuery(api.classification.getProgress);
   const userPrefs = useQuery(api.users.getUserPreferences);
   const userProfile = useQuery(api.users.getUserProfile);
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const navigation = useQuery(
     api.galaxies.navigation.getGalaxyNavigation,
     currentGalaxy ? { currentGalaxyExternalId: currentGalaxy.id } : {}
@@ -90,7 +91,8 @@ export function ClassificationInterface() {
   );
 
   // Custom hooks
-  const formState = useClassificationForm(currentGalaxy, existingClassification, formLocked);
+  const failedFittingMode = (systemSettings?.failedFittingMode as "legacy" | "checkbox") || "checkbox";
+  const formState = useClassificationForm(currentGalaxy, existingClassification, formLocked, failedFittingMode);
   const { handlePrevious: navPrevious, handleNext: navNext } = useClassificationNavigation(currentGalaxy, navigation);
 
   // Resolved galaxy ID
@@ -235,6 +237,7 @@ export function ClassificationInterface() {
         awesome_flag: formState.awesomeFlag, 
         valid_redshift: formState.validRedshift, 
         visible_nucleus: formState.visibleNucleus, 
+        failed_fitting: formState.failedFitting,
         comments: formState.comments.trim() || undefined, 
         sky_bkg: undefined, 
         timeSpent 
@@ -343,6 +346,11 @@ export function ClassificationInterface() {
       formState.setVisibleNucleus(!formState.visibleNucleus);
       const currentInput = formState.quickInput.toLowerCase();
       formState.setQuickInput(currentInput.includes('n') ? currentInput.replace('n', '') : currentInput + 'n');
+    } else if (e.key === 'f' && failedFittingMode === "checkbox") {
+      e.preventDefault();
+      formState.setFailedFitting(!formState.failedFitting);
+      const currentInput = formState.quickInput.toLowerCase();
+      formState.setQuickInput(currentInput.includes('f') ? currentInput.replace('f', '') : currentInput + 'f');
     }
   };
 
@@ -475,14 +483,17 @@ export function ClassificationInterface() {
           awesomeFlag={formState.awesomeFlag}
           validRedshift={formState.validRedshift}
           visibleNucleus={formState.visibleNucleus}
+          failedFitting={formState.failedFitting}
           comments={formState.comments}
           formLocked={formLocked}
           displayGalaxy={displayGalaxy}
+          failedFittingMode={failedFittingMode}
           onLsbClassChange={formState.setLsbClass}
           onMorphologyChange={formState.setMorphology}
           onAwesomeFlagChange={formState.setAwesomeFlag}
           onValidRedshiftChange={formState.setValidRedshift}
           onVisibleNucleusChange={formState.setVisibleNucleus}
+          onFailedFittingChange={formState.setFailedFitting}
           onCommentsChange={formState.setComments}
         />
         <ActionButtons
@@ -579,14 +590,17 @@ export function ClassificationInterface() {
           awesomeFlag={formState.awesomeFlag}
           validRedshift={formState.validRedshift}
           visibleNucleus={formState.visibleNucleus}
+          failedFitting={formState.failedFitting}
           comments={formState.comments}
           formLocked={formLocked}
           displayGalaxy={displayGalaxy}
+          failedFittingMode={failedFittingMode}
           onLsbClassChange={formState.setLsbClass}
           onMorphologyChange={formState.setMorphology}
           onAwesomeFlagChange={formState.setAwesomeFlag}
           onValidRedshiftChange={formState.setValidRedshift}
           onVisibleNucleusChange={formState.setVisibleNucleus}
+          onFailedFittingChange={formState.setFailedFitting}
           onCommentsChange={formState.setComments}
         />
         <ActionButtons
@@ -657,6 +671,7 @@ export function ClassificationInterface() {
       <KeyboardShortcuts
         isOpen={showKeyboardHelp}
         onClose={() => setShowKeyboardHelp(false)}
+        failedFittingMode={failedFittingMode}
       />
       </div>
     </>

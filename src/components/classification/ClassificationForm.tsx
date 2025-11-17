@@ -1,5 +1,5 @@
 import { cn } from "../../lib/utils";
-import { LSB_OPTIONS, MORPHOLOGY_OPTIONS } from "./constants";
+import { LSB_OPTIONS_LEGACY, LSB_OPTIONS_CHECKBOX, MORPHOLOGY_OPTIONS } from "./constants";
 import { buildQuickInputString } from "./helpers";
 import type { GalaxyData } from "./types";
 
@@ -9,14 +9,17 @@ interface ClassificationFormProps {
   awesomeFlag: boolean;
   validRedshift: boolean;
   visibleNucleus: boolean;
+  failedFitting: boolean;
   comments: string;
   formLocked: boolean;
   displayGalaxy: GalaxyData;
+  failedFittingMode: "legacy" | "checkbox";
   onLsbClassChange: (value: number) => void;
   onMorphologyChange: (value: number) => void;
   onAwesomeFlagChange: (value: boolean) => void;
   onValidRedshiftChange: (value: boolean) => void;
   onVisibleNucleusChange: (value: boolean) => void;
+  onFailedFittingChange: (value: boolean) => void;
   onCommentsChange: (value: string) => void;
 }
 
@@ -26,16 +29,21 @@ export function ClassificationForm({
   awesomeFlag,
   validRedshift,
   visibleNucleus,
+  failedFitting,
   comments,
   formLocked,
   displayGalaxy,
+  failedFittingMode,
   onLsbClassChange,
   onMorphologyChange,
   onAwesomeFlagChange,
   onValidRedshiftChange,
   onVisibleNucleusChange,
+  onFailedFittingChange,
   onCommentsChange,
 }: ClassificationFormProps) {
+  const LSB_OPTIONS = failedFittingMode === "legacy" ? LSB_OPTIONS_LEGACY : LSB_OPTIONS_CHECKBOX;
+  
   return (
     <div className="space-y-6">
       {/* LSB Classification */}
@@ -97,6 +105,21 @@ export function ClassificationForm({
       {/* Flags */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="space-y-3">
+          {failedFittingMode === "checkbox" && (
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={failedFitting}
+                onChange={(e) => onFailedFittingChange(e.target.checked)}
+                disabled={formLocked}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+              />
+              <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
+                Failed fitting
+              </span>
+            </label>
+          )}
+
           <label className="flex items-center cursor-pointer">
             <input
               type="checkbox"
