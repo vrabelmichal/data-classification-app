@@ -5,6 +5,7 @@ interface ActionButtonsProps {
   canSubmit: boolean;
   formLocked: boolean;
   navigation: NavigationStateOrNull;
+  isOnline: boolean;
   onSubmit: () => void;
   onSkip: () => void;
   onPrevious: () => void;
@@ -15,6 +16,7 @@ export function ActionButtons({
   canSubmit,
   formLocked,
   navigation,
+  isOnline,
   onSubmit,
   onSkip,
   onPrevious,
@@ -24,10 +26,10 @@ export function ActionButtons({
     <div className="grid grid-cols-2 gap-3">
       <button
         onClick={onSubmit}
-        disabled={!canSubmit || formLocked}
+        disabled={!canSubmit || formLocked || !isOnline}
         className={cn(
           "py-3 px-4 rounded-lg font-semibold transition-colors",
-          canSubmit && !formLocked
+          canSubmit && !formLocked && isOnline
             ? "bg-green-600 hover:bg-green-700 text-white"
             : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
         )}
@@ -36,17 +38,22 @@ export function ActionButtons({
       </button>
       <button
         onClick={onSkip}
-        disabled={formLocked}
-        className="py-3 px-4 rounded-lg font-semibold bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200 transition-colors"
+        disabled={formLocked || !isOnline}
+        className={cn(
+          "py-3 px-4 rounded-lg font-semibold transition-colors",
+          !formLocked && isOnline
+            ? "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
+            : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+        )}
       >
         Skip
       </button>
       <button
         onClick={onPrevious}
-        disabled={!navigation?.hasPrevious}
+        disabled={!navigation?.hasPrevious || !isOnline}
         className={cn(
           "py-3 px-4 rounded-lg font-semibold transition-colors",
-          navigation?.hasPrevious
+          navigation?.hasPrevious && isOnline
             ? "bg-blue-600 hover:bg-blue-700 text-white"
             : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
         )}
@@ -55,10 +62,10 @@ export function ActionButtons({
       </button>
       <button
         onClick={onNext}
-        disabled={!navigation?.hasNext}
+        disabled={!navigation?.hasNext || !isOnline}
         className={cn(
           "py-3 px-4 rounded-lg font-semibold transition-colors",
-          navigation?.hasNext
+          navigation?.hasNext && isOnline
             ? "bg-blue-600 hover:bg-blue-700 text-white"
             : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
         )}

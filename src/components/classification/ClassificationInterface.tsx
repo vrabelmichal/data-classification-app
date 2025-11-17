@@ -7,6 +7,7 @@ import { useParams, useNavigate } from "react-router";
 import { getImageUrl } from "../../images";
 import { loadImageDisplaySettings } from "../../images/displaySettings";
 import { usePageTitle } from "../../hooks/usePageTitle";
+import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 
 // Components
 import { ProgressBar } from "./ProgressBar";
@@ -16,6 +17,7 @@ import { GalaxyInfo } from "./GalaxyInfo";
 import { QuickInput } from "./QuickInput";
 import { ClassificationForm } from "./ClassificationForm";
 import { ActionButtons } from "./ActionButtons";
+import { OfflineBanner } from "./OfflineBanner";
 
 // Hooks
 import { useClassificationForm } from "./useClassificationForm";
@@ -51,6 +53,9 @@ export function ClassificationInterface() {
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const [formLocked, setFormLocked] = useState<boolean>(true);
   const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
+
+  // Online status
+  const isOnline = useOnlineStatus();
 
   // Queries
   const galaxyByExternalId = useQuery(
@@ -216,6 +221,10 @@ export function ClassificationInterface() {
   };
 
   const handleSubmit = useCallback(async () => {
+    if (!isOnline) {
+      toast.error("Cannot submit while offline");
+      return;
+    }
     if (!currentGalaxy || formState.lsbClass === null || formState.morphology === null) return;
     try {
       const timeSpent = Date.now() - startTime;
@@ -239,9 +248,13 @@ export function ClassificationInterface() {
       toast.error("Failed to submit classification");
       console.error(error);
     }
-  }, [currentGalaxy, formState, startTime, submitClassification, navigation, navNext]);
+  }, [currentGalaxy, formState, startTime, submitClassification, navigation, navNext, isOnline]);
 
   const handleSkip = useCallback(async () => {
+    if (!isOnline) {
+      toast.error("Cannot skip while offline");
+      return;
+    }
     if (!currentGalaxy) return;
     try {
       await skipGalaxy({ 
@@ -257,17 +270,25 @@ export function ClassificationInterface() {
       toast.error("Failed to skip galaxy");
       console.error(error);
     }
-  }, [currentGalaxy, formState.comments, skipGalaxy, navigation, navNext]);
+  }, [currentGalaxy, formState.comments, skipGalaxy, navigation, navNext, isOnline]);
 
   const handlePrevious = useCallback(async () => {
+    if (!isOnline) {
+      toast.error("Cannot navigate while offline");
+      return;
+    }
     const result = await navPrevious();
     if (result) setCurrentGalaxy(result);
-  }, [navPrevious]);
+  }, [navPrevious, isOnline]);
 
   const handleNext = useCallback(async () => {
+    if (!isOnline) {
+      toast.error("Cannot navigate while offline");
+      return;
+    }
     const result = await navNext();
     if (result) setCurrentGalaxy(result);
-  }, [navNext]);
+  }, [navNext, isOnline]);
 
   const handleAladinClick = () => {
     if (currentGalaxy) {
@@ -286,17 +307,17 @@ export function ClassificationInterface() {
   const handleQuickInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.shiftKey && e.key.toLowerCase() === 'p') {
       e.preventDefault();
-      handlePrevious();
+      if (isOnline) handlePrevious();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 'n') {
       e.preventDefault();
-      handleNext();
+      if (isOnline) handleNext();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 's') {
       e.preventDefault();
-      handleSkip();
+      if (isOnline) handleSkip();
       return;
     }
     if (e.key.toLowerCase() === 'c') {
@@ -304,7 +325,7 @@ export function ClassificationInterface() {
       handleContrastClick();
       return;
     }
-    if (e.key === 'Enter' && formState.canSubmit) {
+    if (e.key === 'Enter' && formState.canSubmit && isOnline) {
       e.preventDefault();
       handleSubmit();
     } else if (e.key === 'a') {
@@ -332,15 +353,15 @@ export function ClassificationInterface() {
         switch (e.key.toLowerCase()) {
           case 'p':
             e.preventDefault();
-            handlePrevious();
+            if (isOnline) handlePrevious();
             return;
           case 'n':
             e.preventDefault();
-            handleNext();
+            if (isOnline) handleNext();
             return;
           case 's':
             e.preventDefault();
-            handleSkip();
+            if (isOnline) handleSkip();
             return;
         }
       }
@@ -359,15 +380,15 @@ export function ClassificationInterface() {
           break;
         case 'p':
           e.preventDefault();
-          handlePrevious();
+          if (isOnline) handlePrevious();
           break;
         case 'n':
           e.preventDefault();
-          handleNext();
+          if (isOnline) handleNext();
           break;
         case 's':
           e.preventDefault();
-          handleSkip();
+          if (isOnline) handleSkip();
           break;
         case '?':
           e.preventDefault();
@@ -378,7 +399,7 @@ export function ClassificationInterface() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handlePrevious, handleNext, handleSkip, currentContrastGroup]);
+  }, [handlePrevious, handleNext, handleSkip, currentContrastGroup, isOnline]);
 
   // Helper for ellipse overlay
   const shouldShowEllipseFunc = (imageName: string) => 
@@ -468,6 +489,7 @@ export function ClassificationInterface() {
           canSubmit={formState.canSubmit}
           formLocked={formLocked}
           navigation={navigation}
+          isOnline={isOnline}
           onSubmit={handleSubmit}
           onSkip={handleSkip}
           onPrevious={handlePrevious}
@@ -571,6 +593,7 @@ export function ClassificationInterface() {
           canSubmit={formState.canSubmit}
           formLocked={formLocked}
           navigation={navigation}
+          isOnline={isOnline}
           onSubmit={handleSubmit}
           onSkip={handleSkip}
           onPrevious={handlePrevious}
@@ -581,8 +604,10 @@ export function ClassificationInterface() {
   );
 
   return (
-    <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
-      <div className="flex justify-between items-center mb-6">
+    <>
+      {!isOnline && <OfflineBanner />}
+      <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
+        <div className="flex justify-between items-center mb-6">
         <div className="flex items-center space-x-4">
           <h1 className={cn(
             "text-2xl font-bold text-gray-900 dark:text-white", 
@@ -633,6 +658,7 @@ export function ClassificationInterface() {
         isOpen={showKeyboardHelp}
         onClose={() => setShowKeyboardHelp(false)}
       />
-    </div>
+      </div>
+    </>
   );
 }
