@@ -13,7 +13,8 @@ export class LocalImageProvider implements ImageProvider {
     // if (opts?.quality === "low") ext = "avif";
     // else if (opts?.quality === "medium") ext = "webp";
 
-    const imageNameWithExt = `${name}.${ext}`;
+    const baseName = name.replace(/\.[^/.]+$/, "");
+    const imageNameWithExt = `${baseName}.${ext}`;
     return `${base}/${encodeURIComponent(id)}/${encodeURIComponent(imageNameWithExt)}`;
   }
 

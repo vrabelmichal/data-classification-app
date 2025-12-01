@@ -6,25 +6,25 @@ export class R2ImageProvider implements ImageProvider {
 
   getImageUrl(id: string, name: ImageName, opts?: GetImageUrlOptions): string {
     const base = this.cfg.r2PublicBase.replace(/\/+$/, "");
-    
-    // For R2, we can use different paths based on quality
-    const qualityPath = opts?.quality && opts.quality !== "medium" ? `/${opts.quality}` : "";
-    const qp = opts?.query ? toQueryString(opts.query) : "";
-    const queryString = qp ? `?${qp}` : "";
-    
-    return `${base}/images${qualityPath}/${encodeURIComponent(id)}/${encodeURIComponent(name)}${queryString}`;
+    // For the new, simplified R2 public URL format we expose url as:
+    // <r2PublicBase>/<objectId>/<imageName>.<ext>
+    // Quality selects the file extension:
+    // - medium, high => png
+    // - low => avif
+    const ext = (opts?.quality === "low") ? "avif" : "png";
+    // If the provided name already has an extension, strip it before adding our own
+    const baseName = name.replace(/\.[^/.]+$/, "");
+    const imageNameWithExt = `${baseName}.${ext}`;
+    // We don't use query args for R2 public URLs at the moment
+    return `${base}/${encodeURIComponent(id)}/${encodeURIComponent(imageNameWithExt)}`;
   }
 
   getObjectKey(id: string, name: ImageName, quality?: string): string {
-    const qualityPath = quality && quality !== "medium" ? `/${quality}` : "";
-    return `images${qualityPath}/${id}/${name}`;
+    // Construct key used *inside* the bucket: {id}/{name}.{ext}
+    const ext = (quality === "low") ? "avif" : "png";
+    const baseName = name.replace(/\.[^/.]+$/, "");
+    const imageNameWithExt = `${baseName}.${ext}`;
+    return `${id}/${imageNameWithExt}`;
   }
 }
-
-function toQueryString(q: Record<string, unknown>): string {
-  const p = new URLSearchParams();
-  Object.entries(q).forEach(([k, v]) => {
-    if (v !== undefined) p.set(k, String(v));
-  });
-  return p.toString();
-}
+// No query-string handling for R2 public URLs at this time.

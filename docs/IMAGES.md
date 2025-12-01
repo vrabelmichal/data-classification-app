@@ -55,30 +55,29 @@ The image server will run on `http://localhost:5178` by default.
 ### 3. Image URLs
 
 Images will be served at:
-- `http://localhost:5178/{galaxyId}/{imageName}`
-- `http://localhost:5178/{galaxyId}/{imageName}?quality=high`
+  - For local images the extension is typically `.png` (and local server doesn't currently vary by quality)
+  
+The `imageName` is generally provided without an extension (e.g., `g_99_0_masked`) and the provider will append the proper extension depending on the requested quality.
 
 ## Production with Cloudflare R2
 
 ### 1. Set up R2 bucket
 
 1. Create a bucket in Cloudflare R2
-2. Upload images with the following structure:
+2. Upload images with the following structure — place galaxy folders at the root of the bucket (no `images/` prefix needed):
    ```
-   images/
+   <bucket root>/
      galaxy123/
        masked_g_band.fits
        galfit_model.fits
-       ...
-   images/high/
-     galaxy123/
-       masked_g_band.fits
-       ...
-   images/low/
-     galaxy123/
-       masked_g_band.fits
+       masked_g_band.png
+     galaxy456/
        ...
    ```
+
+The public URL for images on R2 follows the simplified pattern:
+`https://{r2PublicBase}/{galaxyId}/{imageName}.{ext}`
+where the extension depends on the requested quality:
 
 ### 2. Configure public access
 
@@ -100,7 +99,7 @@ VITE_R2_BUCKET=galaxy-images
 import { useGalaxyImages } from "../hooks/useGalaxyImages";
 
 function MyComponent() {
-  const imageNames = ["masked_g_band.fits", "galfit_model.fits"];
+  const imageNames = ["masked_g_band", "galfit_model"];
   const { imageUrls, isLoading, quality } = useGalaxyImages(
     "galaxy123",
     imageNames,
@@ -124,7 +123,7 @@ function MyComponent() {
 ```tsx
 import { getImageUrl } from "../images";
 
-const url = getImageUrl("galaxy123", "masked_g_band.fits", {
+const url = getImageUrl("galaxy123", "masked_g_band", {
   quality: "high"
 });
 ```

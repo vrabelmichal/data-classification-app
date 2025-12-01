@@ -19,7 +19,7 @@ export function loadImagesConfig(): ImagesConfig {
     return {
       provider: "r2",
       r2PublicBase: import.meta.env.VITE_R2_PUBLIC_BASE || "https://cdn.example.com",
-      bucket: import.meta.env.VITE_R2_BUCKET || "galaxy-images",
+      bucket: import.meta.env.VITE_R2_BUCKET || "galaxies-images",
     };
   } else {
     return {
