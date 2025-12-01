@@ -18,9 +18,9 @@ export function RemoveUserSequence({ users }: RemoveUserSequenceProps) {
     message: string;
   } | null>(null);
 
-  const usersWithSequences = useQuery(api.galaxies_sequence.getUsersWithSequences);
+  const usersWithSequences = useQuery(api.galaxies.sequence.getUsersWithSequences);
 
-  const removeUserSequence = useMutation(api.galaxies_sequence.removeUserSequence);
+  const removeUserSequence = useMutation(api.galaxies.sequence.removeUserSequence);
 
   const handleRemoveSequence = async () => {
     if (!selectedUserId) {
