@@ -115,7 +115,7 @@ export function ClassificationInterface() {
     name: label,
     displayName: processImageLabel(label),
     url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, { 
-      quality: userPrefs?.imageQuality || "medium" 
+      quality: userPrefs?.imageQuality || "high" 
     }) : null,
   }));
 
