@@ -350,53 +350,128 @@ def send_ingest(convex_url, ingest_token, galaxies, timeout_sec=60):
 # --------------------------------------------------------------------------------------
 # Batch process
 # --------------------------------------------------------------------------------------
-def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False, continue_on_error=False):
-    stats = {"total": len(df), "inserted": 0, "errors": 0}
+def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False, continue_on_error=False, global_offset=0):
+    """
+    Process parquet dataframe and ingest galaxies in batches.
+    
+    FAIL-FAST: By default, stops immediately on any error.
+    The server-side mutation is atomic - on failure, the entire batch is rolled back.
+    
+    Args:
+        df: DataFrame with galaxy data
+        convex_url: Convex HTTP actions URL
+        ingest_token: Authentication token
+        batch_size: Number of galaxies per batch
+        dry_run: If True, don't actually send to server
+        continue_on_error: If True, continue with next batch on error (not recommended)
+        global_offset: The offset in the original file (for error reporting)
+    """
+    stats = {
+        "total": len(df), 
+        "inserted": 0, 
+        "skipped": 0,
+        "errors": 0,
+        "failed_at": None,  # Will contain info about failure point
+    }
     batch = []
-    import traceback
+    batch_start_idx = 0  # Track the starting index of current batch
+    
     for i, (_, row) in enumerate(df.iterrows()):
         try:
             galaxy = row_to_galaxy(row)
+            if len(batch) == 0:
+                batch_start_idx = i  # Remember where this batch starts
             batch.append(galaxy)
 
             if len(batch) >= batch_size or i == len(df) - 1:
+                batch_num = i // batch_size + 1
+                
                 if not dry_run:
                     resp = send_ingest(convex_url, ingest_token, batch)
-                    if resp.status_code == 200:
-                        stats["inserted"] += len(batch)
-                        logger.info(f"\u2713 Batch inserted: {len(batch)}")
+                    
+                    try:
+                        result_json = resp.json()
+                    except Exception:
+                        result_json = {}
+                    
+                    if resp.status_code == 200 and result_json.get("success", True):
+                        # Success - batch was committed
+                        actual_inserted = result_json.get("inserted", len(batch))
+                        actual_skipped = result_json.get("skipped", 0)
+                        
+                        stats["inserted"] += actual_inserted
+                        stats["skipped"] += actual_skipped
+                        logger.info(f"✓ Batch {batch_num}: inserted={actual_inserted}, skipped={actual_skipped}")
                     else:
+                        # Failure - batch was rolled back
                         stats["errors"] += len(batch)
-                        logger.error(f"\u274C Ingest failed {resp.status_code}")
-                        # Try to pretty print error detail if JSON
-                        try:
-                            err_json = resp.json()
-                            print("\n\u274C Ingest failed {code} (batch {batch_num}):".format(code=resp.status_code, batch_num=i//batch_size+1))
-                            if "error" in err_json:
-                                print(f"Error: {err_json['error']}")
-                            if "detail" in err_json:
-                                print("Detail:")
-                                print(err_json["detail"])
-                            else:
-                                print(json.dumps(err_json, indent=2))
-                        except Exception:
-                            print(f"\n\u274C Ingest failed {resp.status_code} (batch {i//batch_size+1}):\n{resp.text}\n")
+                        
+                        # Extract detailed error info
+                        error_msg = result_json.get("error", f"HTTP {resp.status_code}")
+                        error_detail = result_json.get("detail", resp.text[:500] if resp.text else "No details")
+                        was_rolled_back = result_json.get("rollback", False)
+                        
+                        # Calculate exact failure position
+                        global_batch_start = global_offset + batch_start_idx
+                        global_batch_end = global_offset + i
+                        
+                        stats["failed_at"] = {
+                            "batch_num": batch_num,
+                            "batch_size": len(batch),
+                            "local_row_range": (batch_start_idx, i),
+                            "global_row_range": (global_batch_start, global_batch_end),
+                            "error": error_msg,
+                            "detail": error_detail,
+                            "rolled_back": was_rolled_back,
+                        }
+                        
+                        logger.error(f"")
+                        logger.error(f"{'='*60}")
+                        logger.error(f"❌ BATCH {batch_num} FAILED")
+                        logger.error(f"{'='*60}")
+                        logger.error(f"Batch size: {len(batch)} galaxies")
+                        logger.error(f"Local row range: {batch_start_idx} - {i}")
+                        logger.error(f"Global row range (with offset): {global_batch_start} - {global_batch_end}")
+                        logger.error(f"Error: {error_msg}")
+                        logger.error(f"Detail: {error_detail}")
+                        if was_rolled_back:
+                            logger.error(f"Status: Batch was ROLLED BACK (no data committed)")
+                        logger.error(f"{'='*60}")
+                        logger.error(f"")
+                        
                         if not continue_on_error:
-                            raise RuntimeError(f"Ingest failed {resp.status_code}")
+                            raise RuntimeError(
+                                f"Batch {batch_num} failed at global rows {global_batch_start}-{global_batch_end}: {error_msg}"
+                            )
                 else:
-                    logger.info(f"\U0001F50D DRY RUN would insert {len(batch)} galaxies")
+                    logger.info(f"🔍 DRY RUN batch {batch_num}: would insert {len(batch)} galaxies")
                     stats["inserted"] += len(batch)
+                
                 batch = []
                 progress = (i + 1) / stats["total"] * 100
-                logger.info(f"Progress {i+1}/{stats['total']} ({progress:.1f}%)")
+                logger.info(f"Progress: {i+1}/{stats['total']} ({progress:.1f}%)")
+                
                 if not dry_run:
                     time.sleep(0.1)
+                    
+        except RuntimeError:
+            # Re-raise RuntimeError (our controlled failure)
+            raise
         except Exception as e:
+            # Unexpected error during row processing
             stats["errors"] += 1
-            logger.error(f"\u274C Error at row {i}: {e}")
-            # print(f"\n\u274C Exception detail (row {i}):\n{traceback.format_exc()}\n")
+            global_row = global_offset + i
+            stats["failed_at"] = {
+                "batch_num": i // batch_size + 1,
+                "local_row": i,
+                "global_row": global_row,
+                "error": "Row processing error",
+                "detail": str(e),
+            }
+            logger.error(f"❌ Error processing row {i} (global row {global_row}): {e}")
             if not continue_on_error:
                 raise
+    
     return stats
 
 
@@ -437,8 +512,44 @@ def main():
             if resp.lower() != "y":
                 logger.info("❌ Cancelled")
                 return
-        stats = process_parquet(df, config["convex_url"], config["ingest_token"], args.batch_size, args.dry_run, args.continue_on_error)
-        logger.info("SUMMARY: " + str(stats))
+        
+        # Pass the global offset so error messages show correct row numbers in original file
+        stats = process_parquet(
+            df, 
+            config["convex_url"], 
+            config["ingest_token"], 
+            args.batch_size, 
+            args.dry_run, 
+            args.continue_on_error,
+            global_offset=offset
+        )
+        
+        # Print summary
+        logger.info("")
+        logger.info("=" * 60)
+        logger.info("INGESTION SUMMARY")
+        logger.info("=" * 60)
+        logger.info(f"Total rows processed: {stats['total']}")
+        logger.info(f"Successfully inserted: {stats['inserted']}")
+        logger.info(f"Skipped (already exist): {stats['skipped']}")
+        logger.info(f"Errors: {stats['errors']}")
+        
+        if stats.get("failed_at"):
+            logger.error("")
+            logger.error("FAILURE DETAILS:")
+            for key, value in stats["failed_at"].items():
+                logger.error(f"  {key}: {value}")
+            logger.error("")
+            logger.error("To resume, use:")
+            if "global_row_range" in stats["failed_at"]:
+                resume_offset = stats["failed_at"]["global_row_range"][0]
+            elif "global_row" in stats["failed_at"]:
+                resume_offset = stats["failed_at"]["global_row"]
+            else:
+                resume_offset = offset
+            logger.error(f"  --offset {resume_offset}")
+        
+        logger.info("=" * 60)
 
     except Exception as e:
         logger.error(f"❌ Error: {e}")

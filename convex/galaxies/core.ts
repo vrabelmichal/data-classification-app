@@ -18,7 +18,8 @@ import {
 } from "./aggregates";
 
 // helper function to properly insert a galaxy into galaxies, galaxiesAggregate, and galaxyIds
-// Helper function to properly insert a galaxy into galaxies, galaxiesAggregate, and galaxyIds
+// IMPORTANT: This function must be called within a mutation context.
+// All inserts are part of the same transaction - if any fails, all are rolled back.
 export async function insertGalaxy(
   ctx: MutationCtx,
   galaxy: Omit<Doc<'galaxies'>, '_id'>,
@@ -27,8 +28,13 @@ export async function insertGalaxy(
   photometryBandI?: { sersic?: any },
   sourceExtractor?: { g: any; r: any; i: any; y?: any; z?: any },
   thuruthipilly?: any,
-  numbericId?: bigint,
+  numericId?: bigint,
 ): Promise<Id<'galaxies'>> {
+  // Validate required fields
+  if (!galaxy.id) {
+    throw new Error("Galaxy must have an 'id' field (external ID)");
+  }
+
   // Populate mag and mean_mue from photometryBand if not already set
   if (galaxy.mag === undefined && photometryBand?.sersic?.mag !== undefined) {
     galaxy.mag = photometryBand.sersic.mag;
@@ -42,26 +48,38 @@ export async function insertGalaxy(
   galaxy.perUser = galaxy.perUser ?? {};
   galaxy.lastAssignedAt = galaxy.lastAssignedAt ?? undefined;
 
-  // if numericId is not provided, find the max numericId and increment or set to 1 if none exist, 
-  //   use galaxyIdsAggregate to find max value of numericId
-  let resolvedNumericId : bigint;
-  if (!numbericId) {
-    const maxNumericIdFromAgg = await galaxyIdsAggregate.max(ctx);
-    console.log("Max numericId from aggregate:", maxNumericIdFromAgg);
-    resolvedNumericId = maxNumericIdFromAgg !== null ? maxNumericIdFromAgg.key + BigInt(1) : BigInt(1);
+  // Resolve numericId: use provided value or compute from aggregate
+  let resolvedNumericId: bigint;
+  if (numericId !== undefined) {
+    resolvedNumericId = numericId;
   } else {
-    resolvedNumericId = numbericId;
+    const maxNumericIdFromAgg = await galaxyIdsAggregate.max(ctx);
+    resolvedNumericId = maxNumericIdFromAgg !== null ? maxNumericIdFromAgg.key + BigInt(1) : BigInt(1);
   }
 
   // Set the numericId in the galaxy object before inserting
   galaxy.numericId = resolvedNumericId;
 
-  // Insert core row first
+  // 1. Insert core galaxy row
   const galaxyRef = await ctx.db.insert("galaxies", galaxy);
   const insertedGalaxy = await ctx.db.get(galaxyRef);
-  if (!insertedGalaxy) throw new Error("Failed to insert galaxy");
+  if (!insertedGalaxy) {
+    throw new Error(`Failed to retrieve inserted galaxy (ref: ${galaxyRef})`);
+  }
 
-  // Maintain galaxy aggregates
+  // 2. Insert into galaxyIds table - this MUST succeed for consistency
+  const galaxyIdDocId = await ctx.db.insert("galaxyIds", { 
+    id: galaxy.id, 
+    galaxyRef, 
+    numericId: resolvedNumericId 
+  });
+  const galaxyIdDoc = await ctx.db.get(galaxyIdDocId);
+  if (!galaxyIdDoc) {
+    throw new Error(`Failed to retrieve inserted galaxyIds entry (ref: ${galaxyIdDocId})`);
+  }
+
+  // 3. Maintain all aggregates - these must all succeed
+  // Galaxy aggregates
   await galaxiesById.insert(ctx, insertedGalaxy);
   await galaxiesByRa.insert(ctx, insertedGalaxy);
   await galaxiesByDec.insert(ctx, insertedGalaxy);
@@ -72,15 +90,11 @@ export async function insertGalaxy(
   await galaxiesByMag.insert(ctx, insertedGalaxy);
   await galaxiesByMeanMue.insert(ctx, insertedGalaxy);
   await galaxiesByNumericId.insert(ctx, insertedGalaxy);
+  
+  // GalaxyIds aggregate
+  await galaxyIdsAggregate.insert(ctx, galaxyIdDoc);
 
-  // Maintain galaxyIds aggregate table
-  const galaxyId_id = await ctx.db.insert("galaxyIds", { id: galaxy.id, galaxyRef, numericId: resolvedNumericId });
-  const galaxyId_doc = await ctx.db.get(galaxyId_id);
-  if (galaxyId_doc) {
-    await galaxyIdsAggregate.insert(ctx, galaxyId_doc);
-  }
-
-  // Per-band photometry tables
+  // 4. Insert optional related data (photometry, source extractor, thuruthipilly)
   if (photometryBand) {
     await ctx.db.insert("galaxies_photometry_g", { galaxyRef, band: "g", ...photometryBand });
   }

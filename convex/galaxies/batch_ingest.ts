@@ -92,7 +92,8 @@ const batchArgs = {
 
 /**
  * Helper (plain TypeScript) — does the DB work.
- * This is where your original mutation logic lives.
+ * FAIL-FAST: Any error will throw and roll back the entire batch.
+ * This ensures atomicity - either all galaxies in the batch are inserted, or none.
  */
 async function insertGalaxiesBatchHelper(
   ctx: MutationCtx,
@@ -101,28 +102,32 @@ async function insertGalaxiesBatchHelper(
   const results = {
     inserted: 0,
     skipped: 0,
-    errors: [] as string[],
+    totalInBatch: galaxies.length,
   };
 
+  // Find maximum value of numericId so far using galaxyIdsAggregate
+  const maxNumericIdFromAgg = await galaxyIdsAggregate.max(ctx);
+  let resolvedNumericId = maxNumericIdFromAgg !== null ? maxNumericIdFromAgg.key + BigInt(1) : BigInt(1);
 
-    // Find maximum value of numericId so far using galaxyIdsAggregate
-    const maxNumericIdFromAgg = await galaxyIdsAggregate.max(ctx);
+  for (let index = 0; index < galaxies.length; index++) {
+    const item = galaxies[index];
+    const { galaxy, photometryBand, photometryBandR, photometryBandI, sourceExtractor, thuruthipilly } = item;
+    const galaxyExternalId = galaxy?.id || 'unknown';
+
+    // Check existence in core table by external id
+    const existing = await ctx.db
+      .query("galaxyIds")
+      .withIndex("by_external_id", (q) => q.eq("id", galaxy.id))
+      .unique();
     
-    let resolvedNumericId = maxNumericIdFromAgg !== null ? maxNumericIdFromAgg.key + BigInt(1) : BigInt(1);
+    if (existing) {
+      results.skipped++;
+      continue;
+    }
 
-  for (const item of galaxies) {
+    // No try/catch here - let errors propagate to fail the entire mutation
+    // This ensures the transaction is rolled back on any failure
     try {
-      const { galaxy, photometryBand, photometryBandR, photometryBandI, sourceExtractor, thuruthipilly } = item;
-      // Check existence in core table by external id
-      const existing = await ctx.db
-        .query("galaxyIds")
-        .withIndex("by_external_id", (q) => q.eq("id", galaxy.id))
-        .unique();
-      if (existing) {
-        results.skipped++;
-        continue;
-      }
-
       await insertGalaxy(
         ctx,
         galaxy,
@@ -133,11 +138,15 @@ async function insertGalaxiesBatchHelper(
         thuruthipilly || undefined,
         resolvedNumericId
       );
-      results.inserted++;
-      resolvedNumericId++; // Increment for next galaxy
     } catch (error) {
-      results.errors.push(`Error inserting galaxy ${(item.galaxy && item.galaxy.id) || 'unknown'}: ${String(error)}`);
+      // Re-throw with more context about which galaxy failed
+      throw new Error(
+        `Failed at batch index ${index}, galaxy external ID "${galaxyExternalId}": ${String(error)}`
+      );
     }
+
+    results.inserted++;
+    resolvedNumericId++;
   }
 
   return results;
@@ -157,6 +166,9 @@ export const insertGalaxiesBatchInternal = internalMutation({
 /**
  * Public HTTP action — verifies token, parses JSON,
  * and then calls the INTERNAL mutation by reference.
+ * 
+ * FAIL-FAST: Returns HTTP 500 on any insertion error with detailed error info.
+ * The mutation is atomic - on error, all writes are rolled back.
  */
 export const ingestGalaxiesHttp = httpAction(async (ctx, request) => {
   // 1) Auth
@@ -188,25 +200,52 @@ export const ingestGalaxiesHttp = httpAction(async (ctx, request) => {
     });
   }
 
-  // 3) Call internal mutation via internal reference
+  // 3) Validate body structure before calling mutation
+  if (!body || typeof body !== 'object' || !('galaxies' in body)) {
+    return new Response(
+      JSON.stringify({ error: "Invalid body structure", detail: "Expected { galaxies: [...] }" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  const galaxiesArray = (body as { galaxies: unknown }).galaxies;
+  if (!Array.isArray(galaxiesArray)) {
+    return new Response(
+      JSON.stringify({ error: "Invalid body structure", detail: "'galaxies' must be an array" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
+  // 4) Call internal mutation via internal reference
   try {
     const results = await ctx.runMutation(
       internal.galaxies.batch_ingest.insertGalaxiesBatchInternal,
       body as any // Convex validates against `batchArgs` at runtime
     );
 
-    return new Response(JSON.stringify(results), {
+    // Success - all galaxies in batch were processed
+    return new Response(JSON.stringify({
+      success: true,
+      ...results,
+    }), {
       status: 200,
       headers: { "Content-Type": "application/json" },
     });
   } catch (err) {
-    // Validation failures or handler errors end up here
+    // Mutation failed - entire batch was rolled back
+    // Return 500 to signal failure to client
+    const errorMessage = String(err);
+    console.error("Batch ingestion failed:", errorMessage);
+    
     return new Response(
       JSON.stringify({
-        error: "Validation or processing error",
-        detail: String(err),
+        success: false,
+        error: "Batch ingestion failed",
+        detail: errorMessage,
+        // Help client understand the batch was NOT committed
+        rollback: true,
       }),
-      { status: 400, headers: { "Content-Type": "application/json" } }
+      { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
 });
