@@ -34,6 +34,7 @@ import type * as lib_auth from "../lib/auth.js";
 import type * as router from "../router.js";
 import type * as seedGalaxyAssignmentStats from "../seedGalaxyAssignmentStats.js";
 import type * as system_settings from "../system_settings.js";
+import type * as testEmail from "../testEmail.js";
 import type * as users from "../users.js";
 
 import type {
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   router: typeof router;
   seedGalaxyAssignmentStats: typeof seedGalaxyAssignmentStats;
   system_settings: typeof system_settings;
+  testEmail: typeof testEmail;
   users: typeof users;
 }>;
 declare const fullApiWithMounts: typeof fullApi;

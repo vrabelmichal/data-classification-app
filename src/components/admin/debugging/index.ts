@@ -11,3 +11,4 @@ export { DeleteAllGalaxyDataSection } from './DeleteAllGalaxyDataSection';
 export { AggregateInformationSection } from './AggregateInformationSection';
 export { DeleteConfirmationModal } from './DeleteConfirmationModal';
 export { ZeroOutGalaxyStatisticsSection } from './ZeroOutGalaxyStatisticsSection';
+export { TestEmailSection } from './TestEmailSection';
