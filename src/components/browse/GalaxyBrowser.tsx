@@ -22,6 +22,7 @@ export function GalaxyBrowser() {
     // Queries
     galaxyData,
     userPrefs,
+    effectiveImageQuality,
 
     // Computed values
     previewImageName,
@@ -450,6 +451,7 @@ export function GalaxyBrowser() {
         <GalaxyBrowserLightTableView
           galaxyData={galaxyData}
           userPrefs={userPrefs}
+          effectiveImageQuality={effectiveImageQuality}
           previewImageName={previewImageName}
           sortBy={sortBy}
           sortOrder={sortOrder}
@@ -462,6 +464,7 @@ export function GalaxyBrowser() {
         <GalaxyBrowserMobileCards
           galaxyData={galaxyData}
           userPrefs={userPrefs}
+          effectiveImageQuality={effectiveImageQuality}
           previewImageName={previewImageName}
         />
       </div>

@@ -89,6 +89,7 @@ export interface UseGalaxyBrowserReturn {
   galaxyData: any;
   searchBounds: any;
   userPrefs: any;
+  effectiveImageQuality: "high" | "medium" | "low";
 
   // Computed values
   currentBounds: any;
@@ -220,6 +221,11 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
   const searchBounds = useQuery(api.galaxies.browse.getGalaxySearchBounds);
   const userPrefs = useQuery(api.users.getUserPreferences);
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  
+  // Compute effective image quality from user prefs or system default
+  const defaultImageQuality = (systemSettings?.defaultImageQuality as "high" | "low") || "high";
+  const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
 
   // Computed values
   const currentBounds = galaxyData?.currentBounds;
@@ -740,6 +746,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     galaxyData,
     searchBounds,
     userPrefs,
+    effectiveImageQuality,
 
     // Computed values
   currentBounds,

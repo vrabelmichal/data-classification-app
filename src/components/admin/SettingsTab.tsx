@@ -21,6 +21,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     showAwesomeFlag: systemSettings.showAwesomeFlag ?? true,
     showValidRedshift: systemSettings.showValidRedshift ?? true,
     showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
+    defaultImageQuality: systemSettings.defaultImageQuality || "high",
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -38,6 +39,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       showAwesomeFlag: systemSettings.showAwesomeFlag ?? true,
       showValidRedshift: systemSettings.showValidRedshift ?? true,
       showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
+      defaultImageQuality: systemSettings.defaultImageQuality || "high",
     });
     setHasChanges(false);
   }, [systemSettings]);
@@ -54,6 +56,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     const originalShowAwesomeFlag = systemSettings.showAwesomeFlag ?? true;
     const originalShowValidRedshift = systemSettings.showValidRedshift ?? true;
     const originalShowVisibleNucleus = systemSettings.showVisibleNucleus ?? true;
+    const originalDefaultImageQuality = systemSettings.defaultImageQuality || "high";
     setHasChanges(
       localSettings.allowAnonymous !== originalAllowAnonymous ||
       localSettings.emailFrom !== originalEmailFrom ||
@@ -64,7 +67,8 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       localSettings.failedFittingFallbackLsbClass !== originalFailedFittingFallbackLsbClass ||
       localSettings.showAwesomeFlag !== originalShowAwesomeFlag ||
       localSettings.showValidRedshift !== originalShowValidRedshift ||
-      localSettings.showVisibleNucleus !== originalShowVisibleNucleus
+      localSettings.showVisibleNucleus !== originalShowVisibleNucleus ||
+      localSettings.defaultImageQuality !== originalDefaultImageQuality
     );
   }, [localSettings, systemSettings]);
 
@@ -89,6 +93,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         showAwesomeFlag: localSettings.showAwesomeFlag,
         showValidRedshift: localSettings.showValidRedshift,
         showVisibleNucleus: localSettings.showVisibleNucleus,
+        defaultImageQuality: localSettings.defaultImageQuality as "high" | "low",
       });
       toast.success("Settings updated successfully");
       setHasChanges(false);
@@ -308,6 +313,32 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
               />
             </label>
           </div>
+        </div>
+
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+            Image Quality Settings
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Configure the default image quality for classification. Users can override this in their personal settings.
+          </p>
+
+          <label className="block">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              Default Image Quality
+            </span>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+              The default image quality used when users haven't set their preference
+            </p>
+            <select
+              value={localSettings.defaultImageQuality}
+              onChange={(e) => handleSettingChange("defaultImageQuality", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            >
+              <option value="high">High Quality (Better image quality, larger file sizes)</option>
+              <option value="low">Low Quality (Faster loading, smaller file sizes)</option>
+            </select>
+          </label>
         </div>
       </div>
       

@@ -17,10 +17,15 @@ export function SkippedGalaxies() {
   const skippedGalaxies = useQuery(api.galaxies.skipped.getSkippedGalaxies);
   const removeFromSkipped = useMutation(api.galaxies.skipped.removeFromSkipped);
   const userPrefs = useQuery(api.users.getUserPreferences);
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const [currentPage, setCurrentPage] = useState(1);
   const [jumpToPage, setJumpToPage] = useState("");
 
   const previewImageName = getPreviewImageName();
+  
+  // Compute effective image quality from user prefs or system default
+  const defaultImageQuality = (systemSettings?.defaultImageQuality as "high" | "low") || "high";
+  const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
 
   const handleRemoveFromSkipped = async (skippedId: any) => {
     try {
@@ -101,7 +106,7 @@ export function SkippedGalaxies() {
               <div className="w-full max-w-64 mx-auto p-4">
                 <ImageViewer
                   imageUrl={getImageUrl(item.galaxy.id, previewImageName, {
-                    quality: userPrefs?.imageQuality || "medium",
+                    quality: effectiveImageQuality,
                   })}
                   alt={`Galaxy ${item.galaxy.id}`}
                   preferences={userPrefs}
@@ -167,7 +172,7 @@ export function SkippedGalaxies() {
                   <div className="flex-shrink-0 w-full sm:w-1/3 max-w-64 mx-auto sm:mx-0">
                     <ImageViewer
                       imageUrl={getImageUrl(item.galaxy.id, previewImageName, { 
-                        quality: userPrefs?.imageQuality || "medium" 
+                        quality: effectiveImageQuality 
                       })}
                       alt={`Galaxy ${item.galaxy.id}`}
                       preferences={userPrefs}
@@ -273,7 +278,7 @@ export function SkippedGalaxies() {
                           <div className="h-16 w-16 overflow-hidden rounded">
                             <ImageViewer
                               imageUrl={getImageUrl(item.galaxy.id, previewImageName, {
-                                quality: userPrefs?.imageQuality || "medium",
+                                quality: effectiveImageQuality,
                               })}
                               alt={`Galaxy ${item.galaxy.id}`}
                               preferences={userPrefs}

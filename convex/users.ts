@@ -1,6 +1,7 @@
 import { query, mutation, action } from "./_generated/server";
 import { v } from "convex/values";
 import { getOptionalUserId, requireAdmin, requireUserId, requireUserProfile } from "./lib/auth";
+import { getDefaultImageQuality } from "./lib/settings";
 import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
 import { api } from "./_generated/api";
 // adminSetUserPassword removed: we now only support email-based reset flow.
@@ -10,6 +11,8 @@ export const getUserPreferences = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getOptionalUserId(ctx);
+    const defaultQuality = await getDefaultImageQuality(ctx);
+    
     if (!userId) return null;
 
     const prefs = await ctx.db
@@ -18,7 +21,7 @@ export const getUserPreferences = query({
       .unique();
 
     return prefs || {
-      imageQuality: "medium" as const,
+      imageQuality: defaultQuality,
       theme: "auto" as const,
       contrast: 1.0,
     };
@@ -34,6 +37,7 @@ export const updatePreferences = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
+    const defaultQuality = await getDefaultImageQuality(ctx);
 
     const existing = await ctx.db
       .query("userPreferences")
@@ -45,7 +49,7 @@ export const updatePreferences = mutation({
     } else {
       await ctx.db.insert("userPreferences", {
         userId,
-        imageQuality: args.imageQuality || "medium",
+        imageQuality: args.imageQuality || defaultQuality,
         theme: args.theme || "auto",
         contrast: args.contrast || 1.0,
       });

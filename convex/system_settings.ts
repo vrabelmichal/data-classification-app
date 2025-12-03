@@ -44,6 +44,9 @@ export const getSystemSettings = query({
     if (settingsMap.showVisibleNucleus === undefined) {
       settingsMap.showVisibleNucleus = true;
     }
+    if (settingsMap.defaultImageQuality === undefined) {
+      settingsMap.defaultImageQuality = "high";
+    }
 
     return settingsMap;
   },
@@ -61,7 +64,7 @@ export const getPublicSystemSettings = query({
     }, {} as Record<string, any>);
 
     // Whitelist of settings that are safe to expose to non-admin users
-    const publicSettingsWhitelist = ["allowAnonymous", "appName", "debugAdminMode", "appVersion", "failedFittingMode", "failedFittingFallbackLsbClass", "showAwesomeFlag", "showValidRedshift", "showVisibleNucleus"];
+    const publicSettingsWhitelist = ["allowAnonymous", "appName", "debugAdminMode", "appVersion", "failedFittingMode", "failedFittingFallbackLsbClass", "showAwesomeFlag", "showValidRedshift", "showVisibleNucleus", "defaultImageQuality"];
 
     // Only return whitelisted settings
     const publicSettings: Record<string, any> = {};
@@ -97,6 +100,9 @@ export const getPublicSystemSettings = query({
         if (key === "showVisibleNucleus") {
           publicSettings[key] = true;
         }
+        if (key === "defaultImageQuality") {
+          publicSettings[key] = "high";
+        }
       }
     }
 
@@ -118,6 +124,7 @@ export const updateSystemSettings = mutation({
     showAwesomeFlag: v.optional(v.boolean()),
     showValidRedshift: v.optional(v.boolean()),
     showVisibleNucleus: v.optional(v.boolean()),
+    defaultImageQuality: v.optional(v.union(v.literal("high"), v.literal("low"))),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -278,6 +285,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "showVisibleNucleus",
           value: args.showVisibleNucleus,
+        });
+      }
+    }
+
+    if (args.defaultImageQuality !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "defaultImageQuality"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.defaultImageQuality });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "defaultImageQuality",
+          value: args.defaultImageQuality,
         });
       }
     }

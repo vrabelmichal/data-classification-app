@@ -10,6 +10,10 @@ export function UserSettings() {
   const userPrefs = useQuery(api.users.getUserPreferences);
   const updatePreferences = useMutation(api.users.updatePreferences);
   const updateUserName = useMutation(api.users.updateUserName);
+  
+  // Get public system settings for default image quality
+  const publicSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  const defaultImageQuality = (publicSettings?.defaultImageQuality as "high" | "low") || "high";
 
   // Query for combined user + profile returned by server as `getUserProfile`
   // The returned shape is: { user, ...profileFields }
@@ -27,19 +31,23 @@ export function UserSettings() {
   //   lastActiveAt: userWithProfile.lastActiveAt,
   // }
 
-  const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low">("medium");
+  const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low">(defaultImageQuality);
   const [theme, setTheme] = useState<"light" | "dark" | "auto">("auto");
   const [userName, setUserName] = useState("");
 
+  // Update state when userPrefs or defaultImageQuality changes
   useEffect(() => {
     if (userPrefs) {
       setImageQuality(userPrefs.imageQuality);
       setTheme(userPrefs.theme);
+    } else if (defaultImageQuality) {
+      // Use system default when user has no preference set
+      setImageQuality(defaultImageQuality);
     }
     if (authUser?.name) {
       setUserName(authUser.name);
     }
-  }, [userPrefs, authUser]);
+  }, [userPrefs, authUser, defaultImageQuality]);
 
   const handleSave = async () => {
     try {
@@ -97,8 +105,29 @@ export function UserSettings() {
       </div>
 
       <div className="space-y-6">
+        
+        {/* User Name */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Profile</h2>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="userName" className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                Name
+              </label>
+              <input
+                type="text"
+                id="userName"
+                value={userName}
+                onChange={(e) => setUserName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                placeholder="Enter your name"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Image Quality */}
-        {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Image Quality</h2>
           <div className="space-y-3">
             <label className="flex items-center">
@@ -111,22 +140,8 @@ export function UserSettings() {
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
               <div className="ml-3">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">High Quality (PNG)</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">High Quality</span>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Better image quality, larger file sizes</p>
-              </div>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="imageQuality"
-                value="medium"
-                checked={imageQuality === "medium"}
-                onChange={(e) => setImageQuality(e.target.value as "high" | "medium" | "low")}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-              />
-              <div className="ml-3">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">Medium Quality (WebP)</span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Balanced quality and file size</p>
               </div>
             </label>
             <label className="flex items-center">
@@ -139,12 +154,12 @@ export function UserSettings() {
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
               <div className="ml-3">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">Low Quality (AVIF)</span>
+                <span className="text-sm font-medium text-gray-900 dark:text-white">Low Quality</span>
                 <p className="text-sm text-gray-500 dark:text-gray-400">Faster loading, smaller file sizes</p>
               </div>
             </label>
           </div>
-        </div> */}
+        </div>
 
         {/* Interface Options */}
         {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -192,25 +207,6 @@ export function UserSettings() {
           </div>
         </div> */}
 
-        {/* User Name */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Profile</h2>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="userName" className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                Name
-              </label>
-              <input
-                type="text"
-                id="userName"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                placeholder="Enter your name"
-              />
-            </div>
-          </div>
-        </div>
 
         {/* Save Button */}
         <div className="flex justify-end">

@@ -8,6 +8,7 @@ import {SMALL_IMAGE_DEFAULT_ZOOM} from "../classification/GalaxyImages";
 interface GalaxyBrowserLightTableViewProps {
   galaxyData: any;
   userPrefs: any;
+  effectiveImageQuality: "high" | "medium" | "low";
   previewImageName: string;
   sortBy: SortField;
   sortOrder: 'asc' | 'desc';
@@ -17,6 +18,7 @@ interface GalaxyBrowserLightTableViewProps {
 export function GalaxyBrowserLightTableView({
   galaxyData,
   userPrefs,
+  effectiveImageQuality,
   previewImageName,
   sortBy,
   sortOrder,
@@ -149,7 +151,7 @@ export function GalaxyBrowserLightTableView({
                     <div className="h-16 w-16 overflow-hidden rounded">
                       <ImageViewer
                         imageUrl={getImageUrl(galaxy.id, previewImageName, {
-                          quality: userPrefs?.imageQuality || "medium",
+                          quality: effectiveImageQuality,
                         })}
                         alt={`Galaxy ${galaxy.id}`}
                         preferences={userPrefs}

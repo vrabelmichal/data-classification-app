@@ -7,6 +7,7 @@ import type { SortField } from "./GalaxyBrowser";
 interface GalaxyBrowserSimpleTableViewProps {
   galaxyData: any;
   userPrefs: any;
+  effectiveImageQuality: "high" | "medium" | "low";
   previewImageName: string;
   sortBy: SortField;
   sortOrder: 'asc' | 'desc';
@@ -16,6 +17,7 @@ interface GalaxyBrowserSimpleTableViewProps {
 export function GalaxyBrowserSimpleTableView({
   galaxyData,
   userPrefs,
+  effectiveImageQuality,
   previewImageName,
   sortBy,
   sortOrder,
@@ -97,7 +99,7 @@ export function GalaxyBrowserSimpleTableView({
           <tr key={galaxy._id}>
             <td>
               <ImageViewer
-                imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
+                imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: effectiveImageQuality })}
                 alt={`Galaxy ${galaxy.id}`}
                 preferences={userPrefs}
               />

@@ -8,12 +8,14 @@ import {SMALL_IMAGE_DEFAULT_ZOOM} from "../classification/GalaxyImages";
 interface GalaxyBrowserMobileCardsProps {
   galaxyData: any;
   userPrefs: any;
+  effectiveImageQuality: "high" | "medium" | "low";
   previewImageName: string;
 }
 
 export function GalaxyBrowserMobileCards({
   galaxyData,
   userPrefs,
+  effectiveImageQuality,
   previewImageName,
 }: GalaxyBrowserMobileCardsProps) {
   if (!galaxyData) {
@@ -39,7 +41,7 @@ export function GalaxyBrowserMobileCards({
           <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 space-y-4 sm:space-y-0">
             <div className="flex-shrink-0 w-full sm:w-1/3 max-w-64 max-h-64 aspect-square mx-auto sm:mx-0">
               <ImageViewer
-                imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: userPrefs?.imageQuality || "medium" })}
+                imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: effectiveImageQuality })}
                 alt={`Galaxy ${galaxy.id}`}
                 preferences={userPrefs}
                 defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}

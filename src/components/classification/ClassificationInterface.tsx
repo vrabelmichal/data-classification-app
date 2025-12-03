@@ -109,13 +109,17 @@ export function ClassificationInterface() {
   // Get current contrast group images
   const currentImageGroup = imageContrastGroups[currentContrastGroup] ?? imageContrastGroups[defaultContrastGroupIndex];
 
+  // Get the effective image quality (user preference or system default)
+  const defaultImageQuality = (systemSettings?.defaultImageQuality as "high" | "low") || "high";
+  const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
+
   // Create imageTypes array
   const imageTypes: ImageType[] = currentImageGroup.map(({ key, label }) => ({
     key,
     name: label,
     displayName: processImageLabel(label),
     url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, {
-      quality: userPrefs?.imageQuality || "high"
+      quality: effectiveImageQuality
     }) : null,
   }));
 

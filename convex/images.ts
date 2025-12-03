@@ -1,6 +1,7 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { getOptionalUserId } from "./lib/auth";
+import { getDefaultImageQuality } from "./lib/settings";
 
 // Get image URL for a galaxy image with optional quality override
 export const getImageUrl = query({
@@ -20,9 +21,9 @@ export const getImageUrl = query({
         .withIndex("by_user", (q) => q.eq("userId", userId))
         .unique();
       
-      imageQuality = prefs?.imageQuality || "medium";
+      imageQuality = prefs?.imageQuality || await getDefaultImageQuality(ctx);
     } else if (!imageQuality) {
-      imageQuality = "medium"; // default for anonymous users
+      imageQuality = await getDefaultImageQuality(ctx);
     }
 
     // Return the necessary data for the frontend to construct the URL
@@ -59,9 +60,9 @@ export const getGalaxyImageUrls = query({
         .withIndex("by_user", (q) => q.eq("userId", userId))
         .unique();
       
-      imageQuality = prefs?.imageQuality || "medium";
+      imageQuality = prefs?.imageQuality || await getDefaultImageQuality(ctx);
     } else if (!imageQuality) {
-      imageQuality = "medium"; // default for anonymous users
+      imageQuality = await getDefaultImageQuality(ctx);
     }
 
     console.log("Using imageQuality:", imageQuality);

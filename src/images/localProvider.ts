@@ -8,14 +8,18 @@ export class LocalImageProvider implements ImageProvider {
     const base = this.cfg.localServerBase.replace(/\/+$/, "");
     const qp = opts?.query ? toQueryString(opts.query) : "";
     
-    let ext = "png";
-    // at the moment, we only have png images locally
-    // if (opts?.quality === "low") ext = "avif";
-    // else if (opts?.quality === "medium") ext = "webp";
+    // Determine file extension based on quality setting
+    let ext = "png"; // default to high quality
+    if (opts?.quality === "low") {
+      ext = "avif";
+    } else if (opts?.quality === "medium") {
+      ext = "webp";
+    }
+    // "high" or undefined uses "png"
 
     const baseName = name.replace(/\.[^/.]+$/, "");
     const imageNameWithExt = `${baseName}.${ext}`;
-    return `${base}/${encodeURIComponent(id)}/${encodeURIComponent(imageNameWithExt)}`;
+    return `${base}/${encodeURIComponent(id)}/${encodeURIComponent(imageNameWithExt)}${qp ? `?${qp}` : ""}`;
   }
 
   getAbsolutePath(id: string, name: ImageName): string {
