@@ -17,6 +17,7 @@ interface ClassificationFormProps {
   showAwesomeFlag?: boolean;
   showValidRedshift?: boolean;
   showVisibleNucleus?: boolean;
+  hideComments?: boolean;
   onLsbClassChange: (value: number) => void;
   onMorphologyChange: (value: number) => void;
   onAwesomeFlagChange: (value: boolean) => void;
@@ -40,6 +41,7 @@ export function ClassificationForm({
   showAwesomeFlag = true,
   showValidRedshift = true,
   showVisibleNucleus = true,
+  hideComments = false,
   onLsbClassChange,
   onMorphologyChange,
   onAwesomeFlagChange,
@@ -179,19 +181,21 @@ export function ClassificationForm({
       </div>
 
       {/* Comments */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-          Comments
-        </h4>
-        <textarea
-          value={comments}
-          onChange={(e) => onCommentsChange(e.target.value)}
-          placeholder="Add any observations or comments..."
-          disabled={formLocked}
-          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white resize-none"
-          rows={3}
-        />
-      </div>
+      {!hideComments && (
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+          <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+            Comments
+          </h4>
+          <textarea
+            value={comments}
+            onChange={(e) => onCommentsChange(e.target.value)}
+            placeholder="Add any observations or comments..."
+            disabled={formLocked}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white resize-none"
+            rows={3}
+          />
+        </div>
+      )}
     </div>
   );
 }
