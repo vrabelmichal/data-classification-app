@@ -62,11 +62,16 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   const shouldCenterRef = useRef(false);
   const defaultZoomAppliedRef = useRef(false);
   const shouldRespectDefaultZoomRef = useRef(false);
+  const previousImageUrlRef = useRef<string>(imageUrl);
 
   // Reset loading/error state when imageUrl changes (e.g., when contrast group changes)
+  // Skip the initial render to avoid resetting state before the first image loads
   useEffect(() => {
-    setIsLoading(true);
-    setHasError(false);
+    if (previousImageUrlRef.current !== imageUrl) {
+      previousImageUrlRef.current = imageUrl;
+      setIsLoading(true);
+      setHasError(false);
+    }
   }, [imageUrl]);
 
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
