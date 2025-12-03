@@ -478,18 +478,47 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
 # --------------------------------------------------------------------------------------
 # Main
 # --------------------------------------------------------------------------------------
+
+# Recommended batch size to stay under Convex's 16MB read limit per mutation.
+# Each galaxy insert updates 10+ aggregates, which read significant data from B-trees.
+# Smaller batches = fewer aggregate operations = less data read per mutation.
+RECOMMENDED_BATCH_SIZE = 20
+MAX_SAFE_BATCH_SIZE = 30  # Above this, you risk hitting the 16MB limit
+
 def main():
-    parser = argparse.ArgumentParser(description="Ingest galaxies (split schema objects) from parquet")
+    parser = argparse.ArgumentParser(
+        description="Ingest galaxies (split schema objects) from parquet",
+        epilog=f"""
+BATCH SIZE GUIDANCE:
+  Due to Convex's 16MB read limit per mutation and the number of aggregates
+  maintained per galaxy (10+), the recommended batch size is {RECOMMENDED_BATCH_SIZE}.
+  
+  Batch sizes above {MAX_SAFE_BATCH_SIZE} may fail with "Too many bytes read" errors.
+  
+  Example: --batch-size {RECOMMENDED_BATCH_SIZE}
+"""
+    )
     parser.add_argument("--parquet-file", required=True, help="Parquet file path")
     parser.add_argument("--convex-http-actions-url", help="Convex ingestion URL")
     parser.add_argument("--ingest-token", help="Ingest API token")
     parser.add_argument("--dot-env-file", help="Dotenv file (default .env)")
-    parser.add_argument("--batch-size", type=int, default=200, help="Batch size for ingestion (default: 200)")
+    parser.add_argument("--batch-size", type=int, default=RECOMMENDED_BATCH_SIZE, 
+                        help=f"Batch size for ingestion (default: {RECOMMENDED_BATCH_SIZE}, max safe: {MAX_SAFE_BATCH_SIZE})")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--offset", type=int, default=0, help="Row offset to start processing (default: 0)")
     parser.add_argument("--limit", type=int, default=None, help="Maximum number of rows to process (default: all)")
     parser.add_argument("--continue-on-error", action="store_true", help="Continue with next batch on error (default: stop immediately)")
     args = parser.parse_args()
+
+    # Warn if batch size is too large
+    if args.batch_size > MAX_SAFE_BATCH_SIZE:
+        logger.warning(f"⚠️  Batch size {args.batch_size} exceeds recommended maximum of {MAX_SAFE_BATCH_SIZE}")
+        logger.warning(f"    This may cause 'Too many bytes read' errors due to Convex limits.")
+        logger.warning(f"    Consider using --batch-size {RECOMMENDED_BATCH_SIZE}")
+        resp = input("Continue anyway? (y/N): ")
+        if resp.lower() != "y":
+            logger.info("Cancelled. Rerun with a smaller --batch-size.")
+            return
 
     try:
         config = load_configuration(args.convex_http_actions_url, args.ingest_token, args.dot_env_file)
