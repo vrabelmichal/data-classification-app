@@ -36,6 +36,7 @@ The configuration file should be a JSON file with the following structure:
 
 - **`classification`** (object, optional): Settings for the classification interface
   - **`defaultGroupIndex`** (number, optional): The index of the contrast group to show by default (0-based)
+  - **`defaultMobileOrder`** (array of numbers, optional): Defines the order of images shown in mobile view. Each number is an index into the contrast group array. If not provided, images are shown in the same order as defined in the contrast group (desktop order). Example: `[3, 1, 0, 4, 5, 2]` would show the 4th image first, then 2nd, then 1st, etc.
   - **`contrastGroups`** (array, optional): Array of contrast group arrays. Each contrast group contains multiple image configurations shown simultaneously in the classification view.
     - Each entry has:
       - **`key`** (string): The internal image identifier used to construct the image URL

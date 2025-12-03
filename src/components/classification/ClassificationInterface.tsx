@@ -35,6 +35,7 @@ const classificationImageSettings = imageDisplaySettings.classification;
 const imageContrastGroups = classificationImageSettings.contrastGroups;
 const defaultContrastGroupIndex = classificationImageSettings.defaultGroupIndex;
 const defaultPreviewImageName = imageDisplaySettings.previewImageName;
+const defaultMobileOrder = classificationImageSettings.defaultMobileOrder;
 
 export function ClassificationInterface() {
   // Route and navigation
@@ -129,6 +130,13 @@ export function ClassificationInterface() {
     (a, b) => getImagePriority(a.key, numColumns, defaultPreviewImageName) -
       getImagePriority(b.key, numColumns, defaultPreviewImageName)
   );
+
+  // Mobile image order: use defaultMobileOrder if provided, otherwise use original order
+  const mobileImageTypes = defaultMobileOrder
+    ? defaultMobileOrder
+        .filter((idx) => idx >= 0 && idx < imageTypes.length)
+        .map((idx) => imageTypes[idx])
+    : imageTypes;
 
   // Track screen size changes
   useEffect(() => {
@@ -529,7 +537,7 @@ export function ClassificationInterface() {
       {/* Images section */}
       <div className="space-y-6">
         <GalaxyImages
-          imageTypes={sortedImageTypes}
+          imageTypes={mobileImageTypes}
           displayGalaxy={displayGalaxy}
           userPrefs={userPrefs}
           contrast={contrast}

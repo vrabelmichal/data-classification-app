@@ -2,6 +2,7 @@
   "previewImageName": "aplpy_arcsinh_p001_100_vmid02_based_on_100426834_unmasked",
   "classification": {
     "defaultGroupIndex": 0,
+    "defaultMobileOrder": [3, 1, 0, 4, 5, 2],
     "contrastGroups": [
       [
         { "key": "g_zscale_masked", "label": "Masked g-Band\n(zscale)" },
