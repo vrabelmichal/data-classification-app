@@ -72,7 +72,7 @@ export function ClassificationInterface() {
     currentGalaxy ? { currentGalaxyExternalId: currentGalaxy.id } : {}
   );
   const isSkipped = useQuery(
-    api.galaxies.skipped.isGalaxySkipped, 
+    api.galaxies.skipped.isGalaxySkipped,
     currentGalaxy ? { galaxyExternalId: currentGalaxy.id } : "skip"
   );
 
@@ -93,9 +93,9 @@ export function ClassificationInterface() {
   // Custom hooks
   const failedFittingMode = (systemSettings?.failedFittingMode as "legacy" | "checkbox") || "checkbox";
   const formState = useClassificationForm(
-    currentGalaxy, 
-    existingClassification, 
-    formLocked, 
+    currentGalaxy,
+    existingClassification,
+    formLocked,
     failedFittingMode,
     systemSettings?.showAwesomeFlag ?? true,
     systemSettings?.showValidRedshift ?? true,
@@ -114,15 +114,15 @@ export function ClassificationInterface() {
     key,
     name: label,
     displayName: processImageLabel(label),
-    url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, { 
-      quality: userPrefs?.imageQuality || "high" 
+    url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, {
+      quality: userPrefs?.imageQuality || "high"
     }) : null,
   }));
 
   // Sort imageTypes based on numColumns
   const sortedImageTypes = [...imageTypes].sort(
-    (a, b) => getImagePriority(a.key, numColumns, defaultPreviewImageName) - 
-              getImagePriority(b.key, numColumns, defaultPreviewImageName)
+    (a, b) => getImagePriority(a.key, numColumns, defaultPreviewImageName) -
+      getImagePriority(b.key, numColumns, defaultPreviewImageName)
   );
 
   // Track screen size changes
@@ -238,17 +238,17 @@ export function ClassificationInterface() {
     if (!currentGalaxy || formState.lsbClass === null || formState.morphology === null) return;
     try {
       const timeSpent = Date.now() - startTime;
-      await submitClassification({ 
-        galaxyExternalId: currentGalaxy.id, 
-        lsb_class: formState.lsbClass, 
-        morphology: formState.morphology, 
-        awesome_flag: formState.awesomeFlag, 
-        valid_redshift: formState.validRedshift, 
-        visible_nucleus: formState.visibleNucleus, 
+      await submitClassification({
+        galaxyExternalId: currentGalaxy.id,
+        lsb_class: formState.lsbClass,
+        morphology: formState.morphology,
+        awesome_flag: formState.awesomeFlag,
+        valid_redshift: formState.validRedshift,
+        visible_nucleus: formState.visibleNucleus,
         failed_fitting: formState.failedFitting,
-        comments: formState.comments.trim() || undefined, 
-        sky_bkg: undefined, 
-        timeSpent 
+        comments: formState.comments.trim() || undefined,
+        sky_bkg: undefined,
+        timeSpent
       });
       toast.success("Classification submitted successfully!");
       if (navigation?.hasNext) {
@@ -268,9 +268,9 @@ export function ClassificationInterface() {
     }
     if (!currentGalaxy) return;
     try {
-      await skipGalaxy({ 
-        galaxyExternalId: currentGalaxy.id, 
-        comments: formState.comments.trim() || undefined 
+      await skipGalaxy({
+        galaxyExternalId: currentGalaxy.id,
+        comments: formState.comments.trim() || undefined
       });
       toast.info("Galaxy skipped");
       if (navigation?.hasNext) {
@@ -381,7 +381,7 @@ export function ClassificationInterface() {
             return;
         }
       }
-      
+
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -418,7 +418,7 @@ export function ClassificationInterface() {
   }, [handlePrevious, handleNext, handleSkip, currentContrastGroup, isOnline]);
 
   // Helper for ellipse overlay
-  const shouldShowEllipseFunc = (imageName: string) => 
+  const shouldShowEllipseFunc = (imageName: string) =>
     shouldShowEllipseHelper(imageName, showEllipseOverlay);
 
   // Loading state
@@ -640,60 +640,60 @@ export function ClassificationInterface() {
       {!isOnline && <OfflineBanner />}
       <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
         <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center space-x-4">
-          <h1 className={cn(
-            "text-2xl font-bold text-gray-900 dark:text-white", 
-            isSkipped === true && "bg-yellow-100 dark:bg-yellow-900/20 px-2 py-1 rounded"
-          )}>
-            Galaxy: {displayGalaxy.id}
-            {isSkipped === true && <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">(in skipped table)</span>}
-          </h1>
-          {navigation && navigation.currentIndex !== -1 ? (
-            <div className="hidden sm:block text-sm text-gray-500 dark:text-gray-400">
-              Position: {navigation.currentIndex + 1} of {navigation.totalGalaxies}
-            </div>
-          ) : navigation ? (
-            <div className="hidden sm:block text-sm text-gray-500 dark:text-gray-400">
-              Not in your galaxies
-            </div>
-          ) : null}
+          <div className="flex items-center space-x-4">
+            <h1 className={cn(
+              "text-2xl font-bold text-gray-900 dark:text-white",
+              isSkipped === true && "bg-yellow-100 dark:bg-yellow-900/20 px-2 py-1 rounded"
+            )}>
+              Galaxy: {displayGalaxy.id}
+              {isSkipped === true && <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">(in skipped table)</span>}
+            </h1>
+            {navigation && navigation.currentIndex !== -1 ? (
+              <div className="hidden sm:block text-sm text-gray-500 dark:text-gray-400">
+                Position: {navigation.currentIndex + 1} of {navigation.totalGalaxies}
+              </div>
+            ) : navigation ? (
+              <div className="hidden sm:block text-sm text-gray-500 dark:text-gray-400">
+                Not in your galaxies
+              </div>
+            ) : null}
+          </div>
+          <div className="hidden sm:flex items-center space-x-2">
+            <label className="flex items-center cursor-pointer text-sm text-gray-600 dark:text-gray-300">
+              <input
+                type="checkbox"
+                checked={showEllipseOverlay}
+                onChange={(e) => setShowEllipseOverlay(e.target.checked)}
+                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 mr-2"
+              />
+              Show <em>r<sub>eff</sub></em>
+            </label>
+            <button
+              onClick={() => setShowKeyboardHelp(true)}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              title="Keyboard shortcuts (?)"
+            >
+              <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
+                ?
+              </kbd>
+            </button>
+          </div>
         </div>
-        <div className="hidden sm:flex items-center space-x-2">
-          <label className="flex items-center cursor-pointer text-sm text-gray-600 dark:text-gray-300">
-            <input
-              type="checkbox"
-              checked={showEllipseOverlay}
-              onChange={(e) => setShowEllipseOverlay(e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 mr-2"
-            />
-            Show <em>r<sub>eff</sub></em>
-          </label>
-          <button
-            onClick={() => setShowKeyboardHelp(true)}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="Keyboard shortcuts (?)"
-          >
-            <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
-              ?
-            </kbd>
-          </button>
+
+        {isMobile ? renderMobileLayout() : renderDesktopLayout()}
+
+        <div className="mt-8">
+          {progress && <ProgressBar progress={progress} />}
         </div>
-      </div>
 
-      {isMobile ? renderMobileLayout() : renderDesktopLayout()}
-
-      <div className="mt-8">
-        {progress && <ProgressBar progress={progress} />}
-      </div>
-
-      <KeyboardShortcuts
-        isOpen={showKeyboardHelp}
-        onClose={() => setShowKeyboardHelp(false)}
-        failedFittingMode={failedFittingMode}
-        showAwesomeFlag={systemSettings?.showAwesomeFlag ?? true}
-        showValidRedshift={systemSettings?.showValidRedshift ?? true}
-        showVisibleNucleus={systemSettings?.showVisibleNucleus ?? true}
-      />
+        <KeyboardShortcuts
+          isOpen={showKeyboardHelp}
+          onClose={() => setShowKeyboardHelp(false)}
+          failedFittingMode={failedFittingMode}
+          showAwesomeFlag={systemSettings?.showAwesomeFlag ?? true}
+          showValidRedshift={systemSettings?.showValidRedshift ?? true}
+          showVisibleNucleus={systemSettings?.showVisibleNucleus ?? true}
+        />
       </div>
     </>
   );
