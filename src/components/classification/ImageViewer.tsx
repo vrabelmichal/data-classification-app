@@ -63,6 +63,12 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   const defaultZoomAppliedRef = useRef(false);
   const shouldRespectDefaultZoomRef = useRef(false);
 
+  // Reset loading/error state when imageUrl changes (e.g., when contrast group changes)
+  useEffect(() => {
+    setIsLoading(true);
+    setHasError(false);
+  }, [imageUrl]);
+
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     setImageWidth(img.naturalWidth);
