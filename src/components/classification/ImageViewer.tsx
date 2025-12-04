@@ -500,6 +500,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
         } ${isZoomed ? 'scale-100' : 'scale-100'}`}
         style={{
           filter: `contrast(${contrast})`,
+          imageRendering: 'pixelated',
         }}
       />
 

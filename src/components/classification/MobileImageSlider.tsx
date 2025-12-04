@@ -108,7 +108,7 @@ export function MobileImageSlider({
   const parenPart = parenMatch ? parenMatch[2] : '';
 
   return (
-    <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
+    <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 max-w-[400px] mx-auto">
       {/* Header: Image title on left, position indicator on right - single line */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-gray-200 dark:border-gray-700 min-h-0">
         {/* Image name - single line with ellipsis overflow, parenthetical text smaller */}
