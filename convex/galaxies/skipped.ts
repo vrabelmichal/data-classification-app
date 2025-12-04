@@ -127,3 +127,42 @@ export const skipGalaxy = mutation({
   },
 });
 
+// Unskip galaxy by external ID
+export const unskipGalaxy = mutation({
+  args: {
+    galaxyExternalId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const { userId } = await requireConfirmedUser(ctx);
+
+    // Find the skipped record
+    const existing = await ctx.db
+      .query("skippedGalaxies")
+      .withIndex("by_user_and_galaxy", (q) =>
+        q.eq("userId", userId).eq("galaxyExternalId", args.galaxyExternalId)
+      )
+      .unique();
+
+    if (!existing) {
+      return { success: true }; // Already not skipped
+    }
+
+    await ctx.db.delete(existing._id);
+
+    // Update user's skipped count in the sequence
+    const sequence = await ctx.db
+      .query('galaxySequences')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .order('desc')
+      .first();
+
+    if (sequence && sequence.galaxyExternalIds && sequence.galaxyExternalIds.includes(args.galaxyExternalId)) {
+      await ctx.db.patch(sequence._id, {
+        numSkipped: Math.max((sequence.numSkipped || 1) - 1, 0),
+      });
+    }
+
+    return { success: true };
+  },
+});
+

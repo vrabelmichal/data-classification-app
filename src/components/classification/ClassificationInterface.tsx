@@ -91,6 +91,7 @@ export function ClassificationInterface() {
   // Mutations
   const submitClassification = useMutation(api.classification.submitClassification);
   const skipGalaxy = useMutation(api.galaxies.skipped.skipGalaxy);
+  const unskipGalaxy = useMutation(api.galaxies.skipped.unskipGalaxy);
   const loadAdditionalDetailsMutation = useMutation(api.galaxies.core.getAdditionalGalaxyDetailsByExternalId);
 
   // Display galaxy
@@ -292,20 +293,29 @@ export function ClassificationInterface() {
     }
     if (!currentGalaxy) return;
     try {
-      await skipGalaxy({
-        galaxyExternalId: currentGalaxy.id,
-        comments: formState.comments.trim() || undefined
-      });
-      toast.info("Galaxy skipped");
-      if (navigation?.hasNext) {
-        const result = await navNext();
-        if (result) setCurrentGalaxy(result);
+      if (isSkipped) {
+        // Unskip the galaxy
+        await unskipGalaxy({
+          galaxyExternalId: currentGalaxy.id,
+        });
+        toast.info("Galaxy removed from skipped list");
+      } else {
+        // Skip the galaxy
+        await skipGalaxy({
+          galaxyExternalId: currentGalaxy.id,
+          comments: formState.comments.trim() || undefined
+        });
+        toast.info("Galaxy skipped");
+        if (navigation?.hasNext) {
+          const result = await navNext();
+          if (result) setCurrentGalaxy(result);
+        }
       }
     } catch (error) {
-      toast.error("Failed to skip galaxy");
+      toast.error(isSkipped ? "Failed to unskip galaxy" : "Failed to skip galaxy");
       console.error(error);
     }
-  }, [currentGalaxy, formState.comments, skipGalaxy, navigation, navNext, isOnline]);
+  }, [currentGalaxy, formState.comments, skipGalaxy, unskipGalaxy, navigation, navNext, isOnline, isSkipped]);
 
   const handlePrevious = useCallback(async () => {
     if (!isOnline) {
@@ -578,6 +588,7 @@ export function ClassificationInterface() {
         formLocked={formLocked}
         navigation={navigation}
         isOnline={isOnline}
+        isSkipped={isSkipped === true}
         onSubmit={handleSubmit}
         onSkip={handleSkip}
         onPrevious={handlePrevious}
@@ -670,6 +681,7 @@ export function ClassificationInterface() {
           formLocked={formLocked}
           navigation={navigation}
           isOnline={isOnline}
+          isSkipped={isSkipped === true}
           onSubmit={handleSubmit}
           onSkip={handleSkip}
           onPrevious={handlePrevious}
