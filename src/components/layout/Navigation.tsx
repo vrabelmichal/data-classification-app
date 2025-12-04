@@ -5,6 +5,7 @@ import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
 import { SignOutButton } from "../../SignOutButton";
 import { DebugAdminButton } from "../admin/DebugAdminButton";
+import { DarkModeToggle } from "../navigation/DarkModeToggle";
 
 interface NavigationItem {
   id: string;
@@ -42,14 +43,16 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                 {appName}
               </h1>
             </div>
-            <button
-              onClick={() => setIsOpen(!isOpen)}
-              className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
+            <div className="flex items-center space-x-1">
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -95,6 +98,11 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
               
               {/* Mobile Sign Out */}
               <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                {/* Theme Toggle */}
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</span>
+                  <DarkModeToggle showLabel size="sm" />
+                </div>
                 {userProfile && (
                   <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
                     <div className="font-medium">Classifications: {userProfile.classificationsCount}</div>
@@ -162,17 +170,22 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
             </ul>
           </nav>
 
-          {/* User Info */}
-          {userProfile && (
-            <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+          {/* User Info & Theme Toggle */}
+          <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
+            {/* Theme Toggle */}
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</span>
+              <DarkModeToggle showLabel size="sm" />
+            </div>
+            {userProfile && (
               <div className="text-sm text-gray-600 dark:text-gray-300">
                 <div className="font-medium">Classifications: {userProfile.classificationsCount}</div>
                 <div className="text-xs mt-1">
                   Role: {userProfile.role === "admin" ? "Administrator" : "User"}
                 </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
           <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
             <SignOutButton />
           </div>

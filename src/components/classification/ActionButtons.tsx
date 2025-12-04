@@ -6,6 +6,7 @@ interface ActionButtonsProps {
   formLocked: boolean;
   navigation: NavigationStateOrNull;
   isOnline: boolean;
+  isSkipped?: boolean;
   onSubmit: () => void;
   onSkip: () => void;
   onPrevious: () => void;
@@ -17,6 +18,7 @@ export function ActionButtons({
   formLocked,
   navigation,
   isOnline,
+  isSkipped,
   onSubmit,
   onSkip,
   onPrevious,
@@ -42,11 +44,13 @@ export function ActionButtons({
         className={cn(
           "py-3 px-4 rounded-lg font-semibold transition-colors",
           !formLocked && isOnline
-            ? "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
+            ? isSkipped
+              ? "bg-amber-500 hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700 text-white"
+              : "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
             : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
         )}
       >
-        Skip
+        {isSkipped ? "Unskip" : "Skip"}
       </button>
       <button
         onClick={onPrevious}
