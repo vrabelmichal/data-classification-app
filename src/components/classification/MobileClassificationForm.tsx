@@ -77,10 +77,10 @@ export function MobileClassificationForm({
   return (
     <div className="space-y-4">
       {/* LSB Classification */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">
+      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 pt-3">
+        <div className="absolute top-2 right-3 text-xs text-gray-500 dark:text-gray-400 select-none">
           Is it LSB?
-        </h3>
+        </div>
         <div className="space-y-2">
           {LSB_OPTIONS.map((option) => (
             <label key={option.value} className="flex items-center cursor-pointer">
@@ -105,10 +105,10 @@ export function MobileClassificationForm({
       </div>
 
       {/* Morphology Classification */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-3">
+      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 pt-3">
+        <div className="absolute top-2 right-3 text-xs text-gray-500 dark:text-gray-400 select-none">
           Morphology Type
-        </h3>
+        </div>
         <div className="space-y-2">
           {MORPHOLOGY_OPTIONS.map((option) => (
             <label key={option.value} className="flex items-center cursor-pointer">
