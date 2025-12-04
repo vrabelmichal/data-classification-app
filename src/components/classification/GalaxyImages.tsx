@@ -49,6 +49,7 @@ export function GalaxyImages({
                   x: displayGalaxy.x,
                   y: displayGalaxy.y,
                 })}
+                rectangle={imageType.rectangle}
               />
             ) : (
               <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">

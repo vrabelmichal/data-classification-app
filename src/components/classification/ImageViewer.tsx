@@ -26,6 +26,13 @@ export interface DefaultZoomOptions {
   applyIfOriginalSizeBelow?: number;
 }
 
+export interface ImageRectangleOverlay {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface ImageViewerProps {
   imageUrl: string;
   alt: string;
@@ -40,9 +47,10 @@ interface ImageViewerProps {
   x?: number; // center x coordinate
   y?: number; // center y coordinate
   defaultZoomOptions?: DefaultZoomOptions;
+  rectangle?: ImageRectangleOverlay; // rectangle overlay
 }
 
-export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, pa, q, x, y, defaultZoomOptions }: ImageViewerProps) {
+export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, pa, q, x, y, defaultZoomOptions, rectangle }: ImageViewerProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isZoomed, setIsZoomed] = useState(false);
@@ -422,6 +430,14 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     rotation: 90 - pa  // Adjusted for astronomical PA convention (east of north)
   } : null;
 
+  // Rectangle overlay parameters (uses absolute pixel coordinates from config)
+  const rectangleParams = rectangle ? {
+    x: rectangle.x,
+    y: rectangle.y,
+    width: rectangle.width,
+    height: rectangle.height,
+  } : null;
+
   if (hasError) {
     return (
       <div className="w-full h-full bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center">
@@ -500,7 +516,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
         } ${isZoomed ? 'scale-100' : 'scale-100'}`}
         style={{
           filter: `contrast(${contrast})`,
-          imageRendering: 'pixelated',
+          // imageRendering: 'pixelated',
         }}
       />
 
@@ -521,6 +537,25 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
             strokeWidth={2}
             vectorEffect="non-scaling-stroke"
             transform={`rotate(${ellipseParams.rotation}, ${ellipseParams.cx}, ${ellipseParams.cy})`}
+          />
+        </svg>
+      )}
+
+      {/* Rectangle overlay */}
+      {rectangleParams && (
+        <svg
+          viewBox={`0 0 ${imageWidth || HALF_LIGHT_IMAGE_SIZE} ${imageHeight || HALF_LIGHT_IMAGE_SIZE}`}
+          className="absolute inset-0 w-full h-full pointer-events-none"
+        >
+          <rect
+            x={rectangleParams.x}
+            y={rectangleParams.y}
+            width={rectangleParams.width}
+            height={rectangleParams.height}
+            fill="none"
+            stroke="lime"
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
           />
         </svg>
       )}
@@ -593,6 +628,26 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
                       strokeWidth={2}
                       vectorEffect="non-scaling-stroke"
                       transform={`rotate(${ellipseParams.rotation}, ${ellipseParams.cx}, ${ellipseParams.cy})`}
+                    />
+                  </svg>
+                )}
+                {/* Rectangle overlay for modal */}
+                {rectangleParams && (
+                  <svg
+                    width={scaledWidth}
+                    height={scaledHeight}
+                    viewBox={`0 0 ${imageWidth || HALF_LIGHT_IMAGE_SIZE} ${imageHeight || HALF_LIGHT_IMAGE_SIZE}`}
+                    className="absolute inset-0 pointer-events-none"
+                  >
+                    <rect
+                      x={rectangleParams.x}
+                      y={rectangleParams.y}
+                      width={rectangleParams.width}
+                      height={rectangleParams.height}
+                      fill="none"
+                      stroke="lime"
+                      strokeWidth={2}
+                      vectorEffect="non-scaling-stroke"
                     />
                   </svg>
                 )}

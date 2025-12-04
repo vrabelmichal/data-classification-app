@@ -14,12 +14,20 @@ export interface ClassificationOption {
   color: string;
 }
 
+export interface ImageRectangle {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface ImageType {
   key: string;
   name: string;
   displayName: React.ReactNode;
   url: string | null;
   showEllipse?: boolean;
+  rectangle?: ImageRectangle;
 }
 
 export interface GalaxyData {

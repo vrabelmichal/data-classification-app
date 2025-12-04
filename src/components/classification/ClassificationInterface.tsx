@@ -127,7 +127,7 @@ export function ClassificationInterface() {
   const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
 
   // Create imageTypes array
-  const imageTypes: ImageType[] = currentImageGroup.map(({ key, label, showEllipse }) => ({
+  const imageTypes: ImageType[] = currentImageGroup.map(({ key, label, showEllipse, rectangle }) => ({
     key,
     name: label,
     displayName: processImageLabel(label),
@@ -135,6 +135,7 @@ export function ClassificationInterface() {
       quality: effectiveImageQuality
     }) : null,
     showEllipse,
+    rectangle,
   }));
 
   // Sort imageTypes based on numColumns

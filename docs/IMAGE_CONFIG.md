@@ -42,6 +42,11 @@ The configuration file should be a JSON file with the following structure:
       - **`key`** (string): The internal image identifier used to construct the image URL
       - **`label`** (string): Display label shown to users. Use `\n` for line breaks.
       - **`showEllipse`** (boolean, optional): If `true`, the r_eff ellipse overlay will be shown on this image when the "Show r_eff" checkbox is enabled. Defaults to `false`.
+      - **`rectangle`** (object, optional): Draws a lime green rectangle overlay on the image. Useful for highlighting a specific region (e.g., the area used for other images). The object has:
+        - **`x`** (number): X coordinate of top-left corner in pixels
+        - **`y`** (number): Y coordinate of top-left corner in pixels
+        - **`width`** (number): Width of rectangle in pixels
+        - **`height`** (number): Height of rectangle in pixels
 
 ## Deployment Options
 
@@ -136,6 +141,20 @@ const settings = loadImageDisplaySettings();
       [
         { "key": "image3", "label": "Image 3", "showEllipse": true },
         { "key": "image4", "label": "Image 4" }
+      ]
+    ]
+  }
+}
+```
+
+### With Rectangle Overlay
+```json
+{
+  "classification": {
+    "contrastGroups": [
+      [
+        { "key": "small_crop", "label": "Small Crop", "showEllipse": true },
+        { "key": "wide_view", "label": "Wide View", "rectangle": { "x": 384, "y": 384, "width": 256, "height": 256 } }
       ]
     ]
   }
