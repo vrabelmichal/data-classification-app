@@ -20,6 +20,12 @@ import { ActionButtons } from "./ActionButtons";
 import { OfflineBanner } from "./OfflineBanner";
 import { CommentsField } from "./CommentsField";
 
+// Mobile-specific components
+import { MobileImageSlider } from "./MobileImageSlider";
+import { MobileSliderControls } from "./MobileSliderControls";
+import { MobileClassificationForm } from "./MobileClassificationForm";
+import { CommentsModal } from "./CommentsModal";
+
 // Hooks
 import { useClassificationForm } from "./useClassificationForm";
 import { useClassificationNavigation } from "./useClassificationNavigation";
@@ -55,6 +61,10 @@ export function ClassificationInterface() {
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const [formLocked, setFormLocked] = useState<boolean>(true);
   const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
+
+  // Mobile-specific state
+  const [mobileSliderIndex, setMobileSliderIndex] = useState(0);
+  const [showCommentsModal, setShowCommentsModal] = useState(false);
 
   // Online status
   const isOnline = useOnlineStatus();
@@ -165,6 +175,7 @@ export function ClassificationInterface() {
   useEffect(() => {
     if (!currentGalaxy) return;
     setCurrentContrastGroup(0);
+    setMobileSliderIndex(0);
     setFormLocked(true);
     setStartTime(Date.now());
   }, [currentGalaxy?._id]);
@@ -496,86 +507,76 @@ export function ClassificationInterface() {
 
   // Render mobile or desktop layout
   const renderMobileLayout = () => (
-    <div className="block space-y-6">
-      {/* Classification form without comments */}
-      <div className="space-y-6">
-        <ClassificationForm
-          lsbClass={formState.lsbClass}
-          morphology={formState.morphology}
-          awesomeFlag={formState.awesomeFlag}
-          validRedshift={formState.validRedshift}
-          visibleNucleus={formState.visibleNucleus}
-          failedFitting={formState.failedFitting}
-          comments={formState.comments}
-          formLocked={formLocked}
-          displayGalaxy={displayGalaxy}
-          failedFittingMode={failedFittingMode}
-          showAwesomeFlag={systemSettings?.showAwesomeFlag ?? true}
-          showValidRedshift={systemSettings?.showValidRedshift ?? true}
-          showVisibleNucleus={systemSettings?.showVisibleNucleus ?? true}
-          hideComments={true}
-          onLsbClassChange={formState.setLsbClass}
-          onMorphologyChange={formState.setMorphology}
-          onAwesomeFlagChange={formState.setAwesomeFlag}
-          onValidRedshiftChange={formState.setValidRedshift}
-          onVisibleNucleusChange={formState.setVisibleNucleus}
-          onFailedFittingChange={formState.setFailedFitting}
-          onCommentsChange={formState.setComments}
-        />
-        <ActionButtons
-          canSubmit={formState.canSubmit}
-          formLocked={formLocked}
-          navigation={navigation}
-          isOnline={isOnline}
-          onSubmit={handleSubmit}
-          onSkip={handleSkip}
-          onPrevious={handlePrevious}
-          onNext={handleNext}
-        />
-      </div>
+    <div className="block space-y-4">
+      {/* 1. Image Slider */}
+      <MobileImageSlider
+        imageTypes={mobileImageTypes}
+        displayGalaxy={displayGalaxy}
+        userPrefs={userPrefs}
+        contrast={contrast}
+        shouldShowEllipse={shouldShowEllipseFunc}
+        currentIndex={mobileSliderIndex}
+        onIndexChange={setMobileSliderIndex}
+      />
 
-      {/* Images section */}
-      <div className="space-y-6">
-        <GalaxyImages
-          imageTypes={mobileImageTypes}
-          displayGalaxy={displayGalaxy}
-          userPrefs={userPrefs}
-          contrast={contrast}
-          showEllipseOverlay={showEllipseOverlay}
-          shouldShowEllipse={shouldShowEllipseFunc}
-        />
-        {/* Aladin and View buttons */}
-        <div className="flex flex-col sm:flex-row gap-4">
-          <button
-            onClick={handleAladinClick}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
-          >
-            Aladin
-          </button>
-          <button
-            onClick={handleContrastClick}
-            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
-          >
-            View {currentContrastGroup + 1}/{imageContrastGroups.length}
-          </button>
-        </div>
-        {/* Galaxy Info with header */}
-        <GalaxyInfo
-          displayGalaxy={displayGalaxy}
-          showAdditionalDetails={showAdditionalDetails}
-          additionalDetails={additionalDetails}
-          loadingDetails={loadingDetails}
-          onToggleDetails={handleToggleDetails}
-          showGalaxyHeader={true}
-          navigation={navigation}
-        />
-        {/* Comments field below images and buttons */}
-        <CommentsField
-          value={formState.comments}
-          onChange={formState.setComments}
-          disabled={formLocked}
-        />
-      </div>
+      {/* 2. Slider Controls: Left, View, Aladin, Right */}
+      <MobileSliderControls
+        currentIndex={mobileSliderIndex}
+        totalImages={mobileImageTypes.length}
+        currentContrastGroup={currentContrastGroup}
+        totalContrastGroups={imageContrastGroups.length}
+        onPrevImage={() => setMobileSliderIndex(Math.max(0, mobileSliderIndex - 1))}
+        onNextImage={() => setMobileSliderIndex(Math.min(mobileImageTypes.length - 1, mobileSliderIndex + 1))}
+        onContrastClick={handleContrastClick}
+        onAladinClick={handleAladinClick}
+      />
+
+      {/* 3. Classification Form with embedded comments button */}
+      <MobileClassificationForm
+        lsbClass={formState.lsbClass}
+        morphology={formState.morphology}
+        awesomeFlag={formState.awesomeFlag}
+        validRedshift={formState.validRedshift}
+        visibleNucleus={formState.visibleNucleus}
+        failedFitting={formState.failedFitting}
+        comments={formState.comments}
+        formLocked={formLocked}
+        displayGalaxy={displayGalaxy}
+        failedFittingMode={failedFittingMode}
+        showAwesomeFlag={systemSettings?.showAwesomeFlag ?? true}
+        showValidRedshift={systemSettings?.showValidRedshift ?? true}
+        showVisibleNucleus={systemSettings?.showVisibleNucleus ?? true}
+        onLsbClassChange={formState.setLsbClass}
+        onMorphologyChange={formState.setMorphology}
+        onAwesomeFlagChange={formState.setAwesomeFlag}
+        onValidRedshiftChange={formState.setValidRedshift}
+        onVisibleNucleusChange={formState.setVisibleNucleus}
+        onFailedFittingChange={formState.setFailedFitting}
+        onOpenComments={() => setShowCommentsModal(true)}
+      />
+
+      {/* Action Buttons */}
+      <ActionButtons
+        canSubmit={formState.canSubmit}
+        formLocked={formLocked}
+        navigation={navigation}
+        isOnline={isOnline}
+        onSubmit={handleSubmit}
+        onSkip={handleSkip}
+        onPrevious={handlePrevious}
+        onNext={handleNext}
+      />
+
+      {/* 4. Galaxy Info with header */}
+      <GalaxyInfo
+        displayGalaxy={displayGalaxy}
+        showAdditionalDetails={showAdditionalDetails}
+        additionalDetails={additionalDetails}
+        loadingDetails={loadingDetails}
+        onToggleDetails={handleToggleDetails}
+        showGalaxyHeader={true}
+        navigation={navigation}
+      />
     </div>
   );
 
@@ -722,6 +723,15 @@ export function ClassificationInterface() {
           showAwesomeFlag={systemSettings?.showAwesomeFlag ?? true}
           showValidRedshift={systemSettings?.showValidRedshift ?? true}
           showVisibleNucleus={systemSettings?.showVisibleNucleus ?? true}
+        />
+
+        {/* Comments Modal - works on both mobile and desktop */}
+        <CommentsModal
+          isOpen={showCommentsModal}
+          onClose={() => setShowCommentsModal(false)}
+          value={formState.comments}
+          onChange={formState.setComments}
+          disabled={formLocked}
         />
       </div>
     </>

@@ -11,6 +11,12 @@ export { ProgressBar } from "./ProgressBar";
 export { ImageViewer } from "./ImageViewer";
 export { KeyboardShortcuts } from "./KeyboardShortcuts";
 
+// Mobile-specific components
+export { MobileImageSlider } from "./MobileImageSlider";
+export { MobileSliderControls } from "./MobileSliderControls";
+export { MobileClassificationForm } from "./MobileClassificationForm";
+export { CommentsModal } from "./CommentsModal";
+
 // Hooks
 export { useClassificationForm } from "./useClassificationForm";
 export { useClassificationNavigation } from "./useClassificationNavigation";
