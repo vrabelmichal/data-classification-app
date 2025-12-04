@@ -100,21 +100,23 @@ export function MobileImageSlider({
 
   return (
     <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-      {/* Image title */}
-      <div className="px-4 py-2 border-b border-gray-200 dark:border-gray-700">
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white text-center">
+      {/* Header: Image title on left, position indicator on right */}
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
+        {/* Image name */}
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate flex-1 mr-3">
           {currentImage?.displayName}
         </h3>
-        {/* Dot indicators */}
-        <div className="flex justify-center gap-1.5 mt-2">
+        
+        {/* Position indicator with dots */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
           {imageTypes.map((_, idx) => (
             <button
               key={idx}
               onClick={() => onIndexChange(idx)}
-              className={`w-2 h-2 rounded-full transition-colors ${
+              className={`w-2 h-2 rounded-full transition-all ${
                 idx === currentIndex
-                  ? "bg-blue-600 dark:bg-blue-400"
-                  : "bg-gray-300 dark:bg-gray-600"
+                  ? "bg-blue-600 dark:bg-blue-400 scale-110"
+                  : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500"
               }`}
               aria-label={`Go to image ${idx + 1}`}
             />
