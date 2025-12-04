@@ -445,8 +445,13 @@ export function ClassificationInterface() {
   const shouldShowEllipseFunc = (imageName: string) =>
     shouldShowEllipseHelper(imageName, showEllipseOverlay);
 
-  // Loading state
-  if (currentGalaxy === undefined && galaxy === undefined) {
+  // Loading state - check if the relevant galaxy query is still loading
+  // When routeGalaxyId exists, we use galaxyByExternalId; otherwise we use galaxy
+  const isGalaxyQueryLoading = routeGalaxyId 
+    ? galaxyByExternalId === undefined 
+    : galaxy === undefined;
+  
+  if (isGalaxyQueryLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="text-center">
@@ -457,8 +462,20 @@ export function ClassificationInterface() {
     );
   }
 
-  // No galaxy state
-  if (!currentGalaxy && !galaxy) {
+  // No galaxy state - galaxy query has resolved but returned null (no more galaxies)
+  if (!currentGalaxy && !galaxy && !galaxyByExternalId) {
+    // If userProfile is still loading, show loading state instead of "All Done"
+    if (userProfile === undefined) {
+      return (
+        <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8">
         <div className="text-center max-w-md">
