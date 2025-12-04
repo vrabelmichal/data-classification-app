@@ -142,7 +142,11 @@ export function MobileClassificationForm({
               const isSelected = lsbClass === option.value;
               const colorClass = option.color; // e.g. 'bg-green-500'
               const colorLight = colorClass.replace("-500", "-50"); // e.g. 'bg-green-50'
+              const colorDark = colorClass.replace("-500", "-900/30"); // e.g. 'bg-green-900/30' for dark background
               const borderColor = colorClass.replace("bg-", "border-"); // e.g. 'border-green-500'
+              const selectedText = colorClass.includes("yellow")
+                ? "text-gray-900 dark:text-white"
+                : "text-white dark:text-white";
               return (
                 <button
                   key={option.value}
@@ -153,8 +157,14 @@ export function MobileClassificationForm({
                     "h-10 px-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-1.5",
                     "border-2 active:scale-95",
                     isSelected
-                      ? cn(borderColor, colorClass, "text-white dark:text-white")
-                      : cn("border-gray-200 dark:border-gray-600", colorLight, "text-gray-700 dark:text-gray-300"),
+                      ? cn(borderColor, colorClass, selectedText)
+                      : cn(
+                          "border-gray-200 dark:border-gray-600",
+                          colorLight,
+                          // dark-mode: use a darker variant of option color for higher contrast
+                          `dark:${colorDark}`,
+                          "text-gray-700 dark:text-white"
+                        ),
                     formLocked && "opacity-50 cursor-not-allowed"
                   )}
                 >
@@ -175,7 +185,11 @@ export function MobileClassificationForm({
               const isSelected = morphology === option.value;
               const colorClass = option.color; // e.g. 'bg-blue-500'
               const colorLight = colorClass.replace("-500", "-50");
+              const colorDark = colorClass.replace("-500", "-900/30");
               const borderColor = colorClass.replace("bg-", "border-");
+              const selectedText = colorClass.includes("yellow")
+                ? "text-gray-900 dark:text-white"
+                : "text-white dark:text-white";
               return (
                 <button
                   key={option.value}
@@ -186,8 +200,13 @@ export function MobileClassificationForm({
                     "h-10 px-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-1.5",
                     "border-2 active:scale-95",
                     isSelected
-                      ? cn(borderColor, colorClass, "text-white dark:text-white")
-                      : cn("border-gray-200 dark:border-gray-600", colorLight, "text-gray-700 dark:text-gray-300"),
+                      ? cn(borderColor, colorClass, selectedText)
+                      : cn(
+                          "border-gray-200 dark:border-gray-600",
+                          colorLight,
+                          `dark:${colorDark}`,
+                          "text-gray-700 dark:text-white"
+                        ),
                     formLocked && "opacity-50 cursor-not-allowed"
                   )}
                 >
@@ -216,7 +235,7 @@ export function MobileClassificationForm({
                     "border-2 active:scale-95",
                     item.checked
                       ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                      : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
+                      : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-white",
                     item.highlight && !item.checked && "border-yellow-400 dark:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20",
                     formLocked && "opacity-50 cursor-not-allowed"
                   )}
@@ -242,7 +261,7 @@ export function MobileClassificationForm({
                   "border-2 active:scale-95",
                   commentPreview
                     ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                    : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
+                    : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-white",
                   formLocked && "opacity-50 cursor-not-allowed",
                   flagItems.length % 2 === 0 && "col-span-2"
                 )}
@@ -269,7 +288,7 @@ export function MobileClassificationForm({
                 "border-2 active:scale-95",
                 commentPreview
                   ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                  : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
+                  : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-white",
                 formLocked && "opacity-50 cursor-not-allowed"
               )}
             >
