@@ -58,7 +58,7 @@ const defaultImageDisplaySettings: ImageDisplaySettings = {
         { key: "aplpy_linear_p1_995_wide_unmasked", label: "APLpy Linear\n(p1_995 wide)", forcedQuality: "low",},
       ],
     ],
-    defaultMobileOrder: [3, 1, 0, 4, 5, 2],
+    defaultMobileOrder: [3, 0, 1, 4, 5, 2],
   },
 };
 
