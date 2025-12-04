@@ -665,7 +665,7 @@ export function ClassificationInterface() {
   return (
     <>
       {!isOnline && <OfflineBanner />}
-      <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
+      <div className={cn("w-full mx-auto px-2 sm:px-6 lg:px-12 pb-20 md:pb-6", isMobile ? "pt-3" : "pt-6")} style={{ maxWidth: "1920px" }}>
         {/* Desktop header - hidden on mobile */}
         {!isMobile && (
           <div className="flex justify-between items-center mb-6">

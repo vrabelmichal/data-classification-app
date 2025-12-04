@@ -97,25 +97,32 @@ export function MobileImageSlider({
   }, [currentIndex]);
 
   const currentImage = imageTypes[currentIndex];
+  
+  // For mobile, parse the name to separate main part and parenthetical part
+  const imageName = currentImage?.name?.replace(/\n/g, ' ') ?? '';
+  const parenMatch = imageName.match(/^(.+?)(\s*\([^)]+\))$/);
+  const mainName = parenMatch ? parenMatch[1] : imageName;
+  const parenPart = parenMatch ? parenMatch[2] : '';
 
   return (
     <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-      {/* Header: Image title on left, position indicator on right */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-gray-700">
-        {/* Image name */}
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate flex-1 mr-3">
-          {currentImage?.displayName}
+      {/* Header: Image title on left, position indicator on right - single line */}
+      <div className="flex items-center justify-between px-3 py-3 border-b border-gray-200 dark:border-gray-700 min-h-0">
+        {/* Image name - single line with ellipsis overflow, parenthetical text smaller */}
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate min-w-0 flex-1 mr-2 leading-tight">
+          {mainName}
+          {parenPart && <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{parenPart}</span>}
         </h3>
         
         {/* Position indicator with dots */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0">
           {imageTypes.map((_, idx) => (
             <button
               key={idx}
               onClick={() => onIndexChange(idx)}
-              className={`w-2 h-2 rounded-full transition-all ${
+              className={`w-1.5 h-1.5 rounded-full transition-all ${
                 idx === currentIndex
-                  ? "bg-blue-600 dark:bg-blue-400 scale-110"
+                  ? "bg-blue-600 dark:bg-blue-400 w-2 h-2"
                   : "bg-gray-300 dark:bg-gray-600 hover:bg-gray-400 dark:hover:bg-gray-500"
               }`}
               aria-label={`Go to image ${idx + 1}`}
