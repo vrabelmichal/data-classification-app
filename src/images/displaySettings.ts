@@ -21,7 +21,7 @@ export interface ImageDisplaySettings {
 }
 
 const defaultImageDisplaySettings: ImageDisplaySettings = {
-  previewImageName: "aplpy_linear_based_on_109534177_unmasked_irg",
+  previewImageName: "aplpy_linear_based_on_109534177__1_995_unmasked_irg",
   classification: {
     defaultGroupIndex: 0,
     contrastGroups: [
@@ -29,7 +29,7 @@ const defaultImageDisplaySettings: ImageDisplaySettings = {
         { key: "g_zscale_masked", label: "Masked g-Band\n(zscale)", showEllipse: true},
         { key: "residual_zscale", label: "Residual\n(zscale)" },
         { key: "model_100_0", label: "Galfit Model\n(100%)" },
-        { key: "aplpy_linear_based_on_109534177_unmasked_irg", label: "APLpy linear\n(109534177-based, irg)", showEllipse: true},   // i,r,g bands
+        { key: "aplpy_linear_based_on_109534177__1_995_unmasked_irg", label: "APLpy linear\n(109534177-based, irg)", showEllipse: true},   // i,r,g bands
         { key: "aplpy_zscale_unmasked", label: "APLpy Zscale\n(unmasked)" },
         { key: "aplpy_linear_p1_995_wide_unmasked", label: "APLpy Linear\n(p1_995 wide)", forcedQuality: "low",},
       ],
