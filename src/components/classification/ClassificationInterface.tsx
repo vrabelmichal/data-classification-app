@@ -127,13 +127,14 @@ export function ClassificationInterface() {
   const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
 
   // Create imageTypes array
-  const imageTypes: ImageType[] = currentImageGroup.map(({ key, label }) => ({
+  const imageTypes: ImageType[] = currentImageGroup.map(({ key, label, showEllipse }) => ({
     key,
     name: label,
     displayName: processImageLabel(label),
     url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, {
       quality: effectiveImageQuality
     }) : null,
+    showEllipse,
   }));
 
   // Sort imageTypes based on numColumns
@@ -452,8 +453,8 @@ export function ClassificationInterface() {
   }, [handlePrevious, handleNext, handleSkip, currentContrastGroup, isOnline]);
 
   // Helper for ellipse overlay
-  const shouldShowEllipseFunc = (imageName: string) =>
-    shouldShowEllipseHelper(imageName, showEllipseOverlay);
+  const shouldShowEllipseFunc = (showEllipse: boolean | undefined) =>
+    shouldShowEllipseHelper(showEllipse, showEllipseOverlay);
 
   // Loading state - check if the relevant galaxy query is still loading
   // When routeGalaxyId exists, we use galaxyByExternalId; otherwise we use galaxy
@@ -595,6 +596,19 @@ export function ClassificationInterface() {
         onNext={handleNext}
       />
 
+      {/* Display Options */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3">
+        <label className="flex items-center cursor-pointer text-sm text-gray-600 dark:text-gray-300">
+          <input
+            type="checkbox"
+            checked={showEllipseOverlay}
+            onChange={(e) => setShowEllipseOverlay(e.target.checked)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 mr-2"
+          />
+          Show&nbsp;<em>r<sub>eff</sub></em>
+        </label>
+      </div>
+
       {/* 4. Galaxy Info with header */}
       <GalaxyInfo
         displayGalaxy={displayGalaxy}
@@ -724,7 +738,7 @@ export function ClassificationInterface() {
                   onChange={(e) => setShowEllipseOverlay(e.target.checked)}
                   className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 mr-2"
                 />
-                Show <em>r<sub>eff</sub></em>
+                Show&nbsp;<em>r<sub>eff</sub></em>
               </label>
               <button
                 onClick={() => setShowKeyboardHelp(true)}

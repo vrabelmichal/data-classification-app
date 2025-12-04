@@ -13,7 +13,7 @@ interface GalaxyImagesProps {
   userPrefs: UserPreferences | null | undefined;
   contrast: number;
   showEllipseOverlay: boolean;
-  shouldShowEllipse: (imageName: string) => boolean;
+  shouldShowEllipse: (showEllipse: boolean | undefined) => boolean;
 }
 
 export function GalaxyImages({
@@ -42,7 +42,7 @@ export function GalaxyImages({
                 preferences={userPrefs}
                 contrast={contrast}
                 defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
-                {...(shouldShowEllipse(imageType.name) && {
+                {...(shouldShowEllipse(imageType.showEllipse) && {
                   reff: displayGalaxy.reff_pixels,
                   pa: displayGalaxy.pa,
                   q: displayGalaxy.q,

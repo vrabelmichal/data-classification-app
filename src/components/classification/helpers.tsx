@@ -157,8 +157,8 @@ export function processImageLabel(label: string): React.ReactNode {
 }
 
 /**
- * Check if an image should show the ellipse overlay
+ * Check if an image should show the ellipse overlay based on its showEllipse property
  */
-export function shouldShowEllipse(imageName: string, showEllipseOverlay: boolean): boolean {
-  return imageName.includes("Masked g-Band") && showEllipseOverlay;
+export function shouldShowEllipse(imageShowEllipse: boolean | undefined, showEllipseOverlay: boolean): boolean {
+  return (imageShowEllipse === true) && showEllipseOverlay;
 }

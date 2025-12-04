@@ -8,7 +8,7 @@ interface MobileImageSliderProps {
   displayGalaxy: GalaxyData;
   userPrefs: UserPreferences | null | undefined;
   contrast: number;
-  shouldShowEllipse: (imageName: string) => boolean;
+  shouldShowEllipse: (showEllipse: boolean | undefined) => boolean;
   currentIndex: number;
   onIndexChange: (index: number) => void;
   /** Optional controls to render as an overlay at the bottom of the image */
@@ -166,7 +166,7 @@ export function MobileImageSlider({
                     preferences={userPrefs}
                     contrast={contrast}
                     defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
-                    {...(shouldShowEllipse(imageType.name) && {
+                    {...(shouldShowEllipse(imageType.showEllipse) && {
                       reff: displayGalaxy.reff_pixels,
                       pa: displayGalaxy.pa,
                       q: displayGalaxy.q,

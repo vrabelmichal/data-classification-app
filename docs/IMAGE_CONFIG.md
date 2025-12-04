@@ -41,6 +41,7 @@ The configuration file should be a JSON file with the following structure:
     - Each entry has:
       - **`key`** (string): The internal image identifier used to construct the image URL
       - **`label`** (string): Display label shown to users. Use `\n` for line breaks.
+      - **`showEllipse`** (boolean, optional): If `true`, the r_eff ellipse overlay will be shown on this image when the "Show r_eff" checkbox is enabled. Defaults to `false`.
 
 ## Deployment Options
 
@@ -129,11 +130,11 @@ const settings = loadImageDisplaySettings();
     "defaultGroupIndex": 1,
     "contrastGroups": [
       [
-        { "key": "image1", "label": "Image 1" },
+        { "key": "image1", "label": "Image 1", "showEllipse": true },
         { "key": "image2", "label": "Image 2" }
       ],
       [
-        { "key": "image3", "label": "Image 3" },
+        { "key": "image3", "label": "Image 3", "showEllipse": true },
         { "key": "image4", "label": "Image 4" }
       ]
     ]

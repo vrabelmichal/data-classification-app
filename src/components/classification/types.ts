@@ -19,6 +19,7 @@ export interface ImageType {
   name: string;
   displayName: React.ReactNode;
   url: string | null;
+  showEllipse?: boolean;
 }
 
 export interface GalaxyData {
