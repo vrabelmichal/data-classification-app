@@ -525,7 +525,7 @@ export function ClassificationInterface() {
   // Render mobile or desktop layout
   const renderMobileLayout = () => (
     <div className="block space-y-4">
-      {/* 1. Image Slider */}
+      {/* 1. Image Slider with overlay controls */}
       <MobileImageSlider
         imageTypes={mobileImageTypes}
         displayGalaxy={displayGalaxy}
@@ -534,18 +534,18 @@ export function ClassificationInterface() {
         shouldShowEllipse={shouldShowEllipseFunc}
         currentIndex={mobileSliderIndex}
         onIndexChange={setMobileSliderIndex}
-      />
-
-      {/* 2. Slider Controls: Left, View, Aladin, Right */}
-      <MobileSliderControls
-        currentIndex={mobileSliderIndex}
-        totalImages={mobileImageTypes.length}
-        currentContrastGroup={currentContrastGroup}
-        totalContrastGroups={imageContrastGroups.length}
-        onPrevImage={() => setMobileSliderIndex(Math.max(0, mobileSliderIndex - 1))}
-        onNextImage={() => setMobileSliderIndex(Math.min(mobileImageTypes.length - 1, mobileSliderIndex + 1))}
-        onContrastClick={handleContrastClick}
-        onAladinClick={handleAladinClick}
+        renderControls={
+          <MobileSliderControls
+            currentIndex={mobileSliderIndex}
+            totalImages={mobileImageTypes.length}
+            currentContrastGroup={currentContrastGroup}
+            totalContrastGroups={imageContrastGroups.length}
+            onPrevImage={() => setMobileSliderIndex(Math.max(0, mobileSliderIndex - 1))}
+            onNextImage={() => setMobileSliderIndex(Math.min(mobileImageTypes.length - 1, mobileSliderIndex + 1))}
+            onContrastClick={handleContrastClick}
+            onAladinClick={handleAladinClick}
+          />
+        }
       />
 
       {/* 3. Classification Form with embedded comments button */}

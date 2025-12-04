@@ -104,33 +104,33 @@ export function MobileSliderControls({
         onClick={onPrevImage}
         disabled={!canGoPrev}
         className={cn(
-          "p-3 rounded-lg transition-colors",
+          "p-2.5 rounded-lg transition-colors backdrop-blur-sm",
           canGoPrev
-            ? "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
-            : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+            ? "bg-white/80 hover:bg-white/90 text-gray-700"
+            : "bg-white/40 text-gray-400 cursor-not-allowed"
         )}
         aria-label="Previous image"
       >
-        <ChevronLeftIcon className="w-6 h-6" />
+        <ChevronLeftIcon className="w-5 h-5" />
       </button>
 
-      {/* View/Contrast Button - Larger */}
+      {/* View/Contrast Button */}
       <button
         onClick={onContrastClick}
-        className="flex items-center gap-2 px-5 py-3 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-medium transition-colors"
+        className="flex items-center gap-1.5 px-4 py-2.5 rounded-lg bg-white/80 hover:bg-white/90 text-gray-700 font-medium transition-colors backdrop-blur-sm"
         aria-label={`Change view (${currentContrastGroup + 1} of ${totalContrastGroups})`}
       >
-        <EyeIcon className="w-5 h-5" />
+        <EyeIcon className="w-4 h-4" />
         <span className="text-sm">{currentContrastGroup + 1}/{totalContrastGroups}</span>
       </button>
 
       {/* Aladin Button */}
       <button
         onClick={onAladinClick}
-        className="p-3 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
+        className="p-2.5 rounded-lg bg-blue-500/90 hover:bg-blue-600/90 text-white transition-colors backdrop-blur-sm"
         aria-label="Open in Aladin"
       >
-        <ExternalLinkIcon className="w-6 h-6" />
+        <ExternalLinkIcon className="w-5 h-5" />
       </button>
 
       {/* Next Image Button */}
@@ -138,14 +138,14 @@ export function MobileSliderControls({
         onClick={onNextImage}
         disabled={!canGoNext}
         className={cn(
-          "p-3 rounded-lg transition-colors",
+          "p-2.5 rounded-lg transition-colors backdrop-blur-sm",
           canGoNext
-            ? "bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-200"
-            : "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed"
+            ? "bg-white/80 hover:bg-white/90 text-gray-700"
+            : "bg-white/40 text-gray-400 cursor-not-allowed"
         )}
         aria-label="Next image"
       >
-        <ChevronRightIcon className="w-6 h-6" />
+        <ChevronRightIcon className="w-5 h-5" />
       </button>
     </div>
   );

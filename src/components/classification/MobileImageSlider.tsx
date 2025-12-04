@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
 import { ImageViewer } from "./ImageViewer";
 import { SMALL_IMAGE_DEFAULT_ZOOM } from "./GalaxyImages";
 import type { ImageType, GalaxyData, UserPreferences } from "./types";
@@ -11,6 +11,8 @@ interface MobileImageSliderProps {
   shouldShowEllipse: (imageName: string) => boolean;
   currentIndex: number;
   onIndexChange: (index: number) => void;
+  /** Optional controls to render as an overlay at the bottom of the image */
+  renderControls?: ReactNode;
 }
 
 export function MobileImageSlider({
@@ -21,6 +23,7 @@ export function MobileImageSlider({
   shouldShowEllipse,
   currentIndex,
   onIndexChange,
+  renderControls,
 }: MobileImageSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -152,7 +155,7 @@ export function MobileImageSlider({
           {imageTypes.map((imageType, index) => (
             <div
               key={index}
-              className="w-full flex-shrink-0 p-4"
+              className="w-full flex-shrink-0 p-2"
               style={{ minWidth: "100%" }}
             >
               <div className="aspect-square">
@@ -183,6 +186,13 @@ export function MobileImageSlider({
             </div>
           ))}
         </div>
+
+        {/* Fixed overlay controls at the bottom - stays in place while images slide */}
+        {renderControls && (
+          <div className="absolute bottom-4 left-2 right-2 pointer-events-auto">
+            {renderControls}
+          </div>
+        )}
       </div>
     </div>
   );
