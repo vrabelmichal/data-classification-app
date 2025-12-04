@@ -21,6 +21,20 @@ function ChatIcon({ className }: { className?: string }) {
   );
 }
 
+// Compact label map for mobile buttons
+const MOBILE_LSB_LABELS: Record<number, string> = {
+  [-1]: "Failed",
+  0: "Non-LSB",
+  1: "LSB",
+};
+
+const MOBILE_MORPHOLOGY_LABELS: Record<number, string> = {
+  [-1]: "Featureless",
+  0: "Irr/other",
+  1: "LTG (Sp)",
+  2: "ETG (Ell)",
+};
+
 interface MobileClassificationFormProps {
   lsbClass: number | null;
   morphology: number | null;
@@ -74,149 +88,167 @@ export function MobileClassificationForm({
   // Truncate comment for preview
   const commentPreview = comments.trim();
 
+  // Build flags array for grid layout
+  const flagItems: Array<{
+    key: string;
+    label: string;
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    highlight?: boolean;
+  }> = [];
+
+  if (failedFittingMode === "checkbox") {
+    flagItems.push({
+      key: "failed",
+      label: "Failed",
+      checked: failedFitting,
+      onChange: onFailedFittingChange,
+    });
+  }
+  if (showAwesomeFlag) {
+    flagItems.push({
+      key: "awesome",
+      label: "Awesome",
+      checked: awesomeFlag,
+      onChange: onAwesomeFlagChange,
+    });
+  }
+  if (showValidRedshift) {
+    flagItems.push({
+      key: "redshift",
+      label: "Valid z",
+      checked: validRedshift,
+      onChange: onValidRedshiftChange,
+    });
+  }
+  if (showVisibleNucleus) {
+    flagItems.push({
+      key: "nucleus",
+      label: "Nucleus",
+      checked: visibleNucleus,
+      onChange: onVisibleNucleusChange,
+      highlight: displayGalaxy.nucleus,
+    });
+  }
+
   return (
-    <div className="space-y-4">
-      {/* LSB Classification */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 pt-3">
-        <div className="absolute top-2 right-3 text-xs text-gray-500 dark:text-gray-400 select-none">
-          Is it LSB?
-        </div>
-        <div className="space-y-2">
-          {LSB_OPTIONS.map((option) => (
-            <label key={option.value} className="flex items-center cursor-pointer">
-              <input
-                type="radio"
-                name="lsb-mobile"
-                value={option.value}
-                checked={lsbClass === option.value}
-                onChange={() => onLsbClassChange(option.value)}
-                disabled={formLocked}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              <div className="ml-3 flex items-center space-x-2">
-                <div className={`w-3 h-3 rounded-full ${option.color}`}></div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {option.label}
-                </span>
-              </div>
-            </label>
-          ))}
-        </div>
-      </div>
-
-      {/* Morphology Classification */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 pt-3">
-        <div className="absolute top-2 right-3 text-xs text-gray-500 dark:text-gray-400 select-none">
-          Morphology Type
-        </div>
-        <div className="space-y-2">
-          {MORPHOLOGY_OPTIONS.map((option) => (
-            <label key={option.value} className="flex items-center cursor-pointer">
-              <input
-                type="radio"
-                name="morphology-mobile"
-                value={option.value}
-                checked={morphology === option.value}
-                onChange={() => onMorphologyChange(option.value)}
-                disabled={formLocked}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              />
-              <div className="ml-3 flex items-center space-x-2">
-                <div className={`w-3 h-3 rounded-full ${option.color}`}></div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {option.label}
-                </span>
-              </div>
-            </label>
-          ))}
+    <div className="space-y-2">
+      {/* LSB Classification - Grid of pill buttons */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-2 py-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400 font-medium shrink-0 w-12">LSB?</span>
+          <div className="grid grid-cols-2 gap-1.5 flex-1">
+            {LSB_OPTIONS.map((option) => {
+              const isSelected = lsbClass === option.value;
+              const colorClass = option.color; // e.g. 'bg-green-500'
+              const colorLight = colorClass.replace("-500", "-50"); // e.g. 'bg-green-50'
+              const borderColor = colorClass.replace("bg-", "border-"); // e.g. 'border-green-500'
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onLsbClassChange(option.value)}
+                  disabled={formLocked}
+                  className={cn(
+                    "h-10 px-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-1.5",
+                    "border-2 active:scale-95",
+                    isSelected
+                      ? cn(borderColor, colorClass, "text-white dark:text-white")
+                      : cn("border-gray-200 dark:border-gray-600", colorLight, "text-gray-700 dark:text-gray-300"),
+                    formLocked && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <span className="truncate">{MOBILE_LSB_LABELS[option.value] ?? option.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* Flags + Comments Section */}
+      {/* Morphology Classification - Grid of pill buttons */}
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-2 py-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400 font-medium shrink-0 w-12">Morph</span>
+          <div className="grid grid-cols-2 gap-1.5 flex-1">
+            {MORPHOLOGY_OPTIONS.map((option) => {
+              const isSelected = morphology === option.value;
+              const colorClass = option.color; // e.g. 'bg-blue-500'
+              const colorLight = colorClass.replace("-500", "-50");
+              const borderColor = colorClass.replace("bg-", "border-");
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onMorphologyChange(option.value)}
+                  disabled={formLocked}
+                  className={cn(
+                    "h-10 px-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-1.5",
+                    "border-2 active:scale-95",
+                    isSelected
+                      ? cn(borderColor, colorClass, "text-white dark:text-white")
+                      : cn("border-gray-200 dark:border-gray-600", colorLight, "text-gray-700 dark:text-gray-300"),
+                    formLocked && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <span className="truncate">{MOBILE_MORPHOLOGY_LABELS[option.value] ?? option.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Flags + Comments Section - Compact grid */}
       {hasOptionalFlags && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-          <div className="space-y-2">
-            {failedFittingMode === "checkbox" && (
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={failedFitting}
-                  onChange={(e) => onFailedFittingChange(e.target.checked)}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-2 py-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium shrink-0 w-12">Flags</span>
+            <div className="grid grid-cols-2 gap-1.5 flex-1">
+              {flagItems.map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => item.onChange(!item.checked)}
                   disabled={formLocked}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
-                  Failed fitting
-                </span>
-              </label>
-            )}
-
-            {showAwesomeFlag && (
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={awesomeFlag}
-                  onChange={(e) => onAwesomeFlagChange(e.target.checked)}
-                  disabled={formLocked}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
-                  Awesome
-                </span>
-              </label>
-            )}
-
-            {showValidRedshift && (
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={validRedshift}
-                  onChange={(e) => onValidRedshiftChange(e.target.checked)}
-                  disabled={formLocked}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
-                  Valid redshift
-                </span>
-              </label>
-            )}
-
-            {showVisibleNucleus && (
-              <label
-                className={cn(
-                  "flex items-center cursor-pointer",
-                  displayGalaxy.nucleus ? "bg-yellow-50 dark:bg-yellow-900/20 -mx-4 px-4 py-1" : ""
-                )}
-              >
-                <input
-                  type="checkbox"
-                  checked={visibleNucleus}
-                  onChange={(e) => onVisibleNucleusChange(e.target.checked)}
-                  disabled={formLocked}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                />
-                <span className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
-                  Visible nucleus
-                </span>
-              </label>
-            )}
-
-            {/* Comment Button Row */}
-            <div className="flex items-center pt-1 border-t border-gray-100 dark:border-gray-700 mt-2">
+                  className={cn(
+                    "h-10 px-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-1.5",
+                    "border-2 active:scale-95",
+                    item.checked
+                      ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                      : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
+                    item.highlight && !item.checked && "border-yellow-400 dark:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20",
+                    formLocked && "opacity-50 cursor-not-allowed"
+                  )}
+                >
+                  <span className={cn(
+                    "w-4 h-4 rounded border-2 flex items-center justify-center shrink-0 text-xs",
+                    item.checked
+                      ? "bg-blue-500 border-blue-500 text-white"
+                      : "border-gray-300 dark:border-gray-500"
+                  )}>
+                    {item.checked && "✓"}
+                  </span>
+                  <span className="truncate">{item.label}</span>
+                </button>
+              ))}
+              {/* Comment button in grid */}
               <button
+                type="button"
                 onClick={onOpenComments}
                 disabled={formLocked}
                 className={cn(
-                  "flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed",
-                  commentPreview && "text-blue-600 dark:text-blue-400"
+                  "h-10 px-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-1.5",
+                  "border-2 active:scale-95",
+                  commentPreview
+                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                    : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
+                  formLocked && "opacity-50 cursor-not-allowed",
+                  flagItems.length % 2 === 0 && "col-span-2"
                 )}
               >
-                <ChatIcon className="w-4 h-4 flex-shrink-0" />
-                {commentPreview ? (
-                  <span className="truncate max-w-[200px]">{commentPreview}</span>
-                ) : (
-                  <span>Add comment</span>
-                )}
+                <ChatIcon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{commentPreview || "Comment"}</span>
               </button>
             </div>
           </div>
@@ -225,22 +257,26 @@ export function MobileClassificationForm({
 
       {/* Comment button standalone if no optional flags */}
       {!hasOptionalFlags && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-          <button
-            onClick={onOpenComments}
-            disabled={formLocked}
-            className={cn(
-              "flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed w-full",
-              commentPreview && "text-blue-600 dark:text-blue-400"
-            )}
-          >
-            <ChatIcon className="w-4 h-4 flex-shrink-0" />
-            {commentPreview ? (
-              <span className="truncate">{commentPreview}</span>
-            ) : (
-              <span>Add comment</span>
-            )}
-          </button>
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 px-2 py-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-gray-500 dark:text-gray-400 font-medium shrink-0 w-12"></span>
+            <button
+              type="button"
+              onClick={onOpenComments}
+              disabled={formLocked}
+              className={cn(
+                "h-10 px-2 rounded-md text-sm font-medium transition-all flex items-center justify-center gap-1.5 flex-1",
+                "border-2 active:scale-95",
+                commentPreview
+                  ? "border-blue-500 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                  : "border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300",
+                formLocked && "opacity-50 cursor-not-allowed"
+              )}
+            >
+              <ChatIcon className="w-4 h-4 shrink-0" />
+              <span className="truncate">{commentPreview || "Comment"}</span>
+            </button>
+          </div>
         </div>
       )}
     </div>
