@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 // Enable/disable half-light radius circle overlay
 const ENABLE_HALF_LIGHT_CIRCLE = true;
@@ -523,8 +524,8 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
         </svg>
       )}
 
-      {/* Modal + backdrop rendered when zoomed. Image modal must be above overlay/backdrop. */}
-      {isZoomed && (
+      {/* Modal + backdrop rendered when zoomed using Portal to escape any container constraints */}
+      {isZoomed && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center px-0 py-2 sm:px-4 sm:py-4">
           {/* backdrop */}
           <div
@@ -609,7 +610,8 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
               {controlButtons}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
