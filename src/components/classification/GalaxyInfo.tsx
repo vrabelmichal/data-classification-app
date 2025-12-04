@@ -66,7 +66,7 @@ export function GalaxyInfo({
           {loadingDetails ? 'Loading...' : (showAdditionalDetails ? 'Hide details' : 'Show details')}
         </button>
       </div>
-      {renderAdditionalDetails(additionalDetails, showAdditionalDetails)}
+      {renderAdditionalDetails(additionalDetails, showAdditionalDetails, displayGalaxy.nucleus)}
     </div>
   );
 }

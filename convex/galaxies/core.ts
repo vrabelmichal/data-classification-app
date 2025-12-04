@@ -130,7 +130,7 @@ export const getAdditionalGalaxyDetailsByExternalId = mutation({
       .withIndex("by_external_id", (q) => q.eq("id", externalId))
       .unique();
     if (!galaxy) return null;
-
+    const misc = galaxy.misc;
     // Example: fetch photometry, source extractor, thuruthipilly, etc.
     const photometry_g = await ctx.db
       .query("galaxies_photometry_g")
@@ -159,6 +159,7 @@ export const getAdditionalGalaxyDetailsByExternalId = mutation({
       photometry_i,
       source_extractor,
       thuruthipilly,
+      misc,
     };
   },
 });
