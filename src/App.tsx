@@ -13,6 +13,7 @@ import { Statistics } from "./components/statistics/Statistics";
 import { UserSettings } from "./components/settings/UserSettings";
 import { Help } from "./components/help/Help";
 import { AdminPanel } from "./components/admin/AdminPanel";
+import { NotFound } from "./components/NotFound";
 import { useState, useEffect } from "react";
 
 function App() {
@@ -145,6 +146,7 @@ function App() {
                         element={item.element}
                       />
                     ))}
+                    <Route path="*" element={<NotFound />} />
                   </Routes>
                 </div>
               </div>
