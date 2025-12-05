@@ -474,6 +474,35 @@ export function ClassificationInterface() {
     );
   }
 
+  // Galaxy ID was provided in URL but not found in database
+  if (routeGalaxyId && galaxyByExternalId === null && !currentGalaxy) {
+    return (
+      <div className="flex items-center justify-center min-h-[calc(100vh-4rem)] p-8">
+        <div className="text-center max-w-md">
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-6">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-amber-100 dark:bg-amber-900/40 rounded-full">
+              <svg className="w-6 h-6 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+              Galaxy Not Found
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              The galaxy ID <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-sm font-mono">{routeGalaxyId}</code> was not found in the database.
+            </p>
+            <button
+              onClick={() => navigate('/classify')}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+            >
+              Go to Classification
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // No galaxy state - galaxy query has resolved but returned null (no more galaxies)
   if (!currentGalaxy && !galaxy && !galaxyByExternalId) {
     // If userProfile is still loading, show loading state instead of "All Done"
