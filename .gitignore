@@ -30,3 +30,8 @@ package-lock.json
 
 # Image display configuration (keep .example files)
 static/config/images.json
+
+# Environment variables
+.env
+.env.local
+.env.production
