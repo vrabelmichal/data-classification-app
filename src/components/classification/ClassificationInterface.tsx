@@ -23,6 +23,7 @@ import { CommentsField } from "./CommentsField";
 // Mobile-specific components
 import { MobileImageSlider } from "./MobileImageSlider";
 import { MobileSliderControls } from "./MobileSliderControls";
+import { EyeIcon, AladinLogo } from "./icons";
 import { MobileClassificationForm } from "./MobileClassificationForm";
 import { CommentsModal } from "./CommentsModal";
 
@@ -666,15 +667,18 @@ export function ClassificationInterface() {
         <div className="flex flex-col sm:flex-row gap-4">
           <button
             onClick={handleAladinClick}
-            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium p-3 rounded-lg transition-colors inline-flex items-center justify-center"
+            aria-label="Open in Aladin"
+            title="Open in Aladin"
           >
-            Aladin
+            <AladinLogo className="text-white" size={28} />
           </button>
           <button
             onClick={handleContrastClick}
-            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-3 px-6 rounded-lg transition-colors"
+            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white font-medium py-3 px-6 rounded-lg transition-colors inline-flex items-center justify-center gap-2"
           >
-            View {currentContrastGroup + 1}/{imageContrastGroups.length}
+            <EyeIcon className="w-4 h-4" />
+            <span>View {currentContrastGroup + 1}/{imageContrastGroups.length}</span>
           </button>
         </div>
         <GalaxyInfo
