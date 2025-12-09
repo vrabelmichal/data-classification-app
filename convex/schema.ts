@@ -193,7 +193,9 @@ const applicationTables = {
     // Additional starters for magnitude/mean_mue and structural params
     .index("by_mean_mue_reff", ["mean_mue", "reff"]) 
     .index("by_mag_reff", ["mag", "reff"]) 
-    .index("by_q_reff", ["q", "reff"]) 
+    .index("by_q_reff", ["q", "reff"])
+
+    .index("by_misc_paper", ["misc.paper"]) 
 
     .index("by_totalAssigned_numericId", ["totalAssigned", "numericId"])
 

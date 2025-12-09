@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin } from "./lib/auth";
+import { DEFAULT_AVAILABLE_PAPERS } from "./lib/defaults";
 
 
 // Admin: Get system settings
@@ -46,6 +47,9 @@ export const getSystemSettings = query({
     }
     if (settingsMap.defaultImageQuality === undefined) {
       settingsMap.defaultImageQuality = "high";
+    }
+    if (settingsMap.availablePapers === undefined) {
+      settingsMap.availablePapers = DEFAULT_AVAILABLE_PAPERS;
     }
 
     return settingsMap;
@@ -125,6 +129,7 @@ export const updateSystemSettings = mutation({
     showValidRedshift: v.optional(v.boolean()),
     showVisibleNucleus: v.optional(v.boolean()),
     defaultImageQuality: v.optional(v.union(v.literal("high"), v.literal("low"))),
+    availablePapers: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -301,6 +306,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "defaultImageQuality",
           value: args.defaultImageQuality,
+        });
+      }
+    }
+
+    if (args.availablePapers !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "availablePapers"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.availablePapers });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "availablePapers",
+          value: args.availablePapers,
         });
       }
     }

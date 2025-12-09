@@ -83,7 +83,7 @@ export function AdminPanel() {
       <Routes>
         <Route index element={<Navigate to="users" replace />} />
         <Route path="users" element={<UsersTab users={users} />} />
-        <Route path="galaxies" element={<GalaxiesTab users={users} />} />
+        <Route path="galaxies" element={<GalaxiesTab users={users} systemSettings={systemSettings} />} />
         <Route path="settings" element={<SettingsTab systemSettings={systemSettings} />} />
         <Route path="debugging" element={<DebuggingTab />} />
       </Routes>

@@ -29,6 +29,7 @@ export const generateBalancedUserSequence = mutation({
     sequenceSize: v.optional(v.number()), // S default 50
     allowOverAssign: v.optional(v.boolean()), // default false
     dryRun: v.optional(v.boolean()), // default false
+    paperFilter: v.optional(v.array(v.string())), // Filter by misc.paper values (empty = all papers)
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
@@ -41,6 +42,8 @@ export const generateBalancedUserSequence = mutation({
     const S = Math.min(requestedSize, MAX_SEQUENCE);
     const allowOverAssign = !!args.allowOverAssign;
     const dryRun = !!args.dryRun;
+    // paperFilter: undefined or empty array means all papers, otherwise filter to specified papers
+    const paperFilter = args.paperFilter && args.paperFilter.length > 0 ? args.paperFilter : null;
 
     // Admin check if generating for another user
     if (targetUserId !== userId) {
@@ -62,8 +65,9 @@ export const generateBalancedUserSequence = mutation({
       perUserCapM: M,
       sequenceSize: S,
     }).map((w) => w.message);
+    const errors: string[] = [];
 
-    console.log(`Starting balanced sequence generation: N=${expectedUsers}, K=${K}, M=${M}, S=${S}, allowOverAssign=${allowOverAssign}, dryRun=${dryRun}`);
+    console.log(`Starting balanced sequence generation: N=${expectedUsers}, K=${K}, M=${M}, S=${S}, allowOverAssign=${allowOverAssign}, dryRun=${dryRun}, paperFilter=${paperFilter ? paperFilter.join(',') : 'all'}`);
 
     // Check if there are any galaxies available before proceeding
     const galaxiesExist = (await ctx.db.query("galaxies").take(1)).length > 0;
@@ -74,25 +78,24 @@ export const generateBalancedUserSequence = mutation({
     // Get galaxies, ordered by totalAssigned and numericId
     console.log(`Fetching galaxies for processing...`);
 
-    let iterator: AsyncIterator<any> | undefined;
-
-    // Create lazy streams that yield StatsDoc on demand
-    async function* createStream(fromOverK = false): AsyncIterable<StatsDoc> {
-      if (!iterator) {
-        const query = allowOverAssign
-          ? ctx.db.query("galaxies").withIndex("by_totalAssigned_numericId")
-          : ctx.db.query("galaxies").withIndex("by_totalAssigned_numericId", (q) =>
-              q.lt("totalAssigned", BigInt(K))
-            );
-        iterator = query[Symbol.asyncIterator]();
-      }
+    // Separate iterators for under-K and over-K to avoid reusing a closed query iterator
+    async function* underKStream(): AsyncIterable<StatsDoc> {
+      const iterator = ctx.db
+        .query("galaxies")
+        .withIndex("by_totalAssigned_numericId", (q) => q.lt("totalAssigned", BigInt(K)))
+        [Symbol.asyncIterator]();
 
       while (true) {
         const result = await iterator.next();
         if (result.done) break;
         const doc = result.value;
 
-        const statsDoc: StatsDoc = {
+        if (paperFilter !== null) {
+          const docPaper = doc.misc?.paper ?? "";
+          if (!paperFilter.includes(docPaper)) continue; // allow empty string as a valid paper value
+        }
+
+        yield {
           _id: doc._id,
           galaxyExternalId: doc.id,
           numericId: doc.numericId!,
@@ -100,25 +103,36 @@ export const generateBalancedUserSequence = mutation({
           perUser: doc.perUser,
           lastAssignedAt: doc.lastAssignedAt,
         };
-
-        const isOverK = statsDoc.totalAssigned >= BigInt(K);
-        if (fromOverK) {
-          if (!isOverK) continue; // Shouldn't happen in ordered query
-          yield statsDoc;
-        } else {
-          if (isOverK) break;
-          yield statsDoc;
-        }
       }
-    }
-
-    async function* underKStream(): AsyncIterable<StatsDoc> {
-      yield* createStream(false);
     }
 
     async function* overKStream(): AsyncIterable<StatsDoc> {
       if (!allowOverAssign) return;
-      yield* createStream(true);
+
+      const iterator = ctx.db
+        .query("galaxies")
+        .withIndex("by_totalAssigned_numericId", (q) => q.gte("totalAssigned", BigInt(K)))
+        [Symbol.asyncIterator]();
+
+      while (true) {
+        const result = await iterator.next();
+        if (result.done) break;
+        const doc = result.value;
+
+        if (paperFilter !== null) {
+          const docPaper = doc.misc?.paper ?? "";
+          if (!paperFilter.includes(docPaper)) continue; // allow empty string as a valid paper value
+        }
+
+        yield {
+          _id: doc._id,
+          galaxyExternalId: doc.id,
+          numericId: doc.numericId!,
+          totalAssigned: doc.totalAssigned!,
+          perUser: doc.perUser,
+          lastAssignedAt: doc.lastAssignedAt,
+        };
+      }
     }
 
     // Note: We can't easily count total galaxies without consuming the streams
@@ -154,11 +168,27 @@ export const generateBalancedUserSequence = mutation({
       );
     }
 
+    if (selectedIds.length === 0) {
+      warnings.push(
+        paperFilter && paperFilter.length > 0
+          ? `No galaxies matched the current selection filters. Check paper filter values: [${paperFilter.join(", ")}] and assignment thresholds (K=${K}, M=${M}).`
+          : `No galaxies matched the current selection filters. Check assignment thresholds (K=${K}, M=${M}) or enable over-assign if appropriate.`
+      );
+    }
+
     if (selectedIds.length < S) {
       warnings.push(
         `Note: Only generated ${selectedIds.length} of ${S} requested. ` +
           `${exhaustedUnderK ? "Under-K pool exhausted." : ""} ` +
           `${allowOverAssign ? (exhaustedAll ? "All pools exhausted." : "") : "Over-assign disabled."}`
+      );
+    }
+
+    if (selectedIds.length === 0) {
+      errors.push(
+        allowOverAssign
+          ? `No galaxies matched filters. Check paper filter (${paperFilter ? paperFilter.join(", ") : "all"}), K=${K}, M=${M}. Under-K exhausted=${exhaustedUnderK}, all exhausted=${exhaustedAll}.`
+          : `No galaxies matched filters with over-assign disabled. Check paper filter (${paperFilter ? paperFilter.join(", ") : "all"}), K=${K}, M=${M}, or enable over-assign.`
       );
     }
 
@@ -199,7 +229,9 @@ export const generateBalancedUserSequence = mutation({
       expectedUsers,
       allowOverAssign,
       dryRun,
+      paperFilter: paperFilter ?? undefined,
       warnings: warnings.length ? warnings : undefined,
+      errors: errors.length ? errors : undefined,
     };
   },
 });

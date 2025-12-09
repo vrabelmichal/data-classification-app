@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
+import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
 
 interface SettingsTabProps {
   systemSettings: any;
@@ -10,7 +11,20 @@ interface SettingsTabProps {
 export function SettingsTab({ systemSettings }: SettingsTabProps) {
   const updateSystemSettings = useMutation(api.system_settings.updateSystemSettings);
   
-  const [localSettings, setLocalSettings] = useState({
+  const [localSettings, setLocalSettings] = useState<{
+    allowAnonymous: boolean;
+    emailFrom: string;
+    appName: string;
+    debugAdminMode: boolean;
+    appVersion: string;
+    failedFittingMode: string;
+    failedFittingFallbackLsbClass: number;
+    showAwesomeFlag: boolean;
+    showValidRedshift: boolean;
+    showVisibleNucleus: boolean;
+    defaultImageQuality: string;
+    availablePapers: string[];
+  }>({
     allowAnonymous: systemSettings.allowAnonymous || false,
     emailFrom: systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk",
     appName: systemSettings.appName || "Galaxy Classification App",
@@ -22,9 +36,11 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     showValidRedshift: systemSettings.showValidRedshift ?? true,
     showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
     defaultImageQuality: systemSettings.defaultImageQuality || "high",
+    availablePapers: systemSettings.availablePapers || DEFAULT_AVAILABLE_PAPERS,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [newPaperInput, setNewPaperInput] = useState("");
 
   // Update local settings when systemSettings prop changes
   useEffect(() => {
@@ -40,6 +56,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       showValidRedshift: systemSettings.showValidRedshift ?? true,
       showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
       defaultImageQuality: systemSettings.defaultImageQuality || "high",
+      availablePapers: systemSettings.availablePapers || DEFAULT_AVAILABLE_PAPERS,
     });
     setHasChanges(false);
   }, [systemSettings]);
@@ -57,6 +74,8 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     const originalShowValidRedshift = systemSettings.showValidRedshift ?? true;
     const originalShowVisibleNucleus = systemSettings.showVisibleNucleus ?? true;
     const originalDefaultImageQuality = systemSettings.defaultImageQuality || "high";
+    const originalAvailablePapers = systemSettings.availablePapers || DEFAULT_AVAILABLE_PAPERS;
+    const papersChanged = JSON.stringify(localSettings.availablePapers) !== JSON.stringify(originalAvailablePapers);
     setHasChanges(
       localSettings.allowAnonymous !== originalAllowAnonymous ||
       localSettings.emailFrom !== originalEmailFrom ||
@@ -68,7 +87,8 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       localSettings.showAwesomeFlag !== originalShowAwesomeFlag ||
       localSettings.showValidRedshift !== originalShowValidRedshift ||
       localSettings.showVisibleNucleus !== originalShowVisibleNucleus ||
-      localSettings.defaultImageQuality !== originalDefaultImageQuality
+      localSettings.defaultImageQuality !== originalDefaultImageQuality ||
+      papersChanged
     );
   }, [localSettings, systemSettings]);
 
@@ -94,6 +114,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         showValidRedshift: localSettings.showValidRedshift,
         showVisibleNucleus: localSettings.showVisibleNucleus,
         defaultImageQuality: localSettings.defaultImageQuality as "high" | "low",
+        availablePapers: localSettings.availablePapers,
       });
       toast.success("Settings updated successfully");
       setHasChanges(false);
@@ -339,6 +360,98 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
               <option value="low">Low Quality (Faster loading, smaller file sizes)</option>
             </select>
           </label>
+        </div>
+
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+            Available Papers (misc.paper values)
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Configure the list of paper values that can be used when generating balanced sequences.
+            These correspond to the <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">misc.paper</code> field in the galaxy data.
+          </p>
+
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {localSettings.availablePapers.map((paper, index) => (
+                <div
+                  key={index}
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm"
+                >
+                  <span>{paper === "" ? '(empty string)' : paper}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocalSettings(prev => ({
+                        ...prev,
+                        availablePapers: prev.availablePapers.filter((_, i) => i !== index),
+                      }));
+                    }}
+                    className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newPaperInput}
+                onChange={(e) => setNewPaperInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const trimmed = newPaperInput.trim();
+                    if (!localSettings.availablePapers.includes(trimmed)) {
+                      setLocalSettings(prev => ({
+                        ...prev,
+                        availablePapers: [...prev.availablePapers, trimmed],
+                      }));
+                      setNewPaperInput("");
+                    }
+                  }
+                }}
+                placeholder="Add new paper value..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const trimmed = newPaperInput.trim();
+                  if (!localSettings.availablePapers.includes(trimmed)) {
+                    setLocalSettings(prev => ({
+                      ...prev,
+                      availablePapers: [...prev.availablePapers, trimmed],
+                    }));
+                    setNewPaperInput("");
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!localSettings.availablePapers.includes("")) {
+                    setLocalSettings(prev => ({
+                      ...prev,
+                      availablePapers: [...prev.availablePapers, ""],
+                    }));
+                  }
+                }}
+                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md text-sm font-medium"
+                title="Add empty string value"
+              >
+                Add Empty
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Press Enter to add. Use "Add Empty" to add an empty string value for galaxies without a paper assigned.
+            </p>
+          </div>
         </div>
       </div>
       

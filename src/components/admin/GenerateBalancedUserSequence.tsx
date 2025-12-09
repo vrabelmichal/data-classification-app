@@ -1,20 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { toast } from "sonner";
+import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
 
 interface GenerateBalancedUserSequenceProps {
   users: any[];
+  systemSettings: any;
 }
 
-export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequenceProps) {
+export function GenerateBalancedUserSequence({ users: _users, systemSettings }: GenerateBalancedUserSequenceProps) {
+  const LOG_STORAGE_KEY = "generateBalancedUserSequenceLogs";
+
   const [sequenceSize, setSequenceSize] = useState(50);
   const [expectedUsers, setExpectedUsers] = useState(10);
   const [minAssignmentsPerEntry, setMinAssignmentsPerEntry] = useState(3);
   const [maxAssignmentsPerUserPerEntry, setMaxAssignmentsPerUserPerEntry] = useState(1);
   const [allowOverAssign, setAllowOverAssign] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
   const [generatingSequence, setGeneratingSequence] = useState(false);
+  const [logs, setLogs] = useState<
+    Array<{ level: "info" | "warning" | "error" | "success"; message: string; timestamp: number }>
+  >([]);
   const [statsProgress, setStatsProgress] = useState<{
     currentBatch: number;
     totalBatches: number;
@@ -24,13 +31,92 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
   } | null>(null);
 
   const usersWithoutSequences = useQuery(api.galaxies.sequence.getUsersWithoutSequences);
+  
+  // Get available papers from system settings
+  const availablePapers: string[] = systemSettings?.availablePapers || DEFAULT_AVAILABLE_PAPERS;
+
+  const appendLog = (level: "info" | "warning" | "error" | "success", message: string) => {
+    const entry = { level, message, timestamp: Date.now() };
+    setLogs((prev) => {
+      const next = [...prev, entry];
+      // Keep the log bounded so local storage does not grow unbounded.
+      const MAX_LOG_ENTRIES = 300;
+      return next.length > MAX_LOG_ENTRIES ? next.slice(-MAX_LOG_ENTRIES) : next;
+    });
+  };
+
+  // Initialize all papers as selected when they load
+  useEffect(() => {
+    if (availablePapers.length > 0 && selectedPapers.size === 0) {
+      setSelectedPapers(new Set(availablePapers));
+    }
+  }, [availablePapers, selectedPapers]);
+
+  // Load persisted logs once on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(LOG_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          setLogs(parsed);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load logs from localStorage", err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist logs to local storage
+  useEffect(() => {
+    try {
+      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(logs));
+    } catch (err) {
+      console.warn("Failed to persist logs to localStorage", err);
+    }
+  }, [LOG_STORAGE_KEY, logs]);
+
+  const handleClearLogs = () => {
+    setLogs([]);
+    try {
+      localStorage.removeItem(LOG_STORAGE_KEY);
+    } catch (err) {
+      console.warn("Failed to clear logs from localStorage", err);
+    }
+  };
 
   const generateBalancedUserSequence = useMutation(api.generateBalancedUserSequence.generateBalancedUserSequence);
   const updateGalaxyAssignmentStats = useMutation(api.generateBalancedUserSequence.updateGalaxyAssignmentStats);
 
+  const handlePaperToggle = (paper: string) => {
+    setSelectedPapers((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(paper)) {
+        newSet.delete(paper);
+      } else {
+        newSet.add(paper);
+      }
+      return newSet;
+    });
+  };
+
+  const handleSelectAllPapers = () => {
+    setSelectedPapers(new Set(availablePapers));
+  };
+
+  const handleDeselectAllPapers = () => {
+    setSelectedPapers(new Set());
+  };
+
   const handleGenerateSequence = async () => {
     if (!selectedUserId) {
-      toast.error("Please select a user");
+      appendLog("error", "Please select a user");
+      return;
+    }
+
+    if (selectedPapers.size === 0) {
+      appendLog("error", "Please select at least one paper to include");
       return;
     }
 
@@ -38,12 +124,22 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
     const MAX_SEQUENCE_SIZE = 8192;
     const effectiveSequenceSize = Math.min(sequenceSize, MAX_SEQUENCE_SIZE);
     if (sequenceSize > MAX_SEQUENCE_SIZE) {
-      toast.warning(`Sequence size capped at ${MAX_SEQUENCE_SIZE} (database limit)`);
+      appendLog("warning", `Sequence size capped at ${MAX_SEQUENCE_SIZE} (database limit)`);
     }
+
+    const paperFilter =
+      selectedPapers.size === availablePapers.length ? undefined : Array.from(selectedPapers);
 
     try {
       setGeneratingSequence(true);
       setStatsProgress(null);
+
+      appendLog(
+        "info",
+        `Starting sequence generation for user ${selectedUserId} with S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, papers=[${
+          paperFilter ? paperFilter.join(",") : "all"
+        }]`
+      );
 
       // Step 1: Generate the sequence
       const result = await generateBalancedUserSequence({
@@ -53,18 +149,24 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
         maxAssignmentsPerUserPerEntry,
         sequenceSize: effectiveSequenceSize,
         allowOverAssign,
-        dryRun: false,
+        paperFilter,
       });
 
       if (!result.success) {
-        toast.error("Failed to generate sequence");
+        result.warnings?.forEach((warning: string) => appendLog("warning", warning));
+        (result.errors || []).forEach((error: string) => appendLog("error", error));
+        appendLog(
+          "error",
+          `Failed to generate sequence: generated ${result.generated} of ${result.requested}. Check filters (papers) and thresholds (K, M).`
+        );
         return;
       }
 
-      toast.success(`Generated ${result.generated} of ${result.requested} galaxies. K=${result.minAssignmentsPerEntry}, M=${result.perUserCap}`);
-      if (result.warnings) {
-        result.warnings.forEach(warning => toast.warning(warning));
-      }
+      result.warnings?.forEach((warning: string) => appendLog("warning", warning));
+      appendLog(
+        "success",
+        `Generated ${result.generated} of ${result.requested} galaxies. K=${result.minAssignmentsPerEntry}, M=${result.perUserCap}`
+      );
 
       // Step 2: Update stats in batches if needed
       if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
@@ -72,7 +174,7 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
         const batchSize = result.statsBatchSize || 500;
 
         setStatsProgress({
-          currentBatch: 0,
+          currentBatch: 1,
           totalBatches,
           processedGalaxies: 0,
           totalGalaxies: result.generated,
@@ -86,7 +188,6 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
             batchSize,
             perUserCapM: maxAssignmentsPerUserPerEntry,
           });
-
           if (!statsResult.success) {
             throw new Error(`Failed to update stats batch ${batchIndex + 1}`);
           }
@@ -97,19 +198,29 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
             processedGalaxies: statsResult.totalProcessed,
             totalGalaxies: result.generated,
             message: statsResult.isLastBatch
-              ? "Stats updates completed!"
+              ? "Completed stats updates"
               : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`,
           });
+
+          appendLog(
+            "info",
+            statsResult.isLastBatch
+              ? "Completed stats updates"
+              : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`
+          );
 
           if (statsResult.isLastBatch) {
             break;
           }
         }
 
-        toast.success("Sequence generation and stats updates completed!");
+        appendLog("success", "Sequence generation and stats updates completed!");
+      } else {
+        appendLog("success", "Sequence generation completed (no stats updates needed)");
       }
     } catch (error) {
-      toast.error("Failed to generate sequence");
+      const message = (error as Error)?.message || "Unknown error";
+      appendLog("error", `Failed to generate sequence: ${message}`);
       console.error(error);
     } finally {
       setGeneratingSequence(false);
@@ -142,7 +253,7 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
               <option value="">Select a user...</option>
               {usersWithoutSequences?.map((user) => (
                 <option key={user.userId} value={user.userId}>
-                  {user.user?.name || user.user?.email || "Anonymous"} ({user.classificationsCount} classifications)
+                  {user.user?.name || user.user?.email || "Anonymous"} ({user.userId})
                 </option>
               ))}
             </select>
@@ -239,6 +350,59 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
             </label>
           </div>
 
+          {/* Paper Filter Section */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+              Paper Filter
+              <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Select which papers to include in the sequence (based on misc.paper field)
+              </span>
+            </label>
+            {availablePapers.length === 0 ? (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No papers configured. Configure available papers in Settings tab.</p>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllPapers}
+                    disabled={generatingSequence}
+                    className="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllPapers}
+                    disabled={generatingSequence}
+                    className="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300"
+                  >
+                    Deselect All
+                  </button>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 self-center ml-2">
+                    {selectedPapers.size} of {availablePapers.length} selected
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 p-3 bg-gray-50 dark:bg-gray-900 rounded-md border border-gray-200 dark:border-gray-700 max-h-48 overflow-y-auto">
+                  {availablePapers.map((paper: string) => (
+                    <label key={paper} className="flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedPapers.has(paper)}
+                        onChange={() => handlePaperToggle(paper)}
+                        className="mr-2"
+                        disabled={generatingSequence}
+                      />
+                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate" title={paper || '(empty string)'}>
+                        {paper === "" ? '(empty string)' : paper}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={() => void (async () => { await handleGenerateSequence(); })()}
             disabled={!selectedUserId || generatingSequence}
@@ -274,6 +438,47 @@ export function GenerateBalancedUserSequence({ users }: GenerateBalancedUserSequ
               </p>
             </div>
           )}
+
+          {/* Persistent log view */}
+          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 max-h-56 overflow-y-auto space-y-1">
+            <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+              <span>Activity Log</span>
+              <button
+                type="button"
+                onClick={handleClearLogs}
+                className="text-xs px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded disabled:opacity-60"
+                disabled={logs.length === 0}
+              >
+                Clear
+              </button>
+            </div>
+            {logs.length === 0 ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">No log entries yet.</p>
+            ) : (
+              logs.map((log, idx) => (
+                <div
+                  key={log.timestamp + idx}
+                  className={`text-xs rounded px-2 py-1 border ${
+                    log.level === "error"
+                      ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-100"
+                      : log.level === "warning"
+                        ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-100"
+                        : log.level === "success"
+                          ? "border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-100"
+                          : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                  }`}
+                >
+                  <span className="text-[11px] mr-2 text-gray-500 dark:text-gray-400">
+                    {new Date(log.timestamp).toLocaleTimeString()}
+                  </span>
+                  <span className="uppercase text-[10px] mr-2 tracking-wide font-semibold">
+                    {log.level}
+                  </span>
+                  <span className="align-middle">{log.message}</span>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

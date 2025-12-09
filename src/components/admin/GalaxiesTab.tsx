@@ -3,12 +3,13 @@ import { RemoveUserSequence } from "./RemoveUserSequence";
 
 interface GalaxiesTabProps {
   users: any[];
+  systemSettings: any;
 }
 
-export function GalaxiesTab({ users }: GalaxiesTabProps) {
+export function GalaxiesTab({ users, systemSettings }: GalaxiesTabProps) {
   return (
     <div className="space-y-6">
-      <GenerateBalancedUserSequence users={users} />
+      <GenerateBalancedUserSequence users={users} systemSettings={systemSettings} />
       <RemoveUserSequence users={users} />
     </div>
   );
