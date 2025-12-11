@@ -21,6 +21,7 @@ interface GalaxyBrowserControlsProps {
 
   // Data
   galaxyData: any;
+  statusText: string;
 }
 
 export function GalaxyBrowserControls({
@@ -38,6 +39,7 @@ export function GalaxyBrowserControls({
   goPrev,
   goNext,
   galaxyData,
+  statusText,
 }: GalaxyBrowserControlsProps) {
   const { total } = galaxyData || {};
 
@@ -120,7 +122,7 @@ export function GalaxyBrowserControls({
       </div>
 
       {/* Cursor Pagination */}
-      <div className="mt-6 flex items-center justify-between">
+      <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center space-x-2">
           <button
             onClick={goPrev}
@@ -137,7 +139,12 @@ export function GalaxyBrowserControls({
             Next
           </button>
         </div>
-        <div className="text-sm text-gray-700 dark:text-gray-300">Page {page}</div>
+        <div className="text-sm text-gray-700 dark:text-gray-300 text-left sm:text-right">
+          <div>Page {page}</div>
+          <div className="text-xs text-gray-600 dark:text-gray-400">
+            {statusText}
+          </div>
+        </div>
       </div>
     </div>
   );

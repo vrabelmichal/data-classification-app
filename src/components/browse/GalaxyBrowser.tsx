@@ -107,6 +107,21 @@ export function GalaxyBrowser() {
     // cursor-based navigation handled in controls
   } = useGalaxyBrowser();
 
+  const total = galaxyData?.total;
+  const hasResults = (galaxyData?.galaxies?.length ?? 0) > 0;
+  const startIndex = hasResults ? ((page - 1) * pageSize) + 1 : 0;
+  const endIndex = hasResults && galaxyData?.galaxies
+    ? ((page - 1) * pageSize) + galaxyData.galaxies.length
+    : 0;
+  const canShowTotal = typeof total === "number" && total > 0 && total >= endIndex && total >= startIndex;
+  const statusText = galaxyData
+    ? (hasResults
+      ? (canShowTotal
+        ? `Showing ${startIndex} to ${endIndex} of ${total}`
+        : `Showing ${startIndex} to ${endIndex}`)
+      : "No galaxies match your filters.")
+    : "Loading results...";
+
   if (!galaxyData) {
     if (hasPrevious) {
       // We have previous data but current query is loading - show loading state in table area
@@ -201,6 +216,7 @@ export function GalaxyBrowser() {
               goPrev={goPrev}
               goNext={goNext}
               galaxyData={galaxyData}
+              statusText={statusText}
             />
           </div>
 
@@ -306,6 +322,7 @@ export function GalaxyBrowser() {
               goPrev={goPrev}
               goNext={goNext}
               galaxyData={galaxyData}
+              statusText={statusText}
             />
           </div>
 
@@ -320,8 +337,6 @@ export function GalaxyBrowser() {
       );
     }
   }
-
-  const { galaxies, total, aggregatesPopulated } = galaxyData;
 
   return (
     <div className="w-full min-w-0 mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
@@ -414,36 +429,8 @@ export function GalaxyBrowser() {
           goPrev={goPrev}
           goNext={goNext}
           galaxyData={galaxyData}
+          statusText={statusText}
         />
-      </div>
-
-      {/* Results Status */}
-      <div className="mb-6 pt-4">
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          Showing {((page - 1) * pageSize) + 1} to {Math.min(page * pageSize, total)} of {total} galaxies
-        </p>
-        {/* {!aggregatesPopulated && total > 0 && (
-          <div className="mt-2 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-            <div className="flex">
-              <div className="flex-shrink-0">
-                <svg className="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="ml-3">
-                <h3 className="text-sm font-medium text-yellow-800 dark:text-yellow-200">
-                  Performance Warning
-                </h3>
-                <div className="mt-2 text-sm text-yellow-700 dark:text-yellow-300">
-                  <p>
-                    Galaxy aggregates are not populated. Pagination may be slow for large datasets.
-                    Go to the Admin panel → Debugging tab to rebuild aggregates for better performance.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )} */}
       </div>
 
       {/* Desktop Table View */}
