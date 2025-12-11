@@ -69,7 +69,6 @@ interface GalaxyBrowserSearchFormProps {
   getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned', type: 'min' | 'max') => string;
   getInputClass: (field: string, baseClass: string) => string;
 }
-
 export function GalaxyBrowserSearchForm({
   searchId,
   setSearchId,
@@ -119,6 +118,12 @@ export function GalaxyBrowserSearchForm({
   setSearchTotalAssignedMin,
   searchTotalAssignedMax,
   setSearchTotalAssignedMax,
+  searchAwesome,
+  setSearchAwesome,
+  searchValidRedshift,
+  setSearchValidRedshift,
+  searchVisibleNucleus,
+  setSearchVisibleNucleus,
   isSearchActive,
   hasPendingChanges,
   hasAnySearchValues,
@@ -130,7 +135,7 @@ export function GalaxyBrowserSearchForm({
   return (
     <div className="mb-6">
       <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Search Galaxies</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 min-[1367px]:grid-cols-3 min-[1747px]:grid-cols-4 gap-3 mb-4 max-w-5xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 mb-4 max-w-5xl">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Galaxy ID
@@ -321,105 +326,109 @@ export function GalaxyBrowserSearchForm({
             <option value="false">No nucleus</option>
           </select>
         </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Total Classifications
-          </label>
-          <div className="flex space-x-2">
-            <input
-              type="number"
-              step="1"
-              min="0"
-              value={searchTotalClassificationsMin}
-              onChange={(e) => setSearchTotalClassificationsMin(e.target.value)}
-              placeholder={getPlaceholderText('totalClassifications', 'min')}
-              className={getInputClass('searchTotalClassificationsMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-            />
-            <input
-              type="number"
-              step="1"
-              min="0"
-              value={searchTotalClassificationsMax}
-              onChange={(e) => setSearchTotalClassificationsMax(e.target.value)}
-              placeholder={getPlaceholderText('totalClassifications', 'max')}
-              className={getInputClass('searchTotalClassificationsMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Visible Nucleus Count
-          </label>
-          <div className="flex space-x-2">
-            <input
-              type="number"
-              step="1"
-              min="0"
-              value={searchNumVisibleNucleusMin}
-              onChange={(e) => setSearchNumVisibleNucleusMin(e.target.value)}
-              placeholder={getPlaceholderText('numVisibleNucleus', 'min')}
-              className={getInputClass('searchNumVisibleNucleusMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-            />
-            <input
-              type="number"
-              step="1"
-              min="0"
-              value={searchNumVisibleNucleusMax}
-              onChange={(e) => setSearchNumVisibleNucleusMax(e.target.value)}
-              placeholder={getPlaceholderText('numVisibleNucleus', 'max')}
-              className={getInputClass('searchNumVisibleNucleusMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-            />
-          </div>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Awesome Flag Count
-          </label>
-          <div className="flex space-x-2">
-            <input
-              type="number"
-              step="1"
-              min="0"
-              value={searchNumAwesomeFlagMin}
-              onChange={(e) => setSearchNumAwesomeFlagMin(e.target.value)}
-              placeholder={getPlaceholderText('numAwesomeFlag', 'min')}
-              className={getInputClass('searchNumAwesomeFlagMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-            />
-            <input
-              type="number"
-              step="1"
-              min="0"
-              value={searchNumAwesomeFlagMax}
-              onChange={(e) => setSearchNumAwesomeFlagMax(e.target.value)}
-              placeholder={getPlaceholderText('numAwesomeFlag', 'max')}
-              className={getInputClass('searchNumAwesomeFlagMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            Total Assigned
-          </label>
-          <div className="flex space-x-2">
-            <input
-              type="number"
-              step="1"
-              min="0"
-              value={searchTotalAssignedMin}
-              onChange={(e) => setSearchTotalAssignedMin(e.target.value)}
-              placeholder={getPlaceholderText('totalAssigned', 'min')}
-              className={getInputClass('searchTotalAssignedMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-            />
-            <input
-              type="number"
-              step="1"
-              min="0"
-              value={searchTotalAssignedMax}
-              onChange={(e) => setSearchTotalAssignedMax(e.target.value)}
-              placeholder={getPlaceholderText('totalAssigned', 'max')}
-              className={getInputClass('searchTotalAssignedMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
-            />
+        {/* Group these related numeric filters into a single responsive row on larger screens */}
+        <div className="col-span-1 sm:col-span-2 lg:col-span-3 2xl:col-span-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Total Classifications
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={searchTotalClassificationsMin}
+                  onChange={(e) => setSearchTotalClassificationsMin(e.target.value)}
+                  placeholder={getPlaceholderText('totalClassifications', 'min')}
+                  className={getInputClass('searchTotalClassificationsMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={searchTotalClassificationsMax}
+                  onChange={(e) => setSearchTotalClassificationsMax(e.target.value)}
+                  placeholder={getPlaceholderText('totalClassifications', 'max')}
+                  className={getInputClass('searchTotalClassificationsMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Visible Nucleus Count
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={searchNumVisibleNucleusMin}
+                  onChange={(e) => setSearchNumVisibleNucleusMin(e.target.value)}
+                  placeholder={getPlaceholderText('numVisibleNucleus', 'min')}
+                  className={getInputClass('searchNumVisibleNucleusMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={searchNumVisibleNucleusMax}
+                  onChange={(e) => setSearchNumVisibleNucleusMax(e.target.value)}
+                  placeholder={getPlaceholderText('numVisibleNucleus', 'max')}
+                  className={getInputClass('searchNumVisibleNucleusMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Awesome Flag Count
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={searchNumAwesomeFlagMin}
+                  onChange={(e) => setSearchNumAwesomeFlagMin(e.target.value)}
+                  placeholder={getPlaceholderText('numAwesomeFlag', 'min')}
+                  className={getInputClass('searchNumAwesomeFlagMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={searchNumAwesomeFlagMax}
+                  onChange={(e) => setSearchNumAwesomeFlagMax(e.target.value)}
+                  placeholder={getPlaceholderText('numAwesomeFlag', 'max')}
+                  className={getInputClass('searchNumAwesomeFlagMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Total Assigned
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={searchTotalAssignedMin}
+                  onChange={(e) => setSearchTotalAssignedMin(e.target.value)}
+                  placeholder={getPlaceholderText('totalAssigned', 'min')}
+                  className={getInputClass('searchTotalAssignedMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+                <input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={searchTotalAssignedMax}
+                  onChange={(e) => setSearchTotalAssignedMax(e.target.value)}
+                  placeholder={getPlaceholderText('totalAssigned', 'max')}
+                  className={getInputClass('searchTotalAssignedMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+              </div>
+            </div>
           </div>
         </div>
       </div>
