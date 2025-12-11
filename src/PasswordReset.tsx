@@ -3,6 +3,8 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useNavigate, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
+const PASSWORD_MIN_LENGTH = 8;
+
 export function PasswordReset() {
   const { signIn } = useAuthActions();
   const navigate = useNavigate();
@@ -87,6 +89,14 @@ export function PasswordReset() {
         const formData = new FormData(e.currentTarget);
         formData.set("flow", "reset-verification");
         formData.set("email", step.email);
+
+        const newPassword = (formData.get("newPassword") as string) ?? "";
+        if (newPassword.length < PASSWORD_MIN_LENGTH) {
+          toast.error(`New password must be at least ${PASSWORD_MIN_LENGTH} characters long.`);
+          setSubmitting(false);
+          return;
+        }
+
         void signIn("password", formData)
           .then(() => {
             toast.success("Password updated, you are now signed in");
@@ -101,7 +111,9 @@ export function PasswordReset() {
             if (err.message) {
               const errorMsg = err.message.toLowerCase();
 
-              if (errorMsg.includes("invalid") || errorMsg.includes("verification")) {
+              if (errorMsg.includes("invalid password")) {
+                userMessage = `New password must be at least ${PASSWORD_MIN_LENGTH} characters long.`;
+              } else if (errorMsg.includes("invalid") || errorMsg.includes("verification")) {
                 userMessage = "Invalid or expired reset code. Please request a new one.";
               } else if (errorMsg.includes("not found") || errorMsg.includes("email")) {
                 userMessage = "Email address not found. Please check your email and try again.";
