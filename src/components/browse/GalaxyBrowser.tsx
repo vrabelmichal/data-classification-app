@@ -132,7 +132,7 @@ export function GalaxyBrowser() {
     api.galaxies.count.countFilteredGalaxiesBatch,
     isComputingTotal ? {
       cursor: countCursor || undefined,
-      batchSize: 500,
+      batchSize: 5000,
       sortBy,
       sortOrder,
       filter,
