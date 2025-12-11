@@ -2,6 +2,35 @@ import { SortField } from "./GalaxyBrowser";
 
 export const STORAGE_KEY = "galaxyBrowserSettings";
 
+/**
+ * Format a number with adaptive decimal places
+ * Uses as few decimals as needed to represent the value accurately
+ */
+const formatDynamicDecimals = (value: number, minDecimals: number = 0, maxDecimals: number = 10): string => {
+  // For integers, return without decimals
+  if (Number.isInteger(value)) {
+    return value.toString();
+  }
+
+  // Convert to string to count actual significant decimals
+  const str = value.toString();
+  
+  // Handle scientific notation
+  if (str.includes('e')) {
+    // For very small numbers in scientific notation, use maxDecimals
+    return value.toFixed(maxDecimals).replace(/\.?0+$/, '');
+  }
+
+  // Find actual decimal places in the value
+  const decimalIndex = str.indexOf('.');
+  if (decimalIndex === -1) return value.toString();
+
+  const actualDecimals = str.length - decimalIndex - 1;
+  const decimalsToUse = Math.max(minDecimals, Math.min(actualDecimals, maxDecimals));
+
+  return value.toFixed(decimalsToUse).replace(/\.?0+$/, '');
+};
+
 export type SearchField =
   | 'searchId'
   | 'searchRaMin'
@@ -45,26 +74,33 @@ export const getPlaceholderText = (
   const value = fieldBounds[type];
   if (value === null) return type === 'min' ? 'Min' : 'Max';
 
-  // Format based on field type
+  const label = type === 'min' ? 'Min' : 'Max';
+
+  // Format based on field type with adaptive decimals
   switch (field) {
     case 'ra':
     case 'dec':
-      return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(4)}`;
+      // Degrees: typically need 4 decimals for arcsecond precision, but use adaptive
+      return `${label}: ${formatDynamicDecimals(value, 0, 8)}`;
     case 'reff':
     case 'mag':
     case 'mean_mue':
-      return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(2)}`;
+      // These can have varying precision, use adaptive decimals
+      return `${label}: ${formatDynamicDecimals(value, 0, 6)}`;
     case 'q':
-      return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(3)}`;
+      // Axis ratio: typically 0-1 range, use adaptive
+      return `${label}: ${formatDynamicDecimals(value, 0, 6)}`;
     case 'pa':
-      return `${type === 'min' ? 'Min' : 'Max'}: ${value.toFixed(1)}`;
+      // Position angle: degrees, use adaptive
+      return `${label}: ${formatDynamicDecimals(value, 0, 5)}`;
     case 'totalClassifications':
     case 'numVisibleNucleus':
     case 'numAwesomeFlag':
     case 'totalAssigned':
-      return `${type === 'min' ? 'Min' : 'Max'}: ${value}`;
+      // Integer counts, no decimals
+      return `${label}: ${value}`;
     default:
-      return type === 'min' ? 'Min' : 'Max';
+      return label;
   }
 };
 

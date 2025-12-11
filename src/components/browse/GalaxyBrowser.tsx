@@ -96,6 +96,7 @@ export function GalaxyBrowser() {
     applySearch,
     clearSearch,
     getPlaceholderText,
+    getBoundsForField,
     getInputClass,
 
     // Controls props
@@ -275,6 +276,7 @@ export function GalaxyBrowser() {
               applySearch={applySearch}
               clearSearch={clearSearch}
               getPlaceholderText={getPlaceholderText}
+              getBounds={getBoundsForField}
               getInputClass={getInputClass}
             />
 
@@ -385,6 +387,7 @@ export function GalaxyBrowser() {
               applySearch={applySearch}
               clearSearch={clearSearch}
               getPlaceholderText={getPlaceholderText}
+              getBounds={getBoundsForField}
               getInputClass={getInputClass}
             />
 
@@ -496,6 +499,7 @@ export function GalaxyBrowser() {
           applySearch={applySearch}
           clearSearch={clearSearch}
           getPlaceholderText={getPlaceholderText}
+          getBounds={getBoundsForField}
           getInputClass={getInputClass}
         />
 

@@ -99,6 +99,7 @@ export interface UseGalaxyBrowserReturn {
 
   // Utility functions
   getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned', type: 'min' | 'max') => string;
+  getBoundsForField: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned') => { min?: number; max?: number } | undefined;
   hasFieldChanged: (field: string) => boolean;
   getInputClass: (field: string, baseClass: string) => string;
   hasAnySearchValues: boolean;
@@ -601,8 +602,29 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
   // Utility functions
   const getPlaceholderTextWrapper = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned', type: 'min' | 'max') => {
-    const bounds = isSearchActive && currentBounds ? currentBounds : searchBounds;
+    // Prefer aggregate-backed searchBounds; fall back to current page bounds only if aggregates are unavailable
+    const bounds = searchBounds ?? currentBounds;
     return getPlaceholderText(field, type, bounds);
+  };
+
+  const getBoundsForField = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned') => {
+    const boundsSource = searchBounds ?? currentBounds;
+    if (!boundsSource) return undefined;
+    
+    const fieldBounds = (boundsSource as Record<string, any>)[field];
+    if (!fieldBounds) return undefined;
+
+    const normalize = (value: unknown) => {
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      if (typeof value === "bigint") return Number(value);
+      return undefined;
+    };
+
+    const min = normalize(fieldBounds.min);
+    const max = normalize(fieldBounds.max);
+    if (min === undefined && max === undefined) return undefined;
+
+    return { min, max };
   };
 
   const hasFieldChangedWrapper = (field: string) => {
@@ -756,6 +778,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
     // Utility functions
     getPlaceholderText: getPlaceholderTextWrapper,
+    getBoundsForField,
     hasFieldChanged: hasFieldChangedWrapper,
     getInputClass: getInputClassWrapper,
     hasAnySearchValues: hasAnySearchValuesComputed,

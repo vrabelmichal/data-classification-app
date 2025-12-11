@@ -1,6 +1,8 @@
 import React from "react";
 import { cn } from "../../lib/utils";
 
+type BoundsField = 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned';
+
 interface GalaxyBrowserSearchFormProps {
   // Search state
   searchId: string;
@@ -66,7 +68,8 @@ interface GalaxyBrowserSearchFormProps {
   clearSearch: () => void;
 
   // Utility functions
-  getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned', type: 'min' | 'max') => string;
+  getPlaceholderText: (field: BoundsField, type: 'min' | 'max') => string;
+  getBounds: (field: BoundsField) => { min?: number; max?: number } | undefined;
   getInputClass: (field: string, baseClass: string) => string;
 }
 export function GalaxyBrowserSearchForm({
@@ -130,8 +133,23 @@ export function GalaxyBrowserSearchForm({
   applySearch,
   clearSearch,
   getPlaceholderText,
+  getBounds,
   getInputClass,
 }: GalaxyBrowserSearchFormProps) {
+  const bounds = {
+    ra: getBounds('ra'),
+    dec: getBounds('dec'),
+    reff: getBounds('reff'),
+    q: getBounds('q'),
+    pa: getBounds('pa'),
+    mag: getBounds('mag'),
+    mean_mue: getBounds('mean_mue'),
+    totalClassifications: getBounds('totalClassifications'),
+    numVisibleNucleus: getBounds('numVisibleNucleus'),
+    numAwesomeFlag: getBounds('numAwesomeFlag'),
+    totalAssigned: getBounds('totalAssigned'),
+  };
+
   return (
     <div className="mb-6">
       <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Search Galaxies</h3>
@@ -156,6 +174,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.0001"
+              min={bounds.ra?.min}
+              max={bounds.ra?.max}
               value={searchRaMin}
               onChange={(e) => setSearchRaMin(e.target.value)}
               placeholder={getPlaceholderText('ra', 'min')}
@@ -164,6 +184,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.0001"
+              min={bounds.ra?.min}
+              max={bounds.ra?.max}
               value={searchRaMax}
               onChange={(e) => setSearchRaMax(e.target.value)}
               placeholder={getPlaceholderText('ra', 'max')}
@@ -179,6 +201,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.0001"
+              min={bounds.dec?.min}
+              max={bounds.dec?.max}
               value={searchDecMin}
               onChange={(e) => setSearchDecMin(e.target.value)}
               placeholder={getPlaceholderText('dec', 'min')}
@@ -187,6 +211,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.0001"
+              min={bounds.dec?.min}
+              max={bounds.dec?.max}
               value={searchDecMax}
               onChange={(e) => setSearchDecMax(e.target.value)}
               placeholder={getPlaceholderText('dec', 'max')}
@@ -202,6 +228,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.01"
+              min={bounds.reff?.min}
+              max={bounds.reff?.max}
               value={searchReffMin}
               onChange={(e) => setSearchReffMin(e.target.value)}
               placeholder={getPlaceholderText('reff', 'min')}
@@ -210,6 +238,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.01"
+              min={bounds.reff?.min}
+              max={bounds.reff?.max}
               value={searchReffMax}
               onChange={(e) => setSearchReffMax(e.target.value)}
               placeholder={getPlaceholderText('reff', 'max')}
@@ -225,6 +255,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.001"
+              min={bounds.q?.min}
+              max={bounds.q?.max}
               value={searchQMin}
               onChange={(e) => setSearchQMin(e.target.value)}
               placeholder={getPlaceholderText('q', 'min')}
@@ -233,6 +265,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.001"
+              min={bounds.q?.min}
+              max={bounds.q?.max}
               value={searchQMax}
               onChange={(e) => setSearchQMax(e.target.value)}
               placeholder={getPlaceholderText('q', 'max')}
@@ -248,6 +282,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.1"
+              min={bounds.pa?.min}
+              max={bounds.pa?.max}
               value={searchPaMin}
               onChange={(e) => setSearchPaMin(e.target.value)}
               placeholder={getPlaceholderText('pa', 'min')}
@@ -256,6 +292,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.1"
+              min={bounds.pa?.min}
+              max={bounds.pa?.max}
               value={searchPaMax}
               onChange={(e) => setSearchPaMax(e.target.value)}
               placeholder={getPlaceholderText('pa', 'max')}
@@ -271,6 +309,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.01"
+              min={bounds.mag?.min}
+              max={bounds.mag?.max}
               value={searchMagMin}
               onChange={(e) => setSearchMagMin(e.target.value)}
               placeholder={getPlaceholderText('mag', 'min')}
@@ -279,6 +319,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.01"
+              min={bounds.mag?.min}
+              max={bounds.mag?.max}
               value={searchMagMax}
               onChange={(e) => setSearchMagMax(e.target.value)}
               placeholder={getPlaceholderText('mag', 'max')}
@@ -294,6 +336,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.01"
+              min={bounds.mean_mue?.min}
+              max={bounds.mean_mue?.max}
               value={searchMeanMueMin}
               onChange={(e) => setSearchMeanMueMin(e.target.value)}
               placeholder={getPlaceholderText('mean_mue', 'min')}
@@ -302,6 +346,8 @@ export function GalaxyBrowserSearchForm({
             <input
               type="number"
               step="0.01"
+              min={bounds.mean_mue?.min}
+              max={bounds.mean_mue?.max}
               value={searchMeanMueMax}
               onChange={(e) => setSearchMeanMueMax(e.target.value)}
               placeholder={getPlaceholderText('mean_mue', 'max')}
@@ -337,7 +383,8 @@ export function GalaxyBrowserSearchForm({
                 <input
                   type="number"
                   step="1"
-                  min="0"
+                  min={bounds.totalClassifications?.min ?? 0}
+                  max={bounds.totalClassifications?.max}
                   value={searchTotalClassificationsMin}
                   onChange={(e) => setSearchTotalClassificationsMin(e.target.value)}
                   placeholder={getPlaceholderText('totalClassifications', 'min')}
@@ -346,7 +393,8 @@ export function GalaxyBrowserSearchForm({
                 <input
                   type="number"
                   step="1"
-                  min="0"
+                  min={bounds.totalClassifications?.min ?? 0}
+                  max={bounds.totalClassifications?.max}
                   value={searchTotalClassificationsMax}
                   onChange={(e) => setSearchTotalClassificationsMax(e.target.value)}
                   placeholder={getPlaceholderText('totalClassifications', 'max')}
@@ -362,7 +410,8 @@ export function GalaxyBrowserSearchForm({
                 <input
                   type="number"
                   step="1"
-                  min="0"
+                  min={bounds.numVisibleNucleus?.min ?? 0}
+                  max={bounds.numVisibleNucleus?.max}
                   value={searchNumVisibleNucleusMin}
                   onChange={(e) => setSearchNumVisibleNucleusMin(e.target.value)}
                   placeholder={getPlaceholderText('numVisibleNucleus', 'min')}
@@ -371,7 +420,8 @@ export function GalaxyBrowserSearchForm({
                 <input
                   type="number"
                   step="1"
-                  min="0"
+                  min={bounds.numVisibleNucleus?.min ?? 0}
+                  max={bounds.numVisibleNucleus?.max}
                   value={searchNumVisibleNucleusMax}
                   onChange={(e) => setSearchNumVisibleNucleusMax(e.target.value)}
                   placeholder={getPlaceholderText('numVisibleNucleus', 'max')}
@@ -387,7 +437,8 @@ export function GalaxyBrowserSearchForm({
                 <input
                   type="number"
                   step="1"
-                  min="0"
+                  min={bounds.numAwesomeFlag?.min ?? 0}
+                  max={bounds.numAwesomeFlag?.max}
                   value={searchNumAwesomeFlagMin}
                   onChange={(e) => setSearchNumAwesomeFlagMin(e.target.value)}
                   placeholder={getPlaceholderText('numAwesomeFlag', 'min')}
@@ -396,7 +447,8 @@ export function GalaxyBrowserSearchForm({
                 <input
                   type="number"
                   step="1"
-                  min="0"
+                  min={bounds.numAwesomeFlag?.min ?? 0}
+                  max={bounds.numAwesomeFlag?.max}
                   value={searchNumAwesomeFlagMax}
                   onChange={(e) => setSearchNumAwesomeFlagMax(e.target.value)}
                   placeholder={getPlaceholderText('numAwesomeFlag', 'max')}
@@ -412,7 +464,8 @@ export function GalaxyBrowserSearchForm({
                 <input
                   type="number"
                   step="1"
-                  min="0"
+                  min={bounds.totalAssigned?.min ?? 0}
+                  max={bounds.totalAssigned?.max}
                   value={searchTotalAssignedMin}
                   onChange={(e) => setSearchTotalAssignedMin(e.target.value)}
                   placeholder={getPlaceholderText('totalAssigned', 'min')}
@@ -421,7 +474,8 @@ export function GalaxyBrowserSearchForm({
                 <input
                   type="number"
                   step="1"
-                  min="0"
+                  min={bounds.totalAssigned?.min ?? 0}
+                  max={bounds.totalAssigned?.max}
                   value={searchTotalAssignedMax}
                   onChange={(e) => setSearchTotalAssignedMax(e.target.value)}
                   placeholder={getPlaceholderText('totalAssigned', 'max')}
