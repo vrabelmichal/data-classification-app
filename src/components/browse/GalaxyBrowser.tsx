@@ -1,3 +1,6 @@
+import { useState, useEffect } from "react";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { useGalaxyBrowser } from "./useGalaxyBrowser";
 import { GalaxyBrowserSearchForm } from "./GalaxyBrowserSearchForm";
@@ -122,6 +125,63 @@ export function GalaxyBrowser() {
       : "No galaxies match your filters.")
     : "Loading results...";
 
+  // Computed total state
+  const [computedTotal, setComputedTotal] = useState<number | null>(null);
+  const [isComputingTotal, setIsComputingTotal] = useState(false);
+  const countMutation = useMutation(api.galaxies.count.countFilteredGalaxies);
+
+  const handleComputeTotal = async () => {
+    setIsComputingTotal(true);
+    try {
+      const result = await countMutation({
+        sortBy,
+        sortOrder,
+        filter,
+        searchId: isSearchActive ? searchId : undefined,
+        searchRaMin: isSearchActive ? searchRaMin : undefined,
+        searchRaMax: isSearchActive ? searchRaMax : undefined,
+        searchDecMin: isSearchActive ? searchDecMin : undefined,
+        searchDecMax: isSearchActive ? searchDecMax : undefined,
+        searchReffMin: isSearchActive ? searchReffMin : undefined,
+        searchReffMax: isSearchActive ? searchReffMax : undefined,
+        searchQMin: isSearchActive ? searchQMin : undefined,
+        searchQMax: isSearchActive ? searchQMax : undefined,
+        searchPaMin: isSearchActive ? searchPaMin : undefined,
+        searchPaMax: isSearchActive ? searchPaMax : undefined,
+        searchMagMin: isSearchActive ? searchMagMin : undefined,
+        searchMagMax: isSearchActive ? searchMagMax : undefined,
+        searchMeanMueMin: isSearchActive ? searchMeanMueMin : undefined,
+        searchMeanMueMax: isSearchActive ? searchMeanMueMax : undefined,
+        searchNucleus: isSearchActive ? searchNucleus : undefined,
+        searchTotalClassificationsMin: isSearchActive ? searchTotalClassificationsMin : undefined,
+        searchTotalClassificationsMax: isSearchActive ? searchTotalClassificationsMax : undefined,
+        searchNumVisibleNucleusMin: isSearchActive ? searchNumVisibleNucleusMin : undefined,
+        searchNumVisibleNucleusMax: isSearchActive ? searchNumVisibleNucleusMax : undefined,
+        searchNumAwesomeFlagMin: isSearchActive ? searchNumAwesomeFlagMin : undefined,
+        searchNumAwesomeFlagMax: isSearchActive ? searchNumAwesomeFlagMax : undefined,
+        searchTotalAssignedMin: isSearchActive ? searchTotalAssignedMin : undefined,
+        searchTotalAssignedMax: isSearchActive ? searchTotalAssignedMax : undefined,
+        searchAwesome: isSearchActive ? searchAwesome : undefined,
+        searchValidRedshift: isSearchActive ? searchValidRedshift : undefined,
+        searchVisibleNucleus: isSearchActive ? searchVisibleNucleus : undefined,
+      });
+      setComputedTotal(result.total);
+    } catch (error) {
+      console.error("Failed to compute total:", error);
+    } finally {
+      setIsComputingTotal(false);
+    }
+  };
+
+  // Reset computed total when filters/search change
+  useEffect(() => {
+    setComputedTotal(null);
+  }, [filter, sortBy, sortOrder, isSearchActive, searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax, 
+      searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchMagMin, searchMagMax, 
+      searchMeanMueMin, searchMeanMueMax, searchNucleus, searchTotalClassificationsMin, searchTotalClassificationsMax,
+      searchNumVisibleNucleusMin, searchNumVisibleNucleusMax, searchNumAwesomeFlagMin, searchNumAwesomeFlagMax,
+      searchTotalAssignedMin, searchTotalAssignedMax, searchAwesome, searchValidRedshift, searchVisibleNucleus]);
+
   if (!galaxyData) {
     if (hasPrevious) {
       // We have previous data but current query is loading - show loading state in table area
@@ -217,6 +277,9 @@ export function GalaxyBrowser() {
               goNext={goNext}
               galaxyData={galaxyData}
               statusText={statusText}
+              onComputeTotal={handleComputeTotal}
+              isComputingTotal={isComputingTotal}
+              computedTotal={computedTotal}
             />
           </div>
 
@@ -323,6 +386,9 @@ export function GalaxyBrowser() {
               goNext={goNext}
               galaxyData={galaxyData}
               statusText={statusText}
+              onComputeTotal={handleComputeTotal}
+              isComputingTotal={isComputingTotal}
+              computedTotal={computedTotal}
             />
           </div>
 
@@ -430,6 +496,9 @@ export function GalaxyBrowser() {
           goNext={goNext}
           galaxyData={galaxyData}
           statusText={statusText}
+          onComputeTotal={handleComputeTotal}
+          isComputingTotal={isComputingTotal}
+          computedTotal={computedTotal}
         />
       </div>
 
