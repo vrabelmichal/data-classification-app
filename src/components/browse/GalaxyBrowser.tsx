@@ -110,18 +110,14 @@ export function GalaxyBrowser() {
     // cursor-based navigation handled in controls
   } = useGalaxyBrowser();
 
-  const total = galaxyData?.total;
   const hasResults = (galaxyData?.galaxies?.length ?? 0) > 0;
   const startIndex = hasResults ? ((page - 1) * pageSize) + 1 : 0;
   const endIndex = hasResults && galaxyData?.galaxies
     ? ((page - 1) * pageSize) + galaxyData.galaxies.length
     : 0;
-  const canShowTotal = typeof total === "number" && total > 0 && total >= endIndex && total >= startIndex;
   const statusText = galaxyData
     ? (hasResults
-      ? (canShowTotal
-        ? `Showing ${startIndex} to ${endIndex} of ${total}`
-        : `Showing ${startIndex} to ${endIndex}`)
+      ? `Showing ${startIndex} to ${endIndex}`
       : "No galaxies match your filters.")
     : "Loading results...";
 
