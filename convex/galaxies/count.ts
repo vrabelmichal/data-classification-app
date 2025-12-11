@@ -1,14 +1,16 @@
 import { v } from "convex/values";
-import { mutation } from "../_generated/server";
+import { query } from "../_generated/server";
 import { getOptionalUserId } from "../lib/auth";
 
 /**
  * Count total galaxies matching the current filter/search criteria.
- * Uses pagination internally to avoid hitting Convex limits.
- * Returns the total count progressively as it scans.
+ * Returns a single page of results with count and continuation cursor.
+ * Client will call this repeatedly to get the full count.
  */
-export const countFilteredGalaxies = mutation({
+export const countFilteredGalaxiesBatch = query({
   args: {
+    cursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
     sortBy: v.optional(v.union(
       v.literal("id"),
       v.literal("ra"),
@@ -60,10 +62,12 @@ export const countFilteredGalaxies = mutation({
   handler: async (ctx, args) => {
     const userId = await getOptionalUserId(ctx);
     if (!userId) {
-      return { total: 0, complete: true };
+      return { count: 0, cursor: null, isDone: true };
     }
 
     const {
+      cursor: paginationCursor = null,
+      batchSize = 500,
       sortBy = "numericId",
       sortOrder = "asc",
       filter,
@@ -91,9 +95,6 @@ export const countFilteredGalaxies = mutation({
       searchNumAwesomeFlagMax,
       searchTotalAssignedMin,
       searchTotalAssignedMax,
-      searchAwesome,
-      searchValidRedshift,
-      searchVisibleNucleus,
     } = args;
 
     const normalizedSortOrder: "asc" | "desc" = sortOrder === "desc" ? "desc" : "asc";
@@ -116,38 +117,38 @@ export const countFilteredGalaxies = mutation({
       ? (sortBy as Sortable)
       : "numericId";
 
-    // Special handling for skipped filter
+    // Special handling for skipped filter - load all at once since it's typically small
     if (filter === "skipped") {
       const skippedGalaxies = await ctx.db
         .query("skippedGalaxies")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .withIndex("by_user", (q: any) => q.eq("userId", userId))
         .collect();
 
-      const skippedIds = new Set(skippedGalaxies.map(sg => sg.galaxyExternalId));
+      const skippedIds = new Set(skippedGalaxies.map((sg: any) => sg.galaxyExternalId));
       let allGalaxies = await ctx.db.query("galaxies").collect();
       
-      allGalaxies = allGalaxies.filter(g => skippedIds.has(g.id));
+      allGalaxies = allGalaxies.filter((g: any) => skippedIds.has(g.id));
 
       // Apply search filters
-      if (searchId) allGalaxies = allGalaxies.filter(g => g.id === searchId.trim());
-      if (searchRaMin) allGalaxies = allGalaxies.filter(g => g.ra >= parseFloat(searchRaMin));
-      if (searchRaMax) allGalaxies = allGalaxies.filter(g => g.ra <= parseFloat(searchRaMax));
-      if (searchDecMin) allGalaxies = allGalaxies.filter(g => g.dec >= parseFloat(searchDecMin));
-      if (searchDecMax) allGalaxies = allGalaxies.filter(g => g.dec <= parseFloat(searchDecMax));
-      if (searchReffMin) allGalaxies = allGalaxies.filter(g => g.reff >= parseFloat(searchReffMin));
-      if (searchReffMax) allGalaxies = allGalaxies.filter(g => g.reff <= parseFloat(searchReffMax));
-      if (searchQMin) allGalaxies = allGalaxies.filter(g => g.q >= parseFloat(searchQMin));
-      if (searchQMax) allGalaxies = allGalaxies.filter(g => g.q <= parseFloat(searchQMax));
-      if (searchPaMin) allGalaxies = allGalaxies.filter(g => g.pa >= parseFloat(searchPaMin));
-      if (searchPaMax) allGalaxies = allGalaxies.filter(g => g.pa <= parseFloat(searchPaMax));
-      if (searchMagMin) allGalaxies = allGalaxies.filter(g => (g.mag ?? Number.MAX_SAFE_INTEGER) >= parseFloat(searchMagMin));
-      if (searchMagMax) allGalaxies = allGalaxies.filter(g => (g.mag ?? Number.MIN_SAFE_INTEGER) <= parseFloat(searchMagMax));
-      if (searchMeanMueMin) allGalaxies = allGalaxies.filter(g => (g.mean_mue ?? Number.MAX_SAFE_INTEGER) >= parseFloat(searchMeanMueMin));
-      if (searchMeanMueMax) allGalaxies = allGalaxies.filter(g => (g.mean_mue ?? Number.MIN_SAFE_INTEGER) <= parseFloat(searchMeanMueMax));
-      if (searchNucleus !== undefined) allGalaxies = allGalaxies.filter(g => g.nucleus === searchNucleus);
+      if (searchId) allGalaxies = allGalaxies.filter((g: any) => g.id === searchId.trim());
+      if (searchRaMin) allGalaxies = allGalaxies.filter((g: any) => g.ra >= parseFloat(searchRaMin));
+      if (searchRaMax) allGalaxies = allGalaxies.filter((g: any) => g.ra <= parseFloat(searchRaMax));
+      if (searchDecMin) allGalaxies = allGalaxies.filter((g: any) => g.dec >= parseFloat(searchDecMin));
+      if (searchDecMax) allGalaxies = allGalaxies.filter((g: any) => g.dec <= parseFloat(searchDecMax));
+      if (searchReffMin) allGalaxies = allGalaxies.filter((g: any) => g.reff >= parseFloat(searchReffMin));
+      if (searchReffMax) allGalaxies = allGalaxies.filter((g: any) => g.reff <= parseFloat(searchReffMax));
+      if (searchQMin) allGalaxies = allGalaxies.filter((g: any) => g.q >= parseFloat(searchQMin));
+      if (searchQMax) allGalaxies = allGalaxies.filter((g: any) => g.q <= parseFloat(searchQMax));
+      if (searchPaMin) allGalaxies = allGalaxies.filter((g: any) => g.pa >= parseFloat(searchPaMin));
+      if (searchPaMax) allGalaxies = allGalaxies.filter((g: any) => g.pa <= parseFloat(searchPaMax));
+      if (searchMagMin) allGalaxies = allGalaxies.filter((g: any) => (g.mag ?? Number.MAX_SAFE_INTEGER) >= parseFloat(searchMagMin));
+      if (searchMagMax) allGalaxies = allGalaxies.filter((g: any) => (g.mag ?? Number.MIN_SAFE_INTEGER) <= parseFloat(searchMagMax));
+      if (searchMeanMueMin) allGalaxies = allGalaxies.filter((g: any) => (g.mean_mue ?? Number.MAX_SAFE_INTEGER) >= parseFloat(searchMeanMueMin));
+      if (searchMeanMueMax) allGalaxies = allGalaxies.filter((g: any) => (g.mean_mue ?? Number.MIN_SAFE_INTEGER) <= parseFloat(searchMeanMueMax));
+      if (searchNucleus !== undefined) allGalaxies = allGalaxies.filter((g: any) => g.nucleus === searchNucleus);
 
       if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
-        allGalaxies = allGalaxies.filter(g => {
+        allGalaxies = allGalaxies.filter((g: any) => {
           const total = g.totalClassifications || 0;
           if (searchTotalClassificationsMin && total < parseInt(searchTotalClassificationsMin)) return false;
           if (searchTotalClassificationsMax && total > parseInt(searchTotalClassificationsMax)) return false;
@@ -156,7 +157,7 @@ export const countFilteredGalaxies = mutation({
       }
 
       if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
-        allGalaxies = allGalaxies.filter(g => {
+        allGalaxies = allGalaxies.filter((g: any) => {
           const total = g.numVisibleNucleus || 0;
           if (searchNumVisibleNucleusMin && total < parseInt(searchNumVisibleNucleusMin)) return false;
           if (searchNumVisibleNucleusMax && total > parseInt(searchNumVisibleNucleusMax)) return false;
@@ -165,7 +166,7 @@ export const countFilteredGalaxies = mutation({
       }
 
       if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
-        allGalaxies = allGalaxies.filter(g => {
+        allGalaxies = allGalaxies.filter((g: any) => {
           const total = g.numAwesomeFlag || 0;
           if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
           if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
@@ -174,7 +175,7 @@ export const countFilteredGalaxies = mutation({
       }
 
       if (searchTotalAssignedMin || searchTotalAssignedMax) {
-        allGalaxies = allGalaxies.filter(g => {
+        allGalaxies = allGalaxies.filter((g: any) => {
           const total = g.totalAssigned || 0;
           if (searchTotalAssignedMin && total < parseInt(searchTotalAssignedMin)) return false;
           if (searchTotalAssignedMax && total > parseInt(searchTotalAssignedMax)) return false;
@@ -182,116 +183,109 @@ export const countFilteredGalaxies = mutation({
         });
       }
 
-      return { total: allGalaxies.length, complete: true };
+      return { count: allGalaxies.length, cursor: null, isDone: true };
     }
 
-    // For other filters, use pagination to count
+    // For other filters, use single paginated query
     const indexName = allowedSort[requestedSort].index;
-    const batchSize = 500; // Safe batch size for Convex
-    let totalCount = 0;
-    let cursor: string | null = null;
-    let isDone = false;
 
     // Get user sequence if needed
     let sequenceIds: Set<string> | null = null;
     if (filter === "my_sequence") {
       const userSequence = await ctx.db
         .query("galaxySequences")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .withIndex("by_user", (q: any) => q.eq("userId", userId))
         .unique();
       
       if (userSequence && userSequence.galaxyExternalIds) {
         sequenceIds = new Set(userSequence.galaxyExternalIds);
       } else {
         // No sequence, return 0
-        return { total: 0, complete: true };
+        return { count: 0, cursor: null, isDone: true };
       }
     }
 
-    // Paginate through all results
-    while (!isDone) {
-      const q = ctx.db
-        .query("galaxies")
-        .withIndex(indexName as any)
-        .order(normalizedSortOrder as any);
+    // Single paginated query
+    const q = ctx.db
+      .query("galaxies")
+      .withIndex(indexName as any)
+      .order(normalizedSortOrder as any);
 
-      const { page, isDone: pageDone, continueCursor } = await q.paginate({
-        numItems: batchSize,
-        cursor: cursor,
+    const { page, isDone, continueCursor } = await q.paginate({
+      numItems: batchSize,
+      cursor: paginationCursor,
+    });
+
+    let filteredPage = page;
+
+    // Apply search filters
+    if (searchId) filteredPage = filteredPage.filter((g: any) => g.id === searchId.trim());
+    if (searchRaMin) filteredPage = filteredPage.filter((g: any) => g.ra >= parseFloat(searchRaMin));
+    if (searchRaMax) filteredPage = filteredPage.filter((g: any) => g.ra <= parseFloat(searchRaMax));
+    if (searchDecMin) filteredPage = filteredPage.filter((g: any) => g.dec >= parseFloat(searchDecMin));
+    if (searchDecMax) filteredPage = filteredPage.filter((g: any) => g.dec <= parseFloat(searchDecMax));
+    if (searchReffMin) filteredPage = filteredPage.filter((g: any) => g.reff >= parseFloat(searchReffMin));
+    if (searchReffMax) filteredPage = filteredPage.filter((g: any) => g.reff <= parseFloat(searchReffMax));
+    if (searchQMin) filteredPage = filteredPage.filter((g: any) => g.q >= parseFloat(searchQMin));
+    if (searchQMax) filteredPage = filteredPage.filter((g: any) => g.q <= parseFloat(searchQMax));
+    if (searchPaMin) filteredPage = filteredPage.filter((g: any) => g.pa >= parseFloat(searchPaMin));
+    if (searchPaMax) filteredPage = filteredPage.filter((g: any) => g.pa <= parseFloat(searchPaMax));
+    if (searchMagMin) filteredPage = filteredPage.filter((g: any) => (g.mag ?? Number.MAX_SAFE_INTEGER) >= parseFloat(searchMagMin));
+    if (searchMagMax) filteredPage = filteredPage.filter((g: any) => (g.mag ?? Number.MIN_SAFE_INTEGER) <= parseFloat(searchMagMax));
+    if (searchMeanMueMin) filteredPage = filteredPage.filter((g: any) => (g.mean_mue ?? Number.MAX_SAFE_INTEGER) >= parseFloat(searchMeanMueMin));
+    if (searchMeanMueMax) filteredPage = filteredPage.filter((g: any) => (g.mean_mue ?? Number.MIN_SAFE_INTEGER) <= parseFloat(searchMeanMueMax));
+    if (searchNucleus !== undefined) filteredPage = filteredPage.filter((g: any) => g.nucleus === searchNucleus);
+
+    // Apply filter-specific logic
+    if (filter === "classified") {
+      filteredPage = filteredPage.filter((g: any) => (g.totalClassifications || 0) > 0);
+    } else if (filter === "unclassified") {
+      filteredPage = filteredPage.filter((g: any) => (g.totalClassifications || 0) === 0);
+    } else if (filter === "my_sequence" && sequenceIds) {
+      filteredPage = filteredPage.filter((g: any) => sequenceIds!.has(g.id));
+    }
+
+    // Apply classification-based search filters
+    if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
+      filteredPage = filteredPage.filter((g: any) => {
+        const total = g.totalClassifications || 0;
+        if (searchTotalClassificationsMin && total < parseInt(searchTotalClassificationsMin)) return false;
+        if (searchTotalClassificationsMax && total > parseInt(searchTotalClassificationsMax)) return false;
+        return true;
       });
-
-      isDone = pageDone;
-      cursor = continueCursor;
-
-      let filteredPage = page;
-
-      // Apply search filters
-      if (searchId) filteredPage = filteredPage.filter(g => g.id === searchId.trim());
-      if (searchRaMin) filteredPage = filteredPage.filter(g => g.ra >= parseFloat(searchRaMin));
-      if (searchRaMax) filteredPage = filteredPage.filter(g => g.ra <= parseFloat(searchRaMax));
-      if (searchDecMin) filteredPage = filteredPage.filter(g => g.dec >= parseFloat(searchDecMin));
-      if (searchDecMax) filteredPage = filteredPage.filter(g => g.dec <= parseFloat(searchDecMax));
-      if (searchReffMin) filteredPage = filteredPage.filter(g => g.reff >= parseFloat(searchReffMin));
-      if (searchReffMax) filteredPage = filteredPage.filter(g => g.reff <= parseFloat(searchReffMax));
-      if (searchQMin) filteredPage = filteredPage.filter(g => g.q >= parseFloat(searchQMin));
-      if (searchQMax) filteredPage = filteredPage.filter(g => g.q <= parseFloat(searchQMax));
-      if (searchPaMin) filteredPage = filteredPage.filter(g => g.pa >= parseFloat(searchPaMin));
-      if (searchPaMax) filteredPage = filteredPage.filter(g => g.pa <= parseFloat(searchPaMax));
-      if (searchMagMin) filteredPage = filteredPage.filter(g => (g.mag ?? Number.MAX_SAFE_INTEGER) >= parseFloat(searchMagMin));
-      if (searchMagMax) filteredPage = filteredPage.filter(g => (g.mag ?? Number.MIN_SAFE_INTEGER) <= parseFloat(searchMagMax));
-      if (searchMeanMueMin) filteredPage = filteredPage.filter(g => (g.mean_mue ?? Number.MAX_SAFE_INTEGER) >= parseFloat(searchMeanMueMin));
-      if (searchMeanMueMax) filteredPage = filteredPage.filter(g => (g.mean_mue ?? Number.MIN_SAFE_INTEGER) <= parseFloat(searchMeanMueMax));
-      if (searchNucleus !== undefined) filteredPage = filteredPage.filter(g => g.nucleus === searchNucleus);
-
-      // Apply filter-specific logic
-      if (filter === "classified") {
-        filteredPage = filteredPage.filter(g => (g.totalClassifications || 0) > 0);
-      } else if (filter === "unclassified") {
-        filteredPage = filteredPage.filter(g => (g.totalClassifications || 0) === 0);
-      } else if (filter === "my_sequence" && sequenceIds) {
-        filteredPage = filteredPage.filter(g => sequenceIds!.has(g.id));
-      }
-
-      // Apply classification-based search filters
-      if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
-        filteredPage = filteredPage.filter(g => {
-          const total = g.totalClassifications || 0;
-          if (searchTotalClassificationsMin && total < parseInt(searchTotalClassificationsMin)) return false;
-          if (searchTotalClassificationsMax && total > parseInt(searchTotalClassificationsMax)) return false;
-          return true;
-        });
-      }
-
-      if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
-        filteredPage = filteredPage.filter(g => {
-          const total = g.numVisibleNucleus || 0;
-          if (searchNumVisibleNucleusMin && total < parseInt(searchNumVisibleNucleusMin)) return false;
-          if (searchNumVisibleNucleusMax && total > parseInt(searchNumVisibleNucleusMax)) return false;
-          return true;
-        });
-      }
-
-      if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
-        filteredPage = filteredPage.filter(g => {
-          const total = g.numAwesomeFlag || 0;
-          if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
-          if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
-          return true;
-        });
-      }
-
-      if (searchTotalAssignedMin || searchTotalAssignedMax) {
-        filteredPage = filteredPage.filter(g => {
-          const total = g.totalAssigned || 0;
-          if (searchTotalAssignedMin && total < parseInt(searchTotalAssignedMin)) return false;
-          if (searchTotalAssignedMax && total > parseInt(searchTotalAssignedMax)) return false;
-          return true;
-        });
-      }
-
-      totalCount += filteredPage.length;
     }
 
-    return { total: totalCount, complete: true };
+    if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
+      filteredPage = filteredPage.filter((g: any) => {
+        const total = g.numVisibleNucleus || 0;
+        if (searchNumVisibleNucleusMin && total < parseInt(searchNumVisibleNucleusMin)) return false;
+        if (searchNumVisibleNucleusMax && total > parseInt(searchNumVisibleNucleusMax)) return false;
+        return true;
+      });
+    }
+
+    if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
+      filteredPage = filteredPage.filter((g: any) => {
+        const total = g.numAwesomeFlag || 0;
+        if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
+        if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
+        return true;
+      });
+    }
+
+    if (searchTotalAssignedMin || searchTotalAssignedMax) {
+      filteredPage = filteredPage.filter((g: any) => {
+        const total = g.totalAssigned || 0;
+        if (searchTotalAssignedMin && total < parseInt(searchTotalAssignedMin)) return false;
+        if (searchTotalAssignedMax && total > parseInt(searchTotalAssignedMax)) return false;
+        return true;
+      });
+    }
+
+    return { 
+      count: filteredPage.length, 
+      cursor: continueCursor, 
+      isDone 
+    };
   },
 });
