@@ -173,15 +173,20 @@ export function GalaxyBrowserControls({
               )}
             </button>
           )}
+          {onComputeTotal && (isComputingTotal || computedTotal !== null) && (
+            <span className="text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">
+              {isComputingTotal
+                ? accumulatedCount > 0
+                  ? `Counted ${accumulatedCount}...`
+                  : 'Counting...'
+                : `Total ${computedTotal}`}
+            </span>
+          )}
         </div>
         <div className="text-sm text-gray-700 dark:text-gray-300 text-left sm:text-right">
           <div>Page {page}</div>
-          <div className="text-xs text-gray-600 dark:text-gray-400">
-            {computedTotal !== null ? (
-              <span className="font-medium">Total: {computedTotal} | {statusText.replace(/^Showing /, '')}</span>
-            ) : (
-              statusText
-            )}
+          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+            {statusText}
           </div>
         </div>
       </div>
