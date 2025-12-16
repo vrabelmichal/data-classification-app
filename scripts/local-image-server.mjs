@@ -16,6 +16,50 @@ const SERVER_BASE = process.env.VITE_LOCAL_SERVER_BASE || `http://localhost:${PO
 // Enable CORS for all routes
 app.use(cors());
 
+// Serve static files for generic assets (e.g., examples/kids/image.png)
+app.get('/assets/*', (req, res) => {
+  const assetPath = req.params[0]; // Get everything after /assets/
+  const filePath = path.join(DATA_DIR, 'assets', assetPath);
+  
+  // Security: ensure the file is within DATA_DIR/assets
+  const resolvedPath = path.resolve(filePath);
+  const resolvedDataDir = path.resolve(path.join(DATA_DIR, 'assets'));
+  
+  if (!resolvedPath.startsWith(resolvedDataDir)) {
+    return res.status(403).send('Access denied');
+  }
+  
+  // Send the file
+  res.sendFile(resolvedPath, (err) => {
+    if (err) {
+      console.error(`Error serving asset ${resolvedPath}:`, err.message);
+      res.status(404).send('Asset not found');
+    }
+  });
+});
+
+// Serve static files for generic assets without /assets/ prefix (e.g., examples/kids/image.png)
+app.get('/examples/*', (req, res) => {
+  const assetPath = req.params[0]; // Get everything after /examples/
+  const filePath = path.join(DATA_DIR, 'examples', assetPath);
+  
+  // Security: ensure the file is within DATA_DIR/examples
+  const resolvedPath = path.resolve(filePath);
+  const resolvedDataDir = path.resolve(path.join(DATA_DIR, 'examples'));
+  
+  if (!resolvedPath.startsWith(resolvedDataDir)) {
+    return res.status(403).send('Access denied');
+  }
+  
+  // Send the file
+  res.sendFile(resolvedPath, (err) => {
+    if (err) {
+      console.error(`Error serving asset ${resolvedPath}:`, err.message);
+      res.status(404).send('Asset not found');
+    }
+  });
+});
+
 // Serve static files for galaxy images
 app.get('/:galaxyId/:imageName', (req, res) => {
   const { galaxyId, imageName } = req.params;

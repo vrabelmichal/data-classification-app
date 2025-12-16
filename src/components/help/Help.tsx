@@ -1,6 +1,7 @@
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { KidsExamplesCarousel } from "./KidsExamplesCarousel";
 
 export function Help() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -21,6 +22,10 @@ export function Help() {
       </div>
 
       <div className="space-y-8">
+
+        {/* KiDS Manual Labeling Examples */}
+        <KidsExamplesCarousel />
+
         {/* Getting Started */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
@@ -36,7 +41,7 @@ export function Help() {
               <li>Look at the galaxy image carefully</li>
               <li>Choose the LSB classification (Failed fitting, Non-LSB, or LSB)</li>
               <li>Choose the morphology (Featureless, Irregular, Spiral, or Elliptical)</li>
-              <li>Set the awesome flag and valid redshift flags if applicable</li>
+              <li>Set flags if applicable</li>
               <li>Add any comments or sky background notes if helpful</li>
               <li>Submit your classification or skip if unsure</li>
             </ol>
@@ -311,6 +316,7 @@ export function Help() {
             </p>
           </div>
         </div>
+
       </div>
     </div>
   );

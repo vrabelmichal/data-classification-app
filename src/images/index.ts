@@ -45,3 +45,4 @@ export function getImageUrl(
 // Re-export types for convenience
 export type { ImageProvider, ImageName, GetImageUrlOptions, ImageQuality } from "./provider";
 export type { ImagesConfig } from "./config";
+export { getAssetUrl, getKidsExampleImageUrl } from "./assetUrl";
