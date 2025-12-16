@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { cn } from "../../lib/utils";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { useTheme } from "../../hooks/useTheme";
+import { DEFAULT_IMAGE_QUALITY } from "../../lib/defaults";
 
 export function UserSettings() {
   usePageTitle("Settings");
@@ -14,7 +15,7 @@ export function UserSettings() {
   
   // Get public system settings for default image quality
   const publicSettings = useQuery(api.system_settings.getPublicSystemSettings);
-  const defaultImageQuality = (publicSettings?.defaultImageQuality as "high" | "low") || "high";
+  const defaultImageQuality = (publicSettings?.defaultImageQuality as "high" | "low") ?? DEFAULT_IMAGE_QUALITY;
 
   // Query for combined user + profile returned by server as `getUserProfile`
   // The returned shape is: { user, ...profileFields }

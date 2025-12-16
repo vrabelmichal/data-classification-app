@@ -2,14 +2,21 @@ import { usePageTitle } from "../../hooks/usePageTitle";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { KidsExamplesCarousel } from "./KidsExamplesCarousel";
+import {
+  DEFAULT_APP_NAME,
+  DEFAULT_FAILED_FITTING_MODE,
+  DEFAULT_SHOW_AWESOME_FLAG,
+  DEFAULT_SHOW_VALID_REDSHIFT,
+  DEFAULT_SHOW_VISIBLE_NUCLEUS,
+} from "../../lib/defaults";
 
 export function Help() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
-  const appName = systemSettings?.appName || "Galaxy Classification App";
-  const failedFittingMode = (systemSettings?.failedFittingMode as "legacy" | "checkbox") || "checkbox";
-  const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? true;
-  const showValidRedshift = systemSettings?.showValidRedshift ?? true;
-  const showVisibleNucleus = systemSettings?.showVisibleNucleus ?? true;
+  const appName = systemSettings?.appName ?? DEFAULT_APP_NAME;
+  const failedFittingMode = (systemSettings?.failedFittingMode as "legacy" | "checkbox") ?? DEFAULT_FAILED_FITTING_MODE;
+  const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG;
+  const showValidRedshift = systemSettings?.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT;
+  const showVisibleNucleus = systemSettings?.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS;
 
   usePageTitle("Help");
   return (

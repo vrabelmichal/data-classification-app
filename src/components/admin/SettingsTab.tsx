@@ -2,7 +2,21 @@ import { useState, useEffect } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
-import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
+import {
+  DEFAULT_AVAILABLE_PAPERS,
+  DEFAULT_ALLOW_ANONYMOUS,
+  DEFAULT_EMAIL_FROM,
+  DEFAULT_APP_NAME,
+  DEFAULT_DEBUG_ADMIN_MODE,
+  DEFAULT_APP_VERSION,
+  DEFAULT_FAILED_FITTING_MODE,
+  DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS,
+  DEFAULT_SHOW_AWESOME_FLAG,
+  DEFAULT_SHOW_VALID_REDSHIFT,
+  DEFAULT_SHOW_VISIBLE_NUCLEUS,
+  DEFAULT_IMAGE_QUALITY,
+  DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
+} from "../../lib/defaults";
 
 interface SettingsTabProps {
   systemSettings: any;
@@ -26,19 +40,19 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     galaxyBrowserImageQuality: string;
     availablePapers: string[];
   }>({
-    allowAnonymous: systemSettings.allowAnonymous || false,
-    emailFrom: systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk",
-    appName: systemSettings.appName || "Galaxy Classification App",
-    debugAdminMode: systemSettings.debugAdminMode || false,
-    appVersion: systemSettings.appVersion || "",
-    failedFittingMode: systemSettings.failedFittingMode || "checkbox",
-    failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? 0,
-    showAwesomeFlag: systemSettings.showAwesomeFlag ?? true,
-    showValidRedshift: systemSettings.showValidRedshift ?? true,
-    showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
-    defaultImageQuality: systemSettings.defaultImageQuality || "high",
-    galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality || "low",
-    availablePapers: systemSettings.availablePapers || DEFAULT_AVAILABLE_PAPERS,
+    allowAnonymous: systemSettings.allowAnonymous ?? DEFAULT_ALLOW_ANONYMOUS,
+    emailFrom: systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM,
+    appName: systemSettings.appName ?? DEFAULT_APP_NAME,
+    debugAdminMode: systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE,
+    appVersion: systemSettings.appVersion ?? DEFAULT_APP_VERSION,
+    failedFittingMode: systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE,
+    failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS,
+    showAwesomeFlag: systemSettings.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG,
+    showValidRedshift: systemSettings.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT,
+    showVisibleNucleus: systemSettings.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS,
+    defaultImageQuality: systemSettings.defaultImageQuality ?? DEFAULT_IMAGE_QUALITY,
+    galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality ?? DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
+    availablePapers: systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -47,38 +61,38 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
   // Update local settings when systemSettings prop changes
   useEffect(() => {
     setLocalSettings({
-      allowAnonymous: systemSettings.allowAnonymous || false,
-      emailFrom: systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk",
-      appName: systemSettings.appName || "Galaxy Classification App",
-      debugAdminMode: systemSettings.debugAdminMode || false,
-      appVersion: systemSettings.appVersion || "",
-      failedFittingMode: systemSettings.failedFittingMode || "checkbox",
-      failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? 0,
-      showAwesomeFlag: systemSettings.showAwesomeFlag ?? true,
-      showValidRedshift: systemSettings.showValidRedshift ?? true,
-      showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
-      defaultImageQuality: systemSettings.defaultImageQuality || "high",
-      galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality || "low",
-      availablePapers: systemSettings.availablePapers || DEFAULT_AVAILABLE_PAPERS,
+      allowAnonymous: systemSettings.allowAnonymous ?? DEFAULT_ALLOW_ANONYMOUS,
+      emailFrom: systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM,
+      appName: systemSettings.appName ?? DEFAULT_APP_NAME,
+      debugAdminMode: systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE,
+      appVersion: systemSettings.appVersion ?? DEFAULT_APP_VERSION,
+      failedFittingMode: systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE,
+      failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS,
+      showAwesomeFlag: systemSettings.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG,
+      showValidRedshift: systemSettings.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT,
+      showVisibleNucleus: systemSettings.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS,
+      defaultImageQuality: systemSettings.defaultImageQuality ?? DEFAULT_IMAGE_QUALITY,
+      galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality ?? DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
+      availablePapers: systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS,
     });
     setHasChanges(false);
   }, [systemSettings]);
 
   // Check for changes
   useEffect(() => {
-    const originalAllowAnonymous = systemSettings.allowAnonymous || false;
-    const originalEmailFrom = systemSettings.emailFrom || "noreply@galaxies.michalvrabel.sk";
-    const originalAppName = systemSettings.appName || "Galaxy Classification App";
-    const originalDebugAdminMode = systemSettings.debugAdminMode || false;
-    const originalAppVersion = systemSettings.appVersion || "";
-    const originalFailedFittingMode = systemSettings.failedFittingMode || "checkbox";
-    const originalFailedFittingFallbackLsbClass = systemSettings.failedFittingFallbackLsbClass ?? 0;
-    const originalShowAwesomeFlag = systemSettings.showAwesomeFlag ?? true;
-    const originalShowValidRedshift = systemSettings.showValidRedshift ?? true;
-    const originalShowVisibleNucleus = systemSettings.showVisibleNucleus ?? true;
-    const originalDefaultImageQuality = systemSettings.defaultImageQuality || "high";
-    const originalGalaxyBrowserImageQuality = systemSettings.galaxyBrowserImageQuality || "low";
-    const originalAvailablePapers = systemSettings.availablePapers || DEFAULT_AVAILABLE_PAPERS;
+    const originalAllowAnonymous = systemSettings.allowAnonymous ?? DEFAULT_ALLOW_ANONYMOUS;
+    const originalEmailFrom = systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM;
+    const originalAppName = systemSettings.appName ?? DEFAULT_APP_NAME;
+    const originalDebugAdminMode = systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE;
+    const originalAppVersion = systemSettings.appVersion ?? DEFAULT_APP_VERSION;
+    const originalFailedFittingMode = systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE;
+    const originalFailedFittingFallbackLsbClass = systemSettings.failedFittingFallbackLsbClass ?? DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS;
+    const originalShowAwesomeFlag = systemSettings.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG;
+    const originalShowValidRedshift = systemSettings.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT;
+    const originalShowVisibleNucleus = systemSettings.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS;
+    const originalDefaultImageQuality = systemSettings.defaultImageQuality ?? DEFAULT_IMAGE_QUALITY;
+    const originalGalaxyBrowserImageQuality = systemSettings.galaxyBrowserImageQuality ?? DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY;
+    const originalAvailablePapers = systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS;
     const papersChanged = JSON.stringify(localSettings.availablePapers) !== JSON.stringify(originalAvailablePapers);
     setHasChanges(
       localSettings.allowAnonymous !== originalAllowAnonymous ||
