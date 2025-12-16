@@ -41,8 +41,14 @@ export function UserSettings() {
   const { theme: liveTheme, setTheme: setLiveTheme } = useTheme();
 
   // Determine the effective image quality: user preference > system default > hardcoded default
-  // userPrefs already includes the server-side default when user has no preference
+  // Note: historical values may include "medium" which is no longer supported.
   const effectiveImageQuality = userPrefs?.imageQuality ?? defaultImageQuality;
+
+  // Map legacy/unsupported values to supported ones for display and saving
+  const normalizeQuality = (
+    q: "high" | "low" | "medium" | undefined,
+    fallback: "high" | "low"
+  ): "high" | "low" => (q === "medium" ? fallback : (q ?? fallback));
   dlog("Derived values", {
     publicSettings,
     defaultImageQuality,
@@ -78,15 +84,18 @@ export function UserSettings() {
     });
   }, [userPrefs, effectiveImageQuality, effectiveTheme, authUser]);
 
-  // Compute the displayed/checked value - use state if set, otherwise fall back to effective
-  const displayedImageQuality = imageQuality ?? effectiveImageQuality;
+  // Compute the displayed/checked value using normalization so a radio is always selected
+  const normalizedEffectiveImageQuality = normalizeQuality(effectiveImageQuality, defaultImageQuality);
+  const displayedImageQuality = normalizeQuality(imageQuality, defaultImageQuality);
   dlog("Display state", { imageQuality, displayedImageQuality, effectiveImageQuality });
 
   // Check if there are unsaved changes
-  const hasUnsavedChanges = 
-    imageQuality !== undefined && imageQuality !== effectiveImageQuality ||
+  // Compare normalized values so legacy 'medium' correctly reflects pending change intent
+  const hasUnsavedChanges = (
+    (imageQuality !== undefined && normalizeQuality(imageQuality, defaultImageQuality) !== normalizedEffectiveImageQuality) ||
     theme !== effectiveTheme ||
-    userName !== (authUser?.name ?? "");
+    userName !== (authUser?.name ?? "")
+  );
 
   const handleSave = async () => {
     try {
@@ -175,6 +184,13 @@ export function UserSettings() {
         {/* Image Quality */}
         <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Image Quality</h2>
+          {userPrefs?.imageQuality === "medium" && (
+            <div className="mb-3 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-amber-800 dark:text-amber-200 text-sm">
+              Medium quality is no longer supported. We will use
+              <span className="font-semibold"> {normalizedEffectiveImageQuality.toUpperCase()} </span>
+              for classification by default. Please choose a supported option and save.
+            </div>
+          )}
           <div className="space-y-3">
             <label className="flex items-center">
               <input
