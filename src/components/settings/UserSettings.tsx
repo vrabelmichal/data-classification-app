@@ -12,6 +12,10 @@ export function UserSettings() {
   const userPrefs = useQuery(api.users.getUserPreferences);
   const updatePreferences = useMutation(api.users.updatePreferences);
   const updateUserName = useMutation(api.users.updateUserName);
+  const DEBUG_USER_SETTINGS = (import.meta as any).env?.VITE_DEBUG_USER_SETTINGS === "1";
+  const dlog = (...args: any[]) => {
+    if (DEBUG_USER_SETTINGS) console.log("[UserSettings]", ...args);
+  };
   
   // Get public system settings for default image quality
   const publicSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -39,6 +43,12 @@ export function UserSettings() {
   // Determine the effective image quality: user preference > system default > hardcoded default
   // userPrefs already includes the server-side default when user has no preference
   const effectiveImageQuality = userPrefs?.imageQuality ?? defaultImageQuality;
+  dlog("Derived values", {
+    publicSettings,
+    defaultImageQuality,
+    userPrefs,
+    effectiveImageQuality,
+  });
   const effectiveTheme = userPrefs?.theme ?? "auto";
 
   // Initialize with undefined to detect when we haven't set from loaded data yet
@@ -56,10 +66,21 @@ export function UserSettings() {
     if (authUser?.name) {
       setUserName(authUser.name);
     }
+    dlog("Effect update", {
+      userPrefs,
+      publicSettings,
+      defaultImageQuality,
+      effectiveImageQuality,
+      imageQuality,
+      effectiveTheme,
+      theme,
+      authUser,
+    });
   }, [userPrefs, effectiveImageQuality, effectiveTheme, authUser]);
 
   // Compute the displayed/checked value - use state if set, otherwise fall back to effective
   const displayedImageQuality = imageQuality ?? effectiveImageQuality;
+  dlog("Display state", { imageQuality, displayedImageQuality, effectiveImageQuality });
 
   // Check if there are unsaved changes
   const hasUnsavedChanges = 
@@ -69,6 +90,10 @@ export function UserSettings() {
 
   const handleSave = async () => {
     try {
+      dlog("Saving preferences", {
+        payload: { imageQuality: displayedImageQuality, theme },
+        nameChange: userName !== (authUser?.name ?? ""),
+      });
       await updatePreferences({
         imageQuality: displayedImageQuality,
         theme,
@@ -78,6 +103,7 @@ export function UserSettings() {
       }
       // Apply theme changes to live theme after save
       setLiveTheme(theme);
+      dlog("Save complete");
       toast.success("Settings saved successfully!");
     } catch (error) {
       toast.error("Failed to save settings");
@@ -156,7 +182,11 @@ export function UserSettings() {
                 name="imageQuality"
                 value="high"
                 checked={displayedImageQuality === "high"}
-                onChange={(e) => setImageQuality(e.target.value as "high" | "medium" | "low")}
+                onChange={(e) => {
+                  const val = e.target.value as "high" | "medium" | "low";
+                  dlog("Radio change: imageQuality", { from: imageQuality, to: val });
+                  setImageQuality(val);
+                }}
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
               <div className="ml-3">
@@ -170,7 +200,11 @@ export function UserSettings() {
                 name="imageQuality"
                 value="low"
                 checked={displayedImageQuality === "low"}
-                onChange={(e) => setImageQuality(e.target.value as "high" | "medium" | "low")}
+                onChange={(e) => {
+                  const val = e.target.value as "high" | "medium" | "low";
+                  dlog("Radio change: imageQuality", { from: imageQuality, to: val });
+                  setImageQuality(val);
+                }}
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
               <div className="ml-3">
