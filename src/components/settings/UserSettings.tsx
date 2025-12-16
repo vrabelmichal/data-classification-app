@@ -34,29 +34,38 @@ export function UserSettings() {
   // }
 
   // Use the theme hook for immediate theme changes
-  const { theme, setTheme } = useTheme();
+  const { theme: liveTheme, setTheme: setLiveTheme } = useTheme();
 
   // Determine the effective image quality: user preference > system default > hardcoded default
   // userPrefs already includes the server-side default when user has no preference
   const effectiveImageQuality = userPrefs?.imageQuality ?? defaultImageQuality;
+  const effectiveTheme = userPrefs?.theme ?? "auto";
 
   // Initialize with undefined to detect when we haven't set from loaded data yet
   const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low" | undefined>(undefined);
   const [userName, setUserName] = useState("");
+  const [theme, setTheme] = useState<"light" | "dark" | "auto">("auto");
 
   // Update state when data loads or changes
   useEffect(() => {
     // Only set imageQuality once userPrefs has loaded (not undefined)
     if (userPrefs !== undefined) {
       setImageQuality(effectiveImageQuality);
+      setTheme(effectiveTheme);
     }
     if (authUser?.name) {
       setUserName(authUser.name);
     }
-  }, [userPrefs, effectiveImageQuality, authUser]);
+  }, [userPrefs, effectiveImageQuality, effectiveTheme, authUser]);
 
   // Compute the displayed/checked value - use state if set, otherwise fall back to effective
   const displayedImageQuality = imageQuality ?? effectiveImageQuality;
+
+  // Check if there are unsaved changes
+  const hasUnsavedChanges = 
+    imageQuality !== undefined && imageQuality !== effectiveImageQuality ||
+    theme !== effectiveTheme ||
+    userName !== (authUser?.name ?? "");
 
   const handleSave = async () => {
     try {
@@ -67,6 +76,8 @@ export function UserSettings() {
       if (userName !== (authUser?.name ?? "")) {
         await updateUserName({ name: userName });
       }
+      // Apply theme changes to live theme after save
+      setLiveTheme(theme);
       toast.success("Settings saved successfully!");
     } catch (error) {
       toast.error("Failed to save settings");
@@ -277,9 +288,14 @@ export function UserSettings() {
         <div className="flex justify-end">
           <button
             onClick={handleSave}
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg transition-colors"
+            className={cn(
+              "font-medium py-2 px-6 rounded-lg transition-all",
+              hasUnsavedChanges
+                ? "bg-amber-500 hover:bg-amber-600 text-white shadow-md"
+                : "bg-blue-600 hover:bg-blue-700 text-white"
+            )}
           >
-            Save Settings
+            {hasUnsavedChanges ? "Save Changes *" : "Save Settings"}
           </button>
         </div>
 
