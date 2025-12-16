@@ -37,23 +37,31 @@ export function UserSettings() {
   const { theme, setTheme } = useTheme();
 
   // Determine the effective image quality: user preference > system default > hardcoded default
+  // userPrefs already includes the server-side default when user has no preference
   const effectiveImageQuality = userPrefs?.imageQuality ?? defaultImageQuality;
 
-  const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low">(effectiveImageQuality);
+  // Initialize with undefined to detect when we haven't set from loaded data yet
+  const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low" | undefined>(undefined);
   const [userName, setUserName] = useState("");
 
-  // Update state when userPrefs, authUser, or defaultImageQuality changes
+  // Update state when data loads or changes
   useEffect(() => {
-    setImageQuality(effectiveImageQuality);
+    // Only set imageQuality once userPrefs has loaded (not undefined)
+    if (userPrefs !== undefined) {
+      setImageQuality(effectiveImageQuality);
+    }
     if (authUser?.name) {
       setUserName(authUser.name);
     }
-  }, [effectiveImageQuality, authUser]);
+  }, [userPrefs, effectiveImageQuality, authUser]);
+
+  // Compute the displayed/checked value - use state if set, otherwise fall back to effective
+  const displayedImageQuality = imageQuality ?? effectiveImageQuality;
 
   const handleSave = async () => {
     try {
       await updatePreferences({
-        imageQuality,
+        imageQuality: displayedImageQuality,
         theme,
       });
       if (userName !== (authUser?.name ?? "")) {
@@ -136,7 +144,7 @@ export function UserSettings() {
                 type="radio"
                 name="imageQuality"
                 value="high"
-                checked={imageQuality === "high"}
+                checked={displayedImageQuality === "high"}
                 onChange={(e) => setImageQuality(e.target.value as "high" | "medium" | "low")}
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
@@ -150,7 +158,7 @@ export function UserSettings() {
                 type="radio"
                 name="imageQuality"
                 value="low"
-                checked={imageQuality === "low"}
+                checked={displayedImageQuality === "low"}
                 onChange={(e) => setImageQuality(e.target.value as "high" | "medium" | "low")}
                 className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
               />
