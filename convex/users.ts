@@ -20,12 +20,12 @@ export const getUserPreferences = query({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
 
-    console.log("[convex:getUserPreferences]", {
-      userId,
-      hasPrefs: !!prefs,
-      prefsImageQuality: prefs?.imageQuality,
-      defaultQuality,
-    });
+    // console.log("[convex:getUserPreferences]", {
+    //   userId,
+    //   hasPrefs: !!prefs,
+    //   prefsImageQuality: prefs?.imageQuality,
+    //   defaultQuality,
+    // });
 
     return prefs || {
       imageQuality: defaultQuality,
@@ -51,12 +51,12 @@ export const updatePreferences = mutation({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .unique();
 
-    console.log("[convex:updatePreferences]", {
-      userId,
-      args,
-      hasExisting: !!existing,
-      defaultQuality,
-    });
+    // console.log("[convex:updatePreferences]", {
+    //   userId,
+    //   args,
+    //   hasExisting: !!existing,
+    //   defaultQuality,
+    // });
 
     if (existing) {
       await ctx.db.patch(existing._id, args);
@@ -69,7 +69,7 @@ export const updatePreferences = mutation({
       });
     }
 
-    console.log("[convex:updatePreferences] success");
+    // console.log("[convex:updatePreferences] success");
     return { success: true };
   },
 });
