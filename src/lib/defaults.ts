@@ -22,5 +22,6 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   showValidRedshift: true,
   showVisibleNucleus: true,
   defaultImageQuality: "high" as const,
+  galaxyBrowserImageQuality: "low" as const,
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
 };

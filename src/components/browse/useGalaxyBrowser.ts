@@ -224,9 +224,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const userPrefs = useQuery(api.users.getUserPreferences);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   
-  // Compute effective image quality from user prefs or system default
-  const defaultImageQuality = (systemSettings?.defaultImageQuality as "high" | "low") || "high";
-  const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
+  // Compute effective image quality for Galaxy Browser (uses browser-specific setting, not user prefs or default system setting)
+  const effectiveImageQuality = (systemSettings?.galaxyBrowserImageQuality as "high" | "low") || "low";
 
   // Computed values
   const currentBounds = galaxyData?.currentBounds;

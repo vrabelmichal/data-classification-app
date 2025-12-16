@@ -23,6 +23,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     showValidRedshift: boolean;
     showVisibleNucleus: boolean;
     defaultImageQuality: string;
+    galaxyBrowserImageQuality: string;
     availablePapers: string[];
   }>({
     allowAnonymous: systemSettings.allowAnonymous || false,
@@ -36,6 +37,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     showValidRedshift: systemSettings.showValidRedshift ?? true,
     showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
     defaultImageQuality: systemSettings.defaultImageQuality || "high",
+    galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality || "low",
     availablePapers: systemSettings.availablePapers || DEFAULT_AVAILABLE_PAPERS,
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -56,6 +58,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       showValidRedshift: systemSettings.showValidRedshift ?? true,
       showVisibleNucleus: systemSettings.showVisibleNucleus ?? true,
       defaultImageQuality: systemSettings.defaultImageQuality || "high",
+      galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality || "low",
       availablePapers: systemSettings.availablePapers || DEFAULT_AVAILABLE_PAPERS,
     });
     setHasChanges(false);
@@ -74,6 +77,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     const originalShowValidRedshift = systemSettings.showValidRedshift ?? true;
     const originalShowVisibleNucleus = systemSettings.showVisibleNucleus ?? true;
     const originalDefaultImageQuality = systemSettings.defaultImageQuality || "high";
+    const originalGalaxyBrowserImageQuality = systemSettings.galaxyBrowserImageQuality || "low";
     const originalAvailablePapers = systemSettings.availablePapers || DEFAULT_AVAILABLE_PAPERS;
     const papersChanged = JSON.stringify(localSettings.availablePapers) !== JSON.stringify(originalAvailablePapers);
     setHasChanges(
@@ -88,6 +92,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       localSettings.showValidRedshift !== originalShowValidRedshift ||
       localSettings.showVisibleNucleus !== originalShowVisibleNucleus ||
       localSettings.defaultImageQuality !== originalDefaultImageQuality ||
+      localSettings.galaxyBrowserImageQuality !== originalGalaxyBrowserImageQuality ||
       papersChanged
     );
   }, [localSettings, systemSettings]);
@@ -114,6 +119,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         showValidRedshift: localSettings.showValidRedshift,
         showVisibleNucleus: localSettings.showVisibleNucleus,
         defaultImageQuality: localSettings.defaultImageQuality as "high" | "low",
+        galaxyBrowserImageQuality: localSettings.galaxyBrowserImageQuality as "high" | "low",
         availablePapers: localSettings.availablePapers,
       });
       toast.success("Settings updated successfully");
@@ -344,7 +350,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
             Configure the default image quality for classification. Users can override this in their personal settings.
           </p>
 
-          <label className="block">
+          <label className="block mb-4">
             <span className="text-sm font-medium text-gray-900 dark:text-white">
               Default Image Quality
             </span>
@@ -358,6 +364,23 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
             >
               <option value="high">High Quality (Better image quality, larger file sizes)</option>
               <option value="low">Low Quality (Faster loading, smaller file sizes)</option>
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              Galaxy Browser Image Quality
+            </span>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+              Image quality specifically for the Galaxy Browser. This setting is <strong>independent</strong> from the default image quality and user preferences. Currently set to: <strong className="text-blue-600 dark:text-blue-400">{localSettings.galaxyBrowserImageQuality === "high" ? "High Quality" : "Low Quality (AVIF)"}</strong>
+            </p>
+            <select
+              value={localSettings.galaxyBrowserImageQuality}
+              onChange={(e) => handleSettingChange("galaxyBrowserImageQuality", e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+            >
+              <option value="high">High Quality (Better image quality, larger file sizes)</option>
+              <option value="low">Low Quality / AVIF (Faster loading, smaller file sizes - Recommended)</option>
             </select>
           </label>
         </div>
