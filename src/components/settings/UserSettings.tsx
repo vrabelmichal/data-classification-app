@@ -36,21 +36,19 @@ export function UserSettings() {
   // Use the theme hook for immediate theme changes
   const { theme, setTheme } = useTheme();
 
-  const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low">(defaultImageQuality);
+  // Determine the effective image quality: user preference > system default > hardcoded default
+  const effectiveImageQuality = userPrefs?.imageQuality ?? defaultImageQuality;
+
+  const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low">(effectiveImageQuality);
   const [userName, setUserName] = useState("");
 
-  // Update state when userPrefs or defaultImageQuality changes
+  // Update state when userPrefs, authUser, or defaultImageQuality changes
   useEffect(() => {
-    if (userPrefs) {
-      setImageQuality(userPrefs.imageQuality);
-    } else if (defaultImageQuality) {
-      // Use system default when user has no preference set
-      setImageQuality(defaultImageQuality);
-    }
+    setImageQuality(effectiveImageQuality);
     if (authUser?.name) {
       setUserName(authUser.name);
     }
-  }, [userPrefs, authUser, defaultImageQuality]);
+  }, [effectiveImageQuality, authUser]);
 
   const handleSave = async () => {
     try {
