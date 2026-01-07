@@ -53,6 +53,14 @@ const defaultImageDisplaySettings: ImageDisplaySettings = {
         { key: "residual_99_7", label: "Residual\n(99.7%)" },
         { key: "model_99_7", label: "Galfit Model\n(99.7%)" },
         { key: "aplpy_linear_based_on_109534177_unmasked", label: "APLpy Linear\n(109534177-based)", showEllipse: true},   // !
+        { key: "lupton__q_8__stretch_20", label: "Lupton\n(q=8, stretch=20, unmasked)" },  // ?
+        { key: "aplpy_linear_p1_995_wide_unmasked", label: "APLpy Linear\n(p1_995 wide)", forcedQuality: "low", rectangle: rectangle256x256in1024x1024},
+      ],
+      [
+        { key: "g_99_0_masked", label: "Masked g-Band\n(99.0%)", showEllipse: true},
+        { key: "residual_99_7", label: "Residual\n(99.7%)" },
+        { key: "model_99_7", label: "Galfit Model\n(99.7%)" },
+        { key: "aplpy_linear_based_on_109534177_unmasked", label: "APLpy Linear\n(109534177-based)", showEllipse: true},   // !
         { key: "aplpy_defaults_unmasked", label: "APLpy Defaults\n(unmasked)" },  // ?
         { key: "aplpy_linear_p1_995_wide_unmasked", label: "APLpy Linear\n(p1_995 wide)", forcedQuality: "low", rectangle: rectangle256x256in1024x1024},
       ],
