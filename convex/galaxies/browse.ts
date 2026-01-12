@@ -259,6 +259,43 @@ export const browseGalaxies = query({
       });
     }
 
+    if (filter === "classified" || filter === "unclassified") {
+      return await handleClassifiedGalaxies({
+        ctx,
+        userId,
+        cursor,
+        numItems,
+        sortOrder: normalizedSortOrder,
+        requestedSort,
+        sortField: allowedSort[requestedSort].field,
+        filterType: filter,
+        searchId,
+        searchRaMin,
+        searchRaMax,
+        searchDecMin,
+        searchDecMax,
+        searchReffMin,
+        searchReffMax,
+        searchQMin,
+        searchQMax,
+        searchPaMin,
+        searchPaMax,
+        searchMagMin,
+        searchMagMax,
+        searchMeanMueMin,
+        searchMeanMueMax,
+        searchNucleus,
+        searchTotalClassificationsMin,
+        searchTotalClassificationsMax,
+        searchNumVisibleNucleusMin,
+        searchNumVisibleNucleusMax,
+        searchNumAwesomeFlagMin,
+        searchNumAwesomeFlagMax,
+        searchTotalAssignedMin,
+        searchTotalAssignedMax,
+      });
+    }
+
     // Pick best index starting with the sort key and optionally second fields based on filters
     let indexName = allowedSort[requestedSort].index;
     let indexBuilder: ((qb: any) => any) | undefined = undefined;
@@ -384,18 +421,8 @@ export const browseGalaxies = query({
     // We rely on server-side filtering above; no additional in-memory filtering/pagination here
     let searchFilteredTotal = 0;
     
-    if (filter === "classified") {
-      galaxies = galaxies.filter(g => (g.totalClassifications || 0) > 0);
-      // Get total count of classified galaxies (those with totalClassifications > 0)
-      // For simplicity, set to length; in future, could compute total
-      
-    }
-    else if (filter === "unclassified") {
-      galaxies = galaxies.filter(g => (g.totalClassifications || 0) === 0);
-      // Total unknown without full scan; leave as 0
-      
-    }
-    else if (filter === "my_sequence") {
+    // Note: "classified" and "unclassified" filters are handled by handleClassifiedGalaxies above
+    if (filter === "my_sequence") {
       // Get user's sequence
       const userSequence = await ctx.db
         .query("galaxySequences")
@@ -514,6 +541,398 @@ interface HandleSkippedOptions {
   searchTotalAssignedMin?: string;
   searchTotalAssignedMax?: string;
 }
+
+interface HandleClassifiedOptions extends HandleSkippedOptions {
+  filterType: "classified" | "unclassified";
+}
+
+const CLASSIFIED_CURSOR_PREFIX = "CLASSIFIED:";
+
+const parseClassifiedCursor = (cursor: string | null) => {
+  if (!cursor || !cursor.startsWith(CLASSIFIED_CURSOR_PREFIX)) {
+    return 0;
+  }
+  const rawOffset = Number.parseInt(cursor.slice(CLASSIFIED_CURSOR_PREFIX.length), 10);
+  return Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+};
+
+const serializeClassifiedCursor = (offset: number) => `${CLASSIFIED_CURSOR_PREFIX}${offset}`;
+
+const handleClassifiedGalaxies = async (options: HandleClassifiedOptions) => {
+  const {
+    ctx,
+    userId,
+    cursor,
+    numItems,
+    sortOrder,
+    requestedSort,
+    sortField,
+    filterType,
+    searchId,
+    searchRaMin,
+    searchRaMax,
+    searchDecMin,
+    searchDecMax,
+    searchReffMin,
+    searchReffMax,
+    searchQMin,
+    searchQMax,
+    searchPaMin,
+    searchPaMax,
+    searchMagMin,
+    searchMagMax,
+    searchMeanMueMin,
+    searchMeanMueMax,
+    searchNucleus,
+    searchTotalClassificationsMin,
+    searchTotalClassificationsMax,
+    searchNumVisibleNucleusMin,
+    searchNumVisibleNucleusMax,
+    searchNumAwesomeFlagMin,
+    searchNumAwesomeFlagMax,
+    searchTotalAssignedMin,
+    searchTotalAssignedMax,
+  } = options;
+
+  const initialOffset = parseClassifiedCursor(cursor);
+
+  // Get all user's classifications
+  const userClassifications = await ctx.db
+    .query("classifications")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .collect();
+
+  const userClassifiedGalaxyIds = new Set(userClassifications.map((c: any) => c.galaxyExternalId));
+
+  if (filterType === "classified") {
+    // For "classified by me", fetch those specific galaxies
+    if (userClassifiedGalaxyIds.size === 0) {
+      return {
+        galaxies: [],
+        total: 0,
+        hasNext: false,
+        hasPrevious: initialOffset > 0,
+        totalPages: 0,
+        aggregatesPopulated: false,
+        cursor: null,
+        isDone: true,
+        currentBounds: computeBounds([]),
+      };
+    }
+
+    // Fetch all classified galaxies
+    const classifiedGalaxies = (await Promise.all(
+      Array.from(userClassifiedGalaxyIds).map(async (galaxyExternalId) => {
+        const galaxy = await ctx.db
+          .query("galaxies")
+          .withIndex("by_external_id", (q: any) => q.eq("id", galaxyExternalId))
+          .unique();
+        if (!galaxy) return null;
+        // Find classification for this galaxy to include classification info
+        const classification = userClassifications.find((c: any) => c.galaxyExternalId === galaxyExternalId);
+        return {
+          ...galaxy,
+          classificationId: classification?._id,
+          classifiedAt: classification?._creationTime,
+        };
+      })
+    )).filter((item): item is any => item !== null);
+
+    let filtered = classifiedGalaxies;
+
+    // Apply search filters (same as handleSkippedGalaxies)
+    if (searchId) {
+      const trimmed = searchId.trim();
+      filtered = filtered.filter((g) => g.id === trimmed);
+    }
+
+    const applyNumericFilter = (
+      values: any[],
+      field: string,
+      min?: string,
+      max?: string,
+    ) => {
+      if (!min && !max) return values;
+      const minVal = min !== undefined && min !== null && min !== "" ? Number.parseFloat(min) : undefined;
+      const maxVal = max !== undefined && max !== null && max !== "" ? Number.parseFloat(max) : undefined;
+      return values.filter((g) => {
+        const value = g[field];
+        if (typeof value !== "number" || Number.isNaN(value)) return false;
+        if (minVal !== undefined && value < minVal) return false;
+        if (maxVal !== undefined && value > maxVal) return false;
+        return true;
+      });
+    };
+
+    filtered = applyNumericFilter(filtered, "ra", searchRaMin, searchRaMax);
+    filtered = applyNumericFilter(filtered, "dec", searchDecMin, searchDecMax);
+    filtered = applyNumericFilter(filtered, "reff", searchReffMin, searchReffMax);
+    filtered = applyNumericFilter(filtered, "q", searchQMin, searchQMax);
+    filtered = applyNumericFilter(filtered, "pa", searchPaMin, searchPaMax);
+    filtered = applyNumericFilter(filtered, "mag", searchMagMin, searchMagMax);
+    filtered = applyNumericFilter(filtered, "mean_mue", searchMeanMueMin, searchMeanMueMax);
+
+    if (searchNucleus !== undefined) {
+      const desired = !!searchNucleus;
+      filtered = filtered.filter((g) => !!g.nucleus === desired);
+    }
+
+    if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
+      const minVal = searchTotalClassificationsMin ? Number.parseInt(searchTotalClassificationsMin, 10) : undefined;
+      const maxVal = searchTotalClassificationsMax ? Number.parseInt(searchTotalClassificationsMax, 10) : undefined;
+      filtered = filtered.filter((g) => {
+        const total = typeof g.totalClassifications === "number" ? g.totalClassifications : Number(g.totalClassifications ?? 0);
+        const numericTotal = Number.isFinite(total) ? total : 0;
+        if (minVal !== undefined && numericTotal < minVal) return false;
+        if (maxVal !== undefined && numericTotal > maxVal) return false;
+        return true;
+      });
+    }
+
+    if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
+      const minVal = searchNumVisibleNucleusMin ? Number.parseInt(searchNumVisibleNucleusMin, 10) : undefined;
+      const maxVal = searchNumVisibleNucleusMax ? Number.parseInt(searchNumVisibleNucleusMax, 10) : undefined;
+      filtered = filtered.filter((g) => {
+        const total = typeof g.numVisibleNucleus === "number" ? g.numVisibleNucleus : Number(g.numVisibleNucleus ?? 0);
+        const numericTotal = Number.isFinite(total) ? total : 0;
+        if (minVal !== undefined && numericTotal < minVal) return false;
+        if (maxVal !== undefined && numericTotal > maxVal) return false;
+        return true;
+      });
+    }
+
+    if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
+      const minVal = searchNumAwesomeFlagMin ? Number.parseInt(searchNumAwesomeFlagMin, 10) : undefined;
+      const maxVal = searchNumAwesomeFlagMax ? Number.parseInt(searchNumAwesomeFlagMax, 10) : undefined;
+      filtered = filtered.filter((g) => {
+        const total = typeof g.numAwesomeFlag === "number" ? g.numAwesomeFlag : Number(g.numAwesomeFlag ?? 0);
+        const numericTotal = Number.isFinite(total) ? total : 0;
+        if (minVal !== undefined && numericTotal < minVal) return false;
+        if (maxVal !== undefined && numericTotal > maxVal) return false;
+        return true;
+      });
+    }
+
+    if (searchTotalAssignedMin || searchTotalAssignedMax) {
+      const minVal = searchTotalAssignedMin ? Number.parseInt(searchTotalAssignedMin, 10) : undefined;
+      const maxVal = searchTotalAssignedMax ? Number.parseInt(searchTotalAssignedMax, 10) : undefined;
+      filtered = filtered.filter((g) => {
+        const total = typeof g.totalAssigned === "number" ? g.totalAssigned : Number(g.totalAssigned ?? 0);
+        const numericTotal = Number.isFinite(total) ? total : 0;
+        if (minVal !== undefined && numericTotal < minVal) return false;
+        if (maxVal !== undefined && numericTotal > maxVal) return false;
+        return true;
+      });
+    }
+
+    // Sort
+    const missingNumericValue = sortOrder === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+    filtered.sort((a, b) => {
+      if (requestedSort === "id") {
+        const aVal = typeof a[sortField] === "string" ? a[sortField] : "";
+        const bVal = typeof b[sortField] === "string" ? b[sortField] : "";
+        const cmp = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: "base" });
+        if (cmp !== 0) {
+          return sortOrder === "asc" ? cmp : -cmp;
+        }
+      } else if (requestedSort === "nucleus") {
+        const aVal = a[sortField] ? 1 : 0;
+        const bVal = b[sortField] ? 1 : 0;
+        if (aVal !== bVal) {
+          return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+        }
+      } else {
+        const aVal = typeof a[sortField] === "number" && !Number.isNaN(a[sortField]) ? a[sortField] : missingNumericValue;
+        const bVal = typeof b[sortField] === "number" && !Number.isNaN(b[sortField]) ? b[sortField] : missingNumericValue;
+        if (aVal !== bVal) {
+          return sortOrder === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+        }
+      }
+
+      const aNumeric = typeof a.numericId === "number" ? a.numericId : Number.POSITIVE_INFINITY;
+      const bNumeric = typeof b.numericId === "number" ? b.numericId : Number.POSITIVE_INFINITY;
+      if (aNumeric !== bNumeric) {
+        return aNumeric - bNumeric;
+      }
+
+      const aId = typeof a.id === "string" ? a.id : "";
+      const bId = typeof b.id === "string" ? b.id : "";
+      return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: "base" });
+    });
+
+    const total = filtered.length;
+    const safeOffset = total === 0 ? 0 : Math.max(0, Math.min(initialOffset, Math.max(total - numItems, 0)));
+    const paged = filtered.slice(safeOffset, safeOffset + numItems);
+
+    const hasNext = safeOffset + paged.length < total;
+    const nextCursor = hasNext ? serializeClassifiedCursor(safeOffset + paged.length) : null;
+    const hasPrevious = safeOffset > 0;
+    const totalPages = total > 0 ? Math.ceil(total / numItems) : 0;
+
+    return {
+      galaxies: paged,
+      total,
+      hasNext,
+      hasPrevious,
+      totalPages,
+      aggregatesPopulated: false,
+      cursor: nextCursor,
+      isDone: !hasNext,
+      currentBounds: computeBounds(paged),
+    };
+  } else {
+    // For "unclassified by me", we need to query all galaxies and exclude classified ones
+    // This is more expensive but necessary for correct results
+    
+    // For now, we'll use a paginated approach with filtering
+    // Fetch all galaxies and filter out classified ones
+    const allGalaxies = await ctx.db.query("galaxies").collect();
+    let unclassifiedGalaxies = allGalaxies.filter((g: any) => !userClassifiedGalaxyIds.has(g.id));
+
+    // Apply search filters
+    if (searchId) {
+      const trimmed = searchId.trim();
+      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => g.id === trimmed);
+    }
+
+    const applyNumericFilter = (
+      values: any[],
+      field: string,
+      min?: string,
+      max?: string,
+    ) => {
+      if (!min && !max) return values;
+      const minVal = min !== undefined && min !== null && min !== "" ? Number.parseFloat(min) : undefined;
+      const maxVal = max !== undefined && max !== null && max !== "" ? Number.parseFloat(max) : undefined;
+      return values.filter((g) => {
+        const value = g[field];
+        if (typeof value !== "number" || Number.isNaN(value)) return false;
+        if (minVal !== undefined && value < minVal) return false;
+        if (maxVal !== undefined && value > maxVal) return false;
+        return true;
+      });
+    };
+
+    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "ra", searchRaMin, searchRaMax);
+    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "dec", searchDecMin, searchDecMax);
+    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "reff", searchReffMin, searchReffMax);
+    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "q", searchQMin, searchQMax);
+    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "pa", searchPaMin, searchPaMax);
+    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "mag", searchMagMin, searchMagMax);
+    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "mean_mue", searchMeanMueMin, searchMeanMueMax);
+
+    if (searchNucleus !== undefined) {
+      const desired = !!searchNucleus;
+      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => !!g.nucleus === desired);
+    }
+
+    if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
+      const minVal = searchTotalClassificationsMin ? Number.parseInt(searchTotalClassificationsMin, 10) : undefined;
+      const maxVal = searchTotalClassificationsMax ? Number.parseInt(searchTotalClassificationsMax, 10) : undefined;
+      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => {
+        const total = typeof g.totalClassifications === "number" ? g.totalClassifications : Number(g.totalClassifications ?? 0);
+        const numericTotal = Number.isFinite(total) ? total : 0;
+        if (minVal !== undefined && numericTotal < minVal) return false;
+        if (maxVal !== undefined && numericTotal > maxVal) return false;
+        return true;
+      });
+    }
+
+    if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
+      const minVal = searchNumVisibleNucleusMin ? Number.parseInt(searchNumVisibleNucleusMin, 10) : undefined;
+      const maxVal = searchNumVisibleNucleusMax ? Number.parseInt(searchNumVisibleNucleusMax, 10) : undefined;
+      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => {
+        const total = typeof g.numVisibleNucleus === "number" ? g.numVisibleNucleus : Number(g.numVisibleNucleus ?? 0);
+        const numericTotal = Number.isFinite(total) ? total : 0;
+        if (minVal !== undefined && numericTotal < minVal) return false;
+        if (maxVal !== undefined && numericTotal > maxVal) return false;
+        return true;
+      });
+    }
+
+    if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
+      const minVal = searchNumAwesomeFlagMin ? Number.parseInt(searchNumAwesomeFlagMin, 10) : undefined;
+      const maxVal = searchNumAwesomeFlagMax ? Number.parseInt(searchNumAwesomeFlagMax, 10) : undefined;
+      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => {
+        const total = typeof g.numAwesomeFlag === "number" ? g.numAwesomeFlag : Number(g.numAwesomeFlag ?? 0);
+        const numericTotal = Number.isFinite(total) ? total : 0;
+        if (minVal !== undefined && numericTotal < minVal) return false;
+        if (maxVal !== undefined && numericTotal > maxVal) return false;
+        return true;
+      });
+    }
+
+    if (searchTotalAssignedMin || searchTotalAssignedMax) {
+      const minVal = searchTotalAssignedMin ? Number.parseInt(searchTotalAssignedMin, 10) : undefined;
+      const maxVal = searchTotalAssignedMax ? Number.parseInt(searchTotalAssignedMax, 10) : undefined;
+      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => {
+        const total = typeof g.totalAssigned === "number" ? g.totalAssigned : Number(g.totalAssigned ?? 0);
+        const numericTotal = Number.isFinite(total) ? total : 0;
+        if (minVal !== undefined && numericTotal < minVal) return false;
+        if (maxVal !== undefined && numericTotal > maxVal) return false;
+        return true;
+      });
+    }
+
+    // Sort
+    const missingNumericValue = sortOrder === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+    unclassifiedGalaxies.sort((a: any, b: any) => {
+      if (requestedSort === "id") {
+        const aVal = typeof a[sortField] === "string" ? a[sortField] : "";
+        const bVal = typeof b[sortField] === "string" ? b[sortField] : "";
+        const cmp = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: "base" });
+        if (cmp !== 0) {
+          return sortOrder === "asc" ? cmp : -cmp;
+        }
+      } else if (requestedSort === "nucleus") {
+        const aVal = a[sortField] ? 1 : 0;
+        const bVal = b[sortField] ? 1 : 0;
+        if (aVal !== bVal) {
+          return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+        }
+      } else {
+        const aVal = typeof a[sortField] === "number" && !Number.isNaN(a[sortField]) ? a[sortField] : missingNumericValue;
+        const bVal = typeof b[sortField] === "number" && !Number.isNaN(b[sortField]) ? b[sortField] : missingNumericValue;
+        if (aVal !== bVal) {
+          return sortOrder === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+        }
+      }
+
+      const aNumeric = typeof a.numericId === "number" ? a.numericId : Number.POSITIVE_INFINITY;
+      const bNumeric = typeof b.numericId === "number" ? b.numericId : Number.POSITIVE_INFINITY;
+      if (aNumeric !== bNumeric) {
+        return aNumeric - bNumeric;
+      }
+
+      const aId = typeof a.id === "string" ? a.id : "";
+      const bId = typeof b.id === "string" ? b.id : "";
+      return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: "base" });
+    });
+
+    const total = unclassifiedGalaxies.length;
+    const safeOffset = total === 0 ? 0 : Math.max(0, Math.min(initialOffset, Math.max(total - numItems, 0)));
+    const paged = unclassifiedGalaxies.slice(safeOffset, safeOffset + numItems);
+
+    const hasNext = safeOffset + paged.length < total;
+    const nextCursor = hasNext ? serializeClassifiedCursor(safeOffset + paged.length) : null;
+    const hasPrevious = safeOffset > 0;
+    const totalPages = total > 0 ? Math.ceil(total / numItems) : 0;
+
+    return {
+      galaxies: paged,
+      total,
+      hasNext,
+      hasPrevious,
+      totalPages,
+      aggregatesPopulated: false,
+      cursor: nextCursor,
+      isDone: !hasNext,
+      currentBounds: computeBounds(paged),
+    };
+  }
+};
 
 const handleSkippedGalaxies = async (options: HandleSkippedOptions) => {
   const {
