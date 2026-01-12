@@ -132,7 +132,10 @@ export function GalaxyBrowserLightTableView({
               <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
                 Paper
               </th>
-              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap"
+                title="Number of algorithms by Thuruthipilly classifying object as a galaxy"
+              >
                 Thur CLS N
               </th>
               <th className="galaxy-sticky-col galaxy-sticky-col-header border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">

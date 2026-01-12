@@ -69,7 +69,15 @@ export function GalaxyBrowserMobileCards({
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Awesome Flags:</span> {galaxy.numAwesomeFlag || 0}</div>
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Total Assigned:</span> {galaxy.totalAssigned || 0}</div>
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Paper:</span> {galaxy.misc?.paper || "—"}</div>
-                <div><span className="font-medium text-gray-800 dark:text-gray-100">Thur CLS N:</span> {galaxy.misc?.thur_cls_n || "—"}</div>
+                <div>
+                  <span
+                    className="font-medium text-gray-800 dark:text-gray-100"
+                    title="Number of algorithms by Thuruthipilly classifying object as a galaxy"
+                  >
+                    Thur CLS N:
+                  </span>
+                  {' '}{galaxy.misc?.thur_cls_n || "—"}
+                </div>
               </div>
             </div>
           </div>

@@ -90,7 +90,7 @@ export function GalaxyBrowserSimpleTableView({
           <th>Awesome Flags</th>
           <th>Total Assigned</th>
           <th>Paper</th>
-          <th>Thur CLS N</th>
+          <th title="Number of algorithms by Thuruthipilly classifying object as a galaxy">Thur CLS N</th>
           <th>Action</th>
         </tr>
       </thead>
