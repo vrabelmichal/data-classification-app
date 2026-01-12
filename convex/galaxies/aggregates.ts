@@ -5,6 +5,31 @@ import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { requireAdmin } from "../lib/auth";
 
+// Labeling effort aggregates
+export const classificationsByCreated = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "classifications";
+}>(components.classificationsByCreated, {
+  sortKey: (doc) => doc._creationTime,
+});
+
+export const userProfilesByClassificationsCount = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "userProfiles";
+}>(components.userProfilesByClassificationsCount, {
+  sortKey: (doc) => doc.classificationsCount ?? 0,
+});
+
+export const userProfilesByLastActive = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "userProfiles";
+}>(components.userProfilesByLastActive, {
+  sortKey: (doc) => doc.lastActiveAt ?? 0,
+});
+
 export const galaxyIdsAggregate = new TableAggregate<{
   Key: bigint;
   DataModel: DataModel;
@@ -395,6 +420,117 @@ export const rebuildGalaxyAggregates = mutation({
       message: isDone
         ? `Galaxy aggregates rebuilt successfully. Processed ${processed} galaxies in final batch.`
         : `Processed ${processed} galaxies. Continue with cursor: ${continueCursor}`,
+    };
+  },
+});
+
+// Labeling aggregates rebuild/clear
+const REBUILD_CLASSIFICATIONS_AGGREGATE_BATCH_SIZE = 200;
+const REBUILD_USER_PROFILES_AGGREGATE_BATCH_SIZE = 200;
+
+export const clearLabelingAggregates = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    await classificationsByCreated.clear(ctx);
+    await userProfilesByClassificationsCount.clear(ctx);
+    await userProfilesByLastActive.clear(ctx);
+  },
+});
+
+export const rebuildClassificationAggregates = mutation({
+  args: {
+    cursor: v.optional(v.string()),
+    clearOnly: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    if (!args.cursor) {
+      console.log("[rebuildClassificationAggregates] Clearing classification aggregates");
+      await classificationsByCreated.clear(ctx);
+      if (args.clearOnly) {
+        return { processed: 0, isDone: true, continueCursor: null, message: "Cleared classification aggregates" };
+      }
+    } else {
+      console.log(`[rebuildClassificationAggregates] Resuming with cursor ${args.cursor}`);
+    }
+
+    if (args.clearOnly) {
+      return { processed: 0, isDone: true, continueCursor: null, message: "Clear-only operation complete" };
+    }
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("classifications")
+      .paginate({ numItems: REBUILD_CLASSIFICATIONS_AGGREGATE_BATCH_SIZE, cursor: args.cursor ?? null });
+
+    let processed = 0;
+    for (const classification of page) {
+      await classificationsByCreated.insert(ctx, classification);
+      processed += 1;
+    }
+
+    if (isDone) {
+      console.log(`[rebuildClassificationAggregates] Completed final batch of ${processed}`);
+    }
+
+    return {
+      processed,
+      isDone,
+      continueCursor,
+      message: isDone
+        ? `Classification aggregates rebuilt. Processed ${processed} records in final batch.`
+        : `Processed ${processed} classifications. Continue with cursor: ${continueCursor}`,
+    };
+  },
+});
+
+export const rebuildUserProfileAggregates = mutation({
+  args: {
+    cursor: v.optional(v.string()),
+    clearOnly: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    if (!args.cursor) {
+      console.log("[rebuildUserProfileAggregates] Clearing user profile aggregates");
+      await userProfilesByClassificationsCount.clear(ctx);
+      await userProfilesByLastActive.clear(ctx);
+      if (args.clearOnly) {
+        return { processed: 0, isDone: true, continueCursor: null, message: "Cleared user profile aggregates" };
+      }
+    } else {
+      console.log(`[rebuildUserProfileAggregates] Resuming with cursor ${args.cursor}`);
+    }
+
+    if (args.clearOnly) {
+      return { processed: 0, isDone: true, continueCursor: null, message: "Clear-only operation complete" };
+    }
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("userProfiles")
+      .paginate({ numItems: REBUILD_USER_PROFILES_AGGREGATE_BATCH_SIZE, cursor: args.cursor ?? null });
+
+    let processed = 0;
+    for (const profile of page) {
+      await userProfilesByClassificationsCount.insert(ctx, profile);
+      await userProfilesByLastActive.insert(ctx, profile);
+      processed += 1;
+    }
+
+    if (isDone) {
+      console.log(`[rebuildUserProfileAggregates] Completed final batch of ${processed}`);
+    }
+
+    return {
+      processed,
+      isDone,
+      continueCursor,
+      message: isDone
+        ? `User profile aggregates rebuilt. Processed ${processed} records in final batch.`
+        : `Processed ${processed} user profiles. Continue with cursor: ${continueCursor}`,
     };
   },
 });

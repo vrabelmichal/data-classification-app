@@ -20,5 +20,9 @@ app.use(aggregate, { name: "galaxiesByNumVisibleNucleus" });
 app.use(aggregate, { name: "galaxiesByNumAwesomeFlag" });
 app.use(aggregate, { name: "galaxiesByTotalAssigned" });
 app.use(aggregate, { name: "galaxiesByNumericId" });
+// Labeling aggregates
+app.use(aggregate, { name: "classificationsByCreated" });
+app.use(aggregate, { name: "userProfilesByClassificationsCount" });
+app.use(aggregate, { name: "userProfilesByLastActive" });
 
 export default app;

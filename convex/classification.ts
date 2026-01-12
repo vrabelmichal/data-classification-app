@@ -1,6 +1,12 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getOptionalUserId, requireConfirmedUser } from "./lib/auth";
+import {
+  classificationsByCreated,
+  userProfilesByClassificationsCount,
+  userProfilesByLastActive,
+} from "./galaxies/aggregates";
+import { galaxiesByTotalClassifications } from "./galaxies/aggregates";
 
 
 // Get progress
@@ -101,6 +107,11 @@ export const submitClassification = mutation({
         sky_bkg: args.sky_bkg,
         timeSpent: existing.timeSpent + args.timeSpent, // accumulate time spent
       });
+
+      const updatedClassification = await ctx.db.get(existing._id);
+      if (updatedClassification) {
+        await classificationsByCreated.replace(ctx, existing, updatedClassification);
+      }
     } else {
 
       // // Remove from skipped if it was skipped before
@@ -115,7 +126,7 @@ export const submitClassification = mutation({
       // }
 
       // Insert classification
-      await ctx.db.insert("classifications", {
+      const classificationId = await ctx.db.insert("classifications", {
         userId,
         galaxyExternalId: args.galaxyExternalId,
         lsb_class: finalLsbClass,
@@ -129,11 +140,40 @@ export const submitClassification = mutation({
         timeSpent: args.timeSpent,
       });
 
+      const newClassification = await ctx.db.get(classificationId);
+      if (newClassification) {
+        await classificationsByCreated.insert(ctx, newClassification);
+      }
+
+      // Increment galaxy classification counter
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q) => q.eq("id", args.galaxyExternalId))
+        .unique();
+
+      if (galaxy) {
+        const updatedTotalClassifications = (galaxy.totalClassifications ?? BigInt(0)) + BigInt(1);
+        await ctx.db.patch(galaxy._id, {
+          totalClassifications: updatedTotalClassifications,
+        });
+
+        const refreshedGalaxy = await ctx.db.get(galaxy._id);
+        if (refreshedGalaxy) {
+          await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshedGalaxy);
+        }
+      }
+
       // Update user's classification count
       await ctx.db.patch(profile._id, {
         classificationsCount: profile.classificationsCount + 1,
         lastActiveAt: Date.now(),
       });
+
+      const updatedProfile = await ctx.db.get(profile._id);
+      if (updatedProfile) {
+        await userProfilesByClassificationsCount.replace(ctx, profile, updatedProfile);
+        await userProfilesByLastActive.replace(ctx, profile, updatedProfile);
+      }
 
       // update user's galaxy sequence details, if the galaxy is part of their current sequence
       const sequence = await ctx.db

@@ -4,6 +4,21 @@ import { getOptionalUserId, requireAdmin, requireUserId, requireUserProfile } fr
 import { getDefaultImageQuality } from "./lib/settings";
 import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
 import { api } from "./_generated/api";
+import {
+  classificationsByCreated,
+  userProfilesByClassificationsCount,
+  userProfilesByLastActive,
+} from "./galaxies/aggregates";
+
+async function insertUserProfileAggregates(ctx: any, profile: any) {
+  await userProfilesByClassificationsCount.insertIfDoesNotExist(ctx, profile);
+  await userProfilesByLastActive.insertIfDoesNotExist(ctx, profile);
+}
+
+async function replaceUserProfileAggregates(ctx: any, oldProfile: any, newProfile: any) {
+  await userProfilesByClassificationsCount.replace(ctx, oldProfile, newProfile);
+  await userProfilesByLastActive.replace(ctx, oldProfile, newProfile);
+}
 // adminSetUserPassword removed: we now only support email-based reset flow.
 
 // Get user preferences
@@ -86,6 +101,7 @@ export const initializeUserProfile = mutation({
       .unique();
 
     if (existing) {
+      await insertUserProfileAggregates(ctx, existing);
       return existing;
     }
 
@@ -105,8 +121,12 @@ export const initializeUserProfile = mutation({
       lastActiveAt: Date.now(),
       sequenceGenerated: false,
     });
+    const createdProfile = await ctx.db.get(profileId);
+    if (createdProfile) {
+      await insertUserProfileAggregates(ctx, createdProfile);
+    }
 
-    return await ctx.db.get(profileId);
+    return createdProfile;
   },
 });
 
@@ -272,7 +292,7 @@ export const updateUserStatus = mutation({
 
     // Create profile if it doesn't exist
     if (!targetProfile) {
-      await ctx.db.insert("userProfiles", {
+      const profileId = await ctx.db.insert("userProfiles", {
         userId: args.targetUserId,
         role: "user",
         isActive: args.isActive,
@@ -282,12 +302,17 @@ export const updateUserStatus = mutation({
         lastActiveAt: Date.now(),
         sequenceGenerated: false,
       });
+      const newProfile = await ctx.db.get(profileId);
+      if (newProfile) await insertUserProfileAggregates(ctx, newProfile);
       return { success: true };
     }
 
     await ctx.db.patch(targetProfile._id, {
       isActive: args.isActive,
     });
+
+    const updatedProfile = await ctx.db.get(targetProfile._id);
+    if (updatedProfile) await replaceUserProfileAggregates(ctx, targetProfile, updatedProfile);
 
     return { success: true };
   },
@@ -309,7 +334,7 @@ export const confirmUser = mutation({
 
     // Create profile if it doesn't exist
     if (!targetProfile) {
-      await ctx.db.insert("userProfiles", {
+      const profileId = await ctx.db.insert("userProfiles", {
         userId: args.targetUserId,
         role: "user",
         isActive: true,
@@ -319,12 +344,17 @@ export const confirmUser = mutation({
         lastActiveAt: Date.now(),
         sequenceGenerated: false,
       });
+      const newProfile = await ctx.db.get(profileId);
+      if (newProfile) await insertUserProfileAggregates(ctx, newProfile);
       return { success: true };
     }
 
     await ctx.db.patch(targetProfile._id, {
       isConfirmed: args.isConfirmed,
     });
+
+    const updatedProfile = await ctx.db.get(targetProfile._id);
+    if (updatedProfile) await replaceUserProfileAggregates(ctx, targetProfile, updatedProfile);
 
     return { success: true };
   },
@@ -346,7 +376,7 @@ export const updateUserRole = mutation({
 
     // Create profile if it doesn't exist
     if (!targetProfile) {
-      await ctx.db.insert("userProfiles", {
+      const profileId = await ctx.db.insert("userProfiles", {
         userId: args.targetUserId,
         role: args.role,
         isActive: true,
@@ -356,12 +386,17 @@ export const updateUserRole = mutation({
         lastActiveAt: Date.now(),
         sequenceGenerated: false,
       });
+      const newProfile = await ctx.db.get(profileId);
+      if (newProfile) await insertUserProfileAggregates(ctx, newProfile);
       return { success: true };
     }
 
     await ctx.db.patch(targetProfile._id, {
       role: args.role,
     });
+
+    const updatedProfile = await ctx.db.get(targetProfile._id);
+    if (updatedProfile) await replaceUserProfileAggregates(ctx, targetProfile, updatedProfile);
 
     return { success: true };
   },
@@ -382,6 +417,8 @@ export const deleteUser = mutation({
       .unique();
 
     if (targetProfile) {
+      await userProfilesByClassificationsCount.delete(ctx, targetProfile);
+      await userProfilesByLastActive.delete(ctx, targetProfile);
       await ctx.db.delete(targetProfile._id);
     }
 
@@ -402,6 +439,7 @@ export const deleteUser = mutation({
       .collect();
 
     for (const classification of classifications) {
+      await classificationsByCreated.delete(ctx, classification);
       await ctx.db.delete(classification._id);
     }
 

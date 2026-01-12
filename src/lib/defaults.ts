@@ -31,6 +31,11 @@ export const DEFAULT_ALLOW_ANONYMOUS = false;
 export const DEFAULT_DEBUG_ADMIN_MODE = false;
 
 /**
+ * Default state for exposing the overview page to all authenticated users
+ */
+export const DEFAULT_ALLOW_PUBLIC_OVERVIEW = false;
+
+/**
  * Default failed fitting mode: "checkbox" or "legacy"
  */
 export const DEFAULT_FAILED_FITTING_MODE = "checkbox" as const;
@@ -92,4 +97,5 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   defaultImageQuality: DEFAULT_IMAGE_QUALITY,
   galaxyBrowserImageQuality: DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
+  allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
 };

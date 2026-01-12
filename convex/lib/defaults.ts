@@ -8,6 +8,11 @@
 export const DEFAULT_AVAILABLE_PAPERS = ["", "new", "old"];
 
 /**
+ * Default state for exposing the overview page to all authenticated users
+ */
+export const DEFAULT_ALLOW_PUBLIC_OVERVIEW = false;
+
+/**
  * Default system settings values
  */
 export const DEFAULT_SYSTEM_SETTINGS = {
@@ -24,4 +29,5 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   defaultImageQuality: "high" as const,
   galaxyBrowserImageQuality: "low" as const,
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
+  allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
 };

@@ -15,11 +15,41 @@ import { Help } from "./components/help/Help";
 import { AdminPanel } from "./components/admin/AdminPanel";
 import { NotFound } from "./components/NotFound";
 import { useState, useEffect } from "react";
+import { OverviewPage } from "./components/OverviewPage";
+import { DEFAULT_ALLOW_PUBLIC_OVERVIEW } from "./lib/defaults";
+
+function LoadingScreen() {
+  return (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-3"></div>
+        <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+      </div>
+    </div>
+  );
+}
+
+function AccessDenied({ message }: { message?: string }) {
+  return (
+    <div className="flex justify-center items-center min-h-screen">
+      <div className="text-center px-4">
+        <div className="text-6xl mb-4">🚫</div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h1>
+        <p className="text-gray-600 dark:text-gray-300 max-w-lg">
+          {message || "You do not have permission to view this page."}
+        </p>
+      </div>
+    </div>
+  );
+}
 
 function App() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const userProfile = useQuery(api.users.getUserProfile);
   const appName = systemSettings?.appName || "Galaxy Classification App";
+  const isAdmin = userProfile?.role === "admin";
+  const allowPublicOverview = systemSettings?.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW;
+  const canAccessOverview = Boolean(isAdmin || allowPublicOverview);
   
   // Version checking state
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
@@ -53,6 +83,9 @@ function App() {
     { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: <GalaxyBrowser /> },
     { id: "skipped", label: "Skipped", icon: "⏭️", path: "/skipped", element: <SkippedGalaxies /> },
     { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: <Statistics /> },
+    ...(canAccessOverview
+      ? [{ id: "overview", label: "Overview", icon: "📈", path: "/overview", element: <OverviewPage /> }]
+      : []),
     { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: <UserSettings /> },
     { id: "help", label: "Help", icon: "❓", path: "/help", element: <Help /> },
     { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: <AdminPanel /> },
@@ -139,7 +172,19 @@ function App() {
                     <Route index element={<ClassificationInterface />} />
                     <Route path="/reset" element={<Navigate to="/settings" replace />} />
                     <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
-                    {navigationItems.map((item) => (
+                    <Route
+                      path="/overview"
+                      element={
+                        systemSettings === undefined ? (
+                          <LoadingScreen />
+                        ) : canAccessOverview ? (
+                          <OverviewPage />
+                        ) : (
+                          <AccessDenied message="Overview is restricted to administrators." />
+                        )
+                      }
+                    />
+                    {navigationItems.filter((item) => item.id !== "overview").map((item) => (
                       <Route
                         key={item.id}
                         path={item.id === "admin" ? `${item.path}/*` : item.path}

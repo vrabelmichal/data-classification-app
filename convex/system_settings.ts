@@ -1,7 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { requireAdmin } from "./lib/auth";
-import { DEFAULT_AVAILABLE_PAPERS } from "./lib/defaults";
+import { DEFAULT_SYSTEM_SETTINGS } from "./lib/defaults";
 
 
 // Admin: Get system settings
@@ -13,49 +13,15 @@ export const getSystemSettings = query({
     const settings = await ctx.db.query("systemSettings").collect();
 
     const settingsMap = settings.reduce((acc, setting) => {
-      acc[setting.key] = setting.value;
+      acc[setting.key as keyof typeof DEFAULT_SYSTEM_SETTINGS] = setting.value;
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Partial<typeof DEFAULT_SYSTEM_SETTINGS>);
 
-    // Set defaults if not exists
-    if (settingsMap.allowAnonymous === undefined) {
-      settingsMap.allowAnonymous = true;
-    }
-    if (settingsMap.emailFrom === undefined) {
-      settingsMap.emailFrom = "noreply@galaxies.michalvrabel.sk";
-    }
-    if (settingsMap.appName === undefined) {
-      settingsMap.appName = "Galaxy Classification App";
-    }
-    if (settingsMap.debugAdminMode === undefined) {
-      settingsMap.debugAdminMode = false;
-    }
-    if (settingsMap.failedFittingMode === undefined) {
-      settingsMap.failedFittingMode = "checkbox"; // "checkbox" or "legacy"
-    }
-    if (settingsMap.failedFittingFallbackLsbClass === undefined) {
-      settingsMap.failedFittingFallbackLsbClass = 0; // Default to Non-LSB (0)
-    }
-    if (settingsMap.showAwesomeFlag === undefined) {
-      settingsMap.showAwesomeFlag = true;
-    }
-    if (settingsMap.showValidRedshift === undefined) {
-      settingsMap.showValidRedshift = true;
-    }
-    if (settingsMap.showVisibleNucleus === undefined) {
-      settingsMap.showVisibleNucleus = true;
-    }
-    if (settingsMap.defaultImageQuality === undefined) {
-      settingsMap.defaultImageQuality = "high";
-    }
-    if (settingsMap.galaxyBrowserImageQuality === undefined) {
-      settingsMap.galaxyBrowserImageQuality = "low";
-    }
-    if (settingsMap.availablePapers === undefined) {
-      settingsMap.availablePapers = DEFAULT_AVAILABLE_PAPERS;
-    }
-
-    return settingsMap;
+    const mergedSettings: typeof DEFAULT_SYSTEM_SETTINGS = {
+      ...DEFAULT_SYSTEM_SETTINGS,
+      ...settingsMap,
+    };
+    return mergedSettings;
   },
 });
 
@@ -66,55 +32,41 @@ export const getPublicSystemSettings = query({
     const settings = await ctx.db.query("systemSettings").collect();
 
     const settingsMap = settings.reduce((acc, setting) => {
-      acc[setting.key] = setting.value;
+      acc[setting.key as keyof typeof DEFAULT_SYSTEM_SETTINGS] = setting.value;
       return acc;
-    }, {} as Record<string, any>);
+    }, {} as Partial<typeof DEFAULT_SYSTEM_SETTINGS>);
+
+    const mergedSettings: typeof DEFAULT_SYSTEM_SETTINGS = {
+      ...DEFAULT_SYSTEM_SETTINGS,
+      ...settingsMap,
+    };
 
     // Whitelist of settings that are safe to expose to non-admin users
-    const publicSettingsWhitelist = ["allowAnonymous", "appName", "debugAdminMode", "appVersion", "failedFittingMode", "failedFittingFallbackLsbClass", "showAwesomeFlag", "showValidRedshift", "showVisibleNucleus", "defaultImageQuality", "galaxyBrowserImageQuality"];
+    const publicSettingsWhitelist = [
+      "allowAnonymous",
+      "appName",
+      "debugAdminMode",
+      "appVersion",
+      "failedFittingMode",
+      "failedFittingFallbackLsbClass",
+      "showAwesomeFlag",
+      "showValidRedshift",
+      "showVisibleNucleus",
+      "defaultImageQuality",
+      "galaxyBrowserImageQuality",
+      "allowPublicOverview",
+    ] as const;
+
+    type PublicSettingKey = (typeof publicSettingsWhitelist)[number];
 
     // Only return whitelisted settings
-    const publicSettings: Record<string, any> = {};
-    for (const key of publicSettingsWhitelist) {
-      if (settingsMap[key] !== undefined) {
-        publicSettings[key] = settingsMap[key];
-      } else {
-        // Set defaults for whitelisted settings that don't exist
-        if (key === "allowAnonymous") {
-          publicSettings[key] = true;
-        }
-        if (key === "appName") {
-          publicSettings[key] = "Galaxy Classification App";
-        }
-        // if (key === "emailFrom") {
-        //   publicSettings[key] = "noreply@galaxies.michalvrabel.sk";
-        // }
-        if (key === "debugAdminMode") {
-          publicSettings[key] = false;
-        }
-        if (key === "failedFittingMode") {
-          publicSettings[key] = "checkbox";
-        }
-        if (key === "failedFittingFallbackLsbClass") {
-          publicSettings[key] = 0;
-        }
-        if (key === "showAwesomeFlag") {
-          publicSettings[key] = true;
-        }
-        if (key === "showValidRedshift") {
-          publicSettings[key] = true;
-        }
-        if (key === "showVisibleNucleus") {
-          publicSettings[key] = true;
-        }
-        if (key === "defaultImageQuality") {
-          publicSettings[key] = "high";
-        }
-        if (key === "galaxyBrowserImageQuality") {
-          publicSettings[key] = "low";
-        }
-      }
-    }
+    const publicSettings = publicSettingsWhitelist.reduce(
+      (acc, key) => {
+        acc[key] = mergedSettings[key];
+        return acc;
+      },
+      {} as Record<PublicSettingKey, (typeof DEFAULT_SYSTEM_SETTINGS)[PublicSettingKey]>,
+    );
 
     return publicSettings;
   },
@@ -128,6 +80,7 @@ export const updateSystemSettings = mutation({
     emailFrom: v.optional(v.string()),
     appName: v.optional(v.string()),
     debugAdminMode: v.optional(v.boolean()),
+    allowPublicOverview: v.optional(v.boolean()),
     appVersion: v.optional(v.string()),
     failedFittingMode: v.optional(v.union(v.literal("checkbox"), v.literal("legacy"))),
     failedFittingFallbackLsbClass: v.optional(v.number()),
@@ -201,6 +154,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "debugAdminMode",
           value: args.debugAdminMode,
+        });
+      }
+    }
+
+    if (args.allowPublicOverview !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "allowPublicOverview"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.allowPublicOverview });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "allowPublicOverview",
+          value: args.allowPublicOverview,
         });
       }
     }

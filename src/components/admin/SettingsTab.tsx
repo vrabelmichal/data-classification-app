@@ -16,6 +16,7 @@ import {
   DEFAULT_SHOW_VISIBLE_NUCLEUS,
   DEFAULT_IMAGE_QUALITY,
   DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
+  DEFAULT_ALLOW_PUBLIC_OVERVIEW,
 } from "../../lib/defaults";
 
 interface SettingsTabProps {
@@ -30,6 +31,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     emailFrom: string;
     appName: string;
     debugAdminMode: boolean;
+    allowPublicOverview: boolean;
     appVersion: string;
     failedFittingMode: string;
     failedFittingFallbackLsbClass: number;
@@ -44,6 +46,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     emailFrom: systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM,
     appName: systemSettings.appName ?? DEFAULT_APP_NAME,
     debugAdminMode: systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE,
+    allowPublicOverview: systemSettings.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW,
     appVersion: systemSettings.appVersion ?? DEFAULT_APP_VERSION,
     failedFittingMode: systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE,
     failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS,
@@ -65,6 +68,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       emailFrom: systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM,
       appName: systemSettings.appName ?? DEFAULT_APP_NAME,
       debugAdminMode: systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE,
+      allowPublicOverview: systemSettings.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW,
       appVersion: systemSettings.appVersion ?? DEFAULT_APP_VERSION,
       failedFittingMode: systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE,
       failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS,
@@ -84,6 +88,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     const originalEmailFrom = systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM;
     const originalAppName = systemSettings.appName ?? DEFAULT_APP_NAME;
     const originalDebugAdminMode = systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE;
+    const originalAllowPublicOverview = systemSettings.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW;
     const originalAppVersion = systemSettings.appVersion ?? DEFAULT_APP_VERSION;
     const originalFailedFittingMode = systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE;
     const originalFailedFittingFallbackLsbClass = systemSettings.failedFittingFallbackLsbClass ?? DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS;
@@ -99,6 +104,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       localSettings.emailFrom !== originalEmailFrom ||
       localSettings.appName !== originalAppName ||
       localSettings.debugAdminMode !== originalDebugAdminMode ||
+      localSettings.allowPublicOverview !== originalAllowPublicOverview ||
       localSettings.appVersion !== originalAppVersion ||
       localSettings.failedFittingMode !== originalFailedFittingMode ||
       localSettings.failedFittingFallbackLsbClass !== originalFailedFittingFallbackLsbClass ||
@@ -126,6 +132,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         emailFrom: localSettings.emailFrom,
         appName: localSettings.appName,
         debugAdminMode: localSettings.debugAdminMode,
+        allowPublicOverview: localSettings.allowPublicOverview,
         appVersion: localSettings.appVersion,
         failedFittingMode: localSettings.failedFittingMode as "checkbox" | "legacy",
         failedFittingFallbackLsbClass: localSettings.failedFittingFallbackLsbClass,
@@ -179,6 +186,23 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
             onChange={(e) => handleSettingChange("appName", e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
             placeholder="Galaxy Classification App"
+          />
+        </label>
+
+        <label className="flex items-center justify-between">
+          <div>
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              Make Overview visible to everyone
+            </span>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              When enabled, all authenticated users can open the labeling overview page. Otherwise only admins can access it.
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={localSettings.allowPublicOverview}
+            onChange={(e) => handleSettingChange("allowPublicOverview", e.target.checked)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
           />
         </label>
 

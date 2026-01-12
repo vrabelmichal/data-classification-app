@@ -15,9 +15,11 @@ import {
   galaxyIdsAggregate,
   galaxiesByNumericId
 } from "./aggregates";
+import { galaxiesByTotalClassifications } from "./aggregates";
 
 export const UPDATE_BATCH_SIZE = 200;
 export const ZERO_OUT_BATCH_SIZE = 1000;
+const BACKFILL_CLASSIFICATIONS_BATCH_SIZE = 100;
 
 export const deleteAllGalaxies = mutation({
   args: {},
@@ -120,6 +122,53 @@ export const rebuildGalaxyIdsTable = mutation({
       isDone,
       nextStartNumericId,
       message: processed > 0 ? `Processed ${processed} galaxies` : "No galaxies to process",
+    };
+  },
+});
+
+export const backfillGalaxyClassificationCounts = mutation({
+  args: {
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("galaxies")
+      .paginate({ numItems: BACKFILL_CLASSIFICATIONS_BATCH_SIZE, cursor: args.cursor ?? null });
+
+    let processed = 0;
+    let updated = 0;
+
+    for (const galaxy of page) {
+      const classifications = await ctx.db
+        .query("classifications")
+        .withIndex("by_galaxy", (q) => q.eq("galaxyExternalId", galaxy.id))
+        .collect();
+
+      const count = BigInt(classifications.length);
+      const current = galaxy.totalClassifications ?? BigInt(0);
+
+      if (current !== count) {
+        await ctx.db.patch(galaxy._id, { totalClassifications: count });
+        const refreshed = await ctx.db.get(galaxy._id);
+        if (refreshed) {
+          await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshed);
+        }
+        updated += 1;
+      }
+
+      processed += 1;
+    }
+
+    return {
+      processed,
+      updated,
+      isDone,
+      continueCursor,
+      message: isDone
+        ? `Backfill complete. Processed ${processed} galaxies, updated ${updated}.`
+        : `Processed ${processed}, updated ${updated}. Continue with cursor ${continueCursor}`,
     };
   },
 });

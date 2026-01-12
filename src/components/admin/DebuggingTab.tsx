@@ -12,11 +12,13 @@ import {
   RebuildGalaxyIdsAggregateSection,
   ClearGalaxyAggregatesSection,
   RebuildGalaxyAggregatesSection,
+  LabelingAggregatesSection,
   DeleteAllGalaxyDataSection,
   AggregateInformationSection,
   DeleteConfirmationModal,
   ZeroOutGalaxyStatisticsSection,
   TestEmailSection,
+  BackfillGalaxyClassificationsSection,
 } from "./debugging";
 
 export function DebuggingTab() {
@@ -52,6 +54,8 @@ export function DebuggingTab() {
         <RebuildGalaxyIdsAggregateSection />
         <ClearGalaxyAggregatesSection />
         <RebuildGalaxyAggregatesSection />
+        <LabelingAggregatesSection />
+        <BackfillGalaxyClassificationsSection />
         <ZeroOutGalaxyStatisticsSection />
         <TestEmailSection />
         <DeleteAllGalaxyDataSection onShowDeleteModal={() => setShowDeleteModal(true)} />
