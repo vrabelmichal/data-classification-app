@@ -202,9 +202,14 @@ export function ClassificationInterface() {
   // Focus quick input on desktop when form unlocks
   useEffect(() => {
     if (!formLocked && !isMobile && formState.quickInputRef.current) {
-      setTimeout(() => formState.quickInputRef.current?.focus(), 100);
+      // Use a longer delay to ensure toast notifications don't steal focus
+      // and images have started loading
+      const timeoutId = setTimeout(() => {
+        formState.quickInputRef.current?.focus();
+      }, 250);
+      return () => clearTimeout(timeoutId);
     }
-  }, [formLocked, isMobile, formState.quickInputRef]);
+  }, [formLocked, isMobile, formState.quickInputRef, currentGalaxy?._id]);
 
   // Load/save showEllipseOverlay
   useEffect(() => {
