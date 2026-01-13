@@ -6,7 +6,7 @@ import { usePageTitle } from "../../hooks/usePageTitle";
 import { UsersTab } from "./UsersTab";
 import { GalaxiesTab } from "./GalaxiesTab";
 import { SettingsTab } from "./SettingsTab";
-import { MaintenanceTab } from "./DebuggingTab";
+import { MaintenanceTab } from "./MaintentanceTab";
 
 export function AdminPanel() {
   usePageTitle("Admin");
