@@ -7,9 +7,9 @@ export function AggregateInformationSection() {
 
   return (
     <div className="mt-12">
-      <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">Aggregate Information</h2>
+      {/* <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white">Aggregate Information</h2> */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Galaxy Aggregates Status</h3>
+        {/* <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Galaxy Aggregates Status</h3> */}
 
         {aggregateInfo ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
