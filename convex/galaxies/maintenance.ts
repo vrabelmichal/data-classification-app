@@ -173,6 +173,56 @@ export const backfillGalaxyClassificationCounts = mutation({
   },
 });
 
+export const rebuildTotalClassificationsAggregate = mutation({
+  args: {
+    cursor: v.optional(v.string()),
+    clearOnly: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    // Clear aggregate on first call (when no cursor)
+    if (!args.cursor) {
+      console.log('[rebuildTotalClassificationsAggregate] Clearing galaxiesByTotalClassifications aggregate');
+      await galaxiesByTotalClassifications.clear(ctx);
+      
+      if (args.clearOnly) {
+        return { 
+          processed: 0, 
+          isDone: true, 
+          continueCursor: null, 
+          message: "Cleared galaxiesByTotalClassifications aggregate" 
+        };
+      }
+    }
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("galaxies")
+      .paginate({ numItems: BACKFILL_CLASSIFICATIONS_BATCH_SIZE, cursor: args.cursor ?? null });
+
+    let processed = 0;
+
+    for (const galaxy of page) {
+      // Simply insert each galaxy into the aggregate based on its existing totalClassifications value
+      await galaxiesByTotalClassifications.insert(ctx, galaxy);
+      processed += 1;
+    }
+
+    if (isDone) {
+      console.log(`[rebuildTotalClassificationsAggregate] Completed. Total processed in final batch: ${processed}`);
+    }
+
+    return {
+      processed,
+      isDone,
+      continueCursor,
+      message: isDone
+        ? `Rebuild complete. Processed ${processed} galaxies in final batch.`
+        : `Processed ${processed} galaxies. Continue with cursor: ${continueCursor}`,
+    };
+  },
+});
+
 export const fillGalaxyMagAndMeanMue = mutation({
   args: {
     maxToUpdate: v.optional(v.number()),

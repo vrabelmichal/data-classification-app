@@ -19,6 +19,7 @@ import {
   ZeroOutGalaxyStatisticsSection,
   TestEmailSection,
   BackfillGalaxyClassificationsSection,
+  RebuildTotalClassificationsAggregateSection,
 } from "./debugging";
 
 export function DebuggingTab() {
@@ -56,6 +57,7 @@ export function DebuggingTab() {
         <RebuildGalaxyAggregatesSection />
         <LabelingAggregatesSection />
         <BackfillGalaxyClassificationsSection />
+        <RebuildTotalClassificationsAggregateSection />
         <ZeroOutGalaxyStatisticsSection />
         <TestEmailSection />
         <DeleteAllGalaxyDataSection onShowDeleteModal={() => setShowDeleteModal(true)} />

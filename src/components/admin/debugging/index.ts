@@ -14,3 +14,4 @@ export { ZeroOutGalaxyStatisticsSection } from './ZeroOutGalaxyStatisticsSection
 export { TestEmailSection } from './TestEmailSection';
 export { LabelingAggregatesSection } from './LabelingAggregatesSection';
 export { BackfillGalaxyClassificationsSection } from './BackfillGalaxyClassificationsSection';
+export { RebuildTotalClassificationsAggregateSection } from './RebuildTotalClassificationsAggregateSection';
