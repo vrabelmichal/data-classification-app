@@ -19,7 +19,7 @@ export function RebuildTotalClassificationsAggregateSection() {
 
     try {
       while (iterations < maxIterations) {
-        const res = await rebuild({ cursor: cursor || undefined });
+        const res: { processed?: number; continueCursor?: string | null; isDone?: boolean } = await rebuild({ cursor: cursor || undefined });
         totalProcessed += res.processed ?? 0;
         setProgress(totalProcessed);
         cursor = res.continueCursor || null;
