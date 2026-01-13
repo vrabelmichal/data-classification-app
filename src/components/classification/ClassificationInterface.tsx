@@ -349,7 +349,7 @@ export function ClassificationInterface() {
 
   const handleAladinClick = () => {
     if (currentGalaxy) {
-      const url = `https://aladin.cds.unistra.fr/AladinLite/?target=${currentGalaxy.ra}%20${currentGalaxy.dec}&fov=0.1`;
+      const url = `https://aladin.cds.unistra.fr/AladinLite/?target=${currentGalaxy.ra}%20${currentGalaxy.dec}&fov=0.1&survey=P/DESI-Legacy-Surveys/DR10/color`;
       window.open(url, '_blank');
     }
   };
