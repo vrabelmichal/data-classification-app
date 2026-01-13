@@ -106,14 +106,18 @@ export function ClassificationInterface() {
 
   // Custom hooks
   const failedFittingMode = (systemSettings?.failedFittingMode as "legacy" | "checkbox") || "checkbox";
+  const showAwesomeFlag = systemSettings?.showAwesomeFlag !== false;
+  const showValidRedshift = systemSettings?.showValidRedshift !== false;
+  const showVisibleNucleus = systemSettings?.showVisibleNucleus !== false;
+
   const formState = useClassificationForm(
     currentGalaxy,
     existingClassification,
     formLocked,
     failedFittingMode,
-    systemSettings?.showAwesomeFlag ?? true,
-    systemSettings?.showValidRedshift ?? true,
-    systemSettings?.showVisibleNucleus ?? true
+    showAwesomeFlag,
+    showValidRedshift,
+    showVisibleNucleus
   );
   const { handlePrevious: navPrevious, handleNext: navNext } = useClassificationNavigation(currentGalaxy, navigation);
 
@@ -381,17 +385,17 @@ export function ClassificationInterface() {
     if (e.key === 'Enter' && formState.canSubmit && isOnline) {
       e.preventDefault();
       handleSubmit();
-    } else if (e.key === 'a' && (systemSettings?.showAwesomeFlag ?? true)) {
+    } else if (e.key === 'a' && showAwesomeFlag) {
       e.preventDefault();
       formState.setAwesomeFlag(!formState.awesomeFlag);
       const currentInput = formState.quickInput.toLowerCase();
       formState.setQuickInput(currentInput.includes('a') ? currentInput.replace('a', '') : currentInput + 'a');
-    } else if (e.key === 'r' && (systemSettings?.showValidRedshift ?? true)) {
+    } else if (e.key === 'r' && showValidRedshift) {
       e.preventDefault();
       formState.setValidRedshift(!formState.validRedshift);
       const currentInput = formState.quickInput.toLowerCase();
       formState.setQuickInput(currentInput.includes('r') ? currentInput.replace('r', '') : currentInput + 'r');
-    } else if (e.key === 'n' && (systemSettings?.showVisibleNucleus ?? true)) {
+    } else if (e.key === 'n' && showVisibleNucleus) {
       e.preventDefault();
       formState.setVisibleNucleus(!formState.visibleNucleus);
       const currentInput = formState.quickInput.toLowerCase();
@@ -607,9 +611,9 @@ export function ClassificationInterface() {
         formLocked={formLocked}
         displayGalaxy={displayGalaxy}
         failedFittingMode={failedFittingMode}
-        showAwesomeFlag={systemSettings?.showAwesomeFlag ?? true}
-        showValidRedshift={systemSettings?.showValidRedshift ?? true}
-        showVisibleNucleus={systemSettings?.showVisibleNucleus ?? true}
+        showAwesomeFlag={showAwesomeFlag}
+        showValidRedshift={showValidRedshift}
+        showVisibleNucleus={showVisibleNucleus}
         onLsbClassChange={formState.setLsbClass}
         onMorphologyChange={formState.setMorphology}
         onAwesomeFlagChange={formState.setAwesomeFlag}
@@ -702,9 +706,9 @@ export function ClassificationInterface() {
           onKeyDown={handleQuickInputKeyDown}
           inputRef={formState.quickInputRef}
           disabled={formLocked}
-          showAwesomeFlag={systemSettings?.showAwesomeFlag ?? true}
-          showValidRedshift={systemSettings?.showValidRedshift ?? true}
-          showVisibleNucleus={systemSettings?.showVisibleNucleus ?? true}
+          showAwesomeFlag={showAwesomeFlag}
+          showValidRedshift={showValidRedshift}
+          showVisibleNucleus={showVisibleNucleus}
           failedFittingMode={failedFittingMode}
         />
         <ClassificationForm
@@ -718,9 +722,9 @@ export function ClassificationInterface() {
           formLocked={formLocked}
           displayGalaxy={displayGalaxy}
           failedFittingMode={failedFittingMode}
-          showAwesomeFlag={systemSettings?.showAwesomeFlag ?? true}
-          showValidRedshift={systemSettings?.showValidRedshift ?? true}
-          showVisibleNucleus={systemSettings?.showVisibleNucleus ?? true}
+          showAwesomeFlag={showAwesomeFlag}
+          showValidRedshift={showValidRedshift}
+          showVisibleNucleus={showVisibleNucleus}
           onLsbClassChange={formState.setLsbClass}
           onMorphologyChange={formState.setMorphology}
           onAwesomeFlagChange={formState.setAwesomeFlag}
@@ -802,9 +806,9 @@ export function ClassificationInterface() {
           isOpen={showKeyboardHelp}
           onClose={() => setShowKeyboardHelp(false)}
           failedFittingMode={failedFittingMode}
-          showAwesomeFlag={systemSettings?.showAwesomeFlag ?? true}
-          showValidRedshift={systemSettings?.showValidRedshift ?? true}
-          showVisibleNucleus={systemSettings?.showVisibleNucleus ?? true}
+          showAwesomeFlag={showAwesomeFlag}
+          showValidRedshift={showValidRedshift}
+          showVisibleNucleus={showVisibleNucleus}
         />
 
         {/* Comments Modal - works on both mobile and desktop */}
