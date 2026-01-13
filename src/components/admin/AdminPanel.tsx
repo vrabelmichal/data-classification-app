@@ -6,7 +6,7 @@ import { usePageTitle } from "../../hooks/usePageTitle";
 import { UsersTab } from "./UsersTab";
 import { GalaxiesTab } from "./GalaxiesTab";
 import { SettingsTab } from "./SettingsTab";
-import { DebuggingTab } from "./DebuggingTab";
+import { MaintenanceTab } from "./DebuggingTab";
 
 export function AdminPanel() {
   usePageTitle("Admin");
@@ -61,7 +61,7 @@ export function AdminPanel() {
             { id: "users", label: "Users", icon: "👥", path: "/admin/users" },
             { id: "galaxies", label: "Galaxies", icon: "🌌", path: "/admin/galaxies" },
             { id: "settings", label: "Settings", icon: "⚙️", path: "/admin/settings" },
-            { id: "debugging", label: "Debugging", icon: "🛠️", path: "/admin/debugging" },
+            { id: "maintenance", label: "Maintenance", icon: "🛠️", path: "/admin/maintenance" },
           ].map((tab) => (
             <Link
               key={tab.id}
@@ -85,7 +85,7 @@ export function AdminPanel() {
         <Route path="users" element={<UsersTab users={users} />} />
         <Route path="galaxies" element={<GalaxiesTab users={users} systemSettings={systemSettings} />} />
         <Route path="settings" element={<SettingsTab systemSettings={systemSettings} />} />
-        <Route path="debugging" element={<DebuggingTab />} />
+        <Route path="maintenance" element={<MaintenanceTab />} />
       </Routes>
     </div>
   );

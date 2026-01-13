@@ -22,7 +22,7 @@ import {
   RebuildTotalClassificationsAggregateSection,
 } from "./debugging";
 
-export function DebuggingTab() {
+export function MaintenanceTab() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingGalaxies, setDeletingGalaxies] = useState(false);
   const deleteAllGalaxies = useMutation(api.galaxies.maintenance.deleteAllGalaxies);
@@ -43,7 +43,7 @@ export function DebuggingTab() {
 
   return (
     <div className="max-w-6xl mx-auto px-4 py-12">
-      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Debugging Tools</h1>
+      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">Maintenance Tools</h1>
 
       <div className="grid grid-cols-2 gap-6">
         <GenerateMockDataSection />
