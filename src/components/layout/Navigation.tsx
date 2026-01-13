@@ -6,12 +6,14 @@ import { cn } from "../../lib/utils";
 import { SignOutButton } from "../../SignOutButton";
 import { DebugAdminButton } from "../admin/DebugAdminButton";
 import { DarkModeToggle } from "../navigation/DarkModeToggle";
+import { ReportIssueModal } from "../ReportIssueModal";
 
 interface NavigationItem {
   id: string;
   label: string;
   icon: string;
   path: string;
+  adminOnly?: boolean;
 }
 
 interface NavigationProps {
@@ -21,6 +23,7 @@ interface NavigationProps {
 
 export function Navigation({ navigationItems, appName }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const userProfile = useQuery(api.users.getUserProfile);
   const progress = useQuery(api.classification.getProgress);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -28,11 +31,12 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
 
   // Filter items based on permissions (e.g., admin only)
   const visibleItems = navigationItems.filter(
-    (it) => it.id !== "admin" || userProfile?.role === "admin"
+    (it) => !it.adminOnly || userProfile?.role === "admin"
   );
 
   return (
     <>
+      <ReportIssueModal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} />
       {/* Mobile Navigation */}
       <div className="custom-lg:hidden">
         {/* Mobile Header */}
@@ -111,6 +115,16 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                     </div>
                   </div>
                 )}
+                <button
+                  onClick={() => {
+                    setIsReportModalOpen(true);
+                    setIsOpen(false);
+                  }}
+                  className="w-full mb-3 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 rounded-lg transition-colors text-left flex items-center space-x-2"
+                >
+                  <span>📋</span>
+                  <span>Report Issue</span>
+                </button>
                 <SignOutButton />
               </div>
             </div>
@@ -178,13 +192,20 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
               <DarkModeToggle showLabel size="sm" />
             </div>
             {userProfile && (
-              <div className="text-sm text-gray-600 dark:text-gray-300">
+              <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">
                 <div className="font-medium">Classifications: {userProfile.classificationsCount}</div>
                 <div className="text-xs mt-1">
                   Role: {userProfile.role === "admin" ? "Administrator" : "User"}
                 </div>
               </div>
             )}
+            <button
+              onClick={() => setIsReportModalOpen(true)}
+              className="w-full mb-3 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 rounded-lg transition-colors text-left flex items-center space-x-2"
+            >
+              <span>📋</span>
+              <span>Report Issue</span>
+            </button>
           </div>
           <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
             <SignOutButton />
