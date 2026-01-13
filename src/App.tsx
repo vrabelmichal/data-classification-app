@@ -13,9 +13,9 @@ import { Statistics } from "./components/statistics/Statistics";
 import { UserSettings } from "./components/settings/UserSettings";
 import { Help } from "./components/help/Help";
 import { AdminPanel } from "./components/admin/AdminPanel";
+import { IssueReportsPage } from "@/components/admin/IssueReportsPage";
 import { NotFound } from "./components/NotFound";
 import { useState, useEffect } from "react";
-import { OverviewPage } from "./components/OverviewPage";
 import { DEFAULT_ALLOW_PUBLIC_OVERVIEW } from "./lib/defaults";
 
 function LoadingScreen() {
@@ -46,7 +46,7 @@ function AccessDenied({ message }: { message?: string }) {
 function App() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const userProfile = useQuery(api.users.getUserProfile);
-  const appName = systemSettings?.appName || "Galaxy Classification App";
+  const appName = String(systemSettings?.appName ?? "Galaxy Classification App");
   const isAdmin = userProfile?.role === "admin";
   const allowPublicOverview = systemSettings?.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW;
   const canAccessOverview = Boolean(isAdmin || allowPublicOverview);
@@ -57,8 +57,9 @@ function App() {
   
   // Check for version updates
   useEffect(() => {
-    if (systemSettings?.appVersion !== undefined && systemSettings?.appVersion !== null) {
-      const serverVersion = systemSettings.appVersion;
+    const appVersionRaw = systemSettings?.appVersion;
+    if (appVersionRaw !== undefined && appVersionRaw !== null) {
+      const serverVersion: string = String(appVersionRaw);
       if (currentVersion === null) {
         // First load - set current version
         setCurrentVersion(serverVersion);
@@ -75,7 +76,8 @@ function App() {
 
   const dismissVersionUpdate = () => {
     setShowVersionUpdate(false);
-    setCurrentVersion(systemSettings?.appVersion || null);
+    const appVersionRaw = systemSettings?.appVersion;
+    setCurrentVersion(appVersionRaw !== undefined && appVersionRaw !== null ? String(appVersionRaw) : null);
   };
 
   const navigationItems = [
@@ -83,12 +85,10 @@ function App() {
     { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: <GalaxyBrowser /> },
     { id: "skipped", label: "Skipped", icon: "⏭️", path: "/skipped", element: <SkippedGalaxies /> },
     { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: <Statistics /> },
-    ...(canAccessOverview
-      ? [{ id: "overview", label: "Overview", icon: "📈", path: "/overview", element: <OverviewPage /> }]
-      : []),
     { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: <UserSettings /> },
     { id: "help", label: "Help", icon: "❓", path: "/help", element: <Help /> },
-    { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: <AdminPanel /> },
+    { id: "reports", label: "Issue Reports", icon: "📋", path: "/reports", element: <IssueReportsPage />, adminOnly: true },
+    { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: <AdminPanel />, adminOnly: true },
   ];
 
   return (
@@ -172,25 +172,14 @@ function App() {
                     <Route index element={<ClassificationInterface />} />
                     <Route path="/reset" element={<Navigate to="/settings" replace />} />
                     <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
-                    <Route
-                      path="/overview"
-                      element={
-                        systemSettings === undefined ? (
-                          <LoadingScreen />
-                        ) : canAccessOverview ? (
-                          <OverviewPage />
-                        ) : (
-                          <AccessDenied message="Overview is restricted to administrators." />
-                        )
-                      }
-                    />
-                    {navigationItems.filter((item) => item.id !== "overview").map((item) => (
+                    {navigationItems.filter((item) => item.id !== "admin").map((item) => (
                       <Route
                         key={item.id}
-                        path={item.id === "admin" ? `${item.path}/*` : item.path}
+                        path={item.id === "statistics" ? `${item.path}/*` : item.path}
                         element={item.element}
                       />
                     ))}
+                    <Route path="/admin/*" element={<AdminPanel />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
                 </div>
