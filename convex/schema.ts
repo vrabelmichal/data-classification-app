@@ -285,6 +285,24 @@ const applicationTables = {
     key: v.string(),
     value: v.any(),
   }).index("by_key", ["key"]),
+
+  // Issue reports from users
+  issueReports: defineTable({
+    userId: v.id("users"),
+    description: v.string(),
+    status: v.union(
+      v.literal("open"),
+      v.literal("in_progress"),
+      v.literal("resolved"),
+      v.literal("closed")
+    ),
+    createdAt: v.number(), // timestamp
+    resolvedAt: v.optional(v.number()), // timestamp when marked as resolved
+    adminNotes: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_status", ["status"])
+    .index("by_created_at", ["createdAt"]),
 };
 
 export default defineSchema({
