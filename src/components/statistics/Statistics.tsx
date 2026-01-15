@@ -7,10 +7,12 @@ import { cn } from "../../lib/utils";
 import { StatisticsTab } from "./StatisticsTab";
 
 export function Statistics() {
-  usePageTitle("Statistics");
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const userProfile = useQuery(api.users.getUserProfile);
   const location = useLocation();
+  // Change page title based on the active tab (Overview vs Statistics)
+  const isOverview = location.pathname.startsWith("/statistics/overview");
+  usePageTitle(isOverview ? "Overview Statistics" : "My Statistics");
   
   const isAdmin = userProfile?.role === "admin";
   const allowPublicOverview = systemSettings?.allowPublicOverview ?? false;
