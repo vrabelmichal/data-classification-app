@@ -54,7 +54,7 @@ export function GalaxyBrowserControls({
   const { total } = galaxyData || {};
 
   return (
-    <div className="border-t border-gray-200 dark:border-gray-700 pt-6">
+    <div className="border-gray-200 dark:border-gray-700">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Filter */}
         <div>
