@@ -166,7 +166,24 @@ export function GalaxyBrowserSearchForm({
         )}
       >
         <div className="flex items-center gap-2 text-left">
-          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide">Search Galaxies</span>
+            <span className="flex items-center">
+              <svg
+              className="w-5 h-5 mr-2 text-gray-500 dark:text-gray-400"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+              >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-4.35-4.35m1.85-4.65a7 7 0 11-14 0 7 7 0 0114 0z"
+              />
+              </svg>
+              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide">Search Galaxies</span>
+            </span>
           <span className="text-xs text-gray-500 dark:text-gray-400">Click to {isCollapsed ? "show" : "hide"} filters</span>
         </div>
         <span className="text-base font-semibold text-gray-800 dark:text-gray-100">
