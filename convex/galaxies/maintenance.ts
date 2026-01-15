@@ -137,7 +137,7 @@ export const backfillGalaxyClassificationCounts = mutation({
 
     const { page, isDone, continueCursor } = await ctx.db
       .query("galaxies")
-      .paginate({ numItems: REBUILD_TOTAL_CLASSIFICATIONS_BATCH_SIZE, cursor: args.cursor ?? null });
+      .paginate({ numItems: BACKFILL_CLASSIFICATIONS_BATCH_SIZE, cursor: args.cursor ?? null });
 
     let processed = 0;
     let updated = 0;
@@ -200,7 +200,7 @@ export const rebuildTotalClassificationsAggregate = mutation({
 
     const { page, isDone, continueCursor } = await ctx.db
       .query("galaxies")
-      .paginate({ numItems: BACKFILL_CLASSIFICATIONS_BATCH_SIZE, cursor: args.cursor ?? null });
+      .paginate({ numItems: REBUILD_TOTAL_CLASSIFICATIONS_BATCH_SIZE, cursor: args.cursor ?? null });
 
     let processed = 0;
 
