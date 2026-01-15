@@ -53,7 +53,7 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 md:mx-6 p-6 md:p-8 max-h-[85vh] min-h-[60vh] overflow-y-auto flex flex-col">
+      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 md:mx-6 p-6 md:p-8 max-h-[min(75vh,42rem)] min-h-[40vh] md:min-h-[32rem] overflow-y-auto flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
             Report an Issue
