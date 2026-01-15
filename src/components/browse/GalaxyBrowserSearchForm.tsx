@@ -71,6 +71,8 @@ interface GalaxyBrowserSearchFormProps {
   getPlaceholderText: (field: BoundsField, type: 'min' | 'max') => string;
   getBounds: (field: BoundsField) => { min?: number; max?: number } | undefined;
   getInputClass: (field: string, baseClass: string) => string;
+  isCollapsed: boolean;
+  onToggleCollapsed: () => void;
 }
 export function GalaxyBrowserSearchForm({
   searchId,
@@ -135,6 +137,8 @@ export function GalaxyBrowserSearchForm({
   getPlaceholderText,
   getBounds,
   getInputClass,
+  isCollapsed,
+  onToggleCollapsed,
 }: GalaxyBrowserSearchFormProps) {
   const bounds = {
     ra: getBounds('ra'),
@@ -152,8 +156,25 @@ export function GalaxyBrowserSearchForm({
 
   return (
     <div className="mb-6">
-      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Search Galaxies</h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 mb-4 max-w-5xl">
+      <button
+        type="button"
+        onClick={onToggleCollapsed}
+        aria-expanded={!isCollapsed}
+        className={cn(
+          "w-full flex items-center justify-between gap-3 mb-4 px-4 py-3 rounded-lg border transition-colors",
+          "border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800/60 hover:bg-gray-100 dark:hover:bg-gray-700"
+        )}
+      >
+        <div className="flex items-center gap-2 text-left">
+          <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 uppercase tracking-wide">Search Galaxies</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">Click to {isCollapsed ? "show" : "hide"} filters</span>
+        </div>
+        <span className="text-base font-semibold text-gray-800 dark:text-gray-100">
+          {isCollapsed ? "+" : "−"}
+        </span>
+      </button>
+      {!isCollapsed && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3 mb-4 max-w-5xl">
         <div>
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             Galaxy ID
@@ -486,33 +507,36 @@ export function GalaxyBrowserSearchForm({
           </div>
         </div>
       </div>
-      <div className="flex items-center space-x-4">
-        <button
-          onClick={applySearch}
-          disabled={!hasPendingChanges && isSearchActive && !hasAnySearchValues}
-          className={cn(
-            "px-4 py-2 rounded-lg font-medium transition-colors",
-            hasPendingChanges || (!isSearchActive && hasAnySearchValues)
-              ? "bg-orange-600 hover:bg-orange-700 text-white"
-              : isSearchActive
-                ? "bg-gray-400 text-gray-200 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
+      )}
+      {!isCollapsed && (
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={applySearch}
+            disabled={!hasPendingChanges && isSearchActive && !hasAnySearchValues}
+            className={cn(
+              "px-4 py-2 rounded-lg font-medium transition-colors",
+              hasPendingChanges || (!isSearchActive && hasAnySearchValues)
+                ? "bg-orange-600 hover:bg-orange-700 text-white"
+                : isSearchActive
+                  ? "bg-gray-400 text-gray-200 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+            )}
+          >
+            {hasPendingChanges || (!isSearchActive && hasAnySearchValues) ? "Apply Search" : isSearchActive ? "Search Active" : "Search"}
+          </button>
+          <button
+            onClick={clearSearch}
+            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
+          >
+            Clear Search
+          </button>
+          {isSearchActive && (
+            <span className="text-sm text-green-600 dark:text-green-400 font-medium">
+              Search active
+            </span>
           )}
-        >
-          {hasPendingChanges || (!isSearchActive && hasAnySearchValues) ? "Apply Search" : isSearchActive ? "Search Active" : "Search"}
-        </button>
-        <button
-          onClick={clearSearch}
-          className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors"
-        >
-          Clear Search
-        </button>
-        {isSearchActive && (
-          <span className="text-sm text-green-600 dark:text-green-400 font-medium">
-            Search active
-          </span>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

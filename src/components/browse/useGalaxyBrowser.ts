@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import type { SortField, SortOrder, FilterType } from "./GalaxyBrowser";
@@ -25,6 +25,8 @@ export interface UseGalaxyBrowserReturn {
   setFilter: (filter: FilterType) => void;
   goNext: () => void;
   goPrev: () => void;
+  isSearchFormCollapsed: boolean;
+  setIsSearchFormCollapsed: Dispatch<SetStateAction<boolean>>;
 
   // Search state
   searchId: string;
@@ -119,6 +121,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const [filter, setFilter] = useState<FilterType>("all");
   const [cursor, setCursor] = useState<string | null>(null);
   const [cursorStack, setCursorStack] = useState<string[]>([]);
+  const [isSearchFormCollapsed, setIsSearchFormCollapsed] = useState(true);
 
   // Search fields
   const [searchId, setSearchId] = useState("");
@@ -306,6 +309,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
           if (parsed.sortBy) setSortBy(parsed.sortBy);
           if (parsed.sortOrder) setSortOrder(parsed.sortOrder);
           if (parsed.filter) setFilter(parsed.filter);
+          if (typeof parsed.searchFormCollapsed === "boolean") setIsSearchFormCollapsed(parsed.searchFormCollapsed);
 
           // Search fields
           if (typeof parsed.searchId === "string") {
@@ -459,13 +463,14 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
       searchAwesome: appliedSearchAwesome,
       searchValidRedshift: appliedSearchValidRedshift,
       searchVisibleNucleus: appliedSearchVisibleNucleus,
+      searchFormCollapsed: isSearchFormCollapsed,
     };
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
       console.warn("Failed to save galaxy browser settings", e);
     }
-  }, [pageSize, sortBy, sortOrder, filter, appliedSearchId, appliedSearchRaMin, appliedSearchRaMax, appliedSearchDecMin, appliedSearchDecMax, appliedSearchReffMin, appliedSearchReffMax, appliedSearchQMin, appliedSearchQMax, appliedSearchPaMin, appliedSearchPaMax, appliedSearchMagMin, appliedSearchMagMax, appliedSearchMeanMueMin, appliedSearchMeanMueMax, appliedSearchNucleus, appliedSearchTotalClassificationsMin, appliedSearchTotalClassificationsMax, appliedSearchNumVisibleNucleusMin, appliedSearchNumVisibleNucleusMax, appliedSearchNumAwesomeFlagMin, appliedSearchNumAwesomeFlagMax, appliedSearchTotalAssignedMin, appliedSearchTotalAssignedMax]);
+  }, [pageSize, sortBy, sortOrder, filter, appliedSearchId, appliedSearchRaMin, appliedSearchRaMax, appliedSearchDecMin, appliedSearchDecMax, appliedSearchReffMin, appliedSearchReffMax, appliedSearchQMin, appliedSearchQMax, appliedSearchPaMin, appliedSearchPaMax, appliedSearchMagMin, appliedSearchMagMax, appliedSearchMeanMueMin, appliedSearchMeanMueMax, appliedSearchNucleus, appliedSearchTotalClassificationsMin, appliedSearchTotalClassificationsMax, appliedSearchNumVisibleNucleusMin, appliedSearchNumVisibleNucleusMax, appliedSearchNumAwesomeFlagMin, appliedSearchNumAwesomeFlagMax, appliedSearchTotalAssignedMin, appliedSearchTotalAssignedMax, appliedSearchAwesome, appliedSearchValidRedshift, appliedSearchVisibleNucleus, isSearchFormCollapsed]);
 
   useEffect(() => {
     if (!didHydrateFromStorage.current) return;
@@ -703,6 +708,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setFilter,
     goNext,
     goPrev,
+    isSearchFormCollapsed,
+    setIsSearchFormCollapsed,
 
     // Search state
     searchId,

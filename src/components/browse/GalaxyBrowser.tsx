@@ -108,6 +108,8 @@ export function GalaxyBrowser() {
     setSortOrder,
     pageSize,
     setPageSize,
+    isSearchFormCollapsed,
+    setIsSearchFormCollapsed,
     // cursor-based navigation handled in controls
   } = useGalaxyBrowser();
 
@@ -278,6 +280,8 @@ export function GalaxyBrowser() {
               getPlaceholderText={getPlaceholderText}
               getBounds={getBoundsForField}
               getInputClass={getInputClass}
+              isCollapsed={isSearchFormCollapsed}
+              onToggleCollapsed={() => setIsSearchFormCollapsed((prev) => !prev)}
             />
 
             <GalaxyBrowserControls
@@ -389,6 +393,8 @@ export function GalaxyBrowser() {
               getPlaceholderText={getPlaceholderText}
               getBounds={getBoundsForField}
               getInputClass={getInputClass}
+              isCollapsed={isSearchFormCollapsed}
+              onToggleCollapsed={() => setIsSearchFormCollapsed((prev) => !prev)}
             />
 
             <GalaxyBrowserControls
@@ -501,6 +507,8 @@ export function GalaxyBrowser() {
           getPlaceholderText={getPlaceholderText}
           getBounds={getBoundsForField}
           getInputClass={getInputClass}
+          isCollapsed={isSearchFormCollapsed}
+          onToggleCollapsed={() => setIsSearchFormCollapsed((prev) => !prev)}
         />
 
         <GalaxyBrowserControls
