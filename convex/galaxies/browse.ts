@@ -548,15 +548,29 @@ interface HandleClassifiedOptions extends HandleSkippedOptions {
 
 const CLASSIFIED_CURSOR_PREFIX = "CLASSIFIED:";
 
-const parseClassifiedCursor = (cursor: string | null) => {
+const parseClassifiedCursor = (cursor: string | null): { offset: number; galaxyCursor: string | null } => {
   if (!cursor || !cursor.startsWith(CLASSIFIED_CURSOR_PREFIX)) {
-    return 0;
+    return { offset: 0, galaxyCursor: null };
   }
-  const rawOffset = Number.parseInt(cursor.slice(CLASSIFIED_CURSOR_PREFIX.length), 10);
-  return Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+  const payload = cursor.slice(CLASSIFIED_CURSOR_PREFIX.length);
+  try {
+    const parsed = JSON.parse(payload);
+    return {
+      offset: typeof parsed.offset === "number" ? parsed.offset : 0,
+      galaxyCursor: parsed.galaxyCursor ?? null,
+    };
+  } catch {
+    // Legacy format: just offset
+    const rawOffset = Number.parseInt(payload, 10);
+    return {
+      offset: Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0,
+      galaxyCursor: null,
+    };
+  }
 };
 
-const serializeClassifiedCursor = (offset: number) => `${CLASSIFIED_CURSOR_PREFIX}${offset}`;
+const serializeClassifiedCursor = (offset: number, galaxyCursor?: string | null) => 
+  `${CLASSIFIED_CURSOR_PREFIX}${JSON.stringify({ offset, galaxyCursor })}`;
 
 const handleClassifiedGalaxies = async (options: HandleClassifiedOptions) => {
   const {
@@ -594,53 +608,12 @@ const handleClassifiedGalaxies = async (options: HandleClassifiedOptions) => {
     searchTotalAssignedMax,
   } = options;
 
-  const initialOffset = parseClassifiedCursor(cursor);
+  const parsedCursor = parseClassifiedCursor(cursor);
 
-  // Get all user's classifications
-  const userClassifications = await ctx.db
-    .query("classifications")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
-    .collect();
+  // Helper to apply search filters to galaxies
+  const applySearchFilters = (galaxies: any[]) => {
+    let filtered = galaxies;
 
-  const userClassifiedGalaxyIds = new Set(userClassifications.map((c: any) => c.galaxyExternalId));
-
-  if (filterType === "classified") {
-    // For "classified by me", fetch those specific galaxies
-    if (userClassifiedGalaxyIds.size === 0) {
-      return {
-        galaxies: [],
-        total: 0,
-        hasNext: false,
-        hasPrevious: initialOffset > 0,
-        totalPages: 0,
-        aggregatesPopulated: false,
-        cursor: null,
-        isDone: true,
-        currentBounds: computeBounds([]),
-      };
-    }
-
-    // Fetch all classified galaxies
-    const classifiedGalaxies = (await Promise.all(
-      Array.from(userClassifiedGalaxyIds).map(async (galaxyExternalId) => {
-        const galaxy = await ctx.db
-          .query("galaxies")
-          .withIndex("by_external_id", (q: any) => q.eq("id", galaxyExternalId))
-          .unique();
-        if (!galaxy) return null;
-        // Find classification for this galaxy to include classification info
-        const classification = userClassifications.find((c: any) => c.galaxyExternalId === galaxyExternalId);
-        return {
-          ...galaxy,
-          classificationId: classification?._id,
-          classifiedAt: classification?._creationTime,
-        };
-      })
-    )).filter((item): item is any => item !== null);
-
-    let filtered = classifiedGalaxies;
-
-    // Apply search filters (same as handleSkippedGalaxies)
     if (searchId) {
       const trimmed = searchId.trim();
       filtered = filtered.filter((g) => g.id === trimmed);
@@ -725,10 +698,14 @@ const handleClassifiedGalaxies = async (options: HandleClassifiedOptions) => {
       });
     }
 
-    // Sort
+    return filtered;
+  };
+
+  // Helper to sort galaxies
+  const sortGalaxies = (galaxies: any[]) => {
     const missingNumericValue = sortOrder === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
 
-    filtered.sort((a, b) => {
+    return [...galaxies].sort((a, b) => {
       if (requestedSort === "id") {
         const aVal = typeof a[sortField] === "string" ? a[sortField] : "";
         const bVal = typeof b[sortField] === "string" ? b[sortField] : "";
@@ -760,175 +737,171 @@ const handleClassifiedGalaxies = async (options: HandleClassifiedOptions) => {
       const bId = typeof b.id === "string" ? b.id : "";
       return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: "base" });
     });
+  };
 
-    const total = filtered.length;
-    const safeOffset = total === 0 ? 0 : Math.max(0, Math.min(initialOffset, Math.max(total - numItems, 0)));
-    const paged = filtered.slice(safeOffset, safeOffset + numItems);
+  if (filterType === "classified") {
+    // EFFICIENT PATH: Query userGalaxyClassifications table with index
+    // This avoids loading all classifications into memory
+    
+    // Use paginated query on the tracking table
+    const { page: trackingRecords, continueCursor, isDone } = await ctx.db
+      .query("userGalaxyClassifications")
+      .withIndex("by_user_numericId", (q: any) => q.eq("userId", userId))
+      .order(sortOrder)
+      .paginate({ numItems: numItems * 3, cursor: parsedCursor.galaxyCursor }); // Fetch extra to account for filtering
 
-    const hasNext = safeOffset + paged.length < total;
-    const nextCursor = hasNext ? serializeClassifiedCursor(safeOffset + paged.length) : null;
-    const hasPrevious = safeOffset > 0;
-    const totalPages = total > 0 ? Math.ceil(total / numItems) : 0;
+    if (trackingRecords.length === 0) {
+      return {
+        galaxies: [],
+        total: 0,
+        hasNext: false,
+        hasPrevious: parsedCursor.offset > 0,
+        totalPages: 0,
+        aggregatesPopulated: false,
+        cursor: null,
+        isDone: true,
+        currentBounds: computeBounds([]),
+      };
+    }
+
+    // Fetch galaxy data for tracking records
+    const galaxiesWithTracking = await Promise.all(
+      trackingRecords.map(async (record: any) => {
+        const galaxy = await ctx.db
+          .query("galaxies")
+          .withIndex("by_external_id", (q: any) => q.eq("id", record.galaxyExternalId))
+          .unique();
+        if (!galaxy) return null;
+        return {
+          ...galaxy,
+          classificationId: record.classificationId,
+          classifiedAt: record.classifiedAt,
+        };
+      })
+    );
+
+    const validGalaxies = galaxiesWithTracking.filter((g): g is any => g !== null);
+
+    // Apply search filters
+    let filtered = applySearchFilters(validGalaxies);
+
+    // Sort (mainly needed when not sorting by numericId)
+    if (requestedSort !== "numericId") {
+      filtered = sortGalaxies(filtered);
+    }
+
+    // Take requested number of items
+    const paged = filtered.slice(0, numItems);
+    const hasMore = filtered.length > numItems || !isDone;
 
     return {
       galaxies: paged,
-      total,
-      hasNext,
-      hasPrevious,
-      totalPages,
+      total: paged.length, // Unknown total without scanning all
+      hasNext: hasMore,
+      hasPrevious: parsedCursor.offset > 0 || parsedCursor.galaxyCursor !== null,
+      totalPages: 0,
       aggregatesPopulated: false,
-      cursor: nextCursor,
-      isDone: !hasNext,
+      cursor: hasMore ? serializeClassifiedCursor(parsedCursor.offset + paged.length, continueCursor) : null,
+      isDone: !hasMore,
       currentBounds: computeBounds(paged),
     };
   } else {
-    // For "unclassified by me", we need to query all galaxies and exclude classified ones
-    // This is more expensive but necessary for correct results
+    // UNCLASSIFIED: Stream through galaxies and check against tracking table
+    // This is more efficient than loading all galaxies because we:
+    // 1. Use cursor-based pagination on galaxies table
+    // 2. Do indexed lookups to check classification status
     
-    // For now, we'll use a paginated approach with filtering
-    // Fetch all galaxies and filter out classified ones
-    const allGalaxies = await ctx.db.query("galaxies").collect();
-    let unclassifiedGalaxies = allGalaxies.filter((g: any) => !userClassifiedGalaxyIds.has(g.id));
+    const collected: any[] = [];
+    let galaxyCursor: string | null = parsedCursor.galaxyCursor;
+    let iterationCount = 0;
+    const maxIterations = 50; // Safety limit to prevent timeout
+    let reachedEndOfGalaxies = false;
 
-    // Apply search filters
-    if (searchId) {
-      const trimmed = searchId.trim();
-      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => g.id === trimmed);
-    }
+    while (collected.length < numItems && iterationCount < maxIterations) {
+      iterationCount++;
 
-    const applyNumericFilter = (
-      values: any[],
-      field: string,
-      min?: string,
-      max?: string,
-    ) => {
-      if (!min && !max) return values;
-      const minVal = min !== undefined && min !== null && min !== "" ? Number.parseFloat(min) : undefined;
-      const maxVal = max !== undefined && max !== null && max !== "" ? Number.parseFloat(max) : undefined;
-      return values.filter((g) => {
-        const value = g[field];
-        if (typeof value !== "number" || Number.isNaN(value)) return false;
-        if (minVal !== undefined && value < minVal) return false;
-        if (maxVal !== undefined && value > maxVal) return false;
-        return true;
-      });
-    };
+      // Fetch a batch of galaxies
+      const batchSize = Math.min(500, (numItems - collected.length) * 5); // Estimate 20% are unclassified
+      const { page: galaxyBatch, continueCursor, isDone: galaxiesDone } = await ctx.db
+        .query("galaxies")
+        .withIndex("by_numeric_id")
+        .order(sortOrder)
+        .paginate({ numItems: batchSize, cursor: galaxyCursor });
 
-    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "ra", searchRaMin, searchRaMax);
-    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "dec", searchDecMin, searchDecMax);
-    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "reff", searchReffMin, searchReffMax);
-    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "q", searchQMin, searchQMax);
-    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "pa", searchPaMin, searchPaMax);
-    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "mag", searchMagMin, searchMagMax);
-    unclassifiedGalaxies = applyNumericFilter(unclassifiedGalaxies, "mean_mue", searchMeanMueMin, searchMeanMueMax);
+      if (galaxyBatch.length === 0) {
+        reachedEndOfGalaxies = true;
+        break;
+      }
 
-    if (searchNucleus !== undefined) {
-      const desired = !!searchNucleus;
-      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => !!g.nucleus === desired);
-    }
+      // Check each galaxy against the tracking table (indexed lookup)
+      for (const galaxy of galaxyBatch) {
+        if (collected.length >= numItems) break;
 
-    if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
-      const minVal = searchTotalClassificationsMin ? Number.parseInt(searchTotalClassificationsMin, 10) : undefined;
-      const maxVal = searchTotalClassificationsMax ? Number.parseInt(searchTotalClassificationsMax, 10) : undefined;
-      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => {
-        const total = typeof g.totalClassifications === "number" ? g.totalClassifications : Number(g.totalClassifications ?? 0);
-        const numericTotal = Number.isFinite(total) ? total : 0;
-        if (minVal !== undefined && numericTotal < minVal) return false;
-        if (maxVal !== undefined && numericTotal > maxVal) return false;
-        return true;
-      });
-    }
+        // Efficient indexed lookup to check if classified
+        const isClassified = await ctx.db
+          .query("userGalaxyClassifications")
+          .withIndex("by_user_galaxy", (q: any) => 
+            q.eq("userId", userId).eq("galaxyExternalId", galaxy.id)
+          )
+          .unique();
 
-    if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
-      const minVal = searchNumVisibleNucleusMin ? Number.parseInt(searchNumVisibleNucleusMin, 10) : undefined;
-      const maxVal = searchNumVisibleNucleusMax ? Number.parseInt(searchNumVisibleNucleusMax, 10) : undefined;
-      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => {
-        const total = typeof g.numVisibleNucleus === "number" ? g.numVisibleNucleus : Number(g.numVisibleNucleus ?? 0);
-        const numericTotal = Number.isFinite(total) ? total : 0;
-        if (minVal !== undefined && numericTotal < minVal) return false;
-        if (maxVal !== undefined && numericTotal > maxVal) return false;
-        return true;
-      });
-    }
+        if (!isClassified) {
+          // Apply search filters inline
+          const passesFilters = (() => {
+            if (searchId && galaxy.id !== searchId.trim()) return false;
+            if (searchRaMin && (typeof galaxy.ra !== "number" || galaxy.ra < parseFloat(searchRaMin))) return false;
+            if (searchRaMax && (typeof galaxy.ra !== "number" || galaxy.ra > parseFloat(searchRaMax))) return false;
+            if (searchDecMin && (typeof galaxy.dec !== "number" || galaxy.dec < parseFloat(searchDecMin))) return false;
+            if (searchDecMax && (typeof galaxy.dec !== "number" || galaxy.dec > parseFloat(searchDecMax))) return false;
+            if (searchReffMin && (typeof galaxy.reff !== "number" || galaxy.reff < parseFloat(searchReffMin))) return false;
+            if (searchReffMax && (typeof galaxy.reff !== "number" || galaxy.reff > parseFloat(searchReffMax))) return false;
+            if (searchQMin && (typeof galaxy.q !== "number" || galaxy.q < parseFloat(searchQMin))) return false;
+            if (searchQMax && (typeof galaxy.q !== "number" || galaxy.q > parseFloat(searchQMax))) return false;
+            if (searchPaMin && (typeof galaxy.pa !== "number" || galaxy.pa < parseFloat(searchPaMin))) return false;
+            if (searchPaMax && (typeof galaxy.pa !== "number" || galaxy.pa > parseFloat(searchPaMax))) return false;
+            if (searchMagMin && (typeof galaxy.mag !== "number" || galaxy.mag < parseFloat(searchMagMin))) return false;
+            if (searchMagMax && (typeof galaxy.mag !== "number" || galaxy.mag > parseFloat(searchMagMax))) return false;
+            if (searchMeanMueMin && (typeof galaxy.mean_mue !== "number" || galaxy.mean_mue < parseFloat(searchMeanMueMin))) return false;
+            if (searchMeanMueMax && (typeof galaxy.mean_mue !== "number" || galaxy.mean_mue > parseFloat(searchMeanMueMax))) return false;
+            if (searchNucleus !== undefined && !!galaxy.nucleus !== !!searchNucleus) return false;
+            return true;
+          })();
 
-    if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
-      const minVal = searchNumAwesomeFlagMin ? Number.parseInt(searchNumAwesomeFlagMin, 10) : undefined;
-      const maxVal = searchNumAwesomeFlagMax ? Number.parseInt(searchNumAwesomeFlagMax, 10) : undefined;
-      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => {
-        const total = typeof g.numAwesomeFlag === "number" ? g.numAwesomeFlag : Number(g.numAwesomeFlag ?? 0);
-        const numericTotal = Number.isFinite(total) ? total : 0;
-        if (minVal !== undefined && numericTotal < minVal) return false;
-        if (maxVal !== undefined && numericTotal > maxVal) return false;
-        return true;
-      });
-    }
-
-    if (searchTotalAssignedMin || searchTotalAssignedMax) {
-      const minVal = searchTotalAssignedMin ? Number.parseInt(searchTotalAssignedMin, 10) : undefined;
-      const maxVal = searchTotalAssignedMax ? Number.parseInt(searchTotalAssignedMax, 10) : undefined;
-      unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => {
-        const total = typeof g.totalAssigned === "number" ? g.totalAssigned : Number(g.totalAssigned ?? 0);
-        const numericTotal = Number.isFinite(total) ? total : 0;
-        if (minVal !== undefined && numericTotal < minVal) return false;
-        if (maxVal !== undefined && numericTotal > maxVal) return false;
-        return true;
-      });
-    }
-
-    // Sort
-    const missingNumericValue = sortOrder === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
-
-    unclassifiedGalaxies.sort((a: any, b: any) => {
-      if (requestedSort === "id") {
-        const aVal = typeof a[sortField] === "string" ? a[sortField] : "";
-        const bVal = typeof b[sortField] === "string" ? b[sortField] : "";
-        const cmp = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: "base" });
-        if (cmp !== 0) {
-          return sortOrder === "asc" ? cmp : -cmp;
-        }
-      } else if (requestedSort === "nucleus") {
-        const aVal = a[sortField] ? 1 : 0;
-        const bVal = b[sortField] ? 1 : 0;
-        if (aVal !== bVal) {
-          return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
-        }
-      } else {
-        const aVal = typeof a[sortField] === "number" && !Number.isNaN(a[sortField]) ? a[sortField] : missingNumericValue;
-        const bVal = typeof b[sortField] === "number" && !Number.isNaN(b[sortField]) ? b[sortField] : missingNumericValue;
-        if (aVal !== bVal) {
-          return sortOrder === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+          if (passesFilters) {
+            collected.push(galaxy);
+          }
         }
       }
 
-      const aNumeric = typeof a.numericId === "number" ? a.numericId : Number.POSITIVE_INFINITY;
-      const bNumeric = typeof b.numericId === "number" ? b.numericId : Number.POSITIVE_INFINITY;
-      if (aNumeric !== bNumeric) {
-        return aNumeric - bNumeric;
+      galaxyCursor = continueCursor;
+
+      if (galaxiesDone) {
+        reachedEndOfGalaxies = true;
+        break;
       }
+    }
 
-      const aId = typeof a.id === "string" ? a.id : "";
-      const bId = typeof b.id === "string" ? b.id : "";
-      return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: "base" });
-    });
+    // Sort if needed
+    let sortedResults = collected;
+    if (requestedSort !== "numericId") {
+      sortedResults = sortGalaxies(collected);
+    }
 
-    const total = unclassifiedGalaxies.length;
-    const safeOffset = total === 0 ? 0 : Math.max(0, Math.min(initialOffset, Math.max(total - numItems, 0)));
-    const paged = unclassifiedGalaxies.slice(safeOffset, safeOffset + numItems);
-
-    const hasNext = safeOffset + paged.length < total;
-    const nextCursor = hasNext ? serializeClassifiedCursor(safeOffset + paged.length) : null;
-    const hasPrevious = safeOffset > 0;
-    const totalPages = total > 0 ? Math.ceil(total / numItems) : 0;
+    const paged = sortedResults.slice(0, numItems);
+    // hasMore is true if:
+    // 1. We collected more than needed (had to filter some out), OR
+    // 2. We haven't reached the end of the galaxy table yet
+    const hasMore = !reachedEndOfGalaxies && galaxyCursor !== null;
 
     return {
       galaxies: paged,
-      total,
-      hasNext,
-      hasPrevious,
-      totalPages,
+      total: paged.length,
+      hasNext: hasMore,
+      hasPrevious: parsedCursor.offset > 0 || parsedCursor.galaxyCursor !== null,
+      totalPages: 0,
       aggregatesPopulated: false,
-      cursor: nextCursor,
-      isDone: !hasNext,
+      cursor: hasMore ? serializeClassifiedCursor(parsedCursor.offset + paged.length, galaxyCursor) : null,
+      isDone: !hasMore,
       currentBounds: computeBounds(paged),
     };
   }

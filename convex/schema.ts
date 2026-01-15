@@ -304,6 +304,20 @@ const applicationTables = {
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
     .index("by_created_at", ["createdAt"]),
+
+  // User-Galaxy classification status for efficient "classified by me" / "unclassified by me" queries
+  // This table enables indexed pagination without loading all galaxies into memory
+  userGalaxyClassifications: defineTable({
+    userId: v.id("users"),
+    galaxyExternalId: v.string(),
+    galaxyNumericId: v.int64(), // Denormalized for efficient sorting
+    classificationId: v.id("classifications"),
+    classifiedAt: v.number(), // _creationTime of the classification
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_numericId", ["userId", "galaxyNumericId"])
+    .index("by_user_galaxy", ["userId", "galaxyExternalId"])
+    .index("by_classification", ["classificationId"]),
 };
 
 export default defineSchema({

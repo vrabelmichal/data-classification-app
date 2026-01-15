@@ -20,6 +20,7 @@ import {
   TestEmailSection,
   BackfillGalaxyClassificationsSection,
   RebuildTotalClassificationsAggregateSection,
+  BackfillUserGalaxyClassificationsSection,
 } from "./debugging";
 
 export function MaintenanceTab() {
@@ -62,6 +63,7 @@ export function MaintenanceTab() {
           <FillGalaxyMagMeanMueSection />
           <FillGalaxyNumericIdSection />
           <BackfillGalaxyClassificationsSection />
+          <BackfillUserGalaxyClassificationsSection />
         </div>
       </section>
 

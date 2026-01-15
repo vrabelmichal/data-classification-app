@@ -145,13 +145,23 @@ export const submitClassification = mutation({
         await classificationsByCreated.insert(ctx, newClassification);
       }
 
-      // Increment galaxy classification counter
+      // Insert into userGalaxyClassifications for efficient browse queries
       const galaxy = await ctx.db
         .query("galaxies")
         .withIndex("by_external_id", (q) => q.eq("id", args.galaxyExternalId))
         .unique();
 
       if (galaxy) {
+        // Insert tracking record for efficient "classified by me" queries
+        await ctx.db.insert("userGalaxyClassifications", {
+          userId,
+          galaxyExternalId: args.galaxyExternalId,
+          galaxyNumericId: galaxy.numericId ?? BigInt(0),
+          classificationId,
+          classifiedAt: Date.now(),
+        });
+
+        // Increment galaxy classification counter
         const updatedTotalClassifications = (galaxy.totalClassifications ?? BigInt(0)) + BigInt(1);
         await ctx.db.patch(galaxy._id, {
           totalClassifications: updatedTotalClassifications,
