@@ -7,6 +7,7 @@ import { SignOutButton } from "../../SignOutButton";
 import { DebugAdminButton } from "../admin/DebugAdminButton";
 import { DarkModeToggle } from "../navigation/DarkModeToggle";
 import { ReportIssueModal } from "../ReportIssueModal";
+import { useTheme } from "../../hooks/useTheme";
 
 interface NavigationItem {
   id: string;
@@ -28,6 +29,8 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
   const progress = useQuery(api.classification.getProgress);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const navigate = useNavigate();
+  const userDisplayName = userProfile?.user?.name ?? userProfile?.user?.email;
+  const { theme, effectiveTheme, toggleTheme } = useTheme();
 
   // Filter items based on permissions (e.g., admin only)
   const visibleItems = navigationItems.filter(
@@ -76,7 +79,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                   </svg>
                 </button>
               </div>
-              <nav className="flex-1 p-4">
+              <nav className="flex-1 min-h-0 overflow-y-auto p-4">
                 <ul className="space-y-2">
                   {visibleItems.map((item) => (
                     <li key={item.id}>
@@ -99,33 +102,75 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                   ))}
                 </ul>
               </nav>
-              
-              {/* Mobile Sign Out */}
               <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-                {/* Theme Toggle */}
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</span>
-                  <DarkModeToggle showLabel size="sm" />
-                </div>
-                {userProfile && (
-                  <div className="text-sm text-gray-600 dark:text-gray-300 mb-3">
-                    <div className="font-medium">Classifications: {userProfile.classificationsCount}</div>
-                    <div className="text-xs mt-1">
-                      Role: {userProfile.role === "admin" ? "Administrator" : "User"}
+                <div className="w-full space-y-3">
+                  <button
+                    onClick={() => {
+                      // Open report modal but keep the mobile menu visible underneath
+                      setIsReportModalOpen(true);
+                    }}
+                    title="Report Issue"
+                    className="w-full rounded-lg px-3 py-2 text-left text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2" />
+                        <path d="M15 3v5h5" />
+                        <path d="M9 10h6" />
+                        <path d="M9 13h6" />
+                        <path d="M9 16h6" />
+                      </svg>
+                      <span className="flex flex-col leading-tight">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Report Issue</span>
+                      </span>
                     </div>
+                  </button>
+
+                  <button
+                    onClick={() => toggleTheme()}
+                    title={theme === "light" ? "Switch to dark" : theme === "dark" ? "Switch to auto" : "Switch to light"}
+                    className="w-full rounded-lg px-3 py-2 flex items-center justify-between text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      {effectiveTheme === "dark" ? (
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                        </svg>
+                      ) : (
+                        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                        </svg>
+                      )}
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Theme</span>
+                    </div>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">{theme === "auto" ? "Auto" : theme === "dark" ? "Dark" : "Light"}</span>
+                  </button>
+
+                  {userProfile && userDisplayName && (
+                    // <div className="flex items-center gap-2 px-3 py-4 text-xs text-gray-500 dark:text-gray-400">
+
+                    <div className="flex items-center gap-3 px-3 pt-1 pb-3 text-xs text-gray-500 dark:text-gray-400">
+                      {userProfile.role === "admin" ? (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z" />
+                          <path d="M9.5 12.5l2 2 3.5-4" />
+                        </svg>
+                      ) : (
+                        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="8" r="3.5" />
+                          <path d="M5 19c1.5-3.5 12.5-3.5 14 0" />
+                        </svg>
+                      )}
+                      {/* <span>{userProfile.role === "admin" ? "Administrator" : "User"}</span>
+                      <span className="text-gray-300 dark:text-gray-600">•</span> */}
+                      <span className="truncate">{userDisplayName}</span>
+                    </div>
+                  )}
+
+                  <div className="[&>button]:w-full [&>button]:justify-center [&>button]:text-center">
+                    <SignOutButton />
                   </div>
-                )}
-                <button
-                  onClick={() => {
-                    setIsReportModalOpen(true);
-                    setIsOpen(false);
-                  }}
-                  className="w-full mb-3 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 rounded-lg transition-colors text-left flex items-center space-x-2"
-                >
-                  <span>📋</span>
-                  <span>Report Issue</span>
-                </button>
-                <SignOutButton />
+                </div>
               </div>
             </div>
           </div>
@@ -134,7 +179,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
 
       {/* Desktop Sidebar */}
       <div className="hidden custom-lg:flex custom-lg:w-64 custom-lg:flex-col custom-lg:fixed custom-lg:inset-y-0">
-        <div className="flex flex-col flex-grow bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
+        <div className="flex min-h-0 flex-col flex-grow bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700">
           {/* Header */}
           <div className="flex items-center flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <h1 className="text-xl font-bold text-gray-900 dark:text-white">
@@ -158,7 +203,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
           )}
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4">
+          <nav className="flex-1 min-h-0 overflow-y-auto px-4 py-4">
             <ul className="space-y-2">
               {visibleItems.map((item) => (
                 <li key={item.id}>
@@ -184,31 +229,70 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
             </ul>
           </nav>
 
-          {/* User Info & Theme Toggle */}
           <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-            {/* Theme Toggle */}
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Theme</span>
-              <DarkModeToggle showLabel size="sm" />
-            </div>
-            {userProfile && (
-              <div className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-                <div className="font-medium">Classifications: {userProfile.classificationsCount}</div>
-                <div className="text-xs mt-1">
-                  Role: {userProfile.role === "admin" ? "Administrator" : "User"}
+            <div className="w-full space-y-1">
+              <button
+                onClick={() => setIsReportModalOpen(true)}
+                title="Report Issue"
+                className="w-full rounded-lg px-3 py-2 text-left text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2" />
+                    <path d="M15 3v5h5" />
+                    <path d="M9 10h6" />
+                    <path d="M9 13h6" />
+                    <path d="M9 16h6" />
+                  </svg>
+                  <span className="flex flex-col leading-tight">
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Report Issue</span>
+                  </span>
                 </div>
+              </button>
+
+              <button
+                onClick={() => toggleTheme()}
+                title={theme === "light" ? "Switch to dark" : theme === "dark" ? "Switch to auto" : "Switch to light"}
+                className="w-full rounded-lg px-3 py-2 flex items-center justify-between text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <div className="flex items-center gap-2">
+                  {effectiveTheme === "dark" ? (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                    </svg>
+                  ) : (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                  )}
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Theme</span>
+                </div>
+                <span className="text-xs text-gray-500 dark:text-gray-400">{theme === "auto" ? "Auto" : theme === "dark" ? "Dark" : "Light"}</span>
+              </button>
+
+              {userProfile && userDisplayName && (
+                <div className="flex items-center gap-3 px-3 pt-1 pb-3 text-xs text-gray-500 dark:text-gray-400">
+                  {userProfile.role === "admin" ? (
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M12 3l7 4v5c0 5-3.5 8-7 9-3.5-1-7-4-7-9V7l7-4z" />
+                      <path d="M9.5 12.5l2 2 3.5-4" />
+                    </svg>
+                  ) : (
+                    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="12" cy="8" r="3.5" />
+                      <path d="M5 19c1.5-3.5 12.5-3.5 14 0" />
+                    </svg>
+                  )}
+                  {/* <span>{userProfile.role === "admin" ? "Administrator" : "User"}</span> */}
+                  {/* <span className="text-gray-300 dark:text-gray-600">•</span> */}
+                  <span className="truncate">{userDisplayName}</span>
+                </div>
+              )}
+
+              <div className="[&>button]:w-full [&>button]:justify-center [&>button]:text-center">
+                <SignOutButton />
               </div>
-            )}
-            <button
-              onClick={() => setIsReportModalOpen(true)}
-              className="w-full mb-3 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/10 rounded-lg transition-colors text-left flex items-center space-x-2"
-            >
-              <span>📋</span>
-              <span>Report Issue</span>
-            </button>
-          </div>
-          <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
-            <SignOutButton />
+            </div>
           </div>
         </div>
       </div>
