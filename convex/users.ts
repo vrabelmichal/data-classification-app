@@ -410,6 +410,21 @@ export const deleteUser = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
 
+    // Avoid hard failures when aggregate entries are missing for older data
+    const safeAggregateDelete = async (label: string, op: () => Promise<void>) => {
+      try {
+        await op();
+      } catch (error: any) {
+        const message: string | undefined = error?.message;
+        const code: string | undefined = error?.data?.code;
+        if (code === "DELETE_MISSING_KEY" || message?.includes("DELETE_MISSING_KEY")) {
+          console.warn(`[users:deleteUser] missing aggregate entry for ${label}, skipping delete`);
+          return;
+        }
+        throw error;
+      }
+    };
+
     // Delete user profile
     const targetProfile = await ctx.db
       .query("userProfiles")
@@ -417,8 +432,12 @@ export const deleteUser = mutation({
       .unique();
 
     if (targetProfile) {
-      await userProfilesByClassificationsCount.delete(ctx, targetProfile);
-      await userProfilesByLastActive.delete(ctx, targetProfile);
+      await safeAggregateDelete("userProfilesByClassificationsCount", () =>
+        userProfilesByClassificationsCount.delete(ctx, targetProfile)
+      );
+      await safeAggregateDelete("userProfilesByLastActive", () =>
+        userProfilesByLastActive.delete(ctx, targetProfile)
+      );
       await ctx.db.delete(targetProfile._id);
     }
 
@@ -439,7 +458,9 @@ export const deleteUser = mutation({
       .collect();
 
     for (const classification of classifications) {
-      await classificationsByCreated.delete(ctx, classification);
+      await safeAggregateDelete("classificationsByCreated", () =>
+        classificationsByCreated.delete(ctx, classification)
+      );
       await ctx.db.delete(classification._id);
     }
 

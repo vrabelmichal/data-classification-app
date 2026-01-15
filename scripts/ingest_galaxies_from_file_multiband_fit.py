@@ -336,21 +336,34 @@ def row_to_galaxy(row: pd.Series) -> Dict[str, Any]:
 # --------------------------------------------------------------------------------------
 # Ingest HTTP
 # --------------------------------------------------------------------------------------
-def send_ingest(convex_url, ingest_token, galaxies, timeout_sec=60):
+def send_ingest(convex_url, ingest_token, galaxies, mode="insert", timeout_sec=60):
+    """
+    Send galaxies to the Convex ingestion endpoint.
+    
+    Args:
+        convex_url: Base URL for Convex HTTP actions
+        ingest_token: Authentication token
+        galaxies: List of galaxy data objects
+        mode: Operation mode - 'insert' (default), 'update', or 'upsert'
+        timeout_sec: Request timeout in seconds
+    
+    Returns:
+        Response object from requests.post
+    """
     url = f"{convex_url}/ingest/galaxies"
     headers = {
         "Authorization": f"Bearer {ingest_token}",
         "Content-Type": "application/json",
     }
-    payload = {"galaxies": galaxies}
-    logger.info(f"POST {url} with {len(galaxies)} galaxies")
+    payload = {"galaxies": galaxies, "mode": mode}
+    logger.info(f"POST {url} with {len(galaxies)} galaxies (mode={mode})")
     return requests.post(url, headers=headers, data=json.dumps(payload), timeout=timeout_sec)
 
 
 # --------------------------------------------------------------------------------------
 # Batch process
 # --------------------------------------------------------------------------------------
-def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False, continue_on_error=False, global_offset=0):
+def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False, continue_on_error=False, global_offset=0, mode="insert"):
     """
     Process parquet dataframe and ingest galaxies in batches.
     
@@ -365,13 +378,21 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
         dry_run: If True, don't actually send to server
         continue_on_error: If True, continue with next batch on error (not recommended)
         global_offset: The offset in the original file (for error reporting)
+        mode: Operation mode - 'insert' (default), 'update', or 'upsert'
+              - insert: Insert new galaxies, skip existing ones
+              - update: Update existing galaxies only, report not-found ones
+              - upsert: Insert new galaxies or update existing ones
     """
+    # Initialize stats based on mode
     stats = {
         "total": len(df), 
         "inserted": 0, 
+        "updated": 0,
         "skipped": 0,
+        "not_found": 0,
         "errors": 0,
         "failed_at": None,  # Will contain info about failure point
+        "mode": mode,
     }
     batch = []
     batch_start_idx = 0  # Track the starting index of current batch
@@ -387,7 +408,7 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
                 batch_num = i // batch_size + 1
                 
                 if not dry_run:
-                    resp = send_ingest(convex_url, ingest_token, batch)
+                    resp = send_ingest(convex_url, ingest_token, batch, mode=mode)
                     
                     try:
                         result_json = resp.json()
@@ -396,12 +417,25 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
                     
                     if resp.status_code == 200 and result_json.get("success", True):
                         # Success - batch was committed
-                        actual_inserted = result_json.get("inserted", len(batch))
-                        actual_skipped = result_json.get("skipped", 0)
-                        
-                        stats["inserted"] += actual_inserted
-                        stats["skipped"] += actual_skipped
-                        logger.info(f"✓ Batch {batch_num}: inserted={actual_inserted}, skipped={actual_skipped}")
+                        # Handle response based on mode
+                        if mode == "insert":
+                            actual_inserted = result_json.get("inserted", len(batch))
+                            actual_skipped = result_json.get("skipped", 0)
+                            stats["inserted"] += actual_inserted
+                            stats["skipped"] += actual_skipped
+                            logger.info(f"✓ Batch {batch_num}: inserted={actual_inserted}, skipped={actual_skipped}")
+                        elif mode == "update":
+                            actual_updated = result_json.get("updated", 0)
+                            actual_not_found = result_json.get("notFound", 0)
+                            stats["updated"] += actual_updated
+                            stats["not_found"] += actual_not_found
+                            logger.info(f"✓ Batch {batch_num}: updated={actual_updated}, not_found={actual_not_found}")
+                        elif mode == "upsert":
+                            actual_inserted = result_json.get("inserted", 0)
+                            actual_updated = result_json.get("updated", 0)
+                            stats["inserted"] += actual_inserted
+                            stats["updated"] += actual_updated
+                            logger.info(f"✓ Batch {batch_num}: inserted={actual_inserted}, updated={actual_updated}")
                     else:
                         # Failure - batch was rolled back
                         stats["errors"] += len(batch)
@@ -444,8 +478,12 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
                                 f"Batch {batch_num} failed at global rows {global_batch_start}-{global_batch_end}: {error_msg}"
                             )
                 else:
-                    logger.info(f"🔍 DRY RUN batch {batch_num}: would insert {len(batch)} galaxies")
-                    stats["inserted"] += len(batch)
+                    mode_verb = {"insert": "insert", "update": "update", "upsert": "insert/update"}.get(mode, mode)
+                    logger.info(f"🔍 DRY RUN batch {batch_num}: would {mode_verb} {len(batch)} galaxies")
+                    if mode in ("insert", "upsert"):
+                        stats["inserted"] += len(batch)
+                    else:
+                        stats["updated"] += len(batch)
                 
                 batch = []
                 progress = (i + 1) / stats["total"] * 100
@@ -496,6 +534,14 @@ BATCH SIZE GUIDANCE:
   Batch sizes above {MAX_SAFE_BATCH_SIZE} may fail with "Too many bytes read" errors.
   
   Example: --batch-size {RECOMMENDED_BATCH_SIZE}
+
+OPERATION MODES:
+  --mode insert  (default) Insert new galaxies, skip existing ones
+  --mode update  Update existing galaxies only, report not-found ones
+  --mode upsert  Insert new galaxies or update existing ones
+
+  Update/upsert operations preserve protected fields like id, numericId,
+  and classification statistics (totalClassifications, etc.).
 """
     )
     parser.add_argument("--parquet-file", required=True, help="Parquet file path")
@@ -508,6 +554,8 @@ BATCH SIZE GUIDANCE:
     parser.add_argument("--offset", type=int, default=0, help="Row offset to start processing (default: 0)")
     parser.add_argument("--limit", type=int, default=None, help="Maximum number of rows to process (default: all)")
     parser.add_argument("--continue-on-error", action="store_true", help="Continue with next batch on error (default: stop immediately)")
+    parser.add_argument("--mode", choices=["insert", "update", "upsert"], default="insert",
+                        help="Operation mode: insert (default), update, or upsert")
     args = parser.parse_args()
 
     # Warn if batch size is too large
@@ -534,10 +582,12 @@ BATCH SIZE GUIDANCE:
         else:
             df = df.iloc[offset:]
         logger.info(f"✓ Loaded {len(df)} rows from {parquet_file} (offset={offset}, limit={limit})")
+        logger.info(f"  Mode: {args.mode}")
         # logger.info("📋 Sample:\n" + df.head().to_string())
 
         if not args.dry_run:
-            resp = input(f"❓ Proceed ingesting {len(df)} galaxies? (y/N): ")
+            mode_verb = {"insert": "ingesting", "update": "updating", "upsert": "upserting"}.get(args.mode, args.mode)
+            resp = input(f"❓ Proceed {mode_verb} {len(df)} galaxies? (y/N): ")
             if resp.lower() != "y":
                 logger.info("❌ Cancelled")
                 return
@@ -550,17 +600,28 @@ BATCH SIZE GUIDANCE:
             args.batch_size, 
             args.dry_run, 
             args.continue_on_error,
-            global_offset=offset
+            global_offset=offset,
+            mode=args.mode
         )
         
         # Print summary
         logger.info("")
         logger.info("=" * 60)
-        logger.info("INGESTION SUMMARY")
+        logger.info(f"INGESTION SUMMARY (mode={args.mode})")
         logger.info("=" * 60)
         logger.info(f"Total rows processed: {stats['total']}")
-        logger.info(f"Successfully inserted: {stats['inserted']}")
-        logger.info(f"Skipped (already exist): {stats['skipped']}")
+        
+        # Show relevant stats based on mode
+        if args.mode == "insert":
+            logger.info(f"Successfully inserted: {stats['inserted']}")
+            logger.info(f"Skipped (already exist): {stats['skipped']}")
+        elif args.mode == "update":
+            logger.info(f"Successfully updated: {stats['updated']}")
+            logger.info(f"Not found (skipped): {stats['not_found']}")
+        elif args.mode == "upsert":
+            logger.info(f"Successfully inserted: {stats['inserted']}")
+            logger.info(f"Successfully updated: {stats['updated']}")
+        
         logger.info(f"Errors: {stats['errors']}")
         
         if stats.get("failed_at"):

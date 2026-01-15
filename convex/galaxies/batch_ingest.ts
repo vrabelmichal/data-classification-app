@@ -16,7 +16,7 @@ import { galaxySchemaDefinition, photometryBandSchema, photometryBandSchemaR, ph
 //   sourceExtractor?: { g:{}, r:{}, i:{}, y?:{}, z?:{} },
 //   thuruthipilly?: { ... }
 // }
-import { insertGalaxy } from "./core";
+import { insertGalaxy, updateGalaxy } from "./core";
 import { galaxyIdsAggregate } from "./aggregates";
 
 /**
@@ -164,10 +164,168 @@ export const insertGalaxiesBatchInternal = internalMutation({
 });
 
 /**
+ * Helper for updating existing galaxies in batch.
+ * FAIL-FAST: Any error will throw and roll back the entire batch.
+ * Only updates galaxies that already exist (identified by external ID).
+ * Protected fields (id, numericId, classification stats) are preserved.
+ */
+async function updateGalaxiesBatchHelper(
+  ctx: MutationCtx,
+  galaxies: Array<any>
+) {
+  const results = {
+    updated: 0,
+    notFound: 0,
+    totalInBatch: galaxies.length,
+  };
+
+  for (let index = 0; index < galaxies.length; index++) {
+    const item = galaxies[index];
+    const { galaxy, photometryBand, photometryBandR, photometryBandI, sourceExtractor, thuruthipilly } = item;
+    const galaxyExternalId = galaxy?.id || 'unknown';
+
+    if (!galaxy?.id) {
+      throw new Error(
+        `Failed at batch index ${index}: galaxy.id is required for update`
+      );
+    }
+
+    try {
+      const updatedRef = await updateGalaxy(
+        ctx,
+        galaxy.id,
+        galaxy,
+        photometryBand,
+        photometryBandR,
+        photometryBandI,
+        sourceExtractor,
+        thuruthipilly
+      );
+
+      if (updatedRef) {
+        results.updated++;
+      } else {
+        results.notFound++;
+      }
+    } catch (error) {
+      // Re-throw with more context about which galaxy failed
+      throw new Error(
+        `Failed at batch index ${index}, galaxy external ID "${galaxyExternalId}": ${String(error)}`
+      );
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Internal mutation for batch updates.
+ * Validates args with Convex `v` and then calls the helper.
+ */
+export const updateGalaxiesBatchInternal = internalMutation({
+  args: batchArgs,
+  handler: async (ctx, { galaxies }) => {
+    return updateGalaxiesBatchHelper(ctx, galaxies);
+  },
+});
+
+/**
+ * Helper for upsert (insert or update) galaxies in batch.
+ * FAIL-FAST: Any error will throw and roll back the entire batch.
+ * If galaxy exists, updates it. If not, inserts it.
+ */
+async function upsertGalaxiesBatchHelper(
+  ctx: MutationCtx,
+  galaxies: Array<any>
+) {
+  const results = {
+    inserted: 0,
+    updated: 0,
+    totalInBatch: galaxies.length,
+  };
+
+  // Find maximum value of numericId so far using galaxyIdsAggregate (for new inserts)
+  const maxNumericIdFromAgg = await galaxyIdsAggregate.max(ctx);
+  let resolvedNumericId = maxNumericIdFromAgg !== null ? maxNumericIdFromAgg.key + BigInt(1) : BigInt(1);
+
+  for (let index = 0; index < galaxies.length; index++) {
+    const item = galaxies[index];
+    const { galaxy, photometryBand, photometryBandR, photometryBandI, sourceExtractor, thuruthipilly } = item;
+    const galaxyExternalId = galaxy?.id || 'unknown';
+
+    if (!galaxy?.id) {
+      throw new Error(
+        `Failed at batch index ${index}: galaxy.id is required`
+      );
+    }
+
+    // Check existence in core table by external id
+    const existing = await ctx.db
+      .query("galaxyIds")
+      .withIndex("by_external_id", (q) => q.eq("id", galaxy.id))
+      .unique();
+
+    try {
+      if (existing) {
+        // Update existing galaxy
+        await updateGalaxy(
+          ctx,
+          galaxy.id,
+          galaxy,
+          photometryBand,
+          photometryBandR,
+          photometryBandI,
+          sourceExtractor,
+          thuruthipilly
+        );
+        results.updated++;
+      } else {
+        // Insert new galaxy
+        await insertGalaxy(
+          ctx,
+          galaxy,
+          photometryBand || undefined,
+          photometryBandR || undefined,
+          photometryBandI || undefined,
+          sourceExtractor || undefined,
+          thuruthipilly || undefined,
+          resolvedNumericId
+        );
+        results.inserted++;
+        resolvedNumericId++;
+      }
+    } catch (error) {
+      // Re-throw with more context about which galaxy failed
+      throw new Error(
+        `Failed at batch index ${index}, galaxy external ID "${galaxyExternalId}": ${String(error)}`
+      );
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Internal mutation for batch upsert (insert or update).
+ * Validates args with Convex `v` and then calls the helper.
+ */
+export const upsertGalaxiesBatchInternal = internalMutation({
+  args: batchArgs,
+  handler: async (ctx, { galaxies }) => {
+    return upsertGalaxiesBatchHelper(ctx, galaxies);
+  },
+});
+
+/**
  * Public HTTP action — verifies token, parses JSON,
  * and then calls the INTERNAL mutation by reference.
  * 
- * FAIL-FAST: Returns HTTP 500 on any insertion error with detailed error info.
+ * Supports three modes via the "mode" field in the request body:
+ * - "insert" (default): Insert new galaxies, skip existing ones
+ * - "update": Update existing galaxies only, report not-found ones
+ * - "upsert": Insert new galaxies or update existing ones
+ * 
+ * FAIL-FAST: Returns HTTP 500 on any error with detailed error info.
  * The mutation is atomic - on error, all writes are rolled back.
  */
 export const ingestGalaxiesHttp = httpAction(async (ctx, request) => {
@@ -203,7 +361,7 @@ export const ingestGalaxiesHttp = httpAction(async (ctx, request) => {
   // 3) Validate body structure before calling mutation
   if (!body || typeof body !== 'object' || !('galaxies' in body)) {
     return new Response(
-      JSON.stringify({ error: "Invalid body structure", detail: "Expected { galaxies: [...] }" }),
+      JSON.stringify({ error: "Invalid body structure", detail: "Expected { galaxies: [...], mode?: 'insert'|'update'|'upsert' }" }),
       { status: 400, headers: { "Content-Type": "application/json" } }
     );
   }
@@ -216,16 +374,46 @@ export const ingestGalaxiesHttp = httpAction(async (ctx, request) => {
     );
   }
 
-  // 4) Call internal mutation via internal reference
-  try {
-    const results = await ctx.runMutation(
-      internal.galaxies.batch_ingest.insertGalaxiesBatchInternal,
-      body as any // Convex validates against `batchArgs` at runtime
+  // 4) Determine mode (default: insert)
+  const mode = ((body as { mode?: string }).mode || 'insert').toLowerCase();
+  if (!['insert', 'update', 'upsert'].includes(mode)) {
+    return new Response(
+      JSON.stringify({ error: "Invalid mode", detail: "mode must be 'insert', 'update', or 'upsert'" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
     );
+  }
+
+  // 5) Call appropriate internal mutation based on mode
+  try {
+    let results: any;
+    const mutationArgs = { galaxies: galaxiesArray };
+
+    switch (mode) {
+      case 'update':
+        results = await ctx.runMutation(
+          internal.galaxies.batch_ingest.updateGalaxiesBatchInternal,
+          mutationArgs as any
+        );
+        break;
+      case 'upsert':
+        results = await ctx.runMutation(
+          internal.galaxies.batch_ingest.upsertGalaxiesBatchInternal,
+          mutationArgs as any
+        );
+        break;
+      case 'insert':
+      default:
+        results = await ctx.runMutation(
+          internal.galaxies.batch_ingest.insertGalaxiesBatchInternal,
+          mutationArgs as any
+        );
+        break;
+    }
 
     // Success - all galaxies in batch were processed
     return new Response(JSON.stringify({
       success: true,
+      mode,
       ...results,
     }), {
       status: 200,
@@ -235,12 +423,13 @@ export const ingestGalaxiesHttp = httpAction(async (ctx, request) => {
     // Mutation failed - entire batch was rolled back
     // Return 500 to signal failure to client
     const errorMessage = String(err);
-    console.error("Batch ingestion failed:", errorMessage);
+    console.error(`Batch ${mode} failed:`, errorMessage);
     
     return new Response(
       JSON.stringify({
         success: false,
-        error: "Batch ingestion failed",
+        mode,
+        error: `Batch ${mode} failed`,
         detail: errorMessage,
         // Help client understand the batch was NOT committed
         rollback: true,
