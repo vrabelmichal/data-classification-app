@@ -6,6 +6,7 @@ import { requireAdmin, requireUserId } from "./lib/auth";
 export const submitReport = mutation({
   args: {
     description: v.string(),
+    url: v.optional(v.string()),
   },
   async handler(ctx, args) {
     const userId = await requireUserId(ctx);
@@ -13,6 +14,7 @@ export const submitReport = mutation({
     const reportId = await ctx.db.insert("issueReports", {
       userId,
       description: args.description.trim(),
+      url: args.url?.trim(),
       status: "open",
       createdAt: Date.now(),
     });

@@ -290,6 +290,7 @@ const applicationTables = {
   issueReports: defineTable({
     userId: v.id("users"),
     description: v.string(),
+    url: v.optional(v.string()),
     status: v.union(
       v.literal("open"),
       v.literal("in_progress"),

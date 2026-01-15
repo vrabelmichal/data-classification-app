@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { toast } from "sonner";
@@ -10,8 +10,15 @@ interface ReportIssueModalProps {
 
 export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
   const [description, setDescription] = useState("");
+  const [currentUrl, setCurrentUrl] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitReport = useMutation(api.issueReports.submitReport);
+
+  useEffect(() => {
+    if (isOpen && typeof window !== "undefined") {
+      setCurrentUrl(window.location.href);
+    }
+  }, [isOpen]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -23,7 +30,7 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
 
     setIsSubmitting(true);
     try {
-      await submitReport({ description });
+      await submitReport({ description, url: currentUrl || undefined });
       toast.success("Issue reported successfully. Thank you!");
       setDescription("");
       onClose();
@@ -46,7 +53,7 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
       />
 
       {/* Modal */}
-      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6">
+      <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 md:mx-6 p-6 md:p-8 max-h-[85vh] min-h-[60vh] overflow-y-auto flex flex-col">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-xl font-bold text-gray-900 dark:text-white">
             Report an Issue
@@ -71,8 +78,12 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1">
+            <div className="mb-3 flex items-center gap-3">
+              {/* <label htmlFor="issue-url" className="text-xs font-medium text-gray-600 dark:text-gray-400 whitespace-nowrap">Page URL</label> */}
+              <input id="issue-url" type="text" value={currentUrl} readOnly className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200" />
+            </div>
+          <div className="mb-4 flex flex-col flex-1">
             <label
               htmlFor="issue-description"
               className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
@@ -84,8 +95,8 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Please provide details about the issue..."
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white resize-none"
-              rows={5}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white resize-none flex-1 min-h-[220px]"
+              rows={6}
               disabled={isSubmitting}
             />
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -93,7 +104,7 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
             </p>
           </div>
 
-          <div className="flex gap-3 justify-end">
+          <div className="flex gap-3 justify-end mt-auto">
             <button
               type="button"
               onClick={onClose}
