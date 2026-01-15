@@ -125,7 +125,7 @@ export const galaxiesByTotalClassifications = new TableAggregate<{
   DataModel: DataModel;
   TableName: "galaxies";
 }>(components.galaxiesByTotalClassifications, {
-  sortKey: (doc) => Number(doc.totalClassifications ?? Number.MAX_SAFE_INTEGER), // Convert bigint to number
+  sortKey: (doc) => Number(doc.totalClassifications ?? 0), // Convert bigint to number, default to 0
 });
 
 // Aggregate for galaxies sorted by numVisibleNucleus (number, optional)
@@ -134,7 +134,7 @@ export const galaxiesByNumVisibleNucleus = new TableAggregate<{
   DataModel: DataModel;
   TableName: "galaxies";
 }>(components.galaxiesByNumVisibleNucleus, {
-  sortKey: (doc) => Number(doc.numVisibleNucleus ?? Number.MAX_SAFE_INTEGER), // Convert bigint to number
+  sortKey: (doc) => Number(doc.numVisibleNucleus ?? 0), // Convert bigint to number, default to 0
 });
 
 // Aggregate for galaxies sorted by numAwesomeFlag (number, optional)
@@ -143,7 +143,7 @@ export const galaxiesByNumAwesomeFlag = new TableAggregate<{
   DataModel: DataModel;
   TableName: "galaxies";
 }>(components.galaxiesByNumAwesomeFlag, {
-  sortKey: (doc) => Number(doc.numAwesomeFlag ?? Number.MAX_SAFE_INTEGER), // Convert bigint to number
+  sortKey: (doc) => Number(doc.numAwesomeFlag ?? 0), // Convert bigint to number, default to 0
 });
 
 // Aggregate for galaxies sorted by totalAssigned (number, optional)
@@ -152,7 +152,7 @@ export const galaxiesByTotalAssigned = new TableAggregate<{
   DataModel: DataModel;
   TableName: "galaxies";
 }>(components.galaxiesByTotalAssigned, {
-  sortKey: (doc) => Number(doc.totalAssigned ?? Number.MAX_SAFE_INTEGER), // Convert bigint to number
+  sortKey: (doc) => Number(doc.totalAssigned ?? 0), // Convert bigint to number, default to 0
 });
 
 // Aggregate for galaxies sorted by numericId (bigint)

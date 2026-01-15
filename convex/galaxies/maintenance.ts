@@ -20,6 +20,8 @@ import { galaxiesByTotalClassifications } from "./aggregates";
 export const UPDATE_BATCH_SIZE = 200;
 export const ZERO_OUT_BATCH_SIZE = 1000;
 const BACKFILL_CLASSIFICATIONS_BATCH_SIZE = 100;
+// Rebuild aggregate can work with larger batches because it only scans galaxies
+export const REBUILD_TOTAL_CLASSIFICATIONS_BATCH_SIZE = 500;
 
 export const deleteAllGalaxies = mutation({
   args: {},
@@ -135,7 +137,7 @@ export const backfillGalaxyClassificationCounts = mutation({
 
     const { page, isDone, continueCursor } = await ctx.db
       .query("galaxies")
-      .paginate({ numItems: BACKFILL_CLASSIFICATIONS_BATCH_SIZE, cursor: args.cursor ?? null });
+      .paginate({ numItems: REBUILD_TOTAL_CLASSIFICATIONS_BATCH_SIZE, cursor: args.cursor ?? null });
 
     let processed = 0;
     let updated = 0;
@@ -203,8 +205,16 @@ export const rebuildTotalClassificationsAggregate = mutation({
     let processed = 0;
 
     for (const galaxy of page) {
-      // Simply insert each galaxy into the aggregate based on its existing totalClassifications value
-      await galaxiesByTotalClassifications.insert(ctx, galaxy);
+      // Ensure totalClassifications is set (default to 0 if undefined)
+      // This is needed because the aggregate sortKey uses this field
+      if (galaxy.totalClassifications === undefined) {
+        await ctx.db.patch(galaxy._id, { totalClassifications: BigInt(0) });
+        const updatedGalaxy = { ...galaxy, totalClassifications: BigInt(0) };
+        await galaxiesByTotalClassifications.insert(ctx, updatedGalaxy);
+      } else {
+        // Simply insert each galaxy into the aggregate based on its existing totalClassifications value
+        await galaxiesByTotalClassifications.insert(ctx, galaxy);
+      }
       processed += 1;
     }
 
