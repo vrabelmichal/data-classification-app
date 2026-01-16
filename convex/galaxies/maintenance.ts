@@ -134,7 +134,8 @@ export const rebuildGalaxyIdsTable = mutation({
   },
 });
 
-export const backfillGalaxyClassificationCounts = mutation({
+// Full scan: recompute totalClassifications, numAwesomeFlag, numVisibleNucleus for every galaxy
+export const backfillGalaxyClassificationStats = mutation({
   args: {
     cursor: v.optional(v.string()),
   },
@@ -234,7 +235,7 @@ export const rebuildTotalClassificationsAggregate = mutation({
     for (const galaxy of page) {
       // Simply insert each galaxy into the aggregate based on its existing totalClassifications value.
       // The aggregate sortKey already defaults undefined/null to 0, so no DB patch needed here.
-      // If you need to recalculate actual counts, use backfillGalaxyClassificationCounts instead.
+      // If you need to recalculate actual counts, use backfillGalaxyClassificationStats instead.
       await galaxiesByTotalClassifications.insert(ctx, galaxy);
       processed += 1;
     }
@@ -256,10 +257,10 @@ export const rebuildTotalClassificationsAggregate = mutation({
 
 /**
  * Fast backfill: Scans the `classifications` table (typically much smaller than galaxies)
- * and computes totalClassifications counts per galaxy. Only updates galaxies that have
- * at least one classification.
+ * and computes totalClassifications, numAwesomeFlag, numVisibleNucleus per galaxy. Only
+ * updates galaxies that have at least one classification.
  * 
- * This is MUCH faster than `backfillGalaxyClassificationCounts` when:
+ * This is MUCH faster than `backfillGalaxyClassificationStats` when:
  * - You have many more galaxies than classifications
  * - Most galaxies have 0 classifications
  * 
@@ -267,7 +268,7 @@ export const rebuildTotalClassificationsAggregate = mutation({
  * had classifications that were deleted, its count won't be reset to 0. Use the full
  * backfill or zero-out first if you need to handle that case.
  */
-export const fastBackfillGalaxyClassificationCounts = mutation({
+export const fastBackfillGalaxyClassificationStats = mutation({
   args: {
     cursor: v.optional(v.string()),
   },

@@ -12,7 +12,7 @@ type FastBackfillResponse = {
 };
 
 export function FastBackfillGalaxyClassificationsSection() {
-  const fastBackfill = useMutation(api.galaxies.maintenance.fastBackfillGalaxyClassificationCounts);
+  const fastBackfill = useMutation(api.galaxies.maintenance.fastBackfillGalaxyClassificationStats);
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState({ classifications: 0, galaxiesUpdated: 0 });
   const [stopRequested, setStopRequested] = useState(false);
@@ -21,8 +21,9 @@ export function FastBackfillGalaxyClassificationsSection() {
   const handleFastBackfill = async () => {
     if (
       !confirm(
-        "Fast backfill totalClassifications?\n\n" +
-          "This scans the classifications table (not galaxies) and updates only galaxies that have classifications.\n\n" +
+        "Fast backfill classification stats?\n\n" +
+          "This scans the classifications table (not galaxies) and updates only galaxies that have classifications.\n" +
+          "Recomputes totalClassifications, numAwesomeFlag, and numVisibleNucleus for those galaxies.\n\n" +
           "⚠️ Note: Galaxies with 0 classifications won't be reset. Use 'Zero Out Statistics' first if needed."
       )
     )
@@ -80,12 +81,11 @@ export function FastBackfillGalaxyClassificationsSection() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <h2 className="text-lg font-semibold text-green-600 dark:text-green-400 mb-3">
-        ⚡ Fast Backfill Galaxy Classifications
+        ⚡ Fast Backfill Galaxy Classification Stats
       </h2>
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-        Recompute <code>totalClassifications</code> by scanning the{" "}
-        <strong>classifications table</strong> instead of all galaxies. Much faster when most
-        galaxies have no classifications.
+        Recompute <code>totalClassifications</code>, <code>numAwesomeFlag</code>, and <code>numVisibleNucleus</code> by scanning the{" "}
+        <strong>classifications table</strong> instead of all galaxies. Much faster when most galaxies have no classifications.
       </p>
       <p className="text-xs text-amber-600 dark:text-amber-400 mb-3">
         ⚠️ Only updates galaxies with ≥1 classification. Does not reset counts to 0. Use "Zero Out
