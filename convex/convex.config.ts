@@ -24,5 +24,12 @@ app.use(aggregate, { name: "galaxiesByNumericId" });
 app.use(aggregate, { name: "classificationsByCreated" });
 app.use(aggregate, { name: "userProfilesByClassificationsCount" });
 app.use(aggregate, { name: "userProfilesByLastActive" });
+// Classification flag/class aggregates for fast counts
+app.use(aggregate, { name: "classificationsByAwesomeFlag" });
+app.use(aggregate, { name: "classificationsByVisibleNucleus" });
+app.use(aggregate, { name: "classificationsByFailedFitting" });
+app.use(aggregate, { name: "classificationsByValidRedshift" });
+app.use(aggregate, { name: "classificationsByLsbClass" });
+app.use(aggregate, { name: "classificationsByMorphology" });
 
 export default app;

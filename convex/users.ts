@@ -6,6 +6,12 @@ import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
 import { api } from "./_generated/api";
 import {
   classificationsByCreated,
+  classificationsByAwesomeFlag,
+  classificationsByVisibleNucleus,
+  classificationsByFailedFitting,
+  classificationsByValidRedshift,
+  classificationsByLsbClass,
+  classificationsByMorphology,
   userProfilesByClassificationsCount,
   userProfilesByLastActive,
 } from "./galaxies/aggregates";
@@ -460,6 +466,24 @@ export const deleteUser = mutation({
     for (const classification of classifications) {
       await safeAggregateDelete("classificationsByCreated", () =>
         classificationsByCreated.delete(ctx, classification)
+      );
+      await safeAggregateDelete("classificationsByAwesomeFlag", () =>
+        classificationsByAwesomeFlag.delete(ctx, classification)
+      );
+      await safeAggregateDelete("classificationsByVisibleNucleus", () =>
+        classificationsByVisibleNucleus.delete(ctx, classification)
+      );
+      await safeAggregateDelete("classificationsByFailedFitting", () =>
+        classificationsByFailedFitting.delete(ctx, classification)
+      );
+      await safeAggregateDelete("classificationsByValidRedshift", () =>
+        classificationsByValidRedshift.delete(ctx, classification)
+      );
+      await safeAggregateDelete("classificationsByLsbClass", () =>
+        classificationsByLsbClass.delete(ctx, classification)
+      );
+      await safeAggregateDelete("classificationsByMorphology", () =>
+        classificationsByMorphology.delete(ctx, classification)
       );
       await ctx.db.delete(classification._id);
     }

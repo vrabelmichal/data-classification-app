@@ -231,6 +231,17 @@ const applicationTables = {
     joinedAt: v.number(),
     lastActiveAt: v.number(),
     sequenceGenerated: v.optional(v.boolean()), // Legacy field
+    awesomeCount: v.optional(v.number()),
+    visibleNucleusCount: v.optional(v.number()),
+    failedFittingCount: v.optional(v.number()),
+    validRedshiftCount: v.optional(v.number()),
+    lsbNeg1Count: v.optional(v.number()),
+    lsb0Count: v.optional(v.number()),
+    lsb1Count: v.optional(v.number()),
+    morphNeg1Count: v.optional(v.number()),
+    morph0Count: v.optional(v.number()),
+    morph1Count: v.optional(v.number()),
+    morph2Count: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   // User preferences

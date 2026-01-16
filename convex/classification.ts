@@ -3,6 +3,12 @@ import { v } from "convex/values";
 import { getOptionalUserId, requireConfirmedUser } from "./lib/auth";
 import {
   classificationsByCreated,
+  classificationsByAwesomeFlag,
+  classificationsByVisibleNucleus,
+  classificationsByFailedFitting,
+  classificationsByValidRedshift,
+  classificationsByLsbClass,
+  classificationsByMorphology,
   userProfilesByClassificationsCount,
   userProfilesByLastActive,
   galaxiesByTotalClassifications,
@@ -113,6 +119,42 @@ export const submitClassification = mutation({
       const updatedClassification = await ctx.db.get(existing._id);
       if (updatedClassification) {
         await classificationsByCreated.replace(ctx, existing, updatedClassification);
+        await classificationsByAwesomeFlag.replace(ctx, existing, updatedClassification);
+        await classificationsByVisibleNucleus.replace(ctx, existing, updatedClassification);
+        await classificationsByFailedFitting.replace(ctx, existing, updatedClassification);
+        await classificationsByValidRedshift.replace(ctx, existing, updatedClassification);
+        await classificationsByLsbClass.replace(ctx, existing, updatedClassification);
+        await classificationsByMorphology.replace(ctx, existing, updatedClassification);
+      }
+
+      // Update per-user counters (classification total unchanged on edit)
+      const awesomeDelta = Number(args.awesome_flag) - Number(existing.awesome_flag);
+      const visibleDelta = Number(Boolean(args.visible_nucleus)) - Number(Boolean(existing.visible_nucleus));
+      const failedDelta = Number(finalFailedFitting) - Number(existing.failed_fitting ?? false);
+      const validDelta = Number(args.valid_redshift) - Number(existing.valid_redshift);
+
+      const lsbKeyFromVal = (val: number) => (val === -1 ? "lsbNeg1Count" : val === 0 ? "lsb0Count" : "lsb1Count");
+      const morphKeyFromVal = (val: number) =>
+        val === -1 ? "morphNeg1Count" : val === 0 ? "morph0Count" : val === 1 ? "morph1Count" : "morph2Count";
+
+      const profilePatch: Record<string, number> = {};
+      const bump = (key: string, delta: number) => {
+        if (delta === 0) return;
+        const current = (profile as any)[key] ?? 0;
+        profilePatch[key] = Math.max(0, current + delta);
+      };
+
+      bump("awesomeCount", awesomeDelta);
+      bump("visibleNucleusCount", visibleDelta);
+      bump("failedFittingCount", failedDelta);
+      bump("validRedshiftCount", validDelta);
+      bump(lsbKeyFromVal(finalLsbClass), 1);
+      bump(lsbKeyFromVal(existing.lsb_class), -1);
+      bump(morphKeyFromVal(args.morphology), 1);
+      bump(morphKeyFromVal(existing.morphology), -1);
+
+      if (Object.keys(profilePatch).length > 0) {
+        await ctx.db.patch(profile._id, profilePatch);
       }
 
       // Update per-galaxy awesome/visible counters if flags changed
@@ -179,6 +221,12 @@ export const submitClassification = mutation({
       const newClassification = await ctx.db.get(classificationId);
       if (newClassification) {
         await classificationsByCreated.insert(ctx, newClassification);
+        await classificationsByAwesomeFlag.insert(ctx, newClassification);
+        await classificationsByVisibleNucleus.insert(ctx, newClassification);
+        await classificationsByFailedFitting.insert(ctx, newClassification);
+        await classificationsByValidRedshift.insert(ctx, newClassification);
+        await classificationsByLsbClass.insert(ctx, newClassification);
+        await classificationsByMorphology.insert(ctx, newClassification);
       }
 
       // Insert into userGalaxyClassifications for efficient browse queries
@@ -217,9 +265,19 @@ export const submitClassification = mutation({
       }
 
       // Update user's classification count
+      const lsbKeyFromVal = (val: number) => (val === -1 ? "lsbNeg1Count" : val === 0 ? "lsb0Count" : "lsb1Count");
+      const morphKeyFromVal = (val: number) =>
+        val === -1 ? "morphNeg1Count" : val === 0 ? "morph0Count" : val === 1 ? "morph1Count" : "morph2Count";
+
       await ctx.db.patch(profile._id, {
         classificationsCount: profile.classificationsCount + 1,
         lastActiveAt: Date.now(),
+        awesomeCount: ((profile as any).awesomeCount ?? 0) + (args.awesome_flag ? 1 : 0),
+        visibleNucleusCount: ((profile as any).visibleNucleusCount ?? 0) + (args.visible_nucleus ? 1 : 0),
+        failedFittingCount: ((profile as any).failedFittingCount ?? 0) + (finalFailedFitting ? 1 : 0),
+        validRedshiftCount: ((profile as any).validRedshiftCount ?? 0) + (args.valid_redshift ? 1 : 0),
+        [lsbKeyFromVal(finalLsbClass)]: ((profile as any)[lsbKeyFromVal(finalLsbClass)] ?? 0) + 1,
+        [morphKeyFromVal(args.morphology)]: ((profile as any)[morphKeyFromVal(args.morphology)] ?? 0) + 1,
       });
 
       const updatedProfile = await ctx.db.get(profile._id);

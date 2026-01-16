@@ -1,9 +1,10 @@
 import { useQuery } from "convex/react";
+import type { ReactNode } from "react";
 import { api } from "../../../../convex/_generated/api";
 
 type StatRow = {
   label: string;
-  value: string;
+  value: ReactNode;
 };
 
 type StatCardProps = {
@@ -20,24 +21,49 @@ const StatCard = ({ title, description, rows }: StatCardProps) => (
     </div>
     <dl className="text-sm text-gray-600 dark:text-gray-300 space-y-1 flex-1">
       {rows.map((row) => (
-        <div key={row.label} className="flex items-center justify-between">
-          <dt>{row.label}</dt>
-          <dd className="font-medium text-gray-900 dark:text-white">{row.value}</dd>
+        <div key={row.label} className="flex items-start justify-between gap-3">
+          <dt className="pt-0.5">{row.label}</dt>
+          <dd className="text-right leading-tight">{row.value}</dd>
         </div>
       ))}
     </dl>
   </div>
 );
 
-const formatValue = (value: number | bigint | string | null | undefined, digits?: number): string => {
-  if (value === null || value === undefined) return "N/A";
+const primaryValue = (text: string) => <span className="font-medium text-gray-900 dark:text-white">{text}</span>;
+
+const twoLineValue = (primary: string, secondary: string) => (
+  <span className="flex flex-col items-end text-right leading-tight">
+    <span className="font-medium text-gray-900 dark:text-white">{primary}</span>
+    <span className="text-xs text-gray-500 dark:text-gray-400">{secondary}</span>
+  </span>
+);
+
+const formatValue = (value: number | bigint | string | boolean | null | undefined, digits?: number): ReactNode => {
+  if (value === null || value === undefined) return primaryValue("N/A");
+  if (typeof value === "boolean") return primaryValue(value ? "true" : "false");
   if (typeof value === "number") {
-    if (Number.isNaN(value)) return "N/A";
-    if (typeof digits === "number") return value.toFixed(digits);
-    return value.toLocaleString();
+    if (Number.isNaN(value)) return primaryValue("N/A");
+    if (typeof digits === "number") return primaryValue(value.toFixed(digits));
+    return primaryValue(value.toLocaleString());
   }
-  if (typeof value === "bigint") return value.toLocaleString();
-  return value;
+  if (typeof value === "bigint") return primaryValue(value.toLocaleString());
+  return primaryValue(value);
+};
+
+const formatTimestampValue = (value: number | null | undefined): ReactNode => {
+  if (value === null || value === undefined) return primaryValue("N/A");
+  if (Number.isNaN(value)) return primaryValue("N/A");
+
+  // Convex _creationTime and app timestamps are ms since epoch.
+  // If we ever get seconds, normalize.
+  const millis = value > 1e12 ? value : value > 1e9 ? value * 1000 : value;
+  const date = new Date(millis);
+  if (Number.isNaN(date.getTime())) return formatValue(value);
+
+  const human = date.toLocaleString();
+  const raw = value.toLocaleString();
+  return twoLineValue(human, raw);
 };
 
 export function AggregateInformationSection() {
@@ -185,6 +211,94 @@ export function AggregateInformationSection() {
         { label: "Count", value: formatValue(aggregateInfo.galaxiesByTotalAssigned?.count) },
         { label: "Min", value: formatValue(aggregateInfo.galaxiesByTotalAssigned?.min) },
         { label: "Max", value: formatValue(aggregateInfo.galaxiesByTotalAssigned?.max) },
+      ],
+    },
+    {
+      title: "Classifications • Awesome Flag",
+      description: "Boolean aggregate of awesome_flag across all classifications.",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.classificationsByAwesomeFlag?.count) },
+        { label: "True", value: formatValue(aggregateInfo.classificationsByAwesomeFlag?.trueCount) },
+        { label: "False", value: formatValue(aggregateInfo.classificationsByAwesomeFlag?.falseCount) },
+      ],
+    },
+    {
+      title: "Classifications • Visible Nucleus",
+      description: "Boolean aggregate of visible_nucleus across classifications.",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.classificationsByVisibleNucleus?.count) },
+        { label: "True", value: formatValue(aggregateInfo.classificationsByVisibleNucleus?.trueCount) },
+        { label: "False", value: formatValue(aggregateInfo.classificationsByVisibleNucleus?.falseCount) },
+      ],
+    },
+    {
+      title: "Classifications • Failed Fitting",
+      description: "Boolean aggregate of failed_fitting flag.",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.classificationsByFailedFitting?.count) },
+        { label: "True", value: formatValue(aggregateInfo.classificationsByFailedFitting?.trueCount) },
+        { label: "False", value: formatValue(aggregateInfo.classificationsByFailedFitting?.falseCount) },
+      ],
+    },
+    {
+      title: "Classifications • Valid Redshift",
+      description: "Boolean aggregate of valid_redshift flag.",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.classificationsByValidRedshift?.count) },
+        { label: "True", value: formatValue(aggregateInfo.classificationsByValidRedshift?.trueCount) },
+        { label: "False", value: formatValue(aggregateInfo.classificationsByValidRedshift?.falseCount) },
+      ],
+    },
+    {
+      title: "Classifications • LSB Class",
+      description: "Enum aggregate of lsb_class (-1,0,1).",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.classificationsByLsbClass?.count) },
+        { label: "Min", value: formatValue(aggregateInfo.classificationsByLsbClass?.min) },
+        { label: "Max", value: formatValue(aggregateInfo.classificationsByLsbClass?.max) },
+        { label: "-1", value: formatValue(aggregateInfo.classificationsByLsbClass?.neg1Count) },
+        { label: "0", value: formatValue(aggregateInfo.classificationsByLsbClass?.zeroCount) },
+        { label: "1", value: formatValue(aggregateInfo.classificationsByLsbClass?.pos1Count) },
+      ],
+    },
+    {
+      title: "Classifications • Morphology",
+      description: "Enum aggregate of morphology (-1,0,1,2).",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.classificationsByMorphology?.count) },
+        { label: "Min", value: formatValue(aggregateInfo.classificationsByMorphology?.min) },
+        { label: "Max", value: formatValue(aggregateInfo.classificationsByMorphology?.max) },
+        { label: "-1", value: formatValue(aggregateInfo.classificationsByMorphology?.neg1Count) },
+        { label: "0", value: formatValue(aggregateInfo.classificationsByMorphology?.zeroCount) },
+        { label: "1", value: formatValue(aggregateInfo.classificationsByMorphology?.pos1Count) },
+        { label: "2", value: formatValue(aggregateInfo.classificationsByMorphology?.twoCount) },
+      ],
+    },
+    {
+      title: "Classifications • Created Timeline",
+      description: "Creation-time aggregate for classifications (used for chronological rebuilds).",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.classificationsByCreated?.count) },
+        { label: "Min ts", value: formatTimestampValue(aggregateInfo.classificationsByCreated?.min) },
+        { label: "Max ts", value: formatTimestampValue(aggregateInfo.classificationsByCreated?.max) },
+      ],
+    },
+    {
+      title: "User Profiles • Classifications Count",
+      description: "Aggregate on userProfiles.classificationsCount (for leaderboard ordering).",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.userProfilesByClassificationsCount?.count) },
+        { label: "Min", value: formatValue(aggregateInfo.userProfilesByClassificationsCount?.min) },
+        { label: "Max", value: formatValue(aggregateInfo.userProfilesByClassificationsCount?.max) },
+      ],
+    },
+    {
+      title: "User Profiles • Last Active",
+      description: "Aggregate on userProfiles.lastActiveAt (for recency ordering).",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.userProfilesByLastActive?.count) },
+        { label: "Min", value: formatTimestampValue(aggregateInfo.userProfilesByLastActive?.min) },
+        { label: "Max", value: formatTimestampValue(aggregateInfo.userProfilesByLastActive?.max) },
       ],
     },
   ];

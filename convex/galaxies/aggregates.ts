@@ -14,6 +14,55 @@ export const classificationsByCreated = new TableAggregate<{
   sortKey: (doc) => doc._creationTime,
 });
 
+// Classification attribute aggregates for fast boolean/enum counts
+export const classificationsByAwesomeFlag = new TableAggregate<{
+  Key: boolean;
+  DataModel: DataModel;
+  TableName: "classifications";
+}>(components.classificationsByAwesomeFlag, {
+  sortKey: (doc) => Boolean(doc.awesome_flag),
+});
+
+export const classificationsByVisibleNucleus = new TableAggregate<{
+  Key: boolean;
+  DataModel: DataModel;
+  TableName: "classifications";
+}>(components.classificationsByVisibleNucleus, {
+  sortKey: (doc) => Boolean(doc.visible_nucleus),
+});
+
+export const classificationsByFailedFitting = new TableAggregate<{
+  Key: boolean;
+  DataModel: DataModel;
+  TableName: "classifications";
+}>(components.classificationsByFailedFitting, {
+  sortKey: (doc) => Boolean(doc.failed_fitting),
+});
+
+export const classificationsByValidRedshift = new TableAggregate<{
+  Key: boolean;
+  DataModel: DataModel;
+  TableName: "classifications";
+}>(components.classificationsByValidRedshift, {
+  sortKey: (doc) => Boolean(doc.valid_redshift),
+});
+
+export const classificationsByLsbClass = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "classifications";
+}>(components.classificationsByLsbClass, {
+  sortKey: (doc) => doc.lsb_class,
+});
+
+export const classificationsByMorphology = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "classifications";
+}>(components.classificationsByMorphology, {
+  sortKey: (doc) => doc.morphology,
+});
+
 export const userProfilesByClassificationsCount = new TableAggregate<{
   Key: number;
   DataModel: DataModel;
@@ -434,6 +483,12 @@ export const clearLabelingAggregates = mutation({
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
     await classificationsByCreated.clear(ctx);
+    await classificationsByAwesomeFlag.clear(ctx);
+    await classificationsByVisibleNucleus.clear(ctx);
+    await classificationsByFailedFitting.clear(ctx);
+    await classificationsByValidRedshift.clear(ctx);
+    await classificationsByLsbClass.clear(ctx);
+    await classificationsByMorphology.clear(ctx);
     await userProfilesByClassificationsCount.clear(ctx);
     await userProfilesByLastActive.clear(ctx);
   },
@@ -450,6 +505,12 @@ export const rebuildClassificationAggregates = mutation({
     if (!args.cursor) {
       console.log("[rebuildClassificationAggregates] Clearing classification aggregates");
       await classificationsByCreated.clear(ctx);
+      await classificationsByAwesomeFlag.clear(ctx);
+      await classificationsByVisibleNucleus.clear(ctx);
+      await classificationsByFailedFitting.clear(ctx);
+      await classificationsByValidRedshift.clear(ctx);
+      await classificationsByLsbClass.clear(ctx);
+      await classificationsByMorphology.clear(ctx);
       if (args.clearOnly) {
         return { processed: 0, isDone: true, continueCursor: null, message: "Cleared classification aggregates" };
       }
@@ -468,6 +529,12 @@ export const rebuildClassificationAggregates = mutation({
     let processed = 0;
     for (const classification of page) {
       await classificationsByCreated.insert(ctx, classification);
+      await classificationsByAwesomeFlag.insert(ctx, classification);
+      await classificationsByVisibleNucleus.insert(ctx, classification);
+      await classificationsByFailedFitting.insert(ctx, classification);
+      await classificationsByValidRedshift.insert(ctx, classification);
+      await classificationsByLsbClass.insert(ctx, classification);
+      await classificationsByMorphology.insert(ctx, classification);
       processed += 1;
     }
 
@@ -558,6 +625,15 @@ export const getAggregateInfo = query({
       galaxiesByNumAwesomeFlagCount,
       galaxiesByTotalAssignedCount,
       galaxiesByNumericIdCount,
+      classificationsByAwesomeFlagCount,
+      classificationsByVisibleNucleusCount,
+      classificationsByFailedFittingCount,
+      classificationsByValidRedshiftCount,
+      classificationsByLsbClassCount,
+      classificationsByMorphologyCount,
+      classificationsByCreatedCount,
+      userProfilesByClassificationsCountCount,
+      userProfilesByLastActiveCount,
     ] = await Promise.all([
       galaxyIdsAggregate.count(ctx),
       galaxiesById.count(ctx),
@@ -574,6 +650,15 @@ export const getAggregateInfo = query({
       galaxiesByNumAwesomeFlag.count(ctx),
       galaxiesByTotalAssigned.count(ctx),
       galaxiesByNumericId.count(ctx),
+      classificationsByAwesomeFlag.count(ctx),
+      classificationsByVisibleNucleus.count(ctx),
+      classificationsByFailedFitting.count(ctx),
+      classificationsByValidRedshift.count(ctx),
+      classificationsByLsbClass.count(ctx),
+      classificationsByMorphology.count(ctx),
+      classificationsByCreated.count(ctx),
+      userProfilesByClassificationsCount.count(ctx),
+      userProfilesByLastActive.count(ctx),
     ]);
 
     // Get min/max values for numeric aggregates
@@ -604,6 +689,24 @@ export const getAggregateInfo = query({
       galaxiesByTotalAssignedMax,
       galaxiesByNumericIdMin,
       galaxiesByNumericIdMax,
+      classificationsByAwesomeFlagMin,
+      classificationsByAwesomeFlagMax,
+      classificationsByVisibleNucleusMin,
+      classificationsByVisibleNucleusMax,
+      classificationsByFailedFittingMin,
+      classificationsByFailedFittingMax,
+      classificationsByValidRedshiftMin,
+      classificationsByValidRedshiftMax,
+      classificationsByLsbClassMin,
+      classificationsByLsbClassMax,
+      classificationsByMorphologyMin,
+      classificationsByMorphologyMax,
+      classificationsByCreatedMin,
+      classificationsByCreatedMax,
+      userProfilesByClassificationsCountMin,
+      userProfilesByClassificationsCountMax,
+      userProfilesByLastActiveMin,
+      userProfilesByLastActiveMax,
     ] = await Promise.all([
       galaxyIdsAggregate.min(ctx).then(item => item?.key),
       galaxyIdsAggregate.max(ctx).then(item => item?.key),
@@ -631,6 +734,24 @@ export const getAggregateInfo = query({
       galaxiesByTotalAssigned.max(ctx).then(item => item?.key),
       galaxiesByNumericId.min(ctx).then(item => item?.key),
       galaxiesByNumericId.max(ctx).then(item => item?.key),
+      classificationsByAwesomeFlag.min(ctx).then(item => item?.key),
+      classificationsByAwesomeFlag.max(ctx).then(item => item?.key),
+      classificationsByVisibleNucleus.min(ctx).then(item => item?.key),
+      classificationsByVisibleNucleus.max(ctx).then(item => item?.key),
+      classificationsByFailedFitting.min(ctx).then(item => item?.key),
+      classificationsByFailedFitting.max(ctx).then(item => item?.key),
+      classificationsByValidRedshift.min(ctx).then(item => item?.key),
+      classificationsByValidRedshift.max(ctx).then(item => item?.key),
+      classificationsByLsbClass.min(ctx).then(item => item?.key),
+      classificationsByLsbClass.max(ctx).then(item => item?.key),
+      classificationsByMorphology.min(ctx).then(item => item?.key),
+      classificationsByMorphology.max(ctx).then(item => item?.key),
+      classificationsByCreated.min(ctx).then(item => item?.key),
+      classificationsByCreated.max(ctx).then(item => item?.key),
+      userProfilesByClassificationsCount.min(ctx).then(item => item?.key),
+      userProfilesByClassificationsCount.max(ctx).then(item => item?.key),
+      userProfilesByLastActive.min(ctx).then(item => item?.key),
+      userProfilesByLastActive.max(ctx).then(item => item?.key),
     ]);
 
     // Get nucleus counts (true/false)
@@ -640,6 +761,46 @@ export const getAggregateInfo = query({
     const nucleusFalseCount = await galaxiesByNucleus.count(ctx, {
       bounds: { lower: { key: false, inclusive: true }, upper: { key: false, inclusive: true } }
     });
+
+    // Boolean classification aggregates: true/false splits
+    const [
+      awesomeTrueCount,
+      awesomeFalseCount,
+      visibleTrueCount,
+      visibleFalseCount,
+      failedTrueCount,
+      failedFalseCount,
+      validTrueCount,
+      validFalseCount,
+    ] = await Promise.all([
+      classificationsByAwesomeFlag.count(ctx, { bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } } }),
+      classificationsByAwesomeFlag.count(ctx, { bounds: { lower: { key: false, inclusive: true }, upper: { key: false, inclusive: true } } }),
+      classificationsByVisibleNucleus.count(ctx, { bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } } }),
+      classificationsByVisibleNucleus.count(ctx, { bounds: { lower: { key: false, inclusive: true }, upper: { key: false, inclusive: true } } }),
+      classificationsByFailedFitting.count(ctx, { bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } } }),
+      classificationsByFailedFitting.count(ctx, { bounds: { lower: { key: false, inclusive: true }, upper: { key: false, inclusive: true } } }),
+      classificationsByValidRedshift.count(ctx, { bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } } }),
+      classificationsByValidRedshift.count(ctx, { bounds: { lower: { key: false, inclusive: true }, upper: { key: false, inclusive: true } } }),
+    ]);
+
+    // LSB and morphology discrete counts
+    const [
+      lsbNeg1Count,
+      lsb0Count,
+      lsb1Count,
+      morphNeg1Count,
+      morph0Count,
+      morph1Count,
+      morph2Count,
+    ] = await Promise.all([
+      classificationsByLsbClass.count(ctx, { bounds: { lower: { key: -1, inclusive: true }, upper: { key: -1, inclusive: true } } }),
+      classificationsByLsbClass.count(ctx, { bounds: { lower: { key: 0, inclusive: true }, upper: { key: 0, inclusive: true } } }),
+      classificationsByLsbClass.count(ctx, { bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } } }),
+      classificationsByMorphology.count(ctx, { bounds: { lower: { key: -1, inclusive: true }, upper: { key: -1, inclusive: true } } }),
+      classificationsByMorphology.count(ctx, { bounds: { lower: { key: 0, inclusive: true }, upper: { key: 0, inclusive: true } } }),
+      classificationsByMorphology.count(ctx, { bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } } }),
+      classificationsByMorphology.count(ctx, { bounds: { lower: { key: 2, inclusive: true }, upper: { key: 2, inclusive: true } } }),
+    ]);
 
     return {
       galaxyIds: {
@@ -714,6 +875,66 @@ export const getAggregateInfo = query({
         count: galaxiesByNumericIdCount,
         min: galaxiesByNumericIdMin,
         max: galaxiesByNumericIdMax,
+      },
+      classificationsByAwesomeFlag: {
+        count: classificationsByAwesomeFlagCount,
+        min: classificationsByAwesomeFlagMin,
+        max: classificationsByAwesomeFlagMax,
+        trueCount: awesomeTrueCount,
+        falseCount: awesomeFalseCount,
+      },
+      classificationsByVisibleNucleus: {
+        count: classificationsByVisibleNucleusCount,
+        min: classificationsByVisibleNucleusMin,
+        max: classificationsByVisibleNucleusMax,
+        trueCount: visibleTrueCount,
+        falseCount: visibleFalseCount,
+      },
+      classificationsByFailedFitting: {
+        count: classificationsByFailedFittingCount,
+        min: classificationsByFailedFittingMin,
+        max: classificationsByFailedFittingMax,
+        trueCount: failedTrueCount,
+        falseCount: failedFalseCount,
+      },
+      classificationsByValidRedshift: {
+        count: classificationsByValidRedshiftCount,
+        min: classificationsByValidRedshiftMin,
+        max: classificationsByValidRedshiftMax,
+        trueCount: validTrueCount,
+        falseCount: validFalseCount,
+      },
+      classificationsByLsbClass: {
+        count: classificationsByLsbClassCount,
+        min: classificationsByLsbClassMin,
+        max: classificationsByLsbClassMax,
+        neg1Count: lsbNeg1Count,
+        zeroCount: lsb0Count,
+        pos1Count: lsb1Count,
+      },
+      classificationsByMorphology: {
+        count: classificationsByMorphologyCount,
+        min: classificationsByMorphologyMin,
+        max: classificationsByMorphologyMax,
+        neg1Count: morphNeg1Count,
+        zeroCount: morph0Count,
+        pos1Count: morph1Count,
+        twoCount: morph2Count,
+      },
+      classificationsByCreated: {
+        count: classificationsByCreatedCount,
+        min: classificationsByCreatedMin,
+        max: classificationsByCreatedMax,
+      },
+      userProfilesByClassificationsCount: {
+        count: userProfilesByClassificationsCountCount,
+        min: userProfilesByClassificationsCountMin,
+        max: userProfilesByClassificationsCountMax,
+      },
+      userProfilesByLastActive: {
+        count: userProfilesByLastActiveCount,
+        min: userProfilesByLastActiveMin,
+        max: userProfilesByLastActiveMax,
       },
     };
   },

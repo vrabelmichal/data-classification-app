@@ -19,8 +19,12 @@ import {
   TestEmailSection,
   BackfillGalaxyClassificationsSection,
   FastBackfillGalaxyClassificationsSection,
+  BackfillClassificationAggregatesSection,
+  FastBackfillClassificationAggregatesSection,
   RebuildTotalClassificationsAggregateSection,
   BackfillUserGalaxyClassificationsSection,
+  BackfillUserClassificationCountersSection,
+  FastBackfillUserClassificationCountersSection,
 } from "./debugging";
 
 export function MaintenanceTab() {
@@ -63,6 +67,8 @@ export function MaintenanceTab() {
           <FastBackfillGalaxyClassificationsSection />
           <BackfillGalaxyClassificationsSection />
           <BackfillUserGalaxyClassificationsSection />
+          <FastBackfillUserClassificationCountersSection />
+          <BackfillUserClassificationCountersSection />
         </div>
       </section>
 
@@ -78,6 +84,8 @@ export function MaintenanceTab() {
           <RebuildGalaxyAggregatesSection />
           <RebuildTotalClassificationsAggregateSection />
           <LabelingAggregatesSection />
+          <FastBackfillClassificationAggregatesSection />
+          <BackfillClassificationAggregatesSection />
         </div>
       </section>
 
