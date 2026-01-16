@@ -19,9 +19,11 @@ import { galaxiesByTotalClassifications } from "./aggregates";
 
 export const UPDATE_BATCH_SIZE = 200;
 export const ZERO_OUT_BATCH_SIZE = 1000;
+// It seems that 500 is safe for both backfill and rebuild. If errors occur with backfill, consider lowering this value.
 const BACKFILL_CLASSIFICATIONS_BATCH_SIZE = 500;
-// Rebuild aggregate can work with larger batches because it only scans galaxies
-export const REBUILD_TOTAL_CLASSIFICATIONS_BATCH_SIZE = 500;
+const REBUILD_TOTAL_CLASSIFICATIONS_BATCH_SIZE = 500;
+// Fast backfill scans classifications table (typically much smaller than galaxies)
+const FAST_BACKFILL_BATCH_SIZE = 500;
 
 export const deleteAllGalaxies = mutation({
   args: {},
@@ -223,6 +225,85 @@ export const rebuildTotalClassificationsAggregate = mutation({
       message: isDone
         ? `Rebuild complete. Processed ${processed} galaxies in final batch.`
         : `Processed ${processed} galaxies. Continue with cursor: ${continueCursor}`,
+    };
+  },
+});
+
+/**
+ * Fast backfill: Scans the `classifications` table (typically much smaller than galaxies)
+ * and computes totalClassifications counts per galaxy. Only updates galaxies that have
+ * at least one classification.
+ * 
+ * This is MUCH faster than `backfillGalaxyClassificationCounts` when:
+ * - You have many more galaxies than classifications
+ * - Most galaxies have 0 classifications
+ * 
+ * Trade-off: This does NOT reset galaxies with 0 classifications. If a galaxy previously
+ * had classifications that were deleted, its count won't be reset to 0. Use the full
+ * backfill or zero-out first if you need to handle that case.
+ */
+export const fastBackfillGalaxyClassificationCounts = mutation({
+  args: {
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    // Paginate through classifications table
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("classifications")
+      .paginate({ numItems: FAST_BACKFILL_BATCH_SIZE, cursor: args.cursor ?? null });
+
+    // Group classifications by galaxyExternalId in this batch
+    const countsByGalaxy = new Map<string, number>();
+    for (const classification of page) {
+      const current = countsByGalaxy.get(classification.galaxyExternalId) ?? 0;
+      countsByGalaxy.set(classification.galaxyExternalId, current + 1);
+    }
+
+    let processed = page.length;
+    let galaxiesUpdated = 0;
+    let uniqueGalaxies = countsByGalaxy.size;
+
+    // For each unique galaxy in this batch, we need to get the FULL count
+    // (not just what's in this batch) and update it
+    for (const [galaxyExternalId] of countsByGalaxy) {
+      // Get the galaxy document
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q) => q.eq("id", galaxyExternalId))
+        .unique();
+
+      if (!galaxy) continue;
+
+      // Count ALL classifications for this galaxy (not just this batch)
+      const allClassifications = await ctx.db
+        .query("classifications")
+        .withIndex("by_galaxy", (q) => q.eq("galaxyExternalId", galaxyExternalId))
+        .collect();
+
+      const count = BigInt(allClassifications.length);
+      const current = galaxy.totalClassifications ?? BigInt(0);
+
+      if (current !== count) {
+        await ctx.db.patch(galaxy._id, { totalClassifications: count });
+        const refreshed = await ctx.db.get(galaxy._id);
+        if (refreshed) {
+          await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshed);
+        }
+        galaxiesUpdated += 1;
+      }
+    }
+
+    return {
+      processed,
+      uniqueGalaxies,
+      galaxiesUpdated,
+      isDone,
+      continueCursor,
+      message: isDone
+        ? `Fast backfill complete. Processed ${processed} classifications, updated ${galaxiesUpdated} galaxies.`
+        : `Processed ${processed} classifications (${uniqueGalaxies} unique galaxies, ${galaxiesUpdated} updated). Continue...`,
     };
   },
 });

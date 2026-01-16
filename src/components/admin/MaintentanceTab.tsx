@@ -19,6 +19,7 @@ import {
   ZeroOutGalaxyStatisticsSection,
   TestEmailSection,
   BackfillGalaxyClassificationsSection,
+  FastBackfillGalaxyClassificationsSection,
   RebuildTotalClassificationsAggregateSection,
   BackfillUserGalaxyClassificationsSection,
 } from "./debugging";
@@ -62,6 +63,7 @@ export function MaintenanceTab() {
         <div className="grid grid-cols-2 gap-6">
           <FillGalaxyMagMeanMueSection />
           <FillGalaxyNumericIdSection />
+          <FastBackfillGalaxyClassificationsSection />
           <BackfillGalaxyClassificationsSection />
           <BackfillUserGalaxyClassificationsSection />
         </div>
