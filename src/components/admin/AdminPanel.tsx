@@ -10,7 +10,20 @@ import { MaintenanceTab } from "./MaintentanceTab";
 import { SystemTab } from "./SystemTab";
 
 export function AdminPanel() {
-  usePageTitle("Admin");
+  // Dynamic page title that reflects the active admin tab
+  usePageTitle(() => {
+    const path = location.pathname;
+    const tab = (() => {
+      if (path === "/admin" || path === "/admin/") return "Admin";
+      if (path.startsWith("/admin/users")) return "Users";
+      if (path.startsWith("/admin/galaxies")) return "Galaxies";
+      if (path.startsWith("/admin/settings")) return "Settings";
+      if (path.startsWith("/admin/maintenance")) return "Maintenance";
+      if (path.startsWith("/admin/system")) return "System";
+      return "Admin";
+    })();
+    return `Admin – ${tab}`;
+  });
   const location = useLocation();
   
   const userProfile = useQuery(api.users.getUserProfile);
