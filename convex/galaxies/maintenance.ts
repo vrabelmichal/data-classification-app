@@ -205,16 +205,10 @@ export const rebuildTotalClassificationsAggregate = mutation({
     let processed = 0;
 
     for (const galaxy of page) {
-      // Ensure totalClassifications is set (default to 0 if undefined)
-      // This is needed because the aggregate sortKey uses this field
-      if (galaxy.totalClassifications === undefined) {
-        await ctx.db.patch(galaxy._id, { totalClassifications: BigInt(0) });
-        const updatedGalaxy = { ...galaxy, totalClassifications: BigInt(0) };
-        await galaxiesByTotalClassifications.insert(ctx, updatedGalaxy);
-      } else {
-        // Simply insert each galaxy into the aggregate based on its existing totalClassifications value
-        await galaxiesByTotalClassifications.insert(ctx, galaxy);
-      }
+      // Simply insert each galaxy into the aggregate based on its existing totalClassifications value.
+      // The aggregate sortKey already defaults undefined/null to 0, so no DB patch needed here.
+      // If you need to recalculate actual counts, use backfillGalaxyClassificationCounts instead.
+      await galaxiesByTotalClassifications.insert(ctx, galaxy);
       processed += 1;
     }
 
