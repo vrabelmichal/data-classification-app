@@ -7,6 +7,7 @@ import { UsersTab } from "./UsersTab";
 import { GalaxiesTab } from "./GalaxiesTab";
 import { SettingsTab } from "./SettingsTab";
 import { MaintenanceTab } from "./MaintentanceTab";
+import { SystemTab } from "./SystemTab";
 
 export function AdminPanel() {
   usePageTitle("Admin");
@@ -62,6 +63,7 @@ export function AdminPanel() {
             { id: "galaxies", label: "Galaxies", icon: "🌌", path: "/admin/galaxies" },
             { id: "settings", label: "Settings", icon: "⚙️", path: "/admin/settings" },
             { id: "maintenance", label: "Maintenance", icon: "🛠️", path: "/admin/maintenance" },
+            { id: "system", label: "System", icon: "🖥️", path: "/admin/system" },
           ].map((tab) => (
             <Link
               key={tab.id}
@@ -86,6 +88,7 @@ export function AdminPanel() {
         <Route path="galaxies" element={<GalaxiesTab users={users} systemSettings={systemSettings} />} />
         <Route path="settings" element={<SettingsTab systemSettings={systemSettings} />} />
         <Route path="maintenance" element={<MaintenanceTab />} />
+        <Route path="system" element={<SystemTab />} />
       </Routes>
     </div>
   );

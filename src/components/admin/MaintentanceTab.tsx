@@ -14,7 +14,6 @@ import {
   RebuildGalaxyAggregatesSection,
   LabelingAggregatesSection,
   DeleteAllGalaxyDataSection,
-  AggregateInformationSection,
   DeleteConfirmationModal,
   ZeroOutGalaxyStatisticsSection,
   TestEmailSection,
@@ -44,9 +43,7 @@ export function MaintenanceTab() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-12">
-      <h1 className="text-2xl font-bold mb-8 text-gray-900 dark:text-white">Maintenance & System Tools</h1>
-
+    <div>
       {/* Regular Maintenance Section */}
       <section className="mb-12">
         <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white border-b pb-2 border-gray-200 dark:border-gray-700">Regular Maintenance</h2>
@@ -93,12 +90,6 @@ export function MaintenanceTab() {
           <ZeroOutGalaxyStatisticsSection />
           <DeleteAllGalaxyDataSection onShowDeleteModal={() => setShowDeleteModal(true)} />
         </div>
-      </section>
-
-      {/* System Information Section */}
-      <section>
-        <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white border-b pb-2 border-gray-200 dark:border-gray-700">System Information</h2>
-        <AggregateInformationSection />
       </section>
 
       <DeleteConfirmationModal
