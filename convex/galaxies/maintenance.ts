@@ -15,7 +15,11 @@ import {
   galaxyIdsAggregate,
   galaxiesByNumericId
 } from "./aggregates";
-import { galaxiesByTotalClassifications } from "./aggregates";
+import {
+  galaxiesByTotalClassifications,
+  galaxiesByNumAwesomeFlag,
+  galaxiesByNumVisibleNucleus,
+} from "./aggregates";
 
 export const UPDATE_BATCH_SIZE = 200;
 export const ZERO_OUT_BATCH_SIZE = 1000;
@@ -150,14 +154,35 @@ export const backfillGalaxyClassificationCounts = mutation({
         .withIndex("by_galaxy", (q) => q.eq("galaxyExternalId", galaxy.id))
         .collect();
 
-      const count = BigInt(classifications.length);
-      const current = galaxy.totalClassifications ?? BigInt(0);
+      const totalClassifications = BigInt(classifications.length);
+      const awesomeCount = BigInt(classifications.filter((c) => c.awesome_flag).length);
+      const visibleCount = BigInt(classifications.filter((c) => c.visible_nucleus).length);
 
-      if (current !== count) {
-        await ctx.db.patch(galaxy._id, { totalClassifications: count });
+      const updates: Partial<Doc<'galaxies'>> = {};
+
+      if ((galaxy.totalClassifications ?? BigInt(0)) !== totalClassifications) {
+        updates.totalClassifications = totalClassifications;
+      }
+      if ((galaxy.numAwesomeFlag ?? BigInt(0)) !== awesomeCount) {
+        updates.numAwesomeFlag = awesomeCount;
+      }
+      if ((galaxy.numVisibleNucleus ?? BigInt(0)) !== visibleCount) {
+        updates.numVisibleNucleus = visibleCount;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await ctx.db.patch(galaxy._id, updates);
         const refreshed = await ctx.db.get(galaxy._id);
         if (refreshed) {
-          await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshed);
+          if (updates.totalClassifications !== undefined) {
+            await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshed);
+          }
+          if (updates.numAwesomeFlag !== undefined) {
+            await galaxiesByNumAwesomeFlag.replace(ctx, galaxy, refreshed);
+          }
+          if (updates.numVisibleNucleus !== undefined) {
+            await galaxiesByNumVisibleNucleus.replace(ctx, galaxy, refreshed);
+          }
         }
         updated += 1;
       }
@@ -282,14 +307,35 @@ export const fastBackfillGalaxyClassificationCounts = mutation({
         .withIndex("by_galaxy", (q) => q.eq("galaxyExternalId", galaxyExternalId))
         .collect();
 
-      const count = BigInt(allClassifications.length);
-      const current = galaxy.totalClassifications ?? BigInt(0);
+      const totalClassifications = BigInt(allClassifications.length);
+      const awesomeCount = BigInt(allClassifications.filter((c) => c.awesome_flag).length);
+      const visibleCount = BigInt(allClassifications.filter((c) => c.visible_nucleus).length);
 
-      if (current !== count) {
-        await ctx.db.patch(galaxy._id, { totalClassifications: count });
+      const updates: Partial<Doc<'galaxies'>> = {};
+
+      if ((galaxy.totalClassifications ?? BigInt(0)) !== totalClassifications) {
+        updates.totalClassifications = totalClassifications;
+      }
+      if ((galaxy.numAwesomeFlag ?? BigInt(0)) !== awesomeCount) {
+        updates.numAwesomeFlag = awesomeCount;
+      }
+      if ((galaxy.numVisibleNucleus ?? BigInt(0)) !== visibleCount) {
+        updates.numVisibleNucleus = visibleCount;
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await ctx.db.patch(galaxy._id, updates);
         const refreshed = await ctx.db.get(galaxy._id);
         if (refreshed) {
-          await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshed);
+          if (updates.totalClassifications !== undefined) {
+            await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshed);
+          }
+          if (updates.numAwesomeFlag !== undefined) {
+            await galaxiesByNumAwesomeFlag.replace(ctx, galaxy, refreshed);
+          }
+          if (updates.numVisibleNucleus !== undefined) {
+            await galaxiesByNumVisibleNucleus.replace(ctx, galaxy, refreshed);
+          }
         }
         galaxiesUpdated += 1;
       }

@@ -5,8 +5,10 @@ import {
   classificationsByCreated,
   userProfilesByClassificationsCount,
   userProfilesByLastActive,
+  galaxiesByTotalClassifications,
+  galaxiesByNumAwesomeFlag,
+  galaxiesByNumVisibleNucleus,
 } from "./galaxies/aggregates";
-import { galaxiesByTotalClassifications } from "./galaxies/aggregates";
 
 
 // Get progress
@@ -112,6 +114,40 @@ export const submitClassification = mutation({
       if (updatedClassification) {
         await classificationsByCreated.replace(ctx, existing, updatedClassification);
       }
+
+      // Update per-galaxy awesome/visible counters if flags changed
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q) => q.eq("id", args.galaxyExternalId))
+        .unique();
+
+      if (galaxy) {
+        const awesomeDelta = Number(args.awesome_flag) - Number(existing.awesome_flag ? 1 : 0);
+        const newVisible = args.visible_nucleus ?? false;
+        const visibleDelta = Number(newVisible ? 1 : 0) - Number(existing.visible_nucleus ? 1 : 0);
+
+        if (awesomeDelta !== 0 || visibleDelta !== 0) {
+          const currentAwesome = galaxy.numAwesomeFlag ?? BigInt(0);
+          const currentVisible = galaxy.numVisibleNucleus ?? BigInt(0);
+          const nextAwesome = currentAwesome + BigInt(awesomeDelta);
+          const nextVisible = currentVisible + BigInt(visibleDelta);
+
+          await ctx.db.patch(galaxy._id, {
+            numAwesomeFlag: nextAwesome < BigInt(0) ? BigInt(0) : nextAwesome,
+            numVisibleNucleus: nextVisible < BigInt(0) ? BigInt(0) : nextVisible,
+          });
+
+          const refreshedGalaxy = await ctx.db.get(galaxy._id);
+          if (refreshedGalaxy) {
+            if (awesomeDelta !== 0) {
+              await galaxiesByNumAwesomeFlag.replace(ctx, galaxy, refreshedGalaxy);
+            }
+            if (visibleDelta !== 0) {
+              await galaxiesByNumVisibleNucleus.replace(ctx, galaxy, refreshedGalaxy);
+            }
+          }
+        }
+      }
     } else {
 
       // // Remove from skipped if it was skipped before
@@ -163,13 +199,20 @@ export const submitClassification = mutation({
 
         // Increment galaxy classification counter
         const updatedTotalClassifications = (galaxy.totalClassifications ?? BigInt(0)) + BigInt(1);
+        const updatedNumAwesomeFlag = (galaxy.numAwesomeFlag ?? BigInt(0)) + (args.awesome_flag ? BigInt(1) : BigInt(0));
+        const updatedNumVisibleNucleus = (galaxy.numVisibleNucleus ?? BigInt(0)) + (args.visible_nucleus ? BigInt(1) : BigInt(0));
+
         await ctx.db.patch(galaxy._id, {
           totalClassifications: updatedTotalClassifications,
+          numAwesomeFlag: updatedNumAwesomeFlag,
+          numVisibleNucleus: updatedNumVisibleNucleus,
         });
 
         const refreshedGalaxy = await ctx.db.get(galaxy._id);
         if (refreshedGalaxy) {
           await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshedGalaxy);
+          await galaxiesByNumAwesomeFlag.replace(ctx, galaxy, refreshedGalaxy);
+          await galaxiesByNumVisibleNucleus.replace(ctx, galaxy, refreshedGalaxy);
         }
       }
 
