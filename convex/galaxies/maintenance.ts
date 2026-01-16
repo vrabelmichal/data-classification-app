@@ -19,7 +19,7 @@ import { galaxiesByTotalClassifications } from "./aggregates";
 
 export const UPDATE_BATCH_SIZE = 200;
 export const ZERO_OUT_BATCH_SIZE = 1000;
-const BACKFILL_CLASSIFICATIONS_BATCH_SIZE = 100;
+const BACKFILL_CLASSIFICATIONS_BATCH_SIZE = 500;
 // Rebuild aggregate can work with larger batches because it only scans galaxies
 export const REBUILD_TOTAL_CLASSIFICATIONS_BATCH_SIZE = 500;
 
