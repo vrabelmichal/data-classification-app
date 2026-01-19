@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 
 export function StatisticsTab() {
   const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
+  const [lastStats, setLastStats] = useState<any>(null);
   
   const userProfile = useQuery(api.users.getUserProfile);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -24,6 +25,13 @@ export function StatisticsTab() {
   );
   const progress = useQuery(api.classification.getProgress);
 
+  // Preserve last successful stats to avoid layout jumps/scrollbar flicker while refetching
+  useEffect(() => {
+    if (stats) {
+      setLastStats(stats);
+    }
+  }, [stats]);
+
   // Find the selected user's display name
   const selectedUserDisplay = useMemo(() => {
     if (!selectedUserId || !usersList) return null;
@@ -32,13 +40,15 @@ export function StatisticsTab() {
     return user.name || user.email || user.userId;
   }, [selectedUserId, usersList]);
 
-  if (stats === undefined || progress === undefined || systemSettings === undefined || userProfile === undefined) {
+  if ((stats === undefined && !lastStats) || progress === undefined || systemSettings === undefined || userProfile === undefined) {
     return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
+      <div className="flex justify-center items-center min-h-[calc(100vh-4rem)] overflow-hidden">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
+
+  const displayStats = stats ?? lastStats;
 
   // System settings for showing/hiding flags
   const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? true;
@@ -61,7 +71,9 @@ export function StatisticsTab() {
     { key: "elliptical", label: "Elliptical", color: "bg-purple-500", icon: "⭕" },
   ];
 
-  const totalClassifications = stats ? stats.total : 0;
+  const isRefetching = stats === undefined && !!lastStats;
+
+  const totalClassifications = displayStats ? displayStats.total : 0;
 
   // Build dynamic stat cards based on enabled flags
   const statCards: Array<{
@@ -75,7 +87,7 @@ export function StatisticsTab() {
     {
       id: "total",
       label: "Total",
-      value: stats?.total || 0,
+      value: displayStats?.total || 0,
       icon: "🔍",
       bgColor: "bg-blue-100 dark:bg-blue-900/30",
       textColor: "text-blue-600 dark:text-blue-400",
@@ -83,7 +95,7 @@ export function StatisticsTab() {
     {
       id: "thisWeek",
       label: "This Week",
-      value: stats?.thisWeek || 0,
+      value: displayStats?.thisWeek || 0,
       icon: "📅",
       bgColor: "bg-green-100 dark:bg-green-900/30",
       textColor: "text-green-600 dark:text-green-400",
@@ -94,7 +106,7 @@ export function StatisticsTab() {
     statCards.push({
       id: "awesome",
       label: "Awesome",
-      value: stats?.awesomeCount || 0,
+      value: displayStats?.awesomeCount || 0,
       icon: "⭐",
       bgColor: "bg-yellow-100 dark:bg-yellow-900/30",
       textColor: "text-yellow-600 dark:text-yellow-400",
@@ -105,7 +117,7 @@ export function StatisticsTab() {
     statCards.push({
       id: "visibleNucleus",
       label: "Visible Nucleus",
-      value: stats?.visibleNucleusCount || 0,
+      value: displayStats?.visibleNucleusCount || 0,
       icon: "🎯",
       bgColor: "bg-orange-100 dark:bg-orange-900/30",
       textColor: "text-orange-600 dark:text-orange-400",
@@ -116,7 +128,7 @@ export function StatisticsTab() {
     statCards.push({
       id: "validRedshift",
       label: "Valid Redshift",
-      value: stats?.validRedshiftCount || 0,
+      value: displayStats?.validRedshiftCount || 0,
       icon: "🔴",
       bgColor: "bg-red-100 dark:bg-red-900/30",
       textColor: "text-red-600 dark:text-red-400",
@@ -127,7 +139,7 @@ export function StatisticsTab() {
     statCards.push({
       id: "failedFitting",
       label: "Failed Fitting",
-      value: stats?.failedFittingCount || 0,
+      value: displayStats?.failedFittingCount || 0,
       icon: "❌",
       bgColor: "bg-rose-100 dark:bg-rose-900/30",
       textColor: "text-rose-600 dark:text-rose-400",
@@ -137,7 +149,7 @@ export function StatisticsTab() {
   statCards.push({
     id: "avgTime",
     label: "Avg Time",
-    value: `${stats?.averageTime || 0}s`,
+    value: `${displayStats?.averageTime || 0}s`,
     icon: "⏱️",
     bgColor: "bg-purple-100 dark:bg-purple-900/30",
     textColor: "text-purple-600 dark:text-purple-400",
@@ -153,7 +165,12 @@ export function StatisticsTab() {
         : "lg:grid-cols-6";
 
   return (
-    <div>
+    <div className="relative">
+      {isRefetching && (
+        <div className="pointer-events-none absolute inset-0 flex items-start justify-end p-4">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 opacity-80" />
+        </div>
+      )}
       {/* Admin User Selector */}
       {isAdmin && usersList && (
         <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
@@ -210,7 +227,7 @@ export function StatisticsTab() {
           
           <div className="space-y-4">
             {lsbClassTypes.map((type) => {
-              const count = stats?.byLsbClass[type.key] || 0;
+              const count = displayStats?.byLsbClass[type.key] || 0;
               const percentage = totalClassifications > 0 ? (count / totalClassifications) * 100 : 0;
               
               return (
@@ -256,7 +273,7 @@ export function StatisticsTab() {
           
           <div className="space-y-4">
             {morphologyTypes.map((type) => {
-              const count = stats?.byMorphology[type.key] || 0;
+              const count = displayStats?.byMorphology[type.key] || 0;
               const percentage = totalClassifications > 0 ? (count / totalClassifications) * 100 : 0;
               
               return (
