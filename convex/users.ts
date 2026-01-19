@@ -170,11 +170,23 @@ export const getUserProfile = query({
 const USE_PROFILE_COUNTERS_FOR_STATS = true;
 
 // Get user statistics
+// If targetUserId is provided, requires admin access to view other users' stats
 export const getUserStats = query({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await getOptionalUserId(ctx);
-    if (!userId) return null;
+  args: {
+    targetUserId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await getOptionalUserId(ctx);
+    if (!currentUserId) return null;
+
+    // Determine which user's stats to fetch
+    let userId = currentUserId;
+    
+    if (args.targetUserId && args.targetUserId !== currentUserId) {
+      // Viewing another user's stats requires admin access
+      await requireAdmin(ctx, { notAdminMessage: "Only admins can view other users' statistics" });
+      userId = args.targetUserId;
+    }
 
     // Get user profile (needed for both methods, and always available)
     const profile = await ctx.db
@@ -281,6 +293,43 @@ export const getUserStats = query({
       failedFittingCount,
       _source: "classifications" as const,
     };
+  },
+});
+
+// Admin: Get list of users for dropdown selection (lightweight version)
+export const getUsersForSelection = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx, { notAdminMessage: "Only admins can access user list" });
+
+    const allUsers = await ctx.db.query("users").collect();
+    
+    const usersWithProfiles = await Promise.all(
+      allUsers.map(async (user) => {
+        const profile = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_user", (q) => q.eq("userId", user._id))
+          .unique();
+
+        return {
+          userId: user._id,
+          email: (user as any).email ?? null,
+          name: (user as any).name ?? null,
+          classificationsCount: profile?.classificationsCount ?? 0,
+          role: profile?.role ?? "user",
+        };
+      })
+    );
+
+    // Sort by classifications count descending, then by name/email
+    return usersWithProfiles.sort((a, b) => {
+      if (b.classificationsCount !== a.classificationsCount) {
+        return b.classificationsCount - a.classificationsCount;
+      }
+      const aName = a.name || a.email || "";
+      const bName = b.name || b.email || "";
+      return aName.localeCompare(bName);
+    });
   },
 });
 

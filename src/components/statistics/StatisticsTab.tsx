@@ -1,12 +1,38 @@
+import { useState, useMemo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { Id } from "../../../convex/_generated/dataModel";
 
 export function StatisticsTab() {
-  const stats = useQuery(api.users.getUserStats);
-  const progress = useQuery(api.classification.getProgress);
+  const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
+  
+  const userProfile = useQuery(api.users.getUserProfile);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  
+  const isAdmin = userProfile?.role === "admin";
+  
+  // Only fetch user list if admin
+  const usersList = useQuery(
+    api.users.getUsersForSelection,
+    isAdmin ? {} : "skip"
+  );
+  
+  // Get stats for selected user (or self if not admin/no selection)
+  const stats = useQuery(
+    api.users.getUserStats,
+    selectedUserId ? { targetUserId: selectedUserId } : {}
+  );
+  const progress = useQuery(api.classification.getProgress);
 
-  if (stats === undefined || progress === undefined || systemSettings === undefined) {
+  // Find the selected user's display name
+  const selectedUserDisplay = useMemo(() => {
+    if (!selectedUserId || !usersList) return null;
+    const user = usersList.find(u => u.userId === selectedUserId);
+    if (!user) return null;
+    return user.name || user.email || user.userId;
+  }, [selectedUserId, usersList]);
+
+  if (stats === undefined || progress === undefined || systemSettings === undefined || userProfile === undefined) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -128,6 +154,35 @@ export function StatisticsTab() {
 
   return (
     <div>
+      {/* Admin User Selector */}
+      {isAdmin && usersList && (
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+          <div className="flex items-center gap-4">
+            <label htmlFor="user-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+              View statistics for:
+            </label>
+            <select
+              id="user-select"
+              value={selectedUserId ?? ""}
+              onChange={(e) => setSelectedUserId(e.target.value ? e.target.value as Id<"users"> : null)}
+              className="flex-1 max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+            >
+              <option value="">Myself</option>
+              {usersList.map((user) => (
+                <option key={user.userId} value={user.userId}>
+                  {user.name || user.email || user.userId} ({user.classificationsCount} classifications)
+                </option>
+              ))}
+            </select>
+          </div>
+          {selectedUserId && selectedUserDisplay && (
+            <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+              Showing statistics for: <span className="font-medium text-gray-700 dark:text-gray-200">{selectedUserDisplay}</span>
+            </p>
+          )}
+        </div>
+      )}
+
       <div className={`grid grid-cols-1 md:grid-cols-2 ${gridColsClass} gap-6 mb-8`}>
         {statCards.map((card) => (
           <div key={card.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
