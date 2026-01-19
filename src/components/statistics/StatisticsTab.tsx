@@ -4,8 +4,9 @@ import { api } from "../../../convex/_generated/api";
 export function StatisticsTab() {
   const stats = useQuery(api.users.getUserStats);
   const progress = useQuery(api.classification.getProgress);
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
 
-  if (stats === undefined || progress === undefined) {
+  if (stats === undefined || progress === undefined || systemSettings === undefined) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -13,8 +14,16 @@ export function StatisticsTab() {
     );
   }
 
+  // System settings for showing/hiding flags
+  const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? true;
+  const showValidRedshift = systemSettings?.showValidRedshift ?? true;
+  const showVisibleNucleus = systemSettings?.showVisibleNucleus ?? true;
+  const failedFittingMode = systemSettings?.failedFittingMode ?? "checkbox";
+  // Show failed fitting stat only in checkbox mode
+  const showFailedFitting = failedFittingMode === "checkbox";
+
+  // Binary LSB classification (nonLSB vs LSB)
   const lsbClassTypes = [
-    { key: "failed", label: "Failed Fitting", color: "bg-red-500", icon: "❌" },
     { key: "nonLSB", label: "Non-LSB", color: "bg-gray-500", icon: "⚪" },
     { key: "LSB", label: "LSB", color: "bg-green-500", icon: "🟢" },
   ];
@@ -28,83 +37,113 @@ export function StatisticsTab() {
 
   const totalClassifications = stats ? stats.total : 0;
 
+  // Build dynamic stat cards based on enabled flags
+  const statCards: Array<{
+    id: string;
+    label: string;
+    value: number | string;
+    icon: string;
+    bgColor: string;
+    textColor: string;
+  }> = [
+    {
+      id: "total",
+      label: "Total",
+      value: stats?.total || 0,
+      icon: "🔍",
+      bgColor: "bg-blue-100 dark:bg-blue-900/30",
+      textColor: "text-blue-600 dark:text-blue-400",
+    },
+    {
+      id: "thisWeek",
+      label: "This Week",
+      value: stats?.thisWeek || 0,
+      icon: "📅",
+      bgColor: "bg-green-100 dark:bg-green-900/30",
+      textColor: "text-green-600 dark:text-green-400",
+    },
+  ];
+
+  if (showAwesomeFlag) {
+    statCards.push({
+      id: "awesome",
+      label: "Awesome",
+      value: stats?.awesomeCount || 0,
+      icon: "⭐",
+      bgColor: "bg-yellow-100 dark:bg-yellow-900/30",
+      textColor: "text-yellow-600 dark:text-yellow-400",
+    });
+  }
+
+  if (showVisibleNucleus) {
+    statCards.push({
+      id: "visibleNucleus",
+      label: "Visible Nucleus",
+      value: stats?.visibleNucleusCount || 0,
+      icon: "🎯",
+      bgColor: "bg-orange-100 dark:bg-orange-900/30",
+      textColor: "text-orange-600 dark:text-orange-400",
+    });
+  }
+
+  if (showValidRedshift) {
+    statCards.push({
+      id: "validRedshift",
+      label: "Valid Redshift",
+      value: stats?.validRedshiftCount || 0,
+      icon: "🔴",
+      bgColor: "bg-red-100 dark:bg-red-900/30",
+      textColor: "text-red-600 dark:text-red-400",
+    });
+  }
+
+  if (showFailedFitting) {
+    statCards.push({
+      id: "failedFitting",
+      label: "Failed Fitting",
+      value: stats?.failedFittingCount || 0,
+      icon: "❌",
+      bgColor: "bg-rose-100 dark:bg-rose-900/30",
+      textColor: "text-rose-600 dark:text-rose-400",
+    });
+  }
+
+  statCards.push({
+    id: "avgTime",
+    label: "Avg Time",
+    value: `${stats?.averageTime || 0}s`,
+    icon: "⏱️",
+    bgColor: "bg-purple-100 dark:bg-purple-900/30",
+    textColor: "text-purple-600 dark:text-purple-400",
+  });
+
+  // Calculate grid columns based on number of cards
+  const gridColsClass = statCards.length <= 3 
+    ? "lg:grid-cols-3" 
+    : statCards.length <= 4 
+      ? "lg:grid-cols-4" 
+      : statCards.length <= 5 
+        ? "lg:grid-cols-5" 
+        : "lg:grid-cols-6";
+
   return (
     <div>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-        {/* Total Classifications */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center">
-                <span className="text-blue-600 dark:text-blue-400 text-lg">🔍</span>
+      <div className={`grid grid-cols-1 md:grid-cols-2 ${gridColsClass} gap-6 mb-8`}>
+        {statCards.map((card) => (
+          <div key={card.id} className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+            <div className="flex items-center">
+              <div className="flex-shrink-0">
+                <div className={`w-8 h-8 ${card.bgColor} rounded-lg flex items-center justify-center`}>
+                  <span className={`${card.textColor} text-lg`}>{card.icon}</span>
+                </div>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">{card.label}</p>
+                <p className="text-2xl font-semibold text-gray-900 dark:text-white">{card.value}</p>
               </div>
             </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Total</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats?.total || 0}</p>
-            </div>
           </div>
-        </div>
-
-        {/* This Week */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-                <span className="text-green-600 dark:text-green-400 text-lg">📅</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">This Week</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats?.thisWeek || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Awesome Galaxies */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg flex items-center justify-center">
-                <span className="text-yellow-600 dark:text-yellow-400 text-lg">⭐</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Awesome</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats?.awesomeCount || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Visible Nucleus */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center">
-                <span className="text-orange-600 dark:text-orange-400 text-lg">🎯</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Visible Nucleus</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats?.visibleNucleusCount || 0}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Average Time */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
-                <span className="text-purple-600 dark:text-purple-400 text-lg">⏱️</span>
-              </div>
-            </div>
-            <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-300">Avg Time</p>
-              <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats?.averageTime || 0}s</p>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

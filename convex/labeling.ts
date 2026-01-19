@@ -65,6 +65,19 @@ export const getLabelingOverview = query({
       classificationsLast24h,
       activeClassifiers,
       activePast7d,
+      // Classification flag counts
+      awesomeFlagCount,
+      visibleNucleusCount,
+      failedFittingCount,
+      validRedshiftCount,
+      // LSB class counts (binary: 0 = nonLSB, 1 = LSB)
+      lsbClassNonLSB,
+      lsbClassLSB,
+      // Morphology counts
+      morphologyFeatureless,
+      morphologyIrregular,
+      morphologySpiral,
+      morphologyElliptical,
     ] = await Promise.all([
       galaxiesById.count(ctx),
       galaxiesByTotalClassifications.count(ctx, {
@@ -91,6 +104,39 @@ export const getLabelingOverview = query({
       }),
       userProfilesByLastActive.count(ctx, {
         bounds: { lower: { key: sevenDaysAgo, inclusive: true } },
+      }),
+      // Classification flag aggregates
+      classificationsByAwesomeFlag.count(ctx, {
+        bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
+      }),
+      classificationsByVisibleNucleus.count(ctx, {
+        bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
+      }),
+      classificationsByFailedFitting.count(ctx, {
+        bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
+      }),
+      classificationsByValidRedshift.count(ctx, {
+        bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
+      }),
+      // LSB class aggregates (0 = nonLSB, 1 = LSB)
+      classificationsByLsbClass.count(ctx, {
+        bounds: { lower: { key: 0, inclusive: true }, upper: { key: 0, inclusive: true } },
+      }),
+      classificationsByLsbClass.count(ctx, {
+        bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } },
+      }),
+      // Morphology aggregates (-1 = featureless, 0 = irregular, 1 = spiral, 2 = elliptical)
+      classificationsByMorphology.count(ctx, {
+        bounds: { lower: { key: -1, inclusive: true }, upper: { key: -1, inclusive: true } },
+      }),
+      classificationsByMorphology.count(ctx, {
+        bounds: { lower: { key: 0, inclusive: true }, upper: { key: 0, inclusive: true } },
+      }),
+      classificationsByMorphology.count(ctx, {
+        bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } },
+      }),
+      classificationsByMorphology.count(ctx, {
+        bounds: { lower: { key: 2, inclusive: true }, upper: { key: 2, inclusive: true } },
       }),
     ]);
 
@@ -130,6 +176,24 @@ export const getLabelingOverview = query({
         activePast7d,
         avgClassificationsPerActiveUser,
         dailyCounts: dailyCounts.reverse(),
+      },
+      classificationStats: {
+        flags: {
+          awesome: awesomeFlagCount,
+          visibleNucleus: visibleNucleusCount,
+          failedFitting: failedFittingCount,
+          validRedshift: validRedshiftCount,
+        },
+        lsbClass: {
+          nonLSB: lsbClassNonLSB,
+          LSB: lsbClassLSB,
+        },
+        morphology: {
+          featureless: morphologyFeatureless,
+          irregular: morphologyIrregular,
+          spiral: morphologySpiral,
+          elliptical: morphologyElliptical,
+        },
       },
       topClassifiers,
       timestamp: now,

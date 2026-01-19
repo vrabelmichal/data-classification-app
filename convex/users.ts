@@ -160,6 +160,15 @@ export const getUserProfile = query({
   },
 });
 
+/**
+ * Toggle to switch between user stats calculation methods:
+ * - false: Use filter/reduce on classifications table (original method, accurate but slower)
+ * - true: Use pre-computed counters from userProfiles table (fast method, relies on counters being up-to-date)
+ * 
+ * Set to true for production performance, false for debugging/cross-checking accuracy.
+ */
+const USE_PROFILE_COUNTERS_FOR_STATS = true;
+
 // Get user statistics
 export const getUserStats = query({
   args: {},
@@ -167,6 +176,64 @@ export const getUserStats = query({
     const userId = await getOptionalUserId(ctx);
     if (!userId) return null;
 
+    // Get user profile (needed for both methods, and always available)
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .unique();
+
+    if (USE_PROFILE_COUNTERS_FOR_STATS && profile) {
+      // Fast method: Use pre-computed counters from userProfiles
+      const total = profile.classificationsCount ?? 0;
+      
+      // For "this week", we still need to query classifications (no counter for this)
+      const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const recentClassifications = await ctx.db
+        .query("classifications")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .filter((q) => q.gte(q.field("_creationTime"), oneWeekAgo))
+        .collect();
+      const thisWeek = recentClassifications.length;
+
+      // For average time, we still need to compute from classifications
+      const allClassifications = await ctx.db
+        .query("classifications")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .collect();
+      const averageTime = allClassifications.length > 0
+        ? allClassifications.reduce((sum, c) => sum + c.timeSpent, 0) / allClassifications.length
+        : 0;
+
+      // LSB counts: combine lsb0 as nonLSB, lsb1 as LSB (lsbNeg1 is legacy/failed fitting)
+      const lsbClassCounts = {
+        nonLSB: (profile.lsb0Count ?? 0) + (profile.lsbNeg1Count ?? 0),
+        LSB: profile.lsb1Count ?? 0,
+      };
+
+      // Morphology counts from profile
+      const morphologyCounts = {
+        featureless: profile.morphNeg1Count ?? 0,
+        irregular: profile.morph0Count ?? 0,
+        spiral: profile.morph1Count ?? 0,
+        elliptical: profile.morph2Count ?? 0,
+      };
+
+      return {
+        total,
+        thisWeek,
+        byLsbClass: lsbClassCounts,
+        byMorphology: morphologyCounts,
+        averageTime: Math.round(averageTime / 1000), // Convert to seconds
+        awesomeCount: profile.awesomeCount ?? 0,
+        validRedshiftCount: profile.validRedshiftCount ?? 0,
+        visibleNucleusCount: profile.visibleNucleusCount ?? 0,
+        failedFittingCount: profile.failedFittingCount ?? 0,
+        // Include raw profile counters for debugging/comparison
+        _source: "profile" as const,
+      };
+    }
+
+    // Original method: Filter and reduce on classifications table
     const classifications = await ctx.db
       .query("classifications")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -176,9 +243,10 @@ export const getUserStats = query({
       .filter(c => c._creationTime > Date.now() - 7 * 24 * 60 * 60 * 1000)
       .length;
 
-    // Count by LSB class
+    // Count by LSB class - binary (0 = nonLSB, 1 = LSB)
+    // lsb_class values: 0 = nonLSB, 1 = LSB (failed fitting is now a separate flag)
     const lsbClassCounts = classifications.reduce((acc, c) => {
-      const key = c.lsb_class === -1 ? "failed" : c.lsb_class === 0 ? "nonLSB" : "LSB";
+      const key = c.lsb_class === 1 ? "LSB" : "nonLSB";
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -199,6 +267,7 @@ export const getUserStats = query({
     const awesomeCount = classifications.filter(c => c.awesome_flag).length;
     const validRedshiftCount = classifications.filter(c => c.valid_redshift).length;
     const visibleNucleusCount = classifications.filter(c => c.visible_nucleus).length;
+    const failedFittingCount = classifications.filter(c => c.failed_fitting).length;
 
     return {
       total: classifications.length,
@@ -209,6 +278,8 @@ export const getUserStats = query({
       awesomeCount,
       validRedshiftCount,
       visibleNucleusCount,
+      failedFittingCount,
+      _source: "classifications" as const,
     };
   },
 });
