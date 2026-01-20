@@ -61,6 +61,7 @@ export function ClassificationInterface() {
   const [currentContrastGroup, setCurrentContrastGroup] = useState(defaultContrastGroupIndex);
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const [formLocked, setFormLocked] = useState<boolean>(true);
+  const [shouldRefocusQuickInput, setShouldRefocusQuickInput] = useState(false);
   const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
 
   // Mobile-specific state
@@ -188,6 +189,12 @@ export function ClassificationInterface() {
     setStartTime(Date.now());
   }, [currentGalaxy?._id]);
 
+  // Flag quick input to refocus whenever the galaxy changes
+  useEffect(() => {
+    if (!currentGalaxy?._id) return;
+    setShouldRefocusQuickInput(true);
+  }, [currentGalaxy?._id]);
+
   // Unlock form when classification query resolves
   useEffect(() => {
     if (!currentGalaxy) return;
@@ -205,15 +212,16 @@ export function ClassificationInterface() {
 
   // Focus quick input on desktop when form unlocks
   useEffect(() => {
-    if (!formLocked && !isMobile && formState.quickInputRef.current) {
-      // Use a longer delay to ensure toast notifications don't steal focus
-      // and images have started loading
-      const timeoutId = setTimeout(() => {
-        formState.quickInputRef.current?.focus();
-      }, 250);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [formLocked, isMobile, formState.quickInputRef, currentGalaxy?._id]);
+    if (!shouldRefocusQuickInput || formLocked || isMobile) return;
+
+    // Delay to let images and toasts settle before focusing input
+    const timeoutId = window.setTimeout(() => {
+      formState.quickInputRef.current?.focus();
+      setShouldRefocusQuickInput(false);
+    }, 250);
+
+    return () => clearTimeout(timeoutId);
+  }, [formLocked, isMobile, formState.quickInputRef, shouldRefocusQuickInput]);
 
   // Load/save showEllipseOverlay
   useEffect(() => {
