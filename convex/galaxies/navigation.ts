@@ -133,6 +133,48 @@ export const getGalaxyNavigation = query({
     };
   },
 });
+// Get next galaxy to classify (mutation version for post-classification navigation)
+export const getNextGalaxyToClassifyMutation = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
+
+    // Get user's current sequence
+    const sequence = await ctx.db
+      .query("galaxySequences")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .order("desc")
+      .first();
+
+    if (!sequence || !sequence.galaxyExternalIds || sequence.galaxyExternalIds.length === 0) {
+      return null;
+    }
+
+    // Get all skipped and classified galaxy external IDs for user
+    const [skippedRecords, classifiedRecords] = await Promise.all([
+      ctx.db.query("skippedGalaxies").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
+      ctx.db.query("classifications").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
+    ]);
+    
+    const skippedExternalIds = new Set(skippedRecords.map(r => r.galaxyExternalId));
+    const classifiedExternalIds = new Set(classifiedRecords.map(r => r.galaxyExternalId));
+
+    // Filter out skipped and classified external IDs from sequence
+    const remainingExternalIds = sequence.galaxyExternalIds.filter(
+      externalId => !skippedExternalIds.has(externalId) && !classifiedExternalIds.has(externalId)
+    );
+
+    if (remainingExternalIds.length > 0) {
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q) => q.eq("id", remainingExternalIds[0]))
+        .unique();
+      return galaxy;
+    }
+    return null; // All galaxies in sequence are done
+  },
+});
+
 export const navigateToGalaxyInSequence = mutation({
     args: {
         direction: v.union(v.literal("next"), v.literal("previous")),

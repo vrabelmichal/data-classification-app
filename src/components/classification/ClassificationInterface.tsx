@@ -95,6 +95,7 @@ export function ClassificationInterface() {
   const skipGalaxy = useMutation(api.galaxies.skipped.skipGalaxy);
   const unskipGalaxy = useMutation(api.galaxies.skipped.unskipGalaxy);
   const loadAdditionalDetailsMutation = useMutation(api.galaxies.core.getAdditionalGalaxyDetailsByExternalId);
+  const getNextGalaxyMutation = useMutation(api.galaxies.navigation.getNextGalaxyToClassifyMutation);
 
   // Display galaxy
   const displayGalaxy = currentGalaxy || galaxy;
@@ -296,15 +297,19 @@ export function ClassificationInterface() {
         timeSpent
       });
       toast.success("Classification submitted successfully!");
-      // Navigate to /classify without galaxy ID to let getNextGalaxyToClassify
-      // find the next unprocessed galaxy (skipping skipped ones)
-      setCurrentGalaxy(null);
-      navigate('/classify', { replace: true });
+      // Get next unprocessed galaxy (skipping skipped and classified ones)
+      const nextGalaxy = await getNextGalaxyMutation();
+      if (nextGalaxy?.id) {
+        navigate(`/classify/${nextGalaxy.id}`, { replace: true });
+      } else {
+        // No more galaxies to classify
+        navigate('/classify', { replace: true });
+      }
     } catch (error) {
       toast.error("Failed to submit classification");
       console.error(error);
     }
-  }, [currentGalaxy, formState, startTime, submitClassification, navigate, isOnline]);
+  }, [currentGalaxy, formState, startTime, submitClassification, getNextGalaxyMutation, navigate, isOnline]);
 
   const handleSkip = useCallback(async () => {
     if (!isOnline) {
@@ -326,16 +331,20 @@ export function ClassificationInterface() {
           comments: formState.comments.trim() || undefined
         });
         toast.info("Galaxy skipped");
-        // Navigate to /classify without galaxy ID to let getNextGalaxyToClassify
-        // find the next unprocessed galaxy (skipping skipped ones)
-        setCurrentGalaxy(null);
-        navigate('/classify', { replace: true });
+        // Get next unprocessed galaxy (skipping skipped and classified ones)
+        const nextGalaxy = await getNextGalaxyMutation();
+        if (nextGalaxy?.id) {
+          navigate(`/classify/${nextGalaxy.id}`, { replace: true });
+        } else {
+          // No more galaxies to classify
+          navigate('/classify', { replace: true });
+        }
       }
     } catch (error) {
       toast.error(isSkipped ? "Failed to unskip galaxy" : "Failed to skip galaxy");
       console.error(error);
     }
-  }, [currentGalaxy, formState.comments, skipGalaxy, unskipGalaxy, navigate, isOnline, isSkipped]);
+  }, [currentGalaxy, formState.comments, skipGalaxy, unskipGalaxy, getNextGalaxyMutation, navigate, isOnline, isSkipped]);
 
   const handlePrevious = useCallback(async () => {
     if (!isOnline) {
