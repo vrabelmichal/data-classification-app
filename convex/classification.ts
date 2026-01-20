@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getOptionalUserId, requireConfirmedUser } from "./lib/auth";
+import { Doc } from "./_generated/dataModel";
 import {
   classificationsByCreated,
   classificationsByAwesomeFlag,
@@ -15,6 +16,77 @@ import {
   galaxiesByNumAwesomeFlag,
   galaxiesByNumVisibleNucleus,
 } from "./galaxies/aggregates";
+
+/**
+ * Safely replace an entry in a galaxy aggregate index.
+ * If the old entry is missing (DELETE_MISSING_KEY), fall back to inserting the new entry.
+ * This handles cases where galaxies were added before the aggregate was initialized.
+ */
+async function safeReplaceGalaxyAggregate(
+  ctx: any,
+  aggregate: typeof galaxiesByTotalClassifications | typeof galaxiesByNumAwesomeFlag | typeof galaxiesByNumVisibleNucleus,
+  oldDoc: Doc<"galaxies">,
+  newDoc: Doc<"galaxies">
+) {
+  try {
+    await aggregate.replace(ctx, oldDoc, newDoc);
+  } catch (error: any) {
+    const code = error?.data?.code;
+    const message = error?.message ?? "";
+    if (code === "DELETE_MISSING_KEY" || message.includes("DELETE_MISSING_KEY")) {
+      // Old entry doesn't exist in aggregate - just insert the new one
+      await aggregate.insert(ctx, newDoc);
+      return;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Safely replace an entry in a user profile aggregate index.
+ * If the old entry is missing (DELETE_MISSING_KEY), fall back to inserting the new entry.
+ */
+async function safeReplaceUserProfileAggregate(
+  ctx: any,
+  aggregate: typeof userProfilesByClassificationsCount | typeof userProfilesByLastActive,
+  oldDoc: Doc<"userProfiles">,
+  newDoc: Doc<"userProfiles">
+) {
+  try {
+    await aggregate.replace(ctx, oldDoc, newDoc);
+  } catch (error: any) {
+    const code = error?.data?.code;
+    const message = error?.message ?? "";
+    if (code === "DELETE_MISSING_KEY" || message.includes("DELETE_MISSING_KEY")) {
+      await aggregate.insert(ctx, newDoc);
+      return;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Safely replace an entry in a classification aggregate index.
+ * If the old entry is missing (DELETE_MISSING_KEY), fall back to inserting the new entry.
+ */
+async function safeReplaceClassificationAggregate(
+  ctx: any,
+  aggregate: typeof classificationsByCreated | typeof classificationsByAwesomeFlag | typeof classificationsByVisibleNucleus | typeof classificationsByFailedFitting | typeof classificationsByValidRedshift | typeof classificationsByLsbClass | typeof classificationsByMorphology,
+  oldDoc: Doc<"classifications">,
+  newDoc: Doc<"classifications">
+) {
+  try {
+    await aggregate.replace(ctx, oldDoc, newDoc);
+  } catch (error: any) {
+    const code = error?.data?.code;
+    const message = error?.message ?? "";
+    if (code === "DELETE_MISSING_KEY" || message.includes("DELETE_MISSING_KEY")) {
+      await aggregate.insert(ctx, newDoc);
+      return;
+    }
+    throw error;
+  }
+}
 
 
 // Get progress
@@ -118,13 +190,13 @@ export const submitClassification = mutation({
 
       const updatedClassification = await ctx.db.get(existing._id);
       if (updatedClassification) {
-        await classificationsByCreated.replace(ctx, existing, updatedClassification);
-        await classificationsByAwesomeFlag.replace(ctx, existing, updatedClassification);
-        await classificationsByVisibleNucleus.replace(ctx, existing, updatedClassification);
-        await classificationsByFailedFitting.replace(ctx, existing, updatedClassification);
-        await classificationsByValidRedshift.replace(ctx, existing, updatedClassification);
-        await classificationsByLsbClass.replace(ctx, existing, updatedClassification);
-        await classificationsByMorphology.replace(ctx, existing, updatedClassification);
+        await safeReplaceClassificationAggregate(ctx, classificationsByCreated, existing, updatedClassification);
+        await safeReplaceClassificationAggregate(ctx, classificationsByAwesomeFlag, existing, updatedClassification);
+        await safeReplaceClassificationAggregate(ctx, classificationsByVisibleNucleus, existing, updatedClassification);
+        await safeReplaceClassificationAggregate(ctx, classificationsByFailedFitting, existing, updatedClassification);
+        await safeReplaceClassificationAggregate(ctx, classificationsByValidRedshift, existing, updatedClassification);
+        await safeReplaceClassificationAggregate(ctx, classificationsByLsbClass, existing, updatedClassification);
+        await safeReplaceClassificationAggregate(ctx, classificationsByMorphology, existing, updatedClassification);
       }
 
       // Update per-user counters (classification total unchanged on edit)
@@ -182,10 +254,10 @@ export const submitClassification = mutation({
           const refreshedGalaxy = await ctx.db.get(galaxy._id);
           if (refreshedGalaxy) {
             if (awesomeDelta !== 0) {
-              await galaxiesByNumAwesomeFlag.replace(ctx, galaxy, refreshedGalaxy);
+              await safeReplaceGalaxyAggregate(ctx, galaxiesByNumAwesomeFlag, galaxy, refreshedGalaxy);
             }
             if (visibleDelta !== 0) {
-              await galaxiesByNumVisibleNucleus.replace(ctx, galaxy, refreshedGalaxy);
+              await safeReplaceGalaxyAggregate(ctx, galaxiesByNumVisibleNucleus, galaxy, refreshedGalaxy);
             }
           }
         }
@@ -258,9 +330,9 @@ export const submitClassification = mutation({
 
         const refreshedGalaxy = await ctx.db.get(galaxy._id);
         if (refreshedGalaxy) {
-          await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshedGalaxy);
-          await galaxiesByNumAwesomeFlag.replace(ctx, galaxy, refreshedGalaxy);
-          await galaxiesByNumVisibleNucleus.replace(ctx, galaxy, refreshedGalaxy);
+          await safeReplaceGalaxyAggregate(ctx, galaxiesByTotalClassifications, galaxy, refreshedGalaxy);
+          await safeReplaceGalaxyAggregate(ctx, galaxiesByNumAwesomeFlag, galaxy, refreshedGalaxy);
+          await safeReplaceGalaxyAggregate(ctx, galaxiesByNumVisibleNucleus, galaxy, refreshedGalaxy);
         }
       }
 
@@ -282,8 +354,8 @@ export const submitClassification = mutation({
 
       const updatedProfile = await ctx.db.get(profile._id);
       if (updatedProfile) {
-        await userProfilesByClassificationsCount.replace(ctx, profile, updatedProfile);
-        await userProfilesByLastActive.replace(ctx, profile, updatedProfile);
+        await safeReplaceUserProfileAggregate(ctx, userProfilesByClassificationsCount, profile, updatedProfile);
+        await safeReplaceUserProfileAggregate(ctx, userProfilesByLastActive, profile, updatedProfile);
       }
 
       // update user's galaxy sequence details, if the galaxy is part of their current sequence

@@ -21,6 +21,31 @@ import {
   galaxiesByNumVisibleNucleus,
 } from "./aggregates";
 
+/**
+ * Safely replace an entry in a galaxy aggregate index.
+ * If the old entry is missing (DELETE_MISSING_KEY), fall back to inserting the new entry.
+ * This handles cases where galaxies were added before the aggregate was initialized.
+ */
+async function safeReplaceGalaxyAggregate(
+  ctx: any,
+  aggregate: typeof galaxiesByTotalClassifications | typeof galaxiesByNumAwesomeFlag | typeof galaxiesByNumVisibleNucleus,
+  oldDoc: Doc<"galaxies">,
+  newDoc: Doc<"galaxies">
+) {
+  try {
+    await aggregate.replace(ctx, oldDoc, newDoc);
+  } catch (error: any) {
+    const code = error?.data?.code;
+    const message = error?.message ?? "";
+    if (code === "DELETE_MISSING_KEY" || message.includes("DELETE_MISSING_KEY")) {
+      // Old entry doesn't exist in aggregate - just insert the new one
+      await aggregate.insert(ctx, newDoc);
+      return;
+    }
+    throw error;
+  }
+}
+
 export const UPDATE_BATCH_SIZE = 200;
 export const ZERO_OUT_BATCH_SIZE = 1000;
 // It seems that 500 is safe for both backfill and rebuild. If errors occur with backfill, consider lowering this value.
@@ -176,13 +201,13 @@ export const backfillGalaxyClassificationStats = mutation({
         const refreshed = await ctx.db.get(galaxy._id);
         if (refreshed) {
           if (updates.totalClassifications !== undefined) {
-            await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshed);
+            await safeReplaceGalaxyAggregate(ctx, galaxiesByTotalClassifications, galaxy, refreshed);
           }
           if (updates.numAwesomeFlag !== undefined) {
-            await galaxiesByNumAwesomeFlag.replace(ctx, galaxy, refreshed);
+            await safeReplaceGalaxyAggregate(ctx, galaxiesByNumAwesomeFlag, galaxy, refreshed);
           }
           if (updates.numVisibleNucleus !== undefined) {
-            await galaxiesByNumVisibleNucleus.replace(ctx, galaxy, refreshed);
+            await safeReplaceGalaxyAggregate(ctx, galaxiesByNumVisibleNucleus, galaxy, refreshed);
           }
         }
         updated += 1;
@@ -329,13 +354,13 @@ export const fastBackfillGalaxyClassificationStats = mutation({
         const refreshed = await ctx.db.get(galaxy._id);
         if (refreshed) {
           if (updates.totalClassifications !== undefined) {
-            await galaxiesByTotalClassifications.replace(ctx, galaxy, refreshed);
+            await safeReplaceGalaxyAggregate(ctx, galaxiesByTotalClassifications, galaxy, refreshed);
           }
           if (updates.numAwesomeFlag !== undefined) {
-            await galaxiesByNumAwesomeFlag.replace(ctx, galaxy, refreshed);
+            await safeReplaceGalaxyAggregate(ctx, galaxiesByNumAwesomeFlag, galaxy, refreshed);
           }
           if (updates.numVisibleNucleus !== undefined) {
-            await galaxiesByNumVisibleNucleus.replace(ctx, galaxy, refreshed);
+            await safeReplaceGalaxyAggregate(ctx, galaxiesByNumVisibleNucleus, galaxy, refreshed);
           }
         }
         galaxiesUpdated += 1;

@@ -22,8 +22,21 @@ async function insertUserProfileAggregates(ctx: any, profile: any) {
 }
 
 async function replaceUserProfileAggregates(ctx: any, oldProfile: any, newProfile: any) {
-  await userProfilesByClassificationsCount.replace(ctx, oldProfile, newProfile);
-  await userProfilesByLastActive.replace(ctx, oldProfile, newProfile);
+  // Use safe replace that handles DELETE_MISSING_KEY errors
+  // This can happen if the aggregate was added after the profile was created
+  for (const aggregate of [userProfilesByClassificationsCount, userProfilesByLastActive]) {
+    try {
+      await aggregate.replace(ctx, oldProfile, newProfile);
+    } catch (error: any) {
+      const code = error?.data?.code;
+      const message = error?.message ?? "";
+      if (code === "DELETE_MISSING_KEY" || message.includes("DELETE_MISSING_KEY")) {
+        await aggregate.insert(ctx, newProfile);
+      } else {
+        throw error;
+      }
+    }
+  }
 }
 // adminSetUserPassword removed: we now only support email-based reset flow.
 
