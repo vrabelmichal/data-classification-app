@@ -331,7 +331,9 @@ export function KidsExamplesCarousel() {
                 src={imageUrl}
                 alt={currentImage.alt}
                 className={`object-contain transition-all duration-200 ${
-                  fillWindow ? "max-w-full max-h-full" : "max-w-[85vw] max-h-[70vh]"
+                  fillWindow
+                    ? "w-full h-full max-w-none max-h-none"
+                    : "max-w-[85vw] max-h-[70vh]"
                 }`}
               />
             )}
