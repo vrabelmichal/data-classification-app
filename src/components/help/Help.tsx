@@ -46,7 +46,7 @@ export function Help() {
             </p>
             <ol className="list-decimal list-inside space-y-2 ml-4">
               <li>Look at the galaxy image carefully</li>
-              <li>Choose the LSB classification (Failed fitting, Non-LSB, or LSB)</li>
+              <li>Choose the LSB classification (Non-LSB, or LSB)</li>
               <li>Choose the morphology (Featureless, Irregular, Spiral, or Elliptical)</li>
               <li>Set flags if applicable</li>
               <li>Add any comments or sky background notes if helpful</li>
