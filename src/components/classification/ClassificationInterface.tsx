@@ -296,15 +296,15 @@ export function ClassificationInterface() {
         timeSpent
       });
       toast.success("Classification submitted successfully!");
-      if (navigation?.hasNext) {
-        const result = await navNext();
-        if (result) setCurrentGalaxy(result);
-      }
+      // Navigate to /classify without galaxy ID to let getNextGalaxyToClassify
+      // find the next unprocessed galaxy (skipping skipped ones)
+      setCurrentGalaxy(null);
+      navigate('/classify', { replace: true });
     } catch (error) {
       toast.error("Failed to submit classification");
       console.error(error);
     }
-  }, [currentGalaxy, formState, startTime, submitClassification, navigation, navNext, isOnline]);
+  }, [currentGalaxy, formState, startTime, submitClassification, navigate, isOnline]);
 
   const handleSkip = useCallback(async () => {
     if (!isOnline) {
@@ -326,16 +326,16 @@ export function ClassificationInterface() {
           comments: formState.comments.trim() || undefined
         });
         toast.info("Galaxy skipped");
-        if (navigation?.hasNext) {
-          const result = await navNext();
-          if (result) setCurrentGalaxy(result);
-        }
+        // Navigate to /classify without galaxy ID to let getNextGalaxyToClassify
+        // find the next unprocessed galaxy (skipping skipped ones)
+        setCurrentGalaxy(null);
+        navigate('/classify', { replace: true });
       }
     } catch (error) {
       toast.error(isSkipped ? "Failed to unskip galaxy" : "Failed to skip galaxy");
       console.error(error);
     }
-  }, [currentGalaxy, formState.comments, skipGalaxy, unskipGalaxy, navigation, navNext, isOnline, isSkipped]);
+  }, [currentGalaxy, formState.comments, skipGalaxy, unskipGalaxy, navigate, isOnline, isSkipped]);
 
   const handlePrevious = useCallback(async () => {
     if (!isOnline) {
