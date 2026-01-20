@@ -13,6 +13,8 @@ export function KidsExamplesCarousel() {
   const [translateX, setTranslateX] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [isViewerOpen, setIsViewerOpen] = useState(false);
+  const [fillWindow, setFillWindow] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const slideWidth = containerRef.current?.offsetWidth ?? 0;
@@ -37,6 +39,20 @@ export function KidsExamplesCarousel() {
   const goToSlide = useCallback((index: number) => {
     setCurrentIndex(index);
     setImageError(false);
+  }, []);
+
+  const openViewer = useCallback(() => {
+    setIsViewerOpen(true);
+    setFillWindow(false);
+  }, []);
+
+  const closeViewer = useCallback(() => {
+    setIsViewerOpen(false);
+    setFillWindow(false);
+  }, []);
+
+  const toggleFillWindow = useCallback(() => {
+    setFillWindow((prev) => !prev);
   }, []);
 
   // Touch/drag handlers
@@ -103,12 +119,24 @@ export function KidsExamplesCarousel() {
       } else if (e.key === "ArrowRight") {
         e.preventDefault();
         goToNext();
+      } else if (e.key === "Escape" && isViewerOpen) {
+        e.preventDefault();
+        closeViewer();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [goToNext, goToPrevious]);
+  }, [goToNext, goToPrevious, isViewerOpen, closeViewer]);
+
+  useEffect(() => {
+    if (!isViewerOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isViewerOpen]);
 
   // Reset translate when index changes
   useEffect(() => {
@@ -189,6 +217,7 @@ export function KidsExamplesCarousel() {
           disabled={currentIndex === 0}
           className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg transition-all"
           aria-label="Previous image"
+          title="Previous image"
         >
           <svg
             className="w-6 h-6 text-gray-700 dark:text-gray-300"
@@ -205,6 +234,7 @@ export function KidsExamplesCarousel() {
           disabled={currentIndex === kidsExampleImages.length - 1}
           className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 dark:bg-gray-800/90 hover:bg-white dark:hover:bg-gray-800 disabled:opacity-30 disabled:cursor-not-allowed rounded-full p-2 shadow-lg transition-all"
           aria-label="Next image"
+          title="Next image"
         >
           <svg
             className="w-6 h-6 text-gray-700 dark:text-gray-300"
@@ -245,15 +275,136 @@ export function KidsExamplesCarousel() {
         ))}
       </div>
 
-      {/* Counter and keyboard hint */}
-      <div className="mt-3 text-center text-sm text-gray-500 dark:text-gray-400">
-        <p>
-          {currentIndex + 1} / {kidsExampleImages.length}
-        </p>
-        <p className="text-xs mt-1">
-          Use arrow keys or swipe to navigate
-        </p>
+      {/* Footer controls - styled like presentation mode */}
+      <div className="mt-4 bg-gray-100 dark:bg-gray-900/50 rounded-lg p-3">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+            <span className="px-3 py-1 bg-gray-200 dark:bg-gray-700 rounded-full">
+              {currentIndex + 1} / {kidsExampleImages.length}
+            </span>
+            <span className="text-xs">Use arrow keys or swipe</span>
+          </div>
+          <button
+            type="button"
+            onClick={openViewer}
+            className="flex items-center gap-2 px-3 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors shadow-sm"
+            aria-label="Open presentation view"
+            title="Open presentation view"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V6a2 2 0 012-2h2m8 0h2a2 2 0 012 2v2m0 8v2a2 2 0 01-2 2h-2m-8 0H6a2 2 0 01-2-2v-2" />
+            </svg>
+            <span className="text-sm">Expand</span>
+          </button>
+        </div>
       </div>
+
+      {isViewerOpen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm"
+          onClick={(e) => { if (e.target === e.currentTarget) closeViewer(); }}
+        >
+          {/* Close button at top right */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); closeViewer(); }}
+            className="absolute top-4 right-4 z-[60] bg-gray-800/80 hover:bg-gray-700 text-white rounded-full p-2 shadow"
+            aria-label="Close presentation view"
+            title="Close presentation view"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Image area - takes remaining space */}
+          <div className="flex-1 flex items-center justify-center relative min-h-0 p-4">
+            {imageError ? (
+              <div className="flex items-center justify-center bg-gray-800 rounded border border-gray-700 w-full h-full max-w-4xl max-h-full">
+                <div className="text-center text-gray-300">
+                  <p className="text-sm">Image failed to load</p>
+                  <p className="text-xs mt-1">{currentImage.filename}</p>
+                </div>
+              </div>
+            ) : (
+              <img
+                src={imageUrl}
+                alt={currentImage.alt}
+                className={`object-contain transition-all duration-200 ${
+                  fillWindow ? "max-w-full max-h-full" : "max-w-[85vw] max-h-[70vh]"
+                }`}
+              />
+            )}
+
+            {/* Navigation buttons */}
+            <button
+              onClick={(e) => { e.stopPropagation(); goToPrevious(); }}
+              disabled={currentIndex === 0}
+              className="absolute left-2 md:left-6 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 disabled:opacity-40 rounded-full p-3 text-white z-[55]"
+              aria-label="Previous image"
+              title="Previous image"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+
+            <button
+              onClick={(e) => { e.stopPropagation(); goToNext(); }}
+              disabled={currentIndex === kidsExampleImages.length - 1}
+              className="absolute right-2 md:right-6 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 disabled:opacity-40 rounded-full p-3 text-white z-[55]"
+              aria-label="Next image"
+              title="Next image"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Footer - always below image */}
+          <div className="flex-shrink-0 bg-gray-900/80 border-t border-gray-700 p-4">
+            <div className="max-w-5xl mx-auto">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-white">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="px-3 py-1 bg-white/10 rounded-full">
+                    {currentIndex + 1} / {kidsExampleImages.length}
+                  </span>
+                  <span className="text-xs text-white/80">Use arrows or swipe; Esc to close</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); toggleFillWindow(); }}
+                    className={`p-2 rounded-md shadow transition-colors ${
+                      fillWindow ? "bg-blue-600 hover:bg-blue-700" : "bg-white/15 hover:bg-white/25"
+                    }`}
+                    aria-label="Toggle fit to window"
+                    title="Toggle fit to window"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V6a2 2 0 012-2h2m8 0h2a2 2 0 012 2v2m0 8v2a2 2 0 01-2 2h-2m-8 0H6a2 2 0 01-2-2v-2" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); closeViewer(); }}
+                    className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-md shadow"
+                    aria-label="Close"
+                    title="Close"
+                  >
+                    Close
+                  </button>
+                </div>
+              </div>
+              <div className="mt-2 text-sm text-white/90">
+                <p className="font-semibold">{currentImage.title}</p>
+                {currentImage.caption && <p className="text-white/80">{currentImage.caption}</p>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
