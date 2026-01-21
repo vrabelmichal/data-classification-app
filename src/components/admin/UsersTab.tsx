@@ -228,7 +228,14 @@ export function UsersTab({ users }: UsersTabProps) {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     {hasProfile && userProfile.joinedAt ? (
-                      <span>{new Date(userProfile.joinedAt).toLocaleDateString()}</span>
+                      <time
+                        dateTime={new Date(userProfile.joinedAt).toISOString()}
+                        title={new Date(userProfile.joinedAt).toLocaleString()}
+                        onClick={() => toast(`Joined at ${new Date(userProfile.joinedAt).toLocaleString()}`)}
+                        className="cursor-default"
+                      >
+                        {new Date(userProfile.joinedAt).toLocaleDateString()}
+                      </time>
                     ) : (
                       <span className="text-sm text-gray-500 dark:text-gray-400">N/A</span>
                     )}
