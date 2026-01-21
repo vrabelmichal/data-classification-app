@@ -421,6 +421,11 @@ export function ClassificationInterface() {
       if (isOnline) handlePrevious();
       return;
     }
+    if (e.shiftKey && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      handleAladinClick();
+      return;
+    }
     if (e.shiftKey && e.key.toLowerCase() === 'n') {
       e.preventDefault();
       if (isOnline) handleNext();
@@ -493,6 +498,10 @@ export function ClassificationInterface() {
           case 'r':
             e.preventDefault();
             setShowEllipseOverlay((prev) => !prev);
+            return;
+          case 'a':
+            e.preventDefault();
+            handleAladinClick();
             return;
         }
       }

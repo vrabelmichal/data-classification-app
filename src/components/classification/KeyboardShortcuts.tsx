@@ -60,6 +60,7 @@ export function KeyboardShortcuts({
         { key: "Shift+P", description: "Global Previous (works anywhere)" },
         { key: "Shift+N", description: "Global Next (works anywhere)" },
         { key: "Shift+S", description: "Global Skip (works anywhere)" },
+        { key: "Shift+A", description: "Open current galaxy in Aladin (new tab)" },
       ],
     },
     {

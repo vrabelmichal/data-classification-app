@@ -241,6 +241,10 @@ export function Help() {
                   <span className="text-gray-600 dark:text-gray-300">Global Skip</span>
                   <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+S</kbd>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Open current galaxy in Aladin</span>
+                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+A</kbd>
+                </div>
               </div>
             </div>
             <div>
