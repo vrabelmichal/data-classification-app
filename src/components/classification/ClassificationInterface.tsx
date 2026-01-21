@@ -73,7 +73,7 @@ export function ClassificationInterface() {
 
   const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
   const [showEllipseSettings, setShowEllipseSettings] = useState(false);
-  const settingsButtonRef = useRef<HTMLButtonElement>(null);
+  const settingsButtonRef = useRef<HTMLDivElement>(null);
 
   // Mobile-specific state
   const [mobileSliderIndex, setMobileSliderIndex] = useState(0);
