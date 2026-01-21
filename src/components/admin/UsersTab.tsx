@@ -91,14 +91,17 @@ export function UsersTab({ users }: UsersTabProps) {
 
   const handleDownloadUsers = () => {
     // Create CSV content
-    const headers = ["Name", "Email", "Role", "Classifications", "Active", "Confirmed"];
+    const headers = ["Name", "Email", "Role", "Classifications", "Joined At", "Active", "Confirmed"];
     const rows = users.map(userProfile => {
       const hasProfile = !userProfile._id.toString().startsWith('temp_');
+      const registered = hasProfile && userProfile.joinedAt ? new Date(userProfile.joinedAt).toISOString() : "N/A";
+
       return [
         userProfile.user?.name || "Anonymous",
         userProfile.user?.email || "No email",
         hasProfile ? userProfile.role : "No Profile",
         userProfile.classificationsCount || 0,
+        registered,
         hasProfile ? (userProfile.isActive ? "Active" : "Inactive") : "N/A",
         hasProfile ? (userProfile.isConfirmed ? "Confirmed" : "Pending") : "N/A"
       ];
@@ -171,6 +174,9 @@ export function UsersTab({ users }: UsersTabProps) {
                 Classifications
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Joined At
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Status
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
@@ -219,6 +225,13 @@ export function UsersTab({ users }: UsersTabProps) {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     {userProfile.classificationsCount}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {hasProfile && userProfile.joinedAt ? (
+                      <span>{new Date(userProfile.joinedAt).toLocaleDateString()}</span>
+                    ) : (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">N/A</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     {!hasProfile ? (
