@@ -46,7 +46,7 @@ export function KeyboardShortcuts({
     quickInputItems.push({ key: "F (in input)", description: "Toggle Failed fitting flag" });
   }
   quickInputItems.push(
-    { key: "C (in input)", description: "Cycle contrast groups" },
+    { key: "C (in input)", description: "Cycle contrast groups (Shift+C to go back)" },
     { key: "Enter (in input)", description: "Submit classification" }
   );
 
@@ -66,6 +66,7 @@ export function KeyboardShortcuts({
       category: "Image Controls",
       items: [
         { key: "C", description: "Cycle contrast groups" },
+        { key: "Shift+C", description: "Previous contrast group" },
         { key: "Shift+R", description: "Toggle effective radius (reff) overlay" },
       ],
     },

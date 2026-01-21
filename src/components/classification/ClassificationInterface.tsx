@@ -399,9 +399,19 @@ export function ClassificationInterface() {
   };
 
   const handleContrastClick = () => {
-    const nextGroup = (currentContrastGroup + 1) % imageContrastGroups.length;
-    setCurrentContrastGroup(nextGroup);
-    toast.info(`Contrast Group: ${nextGroup + 1} of ${imageContrastGroups.length}`);
+    setCurrentContrastGroup((prev) => {
+      const nextGroup = (prev + 1) % imageContrastGroups.length;
+      toast.info(`Contrast Group: ${nextGroup + 1} of ${imageContrastGroups.length}`);
+      return nextGroup;
+    });
+  };
+
+  const handleContrastPrevious = () => {
+    setCurrentContrastGroup((prev) => {
+      const nextGroup = (prev - 1 + imageContrastGroups.length) % imageContrastGroups.length;
+      toast.info(`Contrast Group: ${nextGroup + 1} of ${imageContrastGroups.length}`);
+      return nextGroup;
+    });
   };
 
   // Quick input key handler
@@ -419,6 +429,11 @@ export function ClassificationInterface() {
     if (e.shiftKey && e.key.toLowerCase() === 's') {
       e.preventDefault();
       if (isOnline) handleSkip();
+      return;
+    }
+    if (e.shiftKey && e.key.toLowerCase() === 'c') {
+      e.preventDefault();
+      handleContrastPrevious();
       return;
     }
     if (e.key.toLowerCase() === 'c') {
@@ -490,7 +505,12 @@ export function ClassificationInterface() {
       }
 
       switch (e.key.toLowerCase()) {
-        case 'c':
+          case 'c':
+            if (e.shiftKey) {
+              e.preventDefault();
+              handleContrastPrevious();
+              break;
+            }
           e.preventDefault();
           handleContrastClick();
           break;

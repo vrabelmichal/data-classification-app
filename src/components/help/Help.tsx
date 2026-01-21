@@ -85,7 +85,7 @@ export function Help() {
                     Non-LSB
                   </h4>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Normal surface brightness galaxy - not a Low Surface Brightness galaxy.
+                    Anything that is not a galaxy.
                   </p>
                 </div>
                 
@@ -95,7 +95,7 @@ export function Help() {
                     LSB
                   </h4>
                   <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Low Surface Brightness galaxy - appears faint and diffuse.
+                    Anything that looks like a galaxy.
                   </p>
                 </div>
               </div>
@@ -251,6 +251,10 @@ export function Help() {
                   <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">C</kbd>
                 </div>
                 <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Previous contrast group</span>
+                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+C</kbd>
+                </div>
+                <div className="flex justify-between">
                   <span className="text-gray-600 dark:text-gray-300">Show keyboard help</span>
                   <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">?</kbd>
                 </div>
@@ -293,9 +297,13 @@ export function Help() {
                   <span className="text-gray-600 dark:text-gray-300">Cycle contrast</span>
                   <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">C</kbd>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600 dark:text-gray-300">Previous contrast (from anywhere)</span>
+                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+C</kbd>
+                </div>
               </div>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Only allowed characters can be typed. Shift shortcuts work globally.
+                Only allowed characters can be typed. Shift shortcuts work globally (e.g. Shift+C goes to the previous contrast group).
               </p>
             </div>
           </div>
