@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
@@ -23,7 +23,7 @@ import { CommentsField } from "./CommentsField";
 // Mobile-specific components
 import { MobileImageSlider } from "./MobileImageSlider";
 import { MobileSliderControls } from "./MobileSliderControls";
-import { EyeIcon, AladinLogo } from "./icons";
+import { EyeIcon, AladinLogo, ArrowDownIcon, EllipseIcon } from "./icons";
 import { MobileClassificationForm } from "./MobileClassificationForm";
 import { CommentsModal } from "./CommentsModal";
 
@@ -44,6 +44,14 @@ const defaultContrastGroupIndex = classificationImageSettings.defaultGroupIndex;
 const defaultPreviewImageName = imageDisplaySettings.previewImageName;
 const defaultMobileOrder = classificationImageSettings.defaultMobileOrder;
 
+/**
+ * Ellipse settings mode:
+ * - 'position': Settings are tied to grid positions (0, 1, 2, ...). When contrast group changes,
+ *               the setting for "position 0" applies to whatever image is at position 0.
+ * - 'key': Settings are tied to specific image keys. The setting follows the image across groups.
+ */
+const ELLIPSE_SETTINGS_MODE: 'position' | 'key' = 'position';
+
 export function ClassificationInterface() {
   // Route and navigation
   const { galaxyId: routeGalaxyId } = useParams<{ galaxyId: string }>();
@@ -62,7 +70,10 @@ export function ClassificationInterface() {
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const [formLocked, setFormLocked] = useState<boolean>(true);
   const [shouldRefocusQuickInput, setShouldRefocusQuickInput] = useState(false);
+
   const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
+  const [showEllipseSettings, setShowEllipseSettings] = useState(false);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
 
   // Mobile-specific state
   const [mobileSliderIndex, setMobileSliderIndex] = useState(0);
@@ -95,7 +106,9 @@ export function ClassificationInterface() {
   const skipGalaxy = useMutation(api.galaxies.skipped.skipGalaxy);
   const unskipGalaxy = useMutation(api.galaxies.skipped.unskipGalaxy);
   const loadAdditionalDetailsMutation = useMutation(api.galaxies.core.getAdditionalGalaxyDetailsByExternalId);
+
   const getNextGalaxyMutation = useMutation(api.galaxies.navigation.getNextGalaxyToClassifyMutation);
+  const updatePreferences = useMutation(api.users.updatePreferences);
 
   // Display galaxy
   const displayGalaxy = currentGalaxy || galaxy;
@@ -134,16 +147,30 @@ export function ClassificationInterface() {
   const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
 
   // Create imageTypes array
-  const imageTypes: ImageType[] = currentImageGroup.map(({ key, label, showEllipse, rectangle }) => ({
-    key,
-    name: label,
-    displayName: processImageLabel(label),
-    url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, {
-      quality: effectiveImageQuality
-    }) : null,
-    showEllipse,
-    rectangle,
-  }));
+  const imageTypes: ImageType[] = currentImageGroup.map(({ key, label, showEllipse, rectangle, allowEllipse }, index) => {
+    // Determine effective showEllipse based on user preferences and mode
+    // In 'position' mode, use index as key; in 'key' mode, use actual image key
+    const settingsKey = ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : key;
+    const userPref = userPrefs?.ellipseSettings?.[settingsKey];
+    const isAllowed = allowEllipse !== false;
+    const effectiveShowEllipse = isAllowed ? (userPref ?? showEllipse === true) : false;
+
+    return {
+      key,
+      name: label,
+      displayName: processImageLabel(label),
+      url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, {
+        quality: effectiveImageQuality
+      }) : null,
+      showEllipse: effectiveShowEllipse,
+      rectangle,
+      // Pass original static config for settings UI
+      allowEllipse: allowEllipse !== false,
+      defaultShowEllipse: showEllipse === true,
+      // Store position index for settings
+      positionIndex: index,
+    };
+  });
 
   // Sort imageTypes based on numColumns
   const sortedImageTypes = [...imageTypes].sort(
@@ -154,8 +181,8 @@ export function ClassificationInterface() {
   // Mobile image order: use defaultMobileOrder if provided, otherwise use original order
   const mobileImageTypes = defaultMobileOrder
     ? defaultMobileOrder
-        .filter((idx) => idx >= 0 && idx < imageTypes.length)
-        .map((idx) => imageTypes[idx])
+      .filter((idx) => idx >= 0 && idx < imageTypes.length)
+      .map((idx) => imageTypes[idx])
     : imageTypes;
 
   // Track screen size changes
@@ -399,6 +426,12 @@ export function ClassificationInterface() {
       handleContrastClick();
       return;
     }
+    // Shift+R shortcut for toggle ellipse overlay (handled here to prevent quick input conflict if focused)
+    if (e.shiftKey && e.key.toLowerCase() === 'r') {
+      e.preventDefault();
+      setShowEllipseOverlay((prev) => !prev);
+      return;
+    }
     if (e.key === 'Enter' && formState.canSubmit && isOnline) {
       e.preventDefault();
       handleSubmit();
@@ -442,6 +475,10 @@ export function ClassificationInterface() {
             e.preventDefault();
             if (isOnline) handleSkip();
             return;
+          case 'r':
+            e.preventDefault();
+            setShowEllipseOverlay((prev) => !prev);
+            return;
         }
       }
 
@@ -484,12 +521,139 @@ export function ClassificationInterface() {
   const shouldShowEllipseFunc = (showEllipse: boolean | undefined) =>
     shouldShowEllipseHelper(showEllipse, showEllipseOverlay);
 
+  // Ellipse settings handlers
+  const handleToggleEllipseSetting = async (settingsKey: string, currentVal: boolean) => {
+    // Re-enable global overlay if it was off
+    if (!showEllipseOverlay) {
+      setShowEllipseOverlay(true);
+    }
+
+    const newSettings = {
+      ...(userPrefs?.ellipseSettings || {}),
+      [settingsKey]: !currentVal
+    };
+
+    await updatePreferences({
+      ellipseSettings: newSettings
+    });
+  };
+
+  // Get the settings key for an image based on mode
+  const getSettingsKey = (img: any, index: number): string => {
+    return ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : img.key;
+  };
+
+  const renderEllipseSettingsContent = () => {
+    // We use sortedImageTypes to match the grid layout
+    const items = sortedImageTypes.map((img, index) => {
+      // Logic for visibility in the settings grid
+      // Checkbox and label not visible if allowEllipse == false
+      const rawImg = img as any;
+      if (rawImg.allowEllipse === false) {
+        return (
+          <div key={`${img.key}-${index}`} className={cn("flex items-center p-2 rounded invisible", !isMobile && "border border-transparent")}></div>
+        );
+      }
+
+      const isChecked = img.showEllipse === true;
+      const settingsKey = getSettingsKey(rawImg, rawImg.positionIndex ?? index);
+
+      return (
+        <label
+          key={`${img.key}-${index}`}
+          className={cn(
+            "flex items-center cursor-pointer p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors",
+            !isMobile && "border border-gray-200 dark:border-gray-700"
+          )}
+        >
+          <input
+            type="checkbox"
+            checked={isChecked}
+            onChange={() => handleToggleEllipseSetting(settingsKey, isChecked)}
+            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 mr-2"
+          />
+          <span className="text-xs text-gray-700 dark:text-gray-300 select-none">
+            {img.displayName}
+          </span>
+        </label>
+      );
+    });
+
+    if (isMobile) {
+      return (
+        <div className="flex flex-col space-y-1 mt-2 p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800">
+          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2 px-1">
+            Configure Effective Radius Overlay (r<sub>eff</sub>)
+          </div>
+          {items}
+        </div>
+      );
+    }
+
+    return (
+      <div className="absolute right-0 top-full mt-2 w-[400px] z-50 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 p-4">
+        <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3 border-b border-gray-100 dark:border-gray-700 pb-2">
+          Configure Effective Radius Overlay (r<sub>eff</sub>) per image
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {items}
+        </div>
+      </div>
+    );
+  };
+
+  const renderEllipseControl = () => (
+    <div className="relative inline-block text-left" ref={settingsButtonRef}>
+      <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-1">
+        {/* Toggle Button */}
+        <button
+          onClick={() => setShowEllipseOverlay(!showEllipseOverlay)}
+          className={cn(
+            "relative flex items-center justify-center gap-2 px-3 py-2 rounded-md transition-all duration-200",
+            showEllipseOverlay
+              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+              : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+          )}
+          title="Toggle Effective Radius (Shift+R)"
+        >
+          <EllipseIcon className={cn("w-5 h-5", showEllipseOverlay && "animate-pulse-slow")} />
+          <span className="text-sm font-medium">r<sub>eff</sub></span>
+          {/* Visual indicator for state (checkbox-like) */}
+          <div className={cn(
+            "w-2.5 h-2.5 rounded-full ml-1",
+            showEllipseOverlay ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"
+          )} />
+        </button>
+
+        {/* Separator */}
+        <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-0.5"></div>
+
+        {/* Settings Dropdown Button */}
+        <button
+          onClick={() => setShowEllipseSettings(!showEllipseSettings)}
+          className={cn(
+            "p-2 rounded-md transition-colors",
+            showEllipseSettings
+              ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white"
+              : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+          )}
+          title="Configure Overlay Settings"
+        >
+          <ArrowDownIcon className="w-4 h-4" />
+        </button>
+      </div>
+
+      {/* Settings Popup/Content */}
+      {showEllipseSettings && renderEllipseSettingsContent()}
+    </div>
+  );
+
   // Loading state - check if the relevant galaxy query is still loading
   // When routeGalaxyId exists, we use galaxyByExternalId; otherwise we use galaxy
-  const isGalaxyQueryLoading = routeGalaxyId 
-    ? galaxyByExternalId === undefined 
+  const isGalaxyQueryLoading = routeGalaxyId
+    ? galaxyByExternalId === undefined
     : galaxy === undefined;
-  
+
   if (isGalaxyQueryLoading) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
@@ -654,16 +818,10 @@ export function ClassificationInterface() {
       />
 
       {/* Display Options */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3">
-        <label className="flex items-center cursor-pointer text-sm text-gray-600 dark:text-gray-300">
-          <input
-            type="checkbox"
-            checked={showEllipseOverlay}
-            onChange={(e) => setShowEllipseOverlay(e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 mr-2"
-          />
-          Show&nbsp;<em>r<sub>eff</sub></em>
-        </label>
+      <div className="w-full">
+        <div className="flex justify-end">
+          {renderEllipseControl()}
+        </div>
       </div>
 
       {/* 4. Galaxy Info with header */}
@@ -791,15 +949,7 @@ export function ClassificationInterface() {
               ) : null}
             </div>
             <div className="flex items-center space-x-2">
-              <label className="flex items-center cursor-pointer text-sm text-gray-600 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={showEllipseOverlay}
-                  onChange={(e) => setShowEllipseOverlay(e.target.checked)}
-                  className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 mr-2"
-                />
-                Show&nbsp;<em>r<sub>eff</sub></em>
-              </label>
+              {renderEllipseControl()}
               <button
                 onClick={() => setShowKeyboardHelp(true)}
                 className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"

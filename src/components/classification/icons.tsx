@@ -95,3 +95,37 @@ export function AladinLogo({ className, width, height, size }: IconProps) {
 }
 
 // no default export — only named icon components
+
+export function ArrowDownIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+export function EllipseIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+    >
+      <ellipse
+        cx="12"
+        cy="12"
+        rx="8"
+        ry="4"
+        transform="rotate(-45 12 12)"
+      />
+    </svg>
+  );
+}

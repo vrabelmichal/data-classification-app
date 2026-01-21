@@ -28,6 +28,9 @@ export interface ImageType {
   url: string | null;
   showEllipse?: boolean;
   rectangle?: ImageRectangle;
+  allowEllipse?: boolean;
+  defaultShowEllipse?: boolean;
+  positionIndex?: number;
 }
 
 export interface GalaxyData {
@@ -56,4 +59,6 @@ export type NavigationStateOrNull = NavigationState | null | undefined;
 export interface UserPreferences {
   imageQuality?: "high" | "medium" | "low";
   contrast?: number;
+  ellipseSettings?: Record<string, boolean>;
 }
+

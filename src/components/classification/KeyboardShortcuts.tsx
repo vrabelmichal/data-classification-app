@@ -7,9 +7,9 @@ interface KeyboardShortcutsProps {
   showVisibleNucleus?: boolean;
 }
 
-export function KeyboardShortcuts({ 
-  isOpen, 
-  onClose, 
+export function KeyboardShortcuts({
+  isOpen,
+  onClose,
   failedFittingMode,
   showAwesomeFlag = true,
   showValidRedshift = true,
@@ -27,12 +27,12 @@ export function KeyboardShortcuts({
 
   // Build quick input items based on visibility flags
   const quickInputItems = [
-    { 
-      key: "Focus on input field", 
-      description: `Type classification directly (only ${allowedCharsString} allowed)` 
+    {
+      key: "Focus on input field",
+      description: `Type classification directly (only ${allowedCharsString} allowed)`
     },
   ];
-  
+
   if (showAwesomeFlag) {
     quickInputItems.push({ key: "A (in input)", description: "Toggle Awesome flag" });
   }
@@ -66,6 +66,7 @@ export function KeyboardShortcuts({
       category: "Image Controls",
       items: [
         { key: "C", description: "Cycle contrast groups" },
+        { key: "Shift+R", description: "Toggle effective radius (reff) overlay" },
       ],
     },
     {
@@ -82,7 +83,7 @@ export function KeyboardShortcuts({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-  <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
             Keyboard Shortcuts

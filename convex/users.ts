@@ -46,7 +46,7 @@ export const getUserPreferences = query({
   handler: async (ctx) => {
     const userId = await getOptionalUserId(ctx);
     const defaultQuality = await getDefaultImageQuality(ctx);
-    
+
     if (!userId) return null;
 
     const prefs = await ctx.db
@@ -65,6 +65,7 @@ export const getUserPreferences = query({
       imageQuality: defaultQuality,
       theme: "auto" as const,
       contrast: 1.0,
+      ellipseSettings: undefined,
     };
   },
 });
@@ -75,6 +76,7 @@ export const updatePreferences = mutation({
     imageQuality: v.optional(v.union(v.literal("high"), v.literal("medium"), v.literal("low"))),
     theme: v.optional(v.union(v.literal("light"), v.literal("dark"), v.literal("auto"))),
     contrast: v.optional(v.number()),
+    ellipseSettings: v.optional(v.record(v.string(), v.boolean())),
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
@@ -100,6 +102,7 @@ export const updatePreferences = mutation({
         imageQuality: args.imageQuality || defaultQuality,
         theme: args.theme || "auto",
         contrast: args.contrast || 1.0,
+        ellipseSettings: args.ellipseSettings,
       });
     }
 
@@ -194,7 +197,7 @@ export const getUserStats = query({
 
     // Determine which user's stats to fetch
     let userId = currentUserId;
-    
+
     if (args.targetUserId && args.targetUserId !== currentUserId) {
       // Viewing another user's stats requires admin access
       await requireAdmin(ctx, { notAdminMessage: "Only admins can view other users' statistics" });
@@ -210,7 +213,7 @@ export const getUserStats = query({
     if (USE_PROFILE_COUNTERS_FOR_STATS && profile) {
       // Fast method: Use pre-computed counters from userProfiles
       const total = profile.classificationsCount ?? 0;
-      
+
       // For "this week", we still need to query classifications (no counter for this)
       const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       const recentClassifications = await ctx.db
@@ -278,9 +281,9 @@ export const getUserStats = query({
 
     // Count by morphology
     const morphologyCounts = classifications.reduce((acc, c) => {
-      const key = c.morphology === -1 ? "featureless" : 
-                  c.morphology === 0 ? "irregular" :
-                  c.morphology === 1 ? "spiral" : "elliptical";
+      const key = c.morphology === -1 ? "featureless" :
+        c.morphology === 0 ? "irregular" :
+          c.morphology === 1 ? "spiral" : "elliptical";
       acc[key] = (acc[key] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -316,7 +319,7 @@ export const getUsersForSelection = query({
     await requireAdmin(ctx, { notAdminMessage: "Only admins can access user list" });
 
     const allUsers = await ctx.db.query("users").collect();
-    
+
     const usersWithProfiles = await Promise.all(
       allUsers.map(async (user) => {
         const profile = await ctx.db
@@ -379,7 +382,7 @@ export const getAllUsers = query({
 
     // Get all users from the users table
     const allUsers = await ctx.db.query("users").collect();
-    
+
     const usersWithDetails = await Promise.all(
       allUsers.map(async (user) => {
         // Try to find existing profile

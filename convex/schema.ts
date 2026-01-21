@@ -14,7 +14,7 @@ export const galaxySchemaDefinition = {
   q: v.number(),
   pa: v.number(),
   nucleus: v.boolean(),
-  
+
   // Optional fields from fitting, for easier searching / filtering
   mag: v.optional(v.number()),
   mean_mue: v.optional(v.number()),
@@ -185,17 +185,17 @@ const applicationTables = {
     .index("by_reff_mag", ["reff", "mag"]) // range/order on reff, then eq on mag
     // .index("by_nucleus_reff_mean_mue", ["nucleus", "reff", "mean_mue"]) // eq nucleus, then range/order on reff
     // Indexes starting with numericId for stable default ordering plus filters
-    .index("by_numericId_nucleus", ["numericId", "nucleus"]) 
-    .index("by_numericId_mag", ["numericId", "mag"]) 
-    .index("by_numericId_mean_mue", ["numericId", "mean_mue"]) 
-    .index("by_numericId_q", ["numericId", "q"]) 
-    .index("by_numericId_reff", ["numericId", "reff"]) 
+    .index("by_numericId_nucleus", ["numericId", "nucleus"])
+    .index("by_numericId_mag", ["numericId", "mag"])
+    .index("by_numericId_mean_mue", ["numericId", "mean_mue"])
+    .index("by_numericId_q", ["numericId", "q"])
+    .index("by_numericId_reff", ["numericId", "reff"])
     // Additional starters for magnitude/mean_mue and structural params
-    .index("by_mean_mue_reff", ["mean_mue", "reff"]) 
-    .index("by_mag_reff", ["mag", "reff"]) 
+    .index("by_mean_mue_reff", ["mean_mue", "reff"])
+    .index("by_mag_reff", ["mag", "reff"])
     .index("by_q_reff", ["q", "reff"])
 
-    .index("by_misc_paper", ["misc.paper"]) 
+    .index("by_misc_paper", ["misc.paper"])
 
     .index("by_totalAssigned_numericId", ["totalAssigned", "numericId"])
 
@@ -252,6 +252,7 @@ const applicationTables = {
     theme: v.union(v.literal("light"), v.literal("dark"), v.literal("auto")),
     contrast: v.number(),
     brightness: v.optional(v.number()), // Legacy field
+    ellipseSettings: v.optional(v.record(v.string(), v.boolean())), // Map of imageKey -> showEllipse
   }).index("by_user", ["userId"]),
 
   // Galaxy classifications
