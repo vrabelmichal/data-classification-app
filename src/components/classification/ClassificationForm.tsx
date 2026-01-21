@@ -1,6 +1,6 @@
+import { useState } from "react";
 import { cn } from "../../lib/utils";
 import { LSB_OPTIONS_LEGACY, LSB_OPTIONS_CHECKBOX, MORPHOLOGY_OPTIONS } from "./constants";
-import { buildQuickInputString } from "./helpers";
 import type { GalaxyData } from "./types";
 
 interface ClassificationFormProps {
@@ -51,14 +51,19 @@ export function ClassificationForm({
   onCommentsChange,
 }: ClassificationFormProps) {
   const LSB_OPTIONS = failedFittingMode === "legacy" ? LSB_OPTIONS_LEGACY : LSB_OPTIONS_CHECKBOX;
+  const [commentExpanded, setCommentExpanded] = useState(false);
   
   return (
     <div className="space-y-6">
       {/* LSB Classification */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Is it LSB?
-        </h3>
+      <div
+        className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 pt-6"
+        role="group"
+        aria-label="LSB classification"
+      >
+        <span className="absolute top-3 right-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          LSB
+        </span>
         <div className="space-y-3">
           {LSB_OPTIONS.map((option) => (
             <label key={option.value} className="flex items-center cursor-pointer">
@@ -83,10 +88,14 @@ export function ClassificationForm({
       </div>
 
       {/* Morphology Classification */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Morphology Type
-        </h3>
+      <div
+        className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 pt-6"
+        role="group"
+        aria-label="Morphology"
+      >
+        <span className="absolute top-3 right-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          Morphology
+        </span>
         <div className="space-y-3">
           {MORPHOLOGY_OPTIONS.map((option) => (
             <label key={option.value} className="flex items-center cursor-pointer">
@@ -111,7 +120,14 @@ export function ClassificationForm({
       </div>
 
       {/* Flags */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <div
+        className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 pt-6"
+        role="group"
+        aria-label="Flags"
+      >
+        <span className="absolute top-3 right-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+          Flags
+        </span>
         <div className="space-y-3">
           {failedFittingMode === "checkbox" && (
             <label className="flex items-center cursor-pointer">
@@ -182,18 +198,40 @@ export function ClassificationForm({
 
       {/* Comments */}
       {!hideComments && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h4 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-            Comments
-          </h4>
-          <textarea
-            value={comments}
-            onChange={(e) => onCommentsChange(e.target.value)}
-            placeholder="Add any observations or comments..."
-            disabled={formLocked}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white resize-none"
-            rows={3}
-          />
+        <div
+          className="rounded-lg"
+        >
+          <div
+            className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700"
+            onClick={(e) => {
+              // keep expand button working without double toggles
+              const target = e.target as HTMLElement;
+              if (target.tagName === "BUTTON") return;
+              const textarea = e.currentTarget.querySelector("textarea");
+              textarea?.focus();
+            }}
+          >
+            <textarea
+              value={comments}
+              onChange={(e) => onCommentsChange(e.target.value)}
+              placeholder="Add comments (optional)..."
+              disabled={formLocked}
+              className={cn(
+                "w-full pr-16 pl-3 py-1.5 border-0 bg-transparent rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-transparent dark:text-white resize-none leading-tight min-h-[2.25rem]",
+                commentExpanded ? "text-sm" : "text-xs"
+              )}
+              rows={commentExpanded ? 4 : 1}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                setCommentExpanded((prev) => !prev);
+              }}
+              className="absolute top-1 right-1 px-2 py-1 text-xs font-medium rounded-md text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200 bg-white/80 dark:bg-gray-800/80 border border-gray-200 dark:border-gray-700"
+            >
+              {commentExpanded ? "Collapse" : "Expand"}
+            </button>
+          </div>
         </div>
       )}
     </div>
