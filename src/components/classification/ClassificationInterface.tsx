@@ -23,7 +23,7 @@ import { CommentsField } from "./CommentsField";
 // Mobile-specific components
 import { MobileImageSlider } from "./MobileImageSlider";
 import { MobileSliderControls } from "./MobileSliderControls";
-import { EyeIcon, AladinLogo, ArrowDownIcon, EllipseIcon } from "./icons";
+import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon } from "./icons";
 import { MobileClassificationForm } from "./MobileClassificationForm";
 import { CommentsModal } from "./CommentsModal";
 
@@ -612,17 +612,26 @@ export function ClassificationInterface() {
         <button
           onClick={() => setShowEllipseOverlay(!showEllipseOverlay)}
           className={cn(
-            "relative flex items-center justify-center gap-2 rounded-md transition-all duration-200",
-            isMobile ? "flex-1 py-2" : "px-3 py-1",
+            "relative flex items-center justify-center gap-2 rounded-md transition-all duration-200 font-medium",
+            isMobile ? "flex-1 py-2.5" : "px-3 py-1",
             showEllipseOverlay
-              ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-              : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
           )}
-          title="Toggle Effective Radius (Shift+R)"
+          title="Toggle Effective Radius Overlay (Shift+R)"
         >
-          <EllipseIcon className={cn("w-4 h-4", showEllipseOverlay && "animate-pulse-slow")} />
-          <span className="text-sm font-medium">
-            {showEllipseOverlay ? "Hide r" : "Show r"}<sub>eff</sub> ellipse
+          {/* Icon is now static (no scaling) to prevent visual jitter */}
+          <EllipseIcon className="w-4 h-4" />
+          <span className="text-sm flex items-center">
+            {isMobile ? (
+              <span className="mr-1">Effective radius (r<sub>eff</sub>) overlay:</span>
+            ) : (
+              <></>
+            )}
+            {/* Fixed width container for status text to prevent button width change */}
+            <span className="font-semibold inline-block w-[3ch] text-center">
+              {showEllipseOverlay ? "ON" : "OFF"}
+            </span>
           </span>
         </button>
 
@@ -634,14 +643,14 @@ export function ClassificationInterface() {
           onClick={() => setShowEllipseSettings(!showEllipseSettings)}
           className={cn(
             "rounded-md transition-colors flex items-center justify-center",
-            isMobile ? "p-2 h-full" : "p-1",
+            isMobile ? "px-4 py-3 h-full" : "p-1.5",
             showEllipseSettings
               ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white"
               : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
           )}
           title="Configure Overlay Settings"
         >
-          <ArrowDownIcon className="w-4 h-4" />
+          <SettingsIcon className="w-4 h-4" />
         </button>
       </div>
 
