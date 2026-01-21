@@ -89,15 +89,72 @@ export function UsersTab({ users }: UsersTabProps) {
     }
   };
 
+  const handleDownloadUsers = () => {
+    // Create CSV content
+    const headers = ["Name", "Email", "Role", "Classifications", "Active", "Confirmed"];
+    const rows = users.map(userProfile => {
+      const hasProfile = !userProfile._id.toString().startsWith('temp_');
+      return [
+        userProfile.user?.name || "Anonymous",
+        userProfile.user?.email || "No email",
+        hasProfile ? userProfile.role : "No Profile",
+        userProfile.classificationsCount || 0,
+        hasProfile ? (userProfile.isActive ? "Active" : "Inactive") : "N/A",
+        hasProfile ? (userProfile.isConfirmed ? "Confirmed" : "Pending") : "N/A"
+      ];
+    });
+
+    // Combine headers and rows
+    const csvContent = [
+      headers.join(","),
+      ...rows.map(row => row.map(cell => {
+        // Escape cells that contain commas or quotes
+        const cellStr = String(cell);
+        if (cellStr.includes(",") || cellStr.includes('"') || cellStr.includes("\n")) {
+          return `"${cellStr.replace(/"/g, '""')}"`;
+        }
+        return cellStr;
+      }).join(","))
+    ].join("\n");
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `users_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    toast.success("Users exported successfully");
+  };
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-          User Management
-        </h2>
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          Manage user accounts and permissions
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              User Management
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-300">
+              Manage user accounts and permissions
+            </p>
+          </div>
+          <button
+            title={"Download CSV of users (Name, Email, Role, Classifications, Active, Confirmed)"}
+            onClick={handleDownloadUsers}
+            className="px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download CSV
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
