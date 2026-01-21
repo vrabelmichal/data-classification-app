@@ -603,36 +603,38 @@ export function ClassificationInterface() {
   };
 
   const renderEllipseControl = () => (
-    <div className="relative inline-block text-left" ref={settingsButtonRef}>
-      <div className="flex items-center gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-1">
+    <div className={cn("relative inline-block text-left", isMobile && "w-full")} ref={settingsButtonRef}>
+      <div className={cn(
+        "flex items-center gap-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700",
+        isMobile ? "p-1 w-full" : "p-0.5"
+      )}>
         {/* Toggle Button */}
         <button
           onClick={() => setShowEllipseOverlay(!showEllipseOverlay)}
           className={cn(
-            "relative flex items-center justify-center gap-2 px-3 py-2 rounded-md transition-all duration-200",
+            "relative flex items-center justify-center gap-2 rounded-md transition-all duration-200",
+            isMobile ? "flex-1 py-2" : "px-3 py-1",
             showEllipseOverlay
               ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
               : "bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
           )}
           title="Toggle Effective Radius (Shift+R)"
         >
-          <EllipseIcon className={cn("w-5 h-5", showEllipseOverlay && "animate-pulse-slow")} />
-          <span className="text-sm font-medium">r<sub>eff</sub></span>
-          {/* Visual indicator for state (checkbox-like) */}
-          <div className={cn(
-            "w-2.5 h-2.5 rounded-full ml-1",
-            showEllipseOverlay ? "bg-blue-500" : "bg-gray-300 dark:bg-gray-600"
-          )} />
+          <EllipseIcon className={cn("w-4 h-4", showEllipseOverlay && "animate-pulse-slow")} />
+          <span className="text-sm font-medium">
+            {showEllipseOverlay ? "Hide r" : "Show r"}<sub>eff</sub> ellipse
+          </span>
         </button>
 
         {/* Separator */}
-        <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-0.5"></div>
+        <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-0.5"></div>
 
         {/* Settings Dropdown Button */}
         <button
           onClick={() => setShowEllipseSettings(!showEllipseSettings)}
           className={cn(
-            "p-2 rounded-md transition-colors",
+            "rounded-md transition-colors flex items-center justify-center",
+            isMobile ? "p-2 h-full" : "p-1",
             showEllipseSettings
               ? "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-white"
               : "text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
@@ -950,15 +952,15 @@ export function ClassificationInterface() {
             </div>
             <div className="flex items-center space-x-2">
               {renderEllipseControl()}
-              <button
-                onClick={() => setShowKeyboardHelp(true)}
-                className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-                title="Keyboard shortcuts (?)"
-              >
-                <kbd className="px-2 py-1 text-xs font-semibold text-gray-800 bg-gray-100 border border-gray-200 rounded-lg dark:bg-gray-600 dark:text-gray-100 dark:border-gray-500">
-                  ?
-                </kbd>
-              </button>
+              <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0.5">
+                <button
+                  onClick={() => setShowKeyboardHelp(true)}
+                  className="rounded-md transition-colors flex items-center justify-center px-3 py-1 text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700"
+                  title="Keyboard shortcuts (?)"
+                >
+                  <span className="text-sm font-medium">?</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
