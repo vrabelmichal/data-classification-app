@@ -581,11 +581,38 @@ export function ClassificationInterface() {
 
     if (isMobile) {
       return (
-        <div className="flex flex-col space-y-1 mt-2 p-2 bg-gray-50 dark:bg-gray-900/50 rounded-lg border border-gray-200 dark:border-gray-800">
-          <div className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-2 px-1">
-            Configure Effective Radius Overlay (r<sub>eff</sub>)
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowEllipseSettings(false)}>
+          <div
+            className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-sm flex flex-col overflow-hidden max-h-[80vh] animate-in fade-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                Overlay Settings
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-4 overflow-y-auto">
+              <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Toggle the Effective Radius (r<sub>eff</sub>) overlay for each image type.
+              </div>
+              <div className="flex flex-col space-y-2">
+                {items}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+              <button
+                onClick={() => setShowEllipseSettings(false)}
+                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors shadow-sm"
+              >
+                Done
+              </button>
+            </div>
           </div>
-          {items}
         </div>
       );
     }
