@@ -416,6 +416,9 @@ export function ClassificationInterface() {
 
   // Quick input key handler
   const handleQuickInputKeyDown = (e: React.KeyboardEvent) => {
+    // Let browser/system shortcuts that use Ctrl/Meta/Alt pass through untouched
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+
     if (e.shiftKey && e.key.toLowerCase() === 'p') {
       e.preventDefault();
       if (isOnline) handlePrevious();
