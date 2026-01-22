@@ -340,6 +340,28 @@ const applicationTables = {
   })
     .index("by_galaxy", ["galaxyExternalId"])
     .index("by_added_at", ["addedAt"]),
+
+  // Notifications - messages sent from admins to users
+  notifications: defineTable({
+    title: v.string(),
+    content: v.string(), // Markdown content
+    createdBy: v.id("users"), // Admin who created the notification
+    createdAt: v.number(),
+    sendEmail: v.boolean(), // Whether to also send as email
+    // Recipients: if empty array, means sent to all users
+    recipientUserIds: v.optional(v.array(v.id("users"))),
+  })
+    .index("by_created_at", ["createdAt"]),
+
+  // User notification read status - tracks which notifications each user has read
+  userNotificationReads: defineTable({
+    userId: v.id("users"),
+    notificationId: v.id("notifications"),
+    readAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_notification", ["notificationId"])
+    .index("by_user_notification", ["userId", "notificationId"]),
 };
 
 export default defineSchema({

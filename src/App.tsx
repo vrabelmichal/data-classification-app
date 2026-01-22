@@ -14,6 +14,7 @@ import { UserSettings } from "./components/settings/UserSettings";
 import { Help } from "./components/help/Help";
 import { AdminPanel } from "./components/admin/AdminPanel";
 import { IssueReportsPage } from "@/components/admin/IssueReportsPage";
+import { NotificationsPage } from "./components/notifications/NotificationsPage";
 import { NotFound } from "./components/NotFound";
 import { useState, useEffect } from "react";
 import { DEFAULT_ALLOW_PUBLIC_OVERVIEW } from "./lib/defaults";
@@ -85,6 +86,7 @@ function App() {
     { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: <GalaxyBrowser /> },
     { id: "skipped", label: "Skipped", icon: "⏭️", path: "/skipped", element: <SkippedGalaxies /> },
     { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: <Statistics /> },
+    { id: "notifications", label: "Notifications", icon: "🔔", path: "/notifications", element: <NotificationsPage /> },
     { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: <UserSettings /> },
     { id: "help", label: "Help", icon: "❓", path: "/help", element: <Help /> },
     { id: "reports", label: "Issue Reports", icon: "📋", path: "/reports", element: <IssueReportsPage />, adminOnly: true },

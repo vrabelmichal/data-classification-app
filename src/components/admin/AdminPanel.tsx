@@ -8,6 +8,7 @@ import { GalaxiesTab } from "./GalaxiesTab";
 import { SettingsTab } from "./SettingsTab";
 import { MaintenanceTab } from "./MaintentanceTab";
 import { SystemTab } from "./SystemTab";
+import { NotificationsTab } from "./NotificationsTab";
 
 export function AdminPanel() {
   // Dynamic page title that reflects the active admin tab
@@ -17,6 +18,7 @@ export function AdminPanel() {
       if (path === "/admin" || path === "/admin/") return "Admin";
       if (path.startsWith("/admin/users")) return "Users";
       if (path.startsWith("/admin/galaxies")) return "Galaxies";
+      if (path.startsWith("/admin/notifications")) return "Notifications";
       if (path.startsWith("/admin/settings")) return "Settings";
       if (path.startsWith("/admin/maintenance")) return "Maintenance";
       if (path.startsWith("/admin/system")) return "System";
@@ -70,10 +72,11 @@ export function AdminPanel() {
       </div>
       {/* Tab Navigation */}
       <div className="border-b border-gray-200 dark:border-gray-700 mb-8">
-        <nav className="-mb-px flex space-x-8">
+        <nav className="-mb-px flex space-x-8 overflow-x-auto">
           {[
             { id: "users", label: "Users", icon: "👥", path: "/admin/users" },
             { id: "galaxies", label: "Galaxies", icon: "🌌", path: "/admin/galaxies" },
+            { id: "notifications", label: "Notifications", icon: "🔔", path: "/admin/notifications" },
             { id: "settings", label: "Settings", icon: "⚙️", path: "/admin/settings" },
             { id: "maintenance", label: "Maintenance", icon: "🛠️", path: "/admin/maintenance" },
             { id: "system", label: "System", icon: "🖥️", path: "/admin/system" },
@@ -82,7 +85,7 @@ export function AdminPanel() {
               key={tab.id}
               to={tab.path}
               className={cn(
-                "flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors",
+                "flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap",
                 location.pathname === tab.path
                   ? "border-blue-500 text-blue-600 dark:text-blue-400"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
@@ -99,6 +102,7 @@ export function AdminPanel() {
         <Route index element={<Navigate to="users" replace />} />
         <Route path="users" element={<UsersTab users={users} />} />
         <Route path="galaxies" element={<GalaxiesTab users={users} systemSettings={systemSettings} />} />
+        <Route path="notifications" element={<NotificationsTab />} />
         <Route path="settings" element={<SettingsTab systemSettings={systemSettings} />} />
         <Route path="maintenance" element={<MaintenanceTab />} />
         <Route path="system" element={<SystemTab />} />

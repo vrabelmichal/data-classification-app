@@ -38,6 +38,7 @@ import type * as lib_assignmentCore from "../lib/assignmentCore.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as lib_defaults from "../lib/defaults.js";
 import type * as lib_settings from "../lib/settings.js";
+import type * as notifications from "../notifications.js";
 import type * as router from "../router.js";
 import type * as seedGalaxyAssignmentStats from "../seedGalaxyAssignmentStats.js";
 import type * as system_settings from "../system_settings.js";
@@ -81,6 +82,7 @@ declare const fullApi: ApiFromModules<{
   "lib/auth": typeof lib_auth;
   "lib/defaults": typeof lib_defaults;
   "lib/settings": typeof lib_settings;
+  notifications: typeof notifications;
   router: typeof router;
   seedGalaxyAssignmentStats: typeof seedGalaxyAssignmentStats;
   system_settings: typeof system_settings;

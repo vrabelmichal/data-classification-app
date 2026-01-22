@@ -22,20 +22,34 @@ interface NavigationProps {
   appName: string;
 }
 
+// Notification badge component
+function NotificationBadge({ count, className }: { count?: number; className?: string }) {
+  if (!count || count <= 0 || !Number.isFinite(count)) return null;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-xs font-bold text-white bg-red-500 rounded-full",
+        className
+      )}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
 export function Navigation({ navigationItems, appName }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const userProfile = useQuery(api.users.getUserProfile);
   const progress = useQuery(api.classification.getProgress);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  const unreadNotificationCount = useQuery(api.notifications.getUnreadNotificationCount);
   const navigate = useNavigate();
   const userDisplayName = userProfile?.user?.name ?? userProfile?.user?.email;
   const { theme, effectiveTheme, toggleTheme } = useTheme();
 
   // Filter items based on permissions (e.g., admin only)
-  const visibleItems = navigationItems.filter(
-    (it) => !it.adminOnly || userProfile?.role === "admin"
-  );
+  const visibleItems = navigationItems.filter((it) => !it.adminOnly || userProfile?.role === "admin");
 
   return (
     <>
@@ -49,6 +63,16 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                 {appName}
               </h1>
+              {/* Mobile notification badge - shown next to app title */}
+              {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+                <button
+                  onClick={() => navigate("/notifications")}
+                  className="relative"
+                  title="You have unread notifications"
+                >
+                  <NotificationBadge count={unreadNotificationCount} />
+                </button>
+              )}
             </div>
             <div className="flex items-center space-x-1">
               <button
@@ -96,7 +120,10 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                         }
                       >
                         <span className="text-lg">{item.icon}</span>
-                        <span className="font-medium">{item.label}</span>
+                        <span className="font-medium flex-1">{item.label}</span>
+                        {item.id === "notifications" && unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+                          <NotificationBadge count={unreadNotificationCount} />
+                        )}
                       </NavLink>
                     </li>
                   ))}
@@ -219,7 +246,10 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                     }
                   >
                     <span className="text-lg">{item.icon}</span>
-                    <span className="font-medium">{item.label}</span>
+                    <span className="font-medium flex-1">{item.label}</span>
+                    {item.id === "notifications" && unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+                      <NotificationBadge count={unreadNotificationCount} />
+                    )}
                   </NavLink>
                 </li>
               ))}
