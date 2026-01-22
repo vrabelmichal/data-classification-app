@@ -85,6 +85,11 @@ export const generateBalancedUserSequence = mutation({
       throw new Error("No galaxies available for sequence generation");
     }
 
+    // Get blacklisted galaxy IDs to exclude from assignment
+    const blacklistedGalaxies = await ctx.db.query("galaxyBlacklist").collect();
+    const blacklistedIds = new Set(blacklistedGalaxies.map((b) => b.galaxyExternalId));
+    console.log(`Loaded ${blacklistedIds.size} blacklisted galaxies to exclude`);
+
     // Get galaxies, ordered by totalAssigned and numericId
     console.log(`Fetching galaxies for processing...`);
 
@@ -99,6 +104,9 @@ export const generateBalancedUserSequence = mutation({
         const result = await iterator.next();
         if (result.done) break;
         const doc = result.value;
+
+        // Skip blacklisted galaxies
+        if (blacklistedIds.has(doc.id)) continue;
 
         if (paperFilter !== null) {
           const docPaper = doc.misc?.paper ?? "";
@@ -128,6 +136,9 @@ export const generateBalancedUserSequence = mutation({
         const result = await iterator.next();
         if (result.done) break;
         const doc = result.value;
+
+        // Skip blacklisted galaxies
+        if (blacklistedIds.has(doc.id)) continue;
 
         if (paperFilter !== null) {
           const docPaper = doc.misc?.paper ?? "";

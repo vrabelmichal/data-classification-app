@@ -330,6 +330,16 @@ const applicationTables = {
     .index("by_user_numericId", ["userId", "galaxyNumericId"])
     .index("by_user_galaxy", ["userId", "galaxyExternalId"])
     .index("by_classification", ["classificationId"]),
+
+  // Galaxy blacklist - galaxies on this list are excluded from assignment and classification
+  galaxyBlacklist: defineTable({
+    galaxyExternalId: v.string(), // References galaxies.id (external ID)
+    reason: v.optional(v.string()), // Optional reason for blacklisting
+    addedAt: v.number(), // Timestamp when added
+    addedBy: v.id("users"), // User who added it (admin)
+  })
+    .index("by_galaxy", ["galaxyExternalId"])
+    .index("by_added_at", ["addedAt"]),
 };
 
 export default defineSchema({

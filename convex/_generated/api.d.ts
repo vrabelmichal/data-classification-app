@@ -28,6 +28,7 @@ import type * as galaxies_navigation from "../galaxies/navigation.js";
 import type * as galaxies_navigation_deprecated from "../galaxies/navigation_deprecated.js";
 import type * as galaxies_sequence from "../galaxies/sequence.js";
 import type * as galaxies_skipped from "../galaxies/skipped.js";
+import type * as galaxyBlacklist from "../galaxyBlacklist.js";
 import type * as generateBalancedUserSequence from "../generateBalancedUserSequence.js";
 import type * as http from "../http.js";
 import type * as images from "../images.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   "galaxies/navigation_deprecated": typeof galaxies_navigation_deprecated;
   "galaxies/sequence": typeof galaxies_sequence;
   "galaxies/skipped": typeof galaxies_skipped;
+  galaxyBlacklist: typeof galaxyBlacklist;
   generateBalancedUserSequence: typeof generateBalancedUserSequence;
   http: typeof http;
   images: typeof images;
