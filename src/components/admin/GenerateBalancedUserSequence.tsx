@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
 
@@ -19,6 +19,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
   const [generatingSequence, setGeneratingSequence] = useState(false);
+  const [sendEmailNotification, setSendEmailNotification] = useState(false);
   const [logs, setLogs] = useState<
     Array<{ level: "info" | "warning" | "error" | "success"; message: string; timestamp: number }>
   >([]);
@@ -88,6 +89,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
 
   const generateBalancedUserSequence = useMutation(api.generateBalancedUserSequence.generateBalancedUserSequence);
   const updateGalaxyAssignmentStats = useMutation(api.generateBalancedUserSequence.updateGalaxyAssignmentStats);
+  const sendSequenceGeneratedEmail = useAction(api.generateBalancedUserSequence.sendSequenceGeneratedEmail);
 
   const handlePaperToggle = (paper: string) => {
     setSelectedPapers((prev) => {
@@ -218,6 +220,34 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
       } else {
         appendLog("success", "Sequence generation completed (no stats updates needed)");
       }
+
+      if (sendEmailNotification) {
+        try {
+          appendLog("info", "Sending notification email...");
+          const emailResult = await sendSequenceGeneratedEmail({
+            targetUserId: selectedUserId as any,
+            generated: result.generated,
+            requested: result.requested,
+          });
+
+          if (!emailResult.success) {
+            appendLog(
+              "warning",
+              emailResult.details
+                ? `${emailResult.message}: ${emailResult.details}`
+                : emailResult.message
+            );
+          } else {
+            appendLog(
+              "success",
+              `Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+            );
+          }
+        } catch (emailError) {
+          const message = (emailError as Error)?.message || "Unknown error";
+          appendLog("warning", `Failed to send notification email: ${message}`);
+        }
+      }
     } catch (error) {
       const message = (error as Error)?.message || "Unknown error";
       appendLog("error", `Failed to generate sequence: ${message}`);
@@ -251,7 +281,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
               disabled={generatingSequence}
             >
               <option value="">Select a user...</option>
-              {usersWithoutSequences?.map((user) => (
+              {usersWithoutSequences?.map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null }) => (
                 <option key={user.userId} value={user.userId}>
                   {user.user?.name || user.user?.email || "Anonymous"} ({user.userId})
                 </option>
@@ -348,6 +378,24 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
                 Allow Over-Assign (use galaxies with totalAssigned &gt;= K)
               </span>
             </label>
+          </div>
+
+          <div>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={sendEmailNotification}
+                onChange={(e) => setSendEmailNotification(e.target.checked)}
+                className="mr-2"
+                disabled={generatingSequence}
+              />
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Send email notification to user
+              </span>
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Sends a one-time email when the sequence has been generated.
+            </p>
           </div>
 
           {/* Paper Filter Section */}

@@ -4,6 +4,7 @@ import { getOptionalUserId, requireAdmin, requireUserId, requireUserProfile } fr
 import { getDefaultImageQuality } from "./lib/settings";
 import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
 import { api } from "./_generated/api";
+import { Doc, Id } from "./_generated/dataModel";
 import {
   classificationsByCreated,
   classificationsByAwesomeFlag,
@@ -371,6 +372,39 @@ export const getUserProfileById = query({
       .unique();
 
     return profile;
+  },
+});
+
+// Admin: Get basic user info (name/email) by userId
+export const getUserBasicInfo = query({
+  args: { userId: v.id("users") },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{
+    userId: Id<"users">;
+    name: string | null;
+    email: string | null;
+    profile: Doc<"userProfiles"> | null;
+  } | null> => {
+    await requireAdmin(ctx);
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return null;
+    }
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    return {
+      userId: args.userId,
+      name: user.name ?? null,
+      email: user.email ?? null,
+      profile: profile ?? null,
+    };
   },
 });
 

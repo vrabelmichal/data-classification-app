@@ -1,12 +1,22 @@
 // convex/generateBalancedUserSequence.ts
 import { requireAdmin, requireUserId } from "./lib/auth";
 import { v } from "convex/values";
-import { mutation } from "./_generated/server";
+import { action, mutation } from "./_generated/server";
+import { api } from "./_generated/api";
 import {
   SelectionParams,
   selectFromOrderedStreams,
   validateParams,
 } from "./lib/assignmentCore";
+import { DEFAULT_SYSTEM_SETTINGS } from "./lib/defaults";
+
+type SequenceEmailResult = {
+  success: boolean;
+  message: string;
+  details?: string;
+  to?: string;
+  id?: string;
+};
 
 type StatsDoc = {
   _id: any; // Id<"galaxies">
@@ -64,7 +74,7 @@ export const generateBalancedUserSequence = mutation({
       minAssignmentsK: K,
       perUserCapM: M,
       sequenceSize: S,
-    }).map((w) => w.message);
+    }).map((w: { message: string }) => w.message);
     const errors: string[] = [];
 
     console.log(`Starting balanced sequence generation: N=${expectedUsers}, K=${K}, M=${M}, S=${S}, allowOverAssign=${allowOverAssign}, dryRun=${dryRun}, paperFilter=${paperFilter ? paperFilter.join(',') : 'all'}`);
@@ -332,5 +342,114 @@ export const updateGalaxyAssignmentStats = mutation({
       totalGalaxies,
       isLastBatch,
     };
+  },
+});
+
+// Action: send email notification after sequence generation
+export const sendSequenceGeneratedEmail = action({
+  args: {
+    targetUserId: v.id("users"),
+    generated: v.number(),
+    requested: v.number(),
+  },
+  handler: async (ctx, args): Promise<SequenceEmailResult> => {
+    const callerProfile = await ctx.runQuery(api.users.getUserProfile);
+    if (!callerProfile || callerProfile.role !== "admin") {
+      throw new Error("Admin access required");
+    }
+
+    const target = await ctx.runQuery(api.users.getUserBasicInfo, {
+      userId: args.targetUserId,
+    });
+
+    if (!target) {
+      return { success: false, message: "Target user not found" };
+    }
+
+    if (!target.email) {
+      return { success: false, message: "User has no email address" };
+    }
+
+    const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
+    const appName: typeof DEFAULT_SYSTEM_SETTINGS.appName = settings.appName ?? DEFAULT_SYSTEM_SETTINGS.appName;
+    const emailFrom: typeof DEFAULT_SYSTEM_SETTINGS.emailFrom = settings.emailFrom ?? DEFAULT_SYSTEM_SETTINGS.emailFrom;
+    const fromWithName = `${appName} <${emailFrom}>`;
+    const apiKey = process.env.AUTH_RESEND_KEY;
+
+    if (!apiKey) {
+      return {
+        success: false,
+        message: "Email provider not configured",
+        details: "AUTH_RESEND_KEY is missing",
+      };
+    }
+
+    const appUrlEnv = process.env.SITE_URL || process.env.VERCEL_URL;
+    const appUrl = appUrlEnv ? (appUrlEnv.startsWith("http") ? appUrlEnv : `https://${appUrlEnv}`) : "";
+    const classificationUrl = appUrl ? `${appUrl}/classify` : undefined;
+
+    const subject = `${appName} - Your galaxy sequence is ready`;
+    const textBody = [
+      `Hello${target.name ? ` ${target.name}` : ""},`,
+      "",
+      `A new classification sequence has been generated for you with ${args.generated} galaxies (requested ${args.requested}).`,
+      classificationUrl ? `Open the app to start classifying: ${classificationUrl}` : "Open the app to start classifying your new sequence.",
+      "",
+      "Thank you for contributing!",
+    ].join("\n");
+
+    const htmlBody = `
+      <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #0f172a;">
+        <h2 style="margin-bottom: 12px; color: #0f172a;">Hi${target.name ? ` ${target.name}` : ""}, your sequence is ready!</h2>
+        <p style="margin: 0 0 12px 0;">We generated a new classification sequence for you.</p>
+        <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px;">
+          <p style="margin: 4px 0; font-weight: 600;">Assigned galaxies: ${args.generated}</p>
+          <p style="margin: 4px 0; color: #475569;">Requested: ${args.requested}</p>
+        </div>
+        ${classificationUrl ? `<p style="margin: 0 0 12px 0;"><a href="${classificationUrl}" style="background: #16a34a; color: white; padding: 10px 14px; border-radius: 6px; text-decoration: none; display: inline-block;">Start classifying</a></p>` : ""}
+        <p style="margin: 0 0 12px 0; color: #475569;">Thank you for contributing to the project.</p>
+        <p style="margin: 0; color: #94a3b8; font-size: 12px;">Sent by ${appName}</p>
+      </div>
+    `;
+
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: fromWithName,
+          to: [target.email],
+          subject,
+          text: textBody,
+          html: htmlBody,
+        }),
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        return {
+          success: false,
+          message: "Failed to send notification email",
+          details: errorText,
+        };
+      }
+
+      const data = await res.json();
+      return {
+        success: true,
+        message: "Notification email sent",
+        to: target.email,
+        id: data.id ?? undefined,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Error sending notification email",
+        details: error instanceof Error ? error.message : String(error),
+      };
+    }
   },
 });
