@@ -327,10 +327,10 @@ export function ClassificationInterface() {
       // Get next unprocessed galaxy (skipping skipped and classified ones)
       const nextGalaxy = await getNextGalaxyMutation();
       if (nextGalaxy?.id) {
-        navigate(`/classify/${nextGalaxy.id}`, { replace: true });
+        navigate(`/classify/${nextGalaxy.id}`);
       } else {
         // No more galaxies to classify
-        navigate('/classify', { replace: true });
+        navigate('/classify');
       }
     } catch (error) {
       toast.error("Failed to submit classification");
@@ -361,10 +361,10 @@ export function ClassificationInterface() {
         // Get next unprocessed galaxy (skipping skipped and classified ones)
         const nextGalaxy = await getNextGalaxyMutation();
         if (nextGalaxy?.id) {
-          navigate(`/classify/${nextGalaxy.id}`, { replace: true });
+          navigate(`/classify/${nextGalaxy.id}`);
         } else {
           // No more galaxies to classify
-          navigate('/classify', { replace: true });
+          navigate('/classify');
         }
       }
     } catch (error) {
