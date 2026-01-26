@@ -55,6 +55,12 @@ export const generateBalancedUserSequence = mutation({
     // paperFilter: undefined or empty array means all papers, otherwise filter to specified papers
     const paperFilter = args.paperFilter && args.paperFilter.length > 0 ? args.paperFilter : null;
 
+    // Helper to format paper filter for logging (handles empty strings)
+    const formatPaperFilter = (papers: string[] | null): string => {
+      if (!papers) return "all";
+      return papers.map(p => p === "" ? '(empty)' : p).join(", ");
+    };
+
     // Admin check if generating for another user
     if (targetUserId !== userId) {
         await requireAdmin(ctx);
@@ -77,7 +83,7 @@ export const generateBalancedUserSequence = mutation({
     }).map((w: { message: string }) => w.message);
     const errors: string[] = [];
 
-    console.log(`Starting balanced sequence generation: N=${expectedUsers}, K=${K}, M=${M}, S=${S}, allowOverAssign=${allowOverAssign}, dryRun=${dryRun}, paperFilter=${paperFilter ? paperFilter.join(',') : 'all'}`);
+    console.log(`Starting balanced sequence generation: N=${expectedUsers}, K=${K}, M=${M}, S=${S}, allowOverAssign=${allowOverAssign}, dryRun=${dryRun}, paperFilter=${formatPaperFilter(paperFilter)}`);
 
     // Check if there are any galaxies available before proceeding
     const galaxiesExist = (await ctx.db.query("galaxies").take(1)).length > 0;
@@ -192,7 +198,7 @@ export const generateBalancedUserSequence = mutation({
     if (selectedIds.length === 0) {
       warnings.push(
         paperFilter && paperFilter.length > 0
-          ? `No galaxies matched the current selection filters. Check paper filter values: [${paperFilter.join(", ")}] and assignment thresholds (K=${K}, M=${M}).`
+          ? `No galaxies matched the current selection filters. Check paper filter values: [${formatPaperFilter(paperFilter)}] and assignment thresholds (K=${K}, M=${M}).`
           : `No galaxies matched the current selection filters. Check assignment thresholds (K=${K}, M=${M}) or enable over-assign if appropriate.`
       );
     }
@@ -208,8 +214,8 @@ export const generateBalancedUserSequence = mutation({
     if (selectedIds.length === 0) {
       errors.push(
         allowOverAssign
-          ? `No galaxies matched filters. Check paper filter (${paperFilter ? paperFilter.join(", ") : "all"}), K=${K}, M=${M}. Under-K exhausted=${exhaustedUnderK}, all exhausted=${exhaustedAll}.`
-          : `No galaxies matched filters with over-assign disabled. Check paper filter (${paperFilter ? paperFilter.join(", ") : "all"}), K=${K}, M=${M}, or enable over-assign.`
+          ? `No galaxies matched filters. Check paper filter (${formatPaperFilter(paperFilter)}), K=${K}, M=${M}. Under-K exhausted=${exhaustedUnderK}, all exhausted=${exhaustedAll}.`
+          : `No galaxies matched filters with over-assign disabled. Check paper filter (${formatPaperFilter(paperFilter)}), K=${K}, M=${M}, or enable over-assign.`
       );
     }
 
