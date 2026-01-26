@@ -17,6 +17,8 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
   const [maxAssignmentsPerUserPerEntry, setMaxAssignmentsPerUserPerEntry] = useState(1);
   const [allowOverAssign, setAllowOverAssign] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [batchMode, setBatchMode] = useState(false);
+  const [selectedBatchUserIds, setSelectedBatchUserIds] = useState<Set<string>>(new Set());
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
   const [generatingSequence, setGeneratingSequence] = useState(false);
   const [sendEmailNotification, setSendEmailNotification] = useState(false);
@@ -29,12 +31,16 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     processedGalaxies: number;
     totalGalaxies: number;
     message: string;
+    userId: string;
+    userDisplayName: string;
+    userIdShort: string;
   } | null>(null);
 
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [userHasScrolled, setUserHasScrolled] = useState(false);
 
   const usersWithoutSequences = useQuery(api.galaxies.sequence.getUsersWithoutSequences);
+  const resolvedUsers = usersWithoutSequences ?? [];
   
   // Get available papers from system settings
   const availablePapers: string[] = systemSettings?.availablePapers || DEFAULT_AVAILABLE_PAPERS;
@@ -124,6 +130,27 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     });
   };
 
+  const handleBatchUserToggle = (userId: string) => {
+    setSelectedBatchUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
+  const handleBatchSelectAllUsers = () => {
+    const allIds = resolvedUsers.map((user: { userId: string }) => user.userId);
+    setSelectedBatchUserIds(new Set(allIds));
+  };
+
+  const handleBatchDeselectAllUsers = () => {
+    setSelectedBatchUserIds(new Set());
+  };
+
   const handleSelectAllPapers = () => {
     setSelectedPapers(new Set(availablePapers));
   };
@@ -132,9 +159,145 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     setSelectedPapers(new Set());
   };
 
+  const formatPaperFilter = (papers: string[] | undefined): string => {
+    if (!papers) return "all";
+    return papers.map((p) => (p === "" ? "(empty)" : p)).join(", ");
+  };
+
+  const runSequenceForUser = async (targetUserId: string, effectiveSequenceSize: number, paperFilter?: string[]) => {
+    // Find user info for logging
+    const userInfo = resolvedUsers.find((u: { userId: string }) => u.userId === targetUserId);
+    const userEmail = userInfo?.user?.email || '';
+    const userName = userInfo?.user?.name || '';
+    const truncateString = (str: string, maxLen: number) => str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
+    const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : 'Unknown');
+    const userIdShort = targetUserId.substring(0, 8);
+    
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] Starting sequence generation with S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, papers=[${formatPaperFilter(paperFilter)}]`
+    );
+
+    const result = await generateBalancedUserSequence({
+      targetUserId: targetUserId as any,
+      expectedUsers,
+      minAssignmentsPerEntry,
+      maxAssignmentsPerUserPerEntry,
+      sequenceSize: effectiveSequenceSize,
+      allowOverAssign,
+      paperFilter,
+    });
+
+    if (!result.success) {
+      result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+      (result.errors || []).forEach((error: string) => appendLog("error", `[${userDisplayName} (${userIdShort})] ${error}`));
+      appendLog(
+        "error",
+        `[${userDisplayName} (${userIdShort})] Failed to generate sequence: generated ${result.generated} of ${result.requested}. Check filters (papers) and thresholds (K, M).`
+      );
+      return;
+    }
+
+    result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+    appendLog(
+      "success",
+      `[${userDisplayName} (${userIdShort})] Generated ${result.generated} of ${result.requested} galaxies. K=${result.minAssignmentsPerEntry}, M=${result.perUserCap}`
+    );
+
+    if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
+      const totalBatches = result.statsBatchesNeeded;
+      const batchSize = result.statsBatchSize || 500;
+
+      setStatsProgress({
+        currentBatch: 1,
+        totalBatches,
+        processedGalaxies: 0,
+        totalGalaxies: result.generated,
+        message: "Starting stats updates...",
+        userId: targetUserId,
+        userDisplayName,
+        userIdShort,
+      });
+
+      for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+        const statsResult = await updateGalaxyAssignmentStats({
+          targetUserId: targetUserId as any,
+          batchIndex,
+          batchSize,
+          perUserCapM: maxAssignmentsPerUserPerEntry,
+        });
+        if (!statsResult.success) {
+          throw new Error(`Failed to update stats batch ${batchIndex + 1}`);
+        }
+
+        setStatsProgress({
+          currentBatch: batchIndex + 1,
+          totalBatches,
+          processedGalaxies: statsResult.totalProcessed,
+          totalGalaxies: result.generated,
+          message: statsResult.isLastBatch
+            ? "Completed stats updates"
+            : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`,
+          userId: targetUserId,
+          userDisplayName,
+          userIdShort,
+        });
+
+        appendLog(
+          "info",
+          statsResult.isLastBatch
+            ? `[${userDisplayName} (${userIdShort})] Completed stats updates`
+            : `[${userDisplayName} (${userIdShort})] Updated stats for batch ${batchIndex + 1}/${totalBatches}`
+        );
+
+        if (statsResult.isLastBatch) {
+          break;
+        }
+      }
+
+      appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence generation and stats updates completed!`);
+    } else {
+      appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence generation completed (no stats updates needed)`);
+    }
+
+    if (sendEmailNotification) {
+      try {
+        appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
+        const emailResult = await sendSequenceGeneratedEmail({
+          targetUserId: targetUserId as any,
+          generated: result.generated,
+          requested: result.requested,
+        });
+
+        if (!emailResult.success) {
+          appendLog(
+            "warning",
+            emailResult.details
+              ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+              : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
+          );
+        } else {
+          appendLog(
+            "success",
+            `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+          );
+        }
+      } catch (emailError) {
+        const message = (emailError as Error)?.message || "Unknown error";
+        appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
+      }
+    }
+  };
+
   const handleGenerateSequence = async () => {
-    if (!selectedUserId) {
-      appendLog("error", "Please select a user");
+    const selectedUsers = batchMode
+      ? Array.from(selectedBatchUserIds)
+      : selectedUserId
+        ? [selectedUserId]
+        : [];
+
+    if (selectedUsers.length === 0) {
+      appendLog("error", batchMode ? "Please select at least one user" : "Please select a user");
       return;
     }
 
@@ -143,7 +306,6 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
       return;
     }
 
-    // Enforce client-side limit
     const MAX_SEQUENCE_SIZE = 8192;
     const effectiveSequenceSize = Math.min(sequenceSize, MAX_SEQUENCE_SIZE);
     if (sequenceSize > MAX_SEQUENCE_SIZE) {
@@ -153,124 +315,29 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     const paperFilter =
       selectedPapers.size === availablePapers.length ? undefined : Array.from(selectedPapers);
 
-    // Helper to format paper filter for display (handles empty strings)
-    const formatPaperFilter = (papers: string[] | undefined): string => {
-      if (!papers) return "all";
-      return papers.map(p => p === "" ? '(empty)' : p).join(", ");
-    };
-
     try {
       setGeneratingSequence(true);
       setStatsProgress(null);
 
-      appendLog(
-        "info",
-        `Starting sequence generation for user ${selectedUserId} with S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, papers=[${formatPaperFilter(paperFilter)}]`
-      );
-
-      // Step 1: Generate the sequence
-      const result = await generateBalancedUserSequence({
-        targetUserId: selectedUserId as any,
-        expectedUsers,
-        minAssignmentsPerEntry,
-        maxAssignmentsPerUserPerEntry,
-        sequenceSize: effectiveSequenceSize,
-        allowOverAssign,
-        paperFilter,
-      });
-
-      if (!result.success) {
-        result.warnings?.forEach((warning: string) => appendLog("warning", warning));
-        (result.errors || []).forEach((error: string) => appendLog("error", error));
-        appendLog(
-          "error",
-          `Failed to generate sequence: generated ${result.generated} of ${result.requested}. Check filters (papers) and thresholds (K, M).`
-        );
-        return;
+      if (batchMode && selectedUsers.length > 1) {
+        appendLog("info", `Batch mode: running for ${selectedUsers.length} users sequentially`);
       }
 
-      result.warnings?.forEach((warning: string) => appendLog("warning", warning));
-      appendLog(
-        "success",
-        `Generated ${result.generated} of ${result.requested} galaxies. K=${result.minAssignmentsPerEntry}, M=${result.perUserCap}`
-      );
-
-      // Step 2: Update stats in batches if needed
-      if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
-        const totalBatches = result.statsBatchesNeeded;
-        const batchSize = result.statsBatchSize || 500;
-
-        setStatsProgress({
-          currentBatch: 1,
-          totalBatches,
-          processedGalaxies: 0,
-          totalGalaxies: result.generated,
-          message: "Starting stats updates...",
-        });
-
-        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-          const statsResult = await updateGalaxyAssignmentStats({
-            targetUserId: selectedUserId as any,
-            batchIndex,
-            batchSize,
-            perUserCapM: maxAssignmentsPerUserPerEntry,
-          });
-          if (!statsResult.success) {
-            throw new Error(`Failed to update stats batch ${batchIndex + 1}`);
-          }
-
-          setStatsProgress({
-            currentBatch: batchIndex + 1,
-            totalBatches,
-            processedGalaxies: statsResult.totalProcessed,
-            totalGalaxies: result.generated,
-            message: statsResult.isLastBatch
-              ? "Completed stats updates"
-              : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`,
-          });
-
-          appendLog(
-            "info",
-            statsResult.isLastBatch
-              ? "Completed stats updates"
-              : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`
-          );
-
-          if (statsResult.isLastBatch) {
-            break;
-          }
-        }
-
-        appendLog("success", "Sequence generation and stats updates completed!");
-      } else {
-        appendLog("success", "Sequence generation completed (no stats updates needed)");
-      }
-
-      if (sendEmailNotification) {
+      for (const target of selectedUsers) {
         try {
-          appendLog("info", "Sending notification email...");
-          const emailResult = await sendSequenceGeneratedEmail({
-            targetUserId: selectedUserId as any,
-            generated: result.generated,
-            requested: result.requested,
-          });
-
-          if (!emailResult.success) {
-            appendLog(
-              "warning",
-              emailResult.details
-                ? `${emailResult.message}: ${emailResult.details}`
-                : emailResult.message
-            );
-          } else {
-            appendLog(
-              "success",
-              `Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
-            );
-          }
-        } catch (emailError) {
-          const message = (emailError as Error)?.message || "Unknown error";
-          appendLog("warning", `Failed to send notification email: ${message}`);
+          await runSequenceForUser(target, effectiveSequenceSize, paperFilter);
+        } catch (error) {
+          const message = (error as Error)?.message || "Unknown error";
+          const userInfo = resolvedUsers.find((u: { userId: string }) => u.userId === target);
+          const userEmail = userInfo?.user?.email || '';
+          const userName = userInfo?.user?.name || '';
+          const truncateString = (str: string, maxLen: number) => str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
+          const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : 'Unknown');
+          const userIdShort = target.substring(0, 8);
+          appendLog("error", `[${userDisplayName} (${userIdShort})] Failed during processing: ${message}`);
+          console.error(error);
+        } finally {
+          setStatsProgress(null);
         }
       }
     } catch (error) {
@@ -279,7 +346,6 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
       console.error(error);
     } finally {
       setGeneratingSequence(false);
-      setStatsProgress(null);
     }
   };
 
@@ -295,23 +361,90 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
         </p>
 
         <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900 dark:text-white">Mode</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Default selects a single user. Enable batch mode to select multiple users and run sequentially.
+              </p>
+            </div>
+            <label className="flex items-center space-x-2 text-sm font-medium text-gray-900 dark:text-white">
+              <input
+                type="checkbox"
+                checked={batchMode}
+                onChange={(e) => {
+                  setBatchMode(e.target.checked);
+                  setSelectedBatchUserIds(new Set());
+                }}
+                className="h-4 w-4"
+                disabled={generatingSequence}
+              />
+              <span>Batch mode</span>
+            </label>
+          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-              Select User
+              {batchMode ? "Select Users" : "Select User"}
             </label>
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              disabled={generatingSequence}
-            >
-              <option value="">Select a user...</option>
-              {usersWithoutSequences?.map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null }) => (
-                <option key={user.userId} value={user.userId}>
-                  {user.user?.name || user.user?.email || "Anonymous"} ({user.userId})
-                </option>
-              ))}
-            </select>
+
+            {batchMode ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                  <button
+                    type="button"
+                    onClick={handleBatchSelectAllUsers}
+                    disabled={generatingSequence || resolvedUsers.length === 0}
+                    className="px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBatchDeselectAllUsers}
+                    disabled={generatingSequence || selectedBatchUserIds.size === 0}
+                    className="px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300"
+                  >
+                    Deselect All
+                  </button>
+                  <span className="ml-2">{selectedBatchUserIds.size} selected</span>
+                </div>
+                <div className="max-h-56 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md p-3 bg-gray-50 dark:bg-gray-900 space-y-2">
+                  {resolvedUsers.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">No users without sequences available.</p>
+                  ) : (
+                    resolvedUsers.map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null }) => (
+                      <label key={user.userId} className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
+                        <input
+                          type="checkbox"
+                          checked={selectedBatchUserIds.has(user.userId)}
+                          onChange={() => handleBatchUserToggle(user.userId)}
+                          disabled={generatingSequence}
+                          className="h-4 w-4"
+                        />
+                        <span className="truncate" title={user.user?.name || user.user?.email || "Anonymous"}>
+                          {user.user?.name || user.user?.email || "Anonymous"} ({user.userId})
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : (
+              <select
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                disabled={generatingSequence}
+              >
+                <option value="">Select a user...</option>
+                {resolvedUsers.map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null }) => (
+                  <option key={user.userId} value={user.userId}>
+                    {user.user?.name || user.user?.email || "Anonymous"} ({user.userId})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -478,13 +611,13 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
 
           <button
             onClick={() => void (async () => { await handleGenerateSequence(); })()}
-            disabled={!selectedUserId || generatingSequence}
+            disabled={generatingSequence || (batchMode ? selectedBatchUserIds.size === 0 : !selectedUserId)}
             className="inline-flex items-center bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
           >
             {generatingSequence && (
               <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             )}
-            {generatingSequence ? 'Generating Balanced Sequence...' : 'Generate Balanced Sequence'}
+            {generatingSequence ? 'Generating Balanced Sequence...' : batchMode ? 'Generate Sequences (Batch)' : 'Generate Balanced Sequence'}
           </button>
           {generatingSequence && (
             <p className="text-xs text-gray-500 dark:text-gray-400">This may take a while for large sizes...</p>
@@ -507,7 +640,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
                 {statsProgress.message}
               </p>
               <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                Batch {statsProgress.currentBatch} of {statsProgress.totalBatches}
+                {statsProgress.userDisplayName} ({statsProgress.userIdShort}) — Batch {statsProgress.currentBatch} of {statsProgress.totalBatches}
               </p>
             </div>
           )}

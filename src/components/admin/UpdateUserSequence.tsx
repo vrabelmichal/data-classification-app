@@ -25,6 +25,8 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
     processedItems: number;
     totalItems: number;
     message: string;
+    userDisplayName?: string;
+    userIdShort?: string;
   } | null>(null);
 
   // Shorten mode state
@@ -181,6 +183,14 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
       return;
     }
 
+    // Resolve user display info for logs
+    const userInfo = usersWithSequences?.find((u) => u.userId === selectedUserId);
+    const userEmail = userInfo?.user?.email || "";
+    const userName = userInfo?.user?.name || "";
+    const truncateString = (str: string, maxLen: number) => (str.length > maxLen ? str.substring(0, maxLen) + "..." : str);
+    const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : "Unknown");
+    const userIdShort = selectedUserId.substring(0, 8);
+
     if (newSize >= currentSequenceInfo.totalGalaxies) {
       appendLog("error", "New size must be smaller than current size");
       return;
@@ -201,7 +211,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
       const toRemove = currentSequenceInfo.totalGalaxies - newSize;
       appendLog(
         "info",
-        `Starting sequence shortening: removing ${toRemove} galaxies (${currentSequenceInfo.totalGalaxies} → ${newSize})`
+        `[${userDisplayName} (${userIdShort})] Starting sequence shortening: removing ${toRemove} galaxies (${currentSequenceInfo.totalGalaxies} → ${newSize})`
       );
 
       const batchSize = 500;
@@ -226,20 +236,22 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           processedItems: result.totalProcessed ?? 0,
           totalItems: toRemove,
           message: result.message,
+          userDisplayName,
+          userIdShort,
         });
 
-        appendLog("info", result.message);
+        appendLog("info", `[${userDisplayName} (${userIdShort})] ${result.message}`);
 
         if (result.isComplete) {
           appendLog(
             "success",
-            `Successfully shortened sequence: removed ${result.galaxiesRemoved} galaxies`
+            `[${userDisplayName} (${userIdShort})] Successfully shortened sequence: removed ${result.galaxiesRemoved} galaxies`
           );
 
           // Send email notification if enabled
           if (sendShortenEmail) {
             try {
-              appendLog("info", "Sending notification email...");
+              appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
               const emailResult = await sendSequenceShortenedEmail({
                 targetUserId: selectedUserId as any,
                 previousSize: currentSequenceInfo.totalGalaxies,
@@ -251,18 +263,18 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                 appendLog(
                   "warning",
                   emailResult.details
-                    ? `${emailResult.message}: ${emailResult.details}`
-                    : emailResult.message
+                    ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+                    : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
                 );
               } else {
                 appendLog(
                   "success",
-                  `Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+                  `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
                 );
               }
             } catch (emailError) {
               const message = (emailError as Error)?.message || "Unknown error";
-              appendLog("warning", `Failed to send notification email: ${message}`);
+              appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
             }
           }
 
@@ -276,7 +288,12 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
       }
     } catch (error) {
       const message = (error as Error)?.message || "Unknown error";
-      appendLog("error", `Failed to shorten sequence: ${message}`);
+      const userInfoErr = usersWithSequences?.find((u) => u.userId === selectedUserId);
+      const userEmailErr = userInfoErr?.user?.email || "";
+      const userNameErr = userInfoErr?.user?.name || "";
+      const userDisplayNameErr = userNameErr ? truncateString(userNameErr, 20) : (userEmailErr ? truncateString(userEmailErr, 30) : "Unknown");
+      const userIdShortErr = selectedUserId.substring(0, 8);
+      appendLog("error", `[${userDisplayNameErr} (${userIdShortErr})] Failed to shorten sequence: ${message}`);
       console.error(error);
     } finally {
       setIsProcessing(false);
@@ -289,6 +306,14 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
       appendLog("error", "Please select a user with a sequence");
       return;
     }
+
+    // Resolve user display info for logs
+    const userInfo = usersWithSequences?.find((u) => u.userId === selectedUserId);
+    const userEmail = userInfo?.user?.email || "";
+    const userName = userInfo?.user?.name || "";
+    const truncateString = (str: string, maxLen: number) => (str.length > maxLen ? str.substring(0, maxLen) + "..." : str);
+    const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : "Unknown");
+    const userIdShort = selectedUserId.substring(0, 8);
 
     if (additionalSize <= 0) {
       appendLog("error", "Additional size must be greater than 0");
@@ -311,7 +336,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
       appendLog(
         "info",
-        `Starting sequence extension: adding up to ${additionalSize} galaxies, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}`
+        `[${userDisplayName} (${userIdShort})] Starting sequence extension: adding up to ${additionalSize} galaxies, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}`
       );
 
       // Phase 1: Extend the sequence (select and add galaxies)
@@ -325,20 +350,20 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
         paperFilter,
       });
 
-      result.warnings?.forEach((warning: string) => appendLog("warning", warning));
+      result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
 
       if (!result.success) {
-        (result.errors || []).forEach((error: string) => appendLog("error", error));
+        (result.errors || []).forEach((error: string) => appendLog("error", `[${userDisplayName} (${userIdShort})] ${error}`));
         appendLog(
           "error",
-          `Failed to extend sequence: generated ${result.generated} of ${result.requested}`
+          `[${userDisplayName} (${userIdShort})] Failed to extend sequence: generated ${result.generated} of ${result.requested}`
         );
         return;
       }
 
       appendLog(
         "success",
-        `Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize})`
+        `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize})`
       );
 
       // Phase 2: Update stats in batches
@@ -352,6 +377,8 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           processedItems: 0,
           totalItems: result.generated,
           message: "Starting stats updates...",
+          userDisplayName,
+          userIdShort,
         });
 
         for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
@@ -375,13 +402,15 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
             message: statsResult.isComplete
               ? "Completed stats updates"
               : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`,
+            userDisplayName,
+            userIdShort,
           });
 
           appendLog(
             "info",
             statsResult.isComplete
-              ? "Completed stats updates"
-              : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`
+              ? `[${userDisplayName} (${userIdShort})] Completed stats updates`
+              : `[${userDisplayName} (${userIdShort})] Updated stats for batch ${batchIndex + 1}/${totalBatches}`
           );
 
           if (statsResult.isComplete) {
@@ -389,15 +418,15 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           }
         }
 
-        appendLog("success", "Sequence extension and stats updates completed!");
+        appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension and stats updates completed!`);
       } else {
-        appendLog("success", "Sequence extension completed (no stats updates needed)");
+        appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension completed (no stats updates needed)`);
       }
 
       // Send email notification if enabled
       if (sendExtendEmail && result.newSequenceSize) {
         try {
-          appendLog("info", "Sending notification email...");
+          appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
           const emailResult = await sendSequenceExtendedEmail({
             targetUserId: selectedUserId as any,
             previousSize,
@@ -409,18 +438,18 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
             appendLog(
               "warning",
               emailResult.details
-                ? `${emailResult.message}: ${emailResult.details}`
-                : emailResult.message
+                ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+                : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
             );
           } else {
             appendLog(
               "success",
-              `Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+              `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
             );
           }
         } catch (emailError) {
           const message = (emailError as Error)?.message || "Unknown error";
-          appendLog("warning", `Failed to send notification email: ${message}`);
+          appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
         }
       }
 
@@ -429,7 +458,12 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
       setCurrentSequenceInfo(newInfo);
     } catch (error) {
       const message = (error as Error)?.message || "Unknown error";
-      appendLog("error", `Failed to extend sequence: ${message}`);
+      const userInfoErr = usersWithSequences?.find((u) => u.userId === selectedUserId);
+      const userEmailErr = userInfoErr?.user?.email || "";
+      const userNameErr = userInfoErr?.user?.name || "";
+      const userDisplayNameErr = userNameErr ? truncateString(userNameErr, 20) : (userEmailErr ? truncateString(userEmailErr, 30) : "Unknown");
+      const userIdShortErr = selectedUserId.substring(0, 8);
+      appendLog("error", `[${userDisplayNameErr} (${userIdShortErr})] Failed to extend sequence: ${message}`);
       console.error(error);
     } finally {
       setIsProcessing(false);
@@ -835,7 +869,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
               </div>
               <p className="text-sm text-blue-800 dark:text-blue-200">{progress.message}</p>
               <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                Batch {progress.currentBatch} of {progress.totalBatches}
+                {progress.userDisplayName && progress.userIdShort ? `${progress.userDisplayName} (${progress.userIdShort}) — ` : ''}Batch {progress.currentBatch} of {progress.totalBatches}
               </p>
             </div>
           )}
