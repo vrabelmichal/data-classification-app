@@ -169,7 +169,7 @@ export function BlacklistManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header with count */}
+      {/* Unified widget: header, add controls, search, and list */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <div className="flex items-center justify-between mb-4">
           <div>
@@ -188,184 +188,192 @@ export function BlacklistManagement() {
           </div>
         </div>
 
-        {/* Add Single Galaxy */}
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-            Add Single Galaxy
-          </h3>
-          <div className="flex gap-3">
-            <input
-              type="text"
-              value={newGalaxyId}
-              onChange={(e) => setNewGalaxyId(e.target.value)}
-              placeholder="Galaxy ID (e.g., NGC1234)"
-              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500"
-            />
-            <input
-              type="text"
-              value={newReason}
-              onChange={(e) => setNewReason(e.target.value)}
-              placeholder="Reason (optional)"
-              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500"
-            />
-            <button
-              onClick={() => void handleAddSingle()}
-              disabled={!newGalaxyId.trim()}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors"
-            >
-              Add
-            </button>
+        {/* Add controls (single + bulk) */}
+        <div className="space-y-4 border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Add Single Galaxy</h3>
+            <div className="space-y-3">
+              <div className="flex gap-3">
+                <input
+                  type="text"
+                  value={newGalaxyId}
+                  onChange={(e) => setNewGalaxyId(e.target.value)}
+                  placeholder="Galaxy ID (e.g., NGC1234)"
+                  className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500"
+                />
+                <input
+                  type="text"
+                  value={newReason}
+                  onChange={(e) => setNewReason(e.target.value)}
+                  placeholder="Reason (optional)"
+                  className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500"
+                />
+              </div>
+              <div className="flex justify-end">
+                <button
+                  onClick={() => void handleAddSingle()}
+                  disabled={!newGalaxyId.trim()}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  title="Add galaxy to blacklist"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Bulk Upload from File</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Upload a .txt file with one galaxy ID per line.</p>
+            <div className="space-y-3">
+              <input
+                type="text"
+                value={bulkReason}
+                onChange={(e) => setBulkReason(e.target.value)}
+                placeholder="Reason for all (optional)"
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500"
+              />
+              <div className="flex justify-end">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt"
+                  onChange={(e) => void handleFileUpload(e)}
+                  disabled={isUploading}
+                  className="hidden"
+                  id="blacklist-file-input"
+                />
+                <label
+                  htmlFor="blacklist-file-input"
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-md transition-colors cursor-pointer ${
+                    isUploading ? "bg-gray-400 cursor-not-allowed text-white" : "bg-green-600 hover:bg-green-700 text-white"
+                  }`}
+                  title="Upload a file with galaxy IDs"
+                >
+                  {isUploading ? "Uploading..." : "Upload File"}
+                </label>
+              </div>
+            </div>
+            {uploadProgress && (
+              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <div className="text-sm text-blue-900 dark:text-blue-100">
+                  Processing: {uploadProgress.processed} / {uploadProgress.total}
+                </div>
+                <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                  Added: {uploadProgress.added} | Skipped: {uploadProgress.skipped} | Not found: {uploadProgress.notFound}
+                </div>
+                <div className="mt-2 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 transition-all"
+                    style={{ width: `${(uploadProgress.processed / uploadProgress.total) * 100}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Bulk Upload */}
+        {/* Search + list within same widget */}
         <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
-            Bulk Upload from File
-          </h3>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            Upload a .txt file with one galaxy ID per line.
-          </p>
-          <div className="flex gap-3 items-center">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white">Search & Manage Blacklist</h3>
+          </div>
+
+          <div className="mb-4">
             <input
               type="text"
-              value={bulkReason}
-              onChange={(e) => setBulkReason(e.target.value)}
-              placeholder="Reason for all (optional)"
-              className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by galaxy ID..."
+              className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500"
             />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".txt"
-              onChange={(e) => void handleFileUpload(e)}
-              disabled={isUploading}
-              className="hidden"
-              id="blacklist-file-input"
-            />
-            <label
-              htmlFor="blacklist-file-input"
-              className={`px-4 py-2 font-medium rounded-lg transition-colors cursor-pointer ${
-                isUploading
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-green-600 hover:bg-green-700 text-white"
-              }`}
-            >
-              {isUploading ? "Uploading..." : "Upload File"}
-            </label>
           </div>
-          {uploadProgress && (
-            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <div className="text-sm text-blue-900 dark:text-blue-100">
-                Processing: {uploadProgress.processed} / {uploadProgress.total}
+
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          ) : displayItems && displayItems.length > 0 ? (
+            <div className="overflow-x-auto">
+              {/* Make the list area scrollable and limit height to show ~10 items */}
+              <div className="max-h-96 overflow-y-auto">
+                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                  <thead>
+                    <tr className="sticky top-0">
+                      <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 uppercase tracking-wider">
+                        Galaxy ID
+                      </th>
+                      <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 uppercase tracking-wider">
+                        Reason
+                      </th>
+                      <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 uppercase tracking-wider">
+                        Added
+                      </th>
+                      <th className="px-3 py-1.5 text-left text-xs font-medium text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 uppercase tracking-wider">
+                        By
+                      </th>
+                      <th className="px-3 py-1.5 text-right text-xs font-medium text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 uppercase tracking-wider">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                    {displayItems.map((item) => (
+                      <tr key={item._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <td className="px-3 py-1.5 text-sm font-mono text-gray-900 dark:text-white">
+                          {item.galaxyExternalId}
+                        </td>
+                        <td className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300">{item.reason || "-"}</td>
+                        <td className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300">{formatDate(item.addedAt)}</td>
+                        <td className="px-3 py-1.5 text-sm text-gray-600 dark:text-gray-300">{item.addedByName}</td>
+                        <td className="px-3 py-1.5 text-right">
+                          <button
+                            onClick={() => void handleRemove(item.galaxyExternalId)}
+                            title={`Remove ${item.galaxyExternalId} from blacklist`}
+                            aria-label={`Remove ${item.galaxyExternalId} from blacklist`}
+                            className="inline-flex items-center justify-center w-8 h-8 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden>
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-              <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                Added: {uploadProgress.added} | Skipped: {uploadProgress.skipped} | Not found: {uploadProgress.notFound}
-              </div>
-              <div className="mt-2 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-600 transition-all"
-                  style={{ width: `${(uploadProgress.processed / uploadProgress.total) * 100}%` }}
-                />
-              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+              {searchTerm.trim() ? "No matching galaxies found in blacklist" : "No galaxies in blacklist"}
+            </div>
+          )}
+
+          {(searchTerm.trim() ? searchResults?.hasMore : blacklistData?.hasMore) && (
+            <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
+              Showing first {displayItems?.length} results. Use search to find specific galaxies.
+            </div>
+          )}
+
+          {(blacklistCount ?? 0) > 0 && (
+            <div className="flex justify-end mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => void handleClearBlacklist()}
+                title="Permanently remove all galaxies from the blacklist (irreversible)"
+                aria-label="Permanently clear the entire blacklist (irreversible)"
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden>
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+                <span>Clear entire blacklist (irreversible)</span>
+              </button>
             </div>
           )}
         </div>
-      </div>
-
-      {/* Search and List */}
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-            Search & Manage Blacklist
-          </h3>
-          {(blacklistCount ?? 0) > 0 && (
-            <button
-              onClick={() => void handleClearBlacklist()}
-              className="text-sm text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300"
-            >
-              Clear All
-            </button>
-          )}
-        </div>
-
-        <div className="mb-4">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search by galaxy ID..."
-            className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500"
-          />
-        </div>
-
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-          </div>
-        ) : displayItems && displayItems.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead>
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Galaxy ID
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Reason
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Added
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    By
-                  </th>
-                  <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                {displayItems.map((item) => (
-                  <tr key={item._id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                    <td className="px-3 py-2 text-sm font-mono text-gray-900 dark:text-white">
-                      {item.galaxyExternalId}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
-                      {item.reason || "-"}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
-                      {formatDate(item.addedAt)}
-                    </td>
-                    <td className="px-3 py-2 text-sm text-gray-600 dark:text-gray-300">
-                      {item.addedByName}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <button
-                        onClick={() => void handleRemove(item.galaxyExternalId)}
-                        className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium"
-                      >
-                        Remove
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-            {searchTerm.trim()
-              ? "No matching galaxies found in blacklist"
-              : "No galaxies in blacklist"}
-          </div>
-        )}
-
-        {(searchTerm.trim() ? searchResults?.hasMore : blacklistData?.hasMore) && (
-          <div className="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
-            Showing first {displayItems?.length} results. Use search to find specific galaxies.
-          </div>
-        )}
       </div>
     </div>
   );
