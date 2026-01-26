@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
@@ -30,6 +30,9 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     totalGalaxies: number;
     message: string;
   } | null>(null);
+
+  const logContainerRef = useRef<HTMLDivElement>(null);
+  const [userHasScrolled, setUserHasScrolled] = useState(false);
 
   const usersWithoutSequences = useQuery(api.galaxies.sequence.getUsersWithoutSequences);
   
@@ -78,8 +81,26 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     }
   }, [LOG_STORAGE_KEY, logs]);
 
+  // Auto-scroll to bottom when new logs appear (unless user has scrolled up)
+  useEffect(() => {
+    if (!userHasScrolled && logContainerRef.current) {
+      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
+    }
+  }, [logs, userHasScrolled]);
+
+  // Detect user scrolling
+  const handleLogScroll = () => {
+    if (!logContainerRef.current) return;
+    
+    const { scrollTop, scrollHeight, clientHeight } = logContainerRef.current;
+    const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 5;
+    
+    setUserHasScrolled(!isAtBottom);
+  };
+
   const handleClearLogs = () => {
     setLogs([]);
+    setUserHasScrolled(false);
     try {
       localStorage.removeItem(LOG_STORAGE_KEY);
     } catch (err) {
@@ -132,15 +153,19 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     const paperFilter =
       selectedPapers.size === availablePapers.length ? undefined : Array.from(selectedPapers);
 
+    // Helper to format paper filter for display (handles empty strings)
+    const formatPaperFilter = (papers: string[] | undefined): string => {
+      if (!papers) return "all";
+      return papers.map(p => p === "" ? '(empty)' : p).join(", ");
+    };
+
     try {
       setGeneratingSequence(true);
       setStatsProgress(null);
 
       appendLog(
         "info",
-        `Starting sequence generation for user ${selectedUserId} with S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, papers=[${
-          paperFilter ? paperFilter.join(",") : "all"
-        }]`
+        `Starting sequence generation for user ${selectedUserId} with S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, papers=[${formatPaperFilter(paperFilter)}]`
       );
 
       // Step 1: Generate the sequence
@@ -488,7 +513,11 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
           )}
 
           {/* Persistent log view */}
-          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 max-h-56 overflow-y-auto space-y-1">
+          <div 
+            ref={logContainerRef}
+            onScroll={handleLogScroll}
+            className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 max-h-56 overflow-y-auto space-y-1"
+          >
             <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
               <span>Activity Log</span>
               <button
