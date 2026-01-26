@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
 import { NavLink, useNavigate } from "react-router";
-import { api } from "../../convex/_generated/api";
-import { cn } from "../lib/utils";
-import { SignOutButton } from "../SignOutButton";
-import { AdminButton } from "../admin/AdminButton";
+import { api } from "../../../convex/_generated/api";
+import { cn } from "../../lib/utils";
+import { SignOutButton } from "../../SignOutButton";
+import { DebugAdminButton } from "../admin/DebugAdminButton";
 
 interface NavigationItem {
   id: string;
@@ -154,7 +154,7 @@ export function Navigation({ navigationItems }: NavigationProps) {
                   </NavLink>
                 </li>
               ))}
-              <li><AdminButton /></li>
+              <li><DebugAdminButton /></li>
             </ul>
           </nav>
 

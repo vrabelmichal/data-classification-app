@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 export function GenerateMockDataSection() {
   const [generatingMock, setGeneratingMock] = useState(false);
-  const generateMockGalaxies = useMutation(api.galaxies_mock.generateMockGalaxies);
+  const generateMockGalaxies = useMutation(api.galaxies.mock.generateMockGalaxies);
 
   const handleGenerateMockGalaxies = async () => {
     try {
