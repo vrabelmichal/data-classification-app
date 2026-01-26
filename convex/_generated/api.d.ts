@@ -43,6 +43,7 @@ import type * as router from "../router.js";
 import type * as seedGalaxyAssignmentStats from "../seedGalaxyAssignmentStats.js";
 import type * as system_settings from "../system_settings.js";
 import type * as testEmail from "../testEmail.js";
+import type * as updateUserSequence from "../updateUserSequence.js";
 import type * as users from "../users.js";
 
 import type {
@@ -87,6 +88,7 @@ declare const fullApi: ApiFromModules<{
   seedGalaxyAssignmentStats: typeof seedGalaxyAssignmentStats;
   system_settings: typeof system_settings;
   testEmail: typeof testEmail;
+  updateUserSequence: typeof updateUserSequence;
   users: typeof users;
 }>;
 

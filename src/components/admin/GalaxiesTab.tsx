@@ -1,4 +1,5 @@
 import { GenerateBalancedUserSequence } from "./GenerateBalancedUserSequence";
+import { UpdateUserSequence } from "./UpdateUserSequence";
 import { RemoveUserSequence } from "./RemoveUserSequence";
 import { BlacklistManagement } from "./BlacklistManagement";
 
@@ -11,6 +12,7 @@ export function GalaxiesTab({ users, systemSettings }: GalaxiesTabProps) {
   return (
     <div className="space-y-6">
       <GenerateBalancedUserSequence users={users} systemSettings={systemSettings} />
+      <UpdateUserSequence users={users} systemSettings={systemSettings} />
       <RemoveUserSequence users={users} />
       <BlacklistManagement />
     </div>
