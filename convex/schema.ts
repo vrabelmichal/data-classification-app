@@ -292,6 +292,30 @@ const applicationTables = {
     numSkipped: v.number(), // Number of galaxies skipped in this sequence
   }).index("by_user", ["userId"]),
 
+  // Sequence generation jobs - tracks in-progress generation for progress/cancellation
+  sequenceGenerationJobs: defineTable({
+    userId: v.id("users"), // Target user
+    status: v.union(
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("cancelled"),
+      v.literal("failed")
+    ),
+    cancelRequested: v.boolean(),
+    // Progress tracking
+    phase: v.union(v.literal("underK"), v.literal("overK"), v.literal("creating"), v.literal("done")),
+    selectedCount: v.number(),
+    targetCount: v.number(),
+    totalScanned: v.number(),
+    message: v.string(),
+    // Timestamps
+    startedAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    // Error info if failed
+    error: v.optional(v.string()),
+  }).index("by_user", ["userId"]).index("by_status", ["status"]),
+
   // System settings
   systemSettings: defineTable({
     key: v.string(),

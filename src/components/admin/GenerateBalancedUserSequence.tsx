@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
+import { Id } from "../../../convex/_generated/dataModel";
 
 interface GenerateBalancedUserSequenceProps {
   users: any[];
@@ -114,9 +115,20 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     }
   };
 
-  const generateBalancedUserSequence = useMutation(api.generateBalancedUserSequence.generateBalancedUserSequence);
+  const generateBalancedUserSequence = useAction(api.generateBalancedUserSequence.generateBalancedUserSequence);
   const updateGalaxyAssignmentStats = useMutation(api.generateBalancedUserSequence.updateGalaxyAssignmentStats);
   const sendSequenceGeneratedEmail = useAction(api.generateBalancedUserSequence.sendSequenceGeneratedEmail);
+  const cancelSequenceGeneration = useMutation(api.generateBalancedUserSequence.cancelSequenceGeneration);
+  const rollbackSequence = useMutation(api.generateBalancedUserSequence.rollbackSequence);
+
+  // Track the user we're currently generating for (to poll their job status)
+  const [activeGenerationUserId, setActiveGenerationUserId] = useState<Id<"users"> | null>(null);
+  
+  // Query job status for the active user
+  const jobStatus = useQuery(
+    api.generateBalancedUserSequence.getSequenceGenerationJob,
+    activeGenerationUserId ? { targetUserId: activeGenerationUserId } : "skip"
+  );
 
   const handlePaperToggle = (paper: string) => {
     setSelectedPapers((prev) => {
@@ -173,13 +185,16 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : 'Unknown');
     const userIdShort = targetUserId.substring(0, 8);
     
+    // Set active user for job status polling
+    setActiveGenerationUserId(targetUserId as Id<"users">);
+
     appendLog(
       "info",
-      `[${userDisplayName} (${userIdShort})] Starting sequence generation with S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, papers=[${formatPaperFilter(paperFilter)}]`
+      `[${userDisplayName} (${userIdShort})] Starting sequence generation (S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry})`
     );
 
     const result = await generateBalancedUserSequence({
-      targetUserId: targetUserId as any,
+      targetUserId: targetUserId as Id<"users">,
       expectedUsers,
       minAssignmentsPerEntry,
       maxAssignmentsPerUserPerEntry,
@@ -188,12 +203,18 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
       paperFilter,
     });
 
+    // Check if cancelled
+    if (result.cancelled) {
+      appendLog("warning", `[${userDisplayName} (${userIdShort})] Operation cancelled`);
+      return;
+    }
+
     if (!result.success) {
       result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
       (result.errors || []).forEach((error: string) => appendLog("error", `[${userDisplayName} (${userIdShort})] ${error}`));
       appendLog(
         "error",
-        `[${userDisplayName} (${userIdShort})] Failed to generate sequence: generated ${result.generated} of ${result.requested}. Check filters (papers) and thresholds (K, M).`
+        `[${userDisplayName} (${userIdShort})] Failed: ${result.generated}/${result.requested} galaxies`
       );
       return;
     }
@@ -201,7 +222,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
     appendLog(
       "success",
-      `[${userDisplayName} (${userIdShort})] Generated ${result.generated} of ${result.requested} galaxies. K=${result.minAssignmentsPerEntry}, M=${result.perUserCap}`
+      `[${userDisplayName} (${userIdShort})] Generated ${result.generated}/${result.requested} galaxies`
     );
 
     if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
@@ -346,6 +367,41 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
       console.error(error);
     } finally {
       setGeneratingSequence(false);
+      setActiveGenerationUserId(null);
+    }
+  };
+
+  // Handler for cancel button
+  const handleCancelGeneration = async () => {
+    if (!activeGenerationUserId) return;
+    
+    try {
+      appendLog("info", "Requesting cancellation...");
+      const result = await cancelSequenceGeneration({ targetUserId: activeGenerationUserId });
+      if (result.success) {
+        appendLog("warning", "Cancellation requested - operation will stop after current batch");
+      } else {
+        appendLog("error", result.message);
+      }
+    } catch (error) {
+      const message = (error as Error)?.message || "Unknown error";
+      appendLog("error", `Failed to request cancellation: ${message}`);
+    }
+  };
+
+  // Handler for rollback button  
+  const handleRollback = async (userId: string) => {
+    try {
+      appendLog("info", "Rolling back sequence...");
+      const result = await rollbackSequence({ targetUserId: userId as Id<"users"> });
+      if (result.success) {
+        appendLog("success", result.message);
+      } else {
+        appendLog("error", result.message);
+      }
+    } catch (error) {
+      const message = (error as Error)?.message || "Unknown error";
+      appendLog("error", `Rollback failed: ${message}`);
     }
   };
 
@@ -609,19 +665,109 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
             )}
           </div>
 
-          <button
-            onClick={() => void (async () => { await handleGenerateSequence(); })()}
-            disabled={generatingSequence || (batchMode ? selectedBatchUserIds.size === 0 : !selectedUserId)}
-            className="inline-flex items-center bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
-          >
+          <div className="flex gap-3 items-center flex-wrap">
+            <button
+              onClick={() => void (async () => { await handleGenerateSequence(); })()}
+              disabled={generatingSequence || (batchMode ? selectedBatchUserIds.size === 0 : !selectedUserId)}
+              className="inline-flex items-center bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
+            >
+              {generatingSequence && (
+                <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              )}
+              {generatingSequence ? 'Generating...' : batchMode ? 'Generate Sequences (Batch)' : 'Generate Balanced Sequence'}
+            </button>
+            
             {generatingSequence && (
-              <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <button
+                onClick={() => void handleCancelGeneration()}
+                className="inline-flex items-center bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
             )}
-            {generatingSequence ? 'Generating Balanced Sequence...' : batchMode ? 'Generate Sequences (Batch)' : 'Generate Balanced Sequence'}
-          </button>
-          {generatingSequence && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">This may take a while for large sizes...</p>
+
+            {/* Rollback button - only show if there's a completed sequence that hasn't been used */}
+            {!generatingSequence && jobStatus && jobStatus.status === "completed" && (
+              <button
+                onClick={() => void handleRollback(jobStatus.userId)}
+                className="inline-flex items-center bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm"
+                title="Remove this user's sequence if they haven't started classifying"
+              >
+                Rollback Sequence
+              </button>
+            )}
+          </div>
+
+          {/* Real-time job progress from server */}
+          {jobStatus && jobStatus.status === "running" && (
+            <div className="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-indigo-900 dark:text-indigo-100">
+                  {jobStatus.phase === "underK" ? "Phase 1: Under-K galaxies" : 
+                   jobStatus.phase === "overK" ? "Phase 2: Over-K galaxies" :
+                   jobStatus.phase === "creating" ? "Creating sequence..." : "Processing..."}
+                </span>
+                {jobStatus.cancelRequested && (
+                  <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">
+                    Cancelling...
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center space-x-2 mb-2">
+                <div className="h-2 bg-indigo-200 dark:bg-indigo-700 rounded-full flex-1">
+                  <div
+                    className="h-2 bg-indigo-600 rounded-full transition-all duration-300"
+                    style={{ width: `${(jobStatus.selectedCount / jobStatus.targetCount) * 100}%` }}
+                  />
+                </div>
+                <span className="text-sm font-medium text-indigo-900 dark:text-indigo-100">
+                  {jobStatus.selectedCount}/{jobStatus.targetCount}
+                </span>
+              </div>
+              <p className="text-sm text-indigo-800 dark:text-indigo-200">
+                {jobStatus.message}
+              </p>
+              <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
+                Scanned: {jobStatus.totalScanned.toLocaleString()} documents
+              </p>
+            </div>
           )}
+
+          {/* Cancelled job status */}
+          {jobStatus && jobStatus.status === "cancelled" && (
+            <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-orange-900 dark:text-orange-100">
+                  Operation Cancelled
+                </span>
+              </div>
+              <p className="text-sm text-orange-800 dark:text-orange-200">
+                {jobStatus.message}
+              </p>
+              <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                Selected {jobStatus.selectedCount} galaxies before cancellation - no sequence was created
+              </p>
+            </div>
+          )}
+
+          {/* Completed job status */}
+          {jobStatus && jobStatus.status === "completed" && (
+            <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-green-900 dark:text-green-100">
+                  Sequence Created Successfully
+                </span>
+              </div>
+              <p className="text-sm text-green-800 dark:text-green-200">
+                {jobStatus.message}
+              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+                Total scanned: {jobStatus.totalScanned.toLocaleString()} documents
+              </p>
+            </div>
+          )}
+
+          {/* Stats update progress (after sequence is created) */}
 
           {statsProgress && (
             <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -646,12 +792,8 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
           )}
 
           {/* Persistent log view */}
-          <div 
-            ref={logContainerRef}
-            onScroll={handleLogScroll}
-            className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 max-h-56 overflow-y-auto space-y-1"
-          >
-            <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+          <div className="mt-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100 p-3 pb-2">
               <span>Activity Log</span>
               <button
                 type="button"
@@ -662,32 +804,38 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
                 Clear
               </button>
             </div>
-            {logs.length === 0 ? (
-              <p className="text-xs text-gray-500 dark:text-gray-400">No log entries yet.</p>
-            ) : (
-              logs.map((log, idx) => (
-                <div
-                  key={log.timestamp + idx}
-                  className={`text-xs rounded px-2 py-1 border ${
-                    log.level === "error"
-                      ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-100"
-                      : log.level === "warning"
-                        ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-100"
-                        : log.level === "success"
-                          ? "border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-100"
-                          : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                  }`}
-                >
-                  <span className="text-[11px] mr-2 text-gray-500 dark:text-gray-400">
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </span>
-                  <span className="uppercase text-[10px] mr-2 tracking-wide font-semibold">
-                    {log.level}
-                  </span>
-                  <span className="align-middle">{log.message}</span>
-                </div>
-              ))
-            )}
+            <div
+              ref={logContainerRef}
+              onScroll={handleLogScroll}
+              className="max-h-56 overflow-y-auto px-3 pb-3 space-y-1"
+            >
+              {logs.length === 0 ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400">No log entries yet.</p>
+              ) : (
+                logs.map((log, idx) => (
+                  <div
+                    key={log.timestamp + idx}
+                    className={`text-xs rounded px-2 py-1 border ${
+                      log.level === "error"
+                        ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-100"
+                        : log.level === "warning"
+                          ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-100"
+                          : log.level === "success"
+                            ? "border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-100"
+                            : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    }`}
+                  >
+                    <span className="text-[11px] mr-2 text-gray-500 dark:text-gray-400">
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className="uppercase text-[10px] mr-2 tracking-wide font-semibold">
+                      {log.level}
+                    </span>
+                    <span className="align-middle">{log.message}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
