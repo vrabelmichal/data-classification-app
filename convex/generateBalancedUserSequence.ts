@@ -262,13 +262,14 @@ export const checkSequenceGenerationPreconditions = internalQuery({
 // Type for batch selection result
 type SelectGalaxiesBatchResult = {
   selectedIds: string[];
-  cursor: { totalAssigned: string; numericId: string } | null;
+  cursor: string | null; // Convex pagination cursor
   exhausted: boolean;
   scannedCount: number;
 };
 
 // Paginated query to select galaxies in batches
 // Returns candidates that pass the filter, plus a cursor for the next batch
+// Uses Convex's built-in pagination to properly resume from where we left off
 export const selectGalaxiesBatch = internalQuery({
   args: {
     targetUserId: v.id("users"),
@@ -277,11 +278,8 @@ export const selectGalaxiesBatch = internalQuery({
     paperFilter: v.optional(v.array(v.string())),
     blacklistedIds: v.array(v.string()),
     alreadySelectedIds: v.array(v.string()),
-    // Cursor for pagination: [totalAssigned, numericId] as strings for the index position
-    cursor: v.optional(v.object({
-      totalAssigned: v.string(), // BigInt as string
-      numericId: v.string(), // BigInt as string
-    })),
+    // Convex pagination cursor (opaque string)
+    cursor: v.optional(v.string()),
     // Phase: "underK" or "overK"
     phase: v.union(v.literal("underK"), v.literal("overK")),
     limit: v.number(),
@@ -306,67 +304,29 @@ export const selectGalaxiesBatch = internalQuery({
     const effectivePaperFilter = paperFilter && paperFilter.length > 0 ? paperFilter : null;
 
     const selected: string[] = [];
-    let newCursor: { totalAssigned: string; numericId: string } | null = null;
-    let exhausted = false;
-    let scannedCount = 0;
 
     // Build the query based on phase
     let query;
     if (phase === "underK") {
       query = ctx.db
         .query("galaxies")
-        .withIndex("by_totalAssigned_numericId", (q) => {
-          if (cursor) {
-            // Continue from cursor position - we need to start after the cursor
-            return q.lt("totalAssigned", BigInt(K));
-          }
-          return q.lt("totalAssigned", BigInt(K));
-        });
+        .withIndex("by_totalAssigned_numericId", (q) => q.lt("totalAssigned", BigInt(K)));
     } else {
       query = ctx.db
         .query("galaxies")
-        .withIndex("by_totalAssigned_numericId", (q) => {
-          if (cursor) {
-            return q.gte("totalAssigned", BigInt(K));
-          }
-          return q.gte("totalAssigned", BigInt(K));
-        });
+        .withIndex("by_totalAssigned_numericId", (q) => q.gte("totalAssigned", BigInt(K)));
     }
 
-    // Iterate through results
-    let foundCursorPosition = cursor === undefined;
-    
-    for await (const doc of query) {
-      scannedCount++;
+    // Use Convex's built-in pagination - this properly resumes from cursor
+    const paginationResult = await query.paginate({
+      numItems: limit,
+      cursor: cursor ?? null,
+    });
 
-      // If we have a cursor, skip until we pass it
-      if (!foundCursorPosition) {
-        const docTotalAssigned = doc.totalAssigned?.toString() ?? "0";
-        const docNumericId = doc.numericId?.toString() ?? "0";
-        
-        // Compare to find if we've passed the cursor position
-        const cursorTotal = BigInt(cursor!.totalAssigned);
-        const cursorNumeric = BigInt(cursor!.numericId);
-        const docTotal = doc.totalAssigned ?? BigInt(0);
-        const docNumeric = doc.numericId ?? BigInt(0);
+    const scannedCount = paginationResult.page.length;
 
-        // Skip if we haven't passed the cursor yet
-        if (docTotal < cursorTotal || (docTotal === cursorTotal && docNumeric <= cursorNumeric)) {
-          continue;
-        }
-        foundCursorPosition = true;
-      }
-
-      // Check if we've hit our scan limit
-      if (scannedCount >= limit) {
-        // Save cursor for next batch
-        newCursor = {
-          totalAssigned: (doc.totalAssigned ?? BigInt(0)).toString(),
-          numericId: (doc.numericId ?? BigInt(0)).toString(),
-        };
-        break;
-      }
-
+    // Filter the batch
+    for (const doc of paginationResult.page) {
       // Skip blacklisted galaxies
       if (blacklistedSet.has(doc.id)) continue;
 
@@ -388,20 +348,14 @@ export const selectGalaxiesBatch = internalQuery({
 
       // Check if we have enough
       if (selected.length >= neededCount) {
-        // We don't need to set a cursor if we found enough
         break;
       }
     }
 
-    // If we didn't break due to limit, we exhausted this phase
-    if (newCursor === null && scannedCount < limit) {
-      exhausted = true;
-    }
-
     return {
       selectedIds: selected,
-      cursor: newCursor,
-      exhausted,
+      cursor: paginationResult.isDone ? null : paginationResult.continueCursor,
+      exhausted: paginationResult.isDone,
       scannedCount,
     };
   },
@@ -547,7 +501,7 @@ export const generateBalancedUserSequence = action({
 
     // Paginated selection - underK phase first
     const selectedIds: string[] = [];
-    let cursor: { totalAssigned: string; numericId: string } | undefined = undefined;
+    let cursor: string | undefined = undefined; // Convex pagination cursor
     let exhaustedUnderK = false;
     let exhaustedOverK = false;
     let totalScanned = 0;
