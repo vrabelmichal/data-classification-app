@@ -259,6 +259,42 @@ export const browseGalaxies = query({
       });
     }
 
+    if (filter === "my_sequence") {
+      return await handleMySequenceGalaxies({
+        ctx,
+        userId,
+        cursor,
+        numItems,
+        sortOrder: normalizedSortOrder,
+        requestedSort,
+        sortField: allowedSort[requestedSort].field,
+        searchId,
+        searchRaMin,
+        searchRaMax,
+        searchDecMin,
+        searchDecMax,
+        searchReffMin,
+        searchReffMax,
+        searchQMin,
+        searchQMax,
+        searchPaMin,
+        searchPaMax,
+        searchMagMin,
+        searchMagMax,
+        searchMeanMueMin,
+        searchMeanMueMax,
+        searchNucleus,
+        searchTotalClassificationsMin,
+        searchTotalClassificationsMax,
+        searchNumVisibleNucleusMin,
+        searchNumVisibleNucleusMax,
+        searchNumAwesomeFlagMin,
+        searchNumAwesomeFlagMax,
+        searchTotalAssignedMin,
+        searchTotalAssignedMax,
+      });
+    }
+
     if (filter === "classified" || filter === "unclassified") {
       return await handleClassifiedGalaxies({
         ctx,
@@ -421,24 +457,7 @@ export const browseGalaxies = query({
     // We rely on server-side filtering above; no additional in-memory filtering/pagination here
     let searchFilteredTotal = 0;
     
-    // Note: "classified" and "unclassified" filters are handled by handleClassifiedGalaxies above
-    if (filter === "my_sequence") {
-      // Get user's sequence
-      const userSequence = await ctx.db
-        .query("galaxySequences")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .unique();
-      
-      if (userSequence && userSequence.galaxyExternalIds) {
-        const sequenceIds = new Set(userSequence.galaxyExternalIds);
-        galaxies = galaxies.filter(g => sequenceIds.has(g.id));
-        
-      } else {
-        // No sequence found, return empty array
-        galaxies = [];
-        
-      }
-    }
+    // Note: "classified", "unclassified", and "my_sequence" filters are handled by dedicated handlers above
 
     // Apply classification-based search filters
     if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
@@ -1106,6 +1125,245 @@ const handleSkippedGalaxies = async (options: HandleSkippedOptions) => {
   const hasNext = safeOffset + paged.length < total;
   const nextCursor = hasNext ? serializeSkippedCursor(safeOffset + paged.length) : null;
   const hasPrevious = safeOffset > 0;
+  const totalPages = total > 0 ? Math.ceil(total / numItems) : 0;
+
+  return {
+    galaxies: paged,
+    total,
+    hasNext,
+    hasPrevious,
+    totalPages,
+    aggregatesPopulated: false,
+    cursor: nextCursor,
+    isDone: !hasNext,
+    currentBounds: computeBounds(paged),
+  };
+};
+
+const SEQUENCE_CURSOR_PREFIX = "SEQUENCE:";
+
+const parseSequenceCursor = (cursor: string | null) => {
+  if (!cursor || !cursor.startsWith(SEQUENCE_CURSOR_PREFIX)) {
+    return 0;
+  }
+  const rawOffset = Number.parseInt(cursor.slice(SEQUENCE_CURSOR_PREFIX.length), 10);
+  return Number.isFinite(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
+};
+
+const serializeSequenceCursor = (offset: number) => `${SEQUENCE_CURSOR_PREFIX}${offset}`;
+
+const handleMySequenceGalaxies = async (options: HandleSkippedOptions) => {
+  const {
+    ctx,
+    userId,
+    cursor,
+    numItems,
+    sortOrder,
+    requestedSort,
+    sortField,
+    searchId,
+    searchRaMin,
+    searchRaMax,
+    searchDecMin,
+    searchDecMax,
+    searchReffMin,
+    searchReffMax,
+    searchQMin,
+    searchQMax,
+    searchPaMin,
+    searchPaMax,
+    searchMagMin,
+    searchMagMax,
+    searchMeanMueMin,
+    searchMeanMueMax,
+    searchNucleus,
+    searchTotalClassificationsMin,
+    searchTotalClassificationsMax,
+    searchNumVisibleNucleusMin,
+    searchNumVisibleNucleusMax,
+    searchNumAwesomeFlagMin,
+    searchNumAwesomeFlagMax,
+    searchTotalAssignedMin,
+    searchTotalAssignedMax,
+  } = options;
+
+  const initialOffset = parseSequenceCursor(cursor);
+
+  // Get user's sequence
+  const userSequence = await ctx.db
+    .query("galaxySequences")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .unique();
+
+  if (!userSequence || !userSequence.galaxyExternalIds || userSequence.galaxyExternalIds.length === 0) {
+    return {
+      galaxies: [],
+      total: 0,
+      hasNext: false,
+      hasPrevious: initialOffset > 0,
+      totalPages: 0,
+      aggregatesPopulated: false,
+      cursor: null,
+      isDone: true,
+      currentBounds: computeBounds([]),
+    };
+  }
+
+  const sequenceExternalIds = userSequence.galaxyExternalIds;
+
+  // Pull only the slice we need for this page (+ a small oversample to survive filters)
+  const PAGE_FETCH_MULTIPLIER = 5;
+  const fetchWindow = Math.max(numItems * PAGE_FETCH_MULTIPLIER, numItems);
+  const sliceStart = Math.max(0, Math.min(initialOffset, sequenceExternalIds.length));
+  const sliceIds = sequenceExternalIds.slice(sliceStart, sliceStart + fetchWindow);
+
+  // Fetch galaxies in small batches to stay under Convex read limits
+  const BATCH_SIZE = 50;
+  const sliceGalaxies: any[] = [];
+
+  for (let i = 0; i < sliceIds.length; i += BATCH_SIZE) {
+    const batchIds = sliceIds.slice(i, i + BATCH_SIZE);
+    const batchGalaxies = await Promise.all(
+      batchIds.map(async (externalId: string) => {
+        const galaxy = await ctx.db
+          .query("galaxies")
+          .withIndex("by_external_id", (q: any) => q.eq("id", externalId))
+          .unique();
+        return galaxy;
+      })
+    );
+    sliceGalaxies.push(...batchGalaxies.filter((g): g is any => g !== null));
+  }
+
+  let filtered = sliceGalaxies;
+
+  // Apply search filters
+  if (searchId) {
+    const trimmed = searchId.trim();
+    filtered = filtered.filter((g) => g.id === trimmed);
+  }
+  const applyNumericFilter = (
+    values: any[],
+    field: string,
+    min?: string,
+    max?: string,
+  ) => {
+    if (!min && !max) return values;
+    const minVal = min !== undefined && min !== null && min !== "" ? Number.parseFloat(min) : undefined;
+    const maxVal = max !== undefined && max !== null && max !== "" ? Number.parseFloat(max) : undefined;
+    return values.filter((g) => {
+      const value = g[field];
+      if (typeof value !== "number" || Number.isNaN(value)) return false;
+      if (minVal !== undefined && value < minVal) return false;
+      if (maxVal !== undefined && value > maxVal) return false;
+      return true;
+    });
+  };
+
+  filtered = applyNumericFilter(filtered, "ra", searchRaMin, searchRaMax);
+  filtered = applyNumericFilter(filtered, "dec", searchDecMin, searchDecMax);
+  filtered = applyNumericFilter(filtered, "reff", searchReffMin, searchReffMax);
+  filtered = applyNumericFilter(filtered, "q", searchQMin, searchQMax);
+  filtered = applyNumericFilter(filtered, "pa", searchPaMin, searchPaMax);
+  filtered = applyNumericFilter(filtered, "mag", searchMagMin, searchMagMax);
+  filtered = applyNumericFilter(filtered, "mean_mue", searchMeanMueMin, searchMeanMueMax);
+
+  if (searchNucleus !== undefined) {
+    const desired = !!searchNucleus;
+    filtered = filtered.filter((g) => !!g.nucleus === desired);
+  }
+
+  if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
+    const minVal = searchTotalClassificationsMin ? Number.parseInt(searchTotalClassificationsMin, 10) : undefined;
+    const maxVal = searchTotalClassificationsMax ? Number.parseInt(searchTotalClassificationsMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.totalClassifications === "number" ? g.totalClassifications : Number(g.totalClassifications ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
+    const minVal = searchNumVisibleNucleusMin ? Number.parseInt(searchNumVisibleNucleusMin, 10) : undefined;
+    const maxVal = searchNumVisibleNucleusMax ? Number.parseInt(searchNumVisibleNucleusMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.numVisibleNucleus === "number" ? g.numVisibleNucleus : Number(g.numVisibleNucleus ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
+    const minVal = searchNumAwesomeFlagMin ? Number.parseInt(searchNumAwesomeFlagMin, 10) : undefined;
+    const maxVal = searchNumAwesomeFlagMax ? Number.parseInt(searchNumAwesomeFlagMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.numAwesomeFlag === "number" ? g.numAwesomeFlag : Number(g.numAwesomeFlag ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  if (searchTotalAssignedMin || searchTotalAssignedMax) {
+    const minVal = searchTotalAssignedMin ? Number.parseInt(searchTotalAssignedMin, 10) : undefined;
+    const maxVal = searchTotalAssignedMax ? Number.parseInt(searchTotalAssignedMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.totalAssigned === "number" ? g.totalAssigned : Number(g.totalAssigned ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  // Sort the galaxies
+  const missingNumericValue = sortOrder === "asc" ? Number.POSITIVE_INFINITY : Number.NEGATIVE_INFINITY;
+
+  filtered.sort((a, b) => {
+    if (requestedSort === "id") {
+      const aVal = typeof a[sortField] === "string" ? a[sortField] : "";
+      const bVal = typeof b[sortField] === "string" ? b[sortField] : "";
+      const cmp = aVal.localeCompare(bVal, undefined, { numeric: true, sensitivity: "base" });
+      if (cmp !== 0) {
+        return sortOrder === "asc" ? cmp : -cmp;
+      }
+    } else if (requestedSort === "nucleus") {
+      const aVal = a[sortField] ? 1 : 0;
+      const bVal = b[sortField] ? 1 : 0;
+      if (aVal !== bVal) {
+        return sortOrder === "asc" ? aVal - bVal : bVal - aVal;
+      }
+    } else {
+      const aVal = typeof a[sortField] === "number" && !Number.isNaN(a[sortField]) ? a[sortField] : missingNumericValue;
+      const bVal = typeof b[sortField] === "number" && !Number.isNaN(b[sortField]) ? b[sortField] : missingNumericValue;
+      if (aVal !== bVal) {
+        return sortOrder === "asc" ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+      }
+    }
+
+    const aNumeric = typeof a.numericId === "number" ? a.numericId : Number.POSITIVE_INFINITY;
+    const bNumeric = typeof b.numericId === "number" ? b.numericId : Number.POSITIVE_INFINITY;
+    if (aNumeric !== bNumeric) {
+      return aNumeric - bNumeric;
+    }
+
+    const aId = typeof a.id === "string" ? a.id : "";
+    const bId = typeof b.id === "string" ? b.id : "";
+    return aId.localeCompare(bId, undefined, { numeric: true, sensitivity: "base" });
+  });
+
+  const total = sequenceExternalIds.length; // Total sequence length; filtered total is unknown without full scan
+  const paged = filtered.slice(0, numItems);
+
+  // We consider there is a next page if the underlying sequence has more entries beyond the current window
+  const hasNext = sliceStart + fetchWindow < sequenceExternalIds.length || filtered.length > numItems;
+  const nextCursor = hasNext ? serializeSequenceCursor(initialOffset + numItems) : null;
+  const hasPrevious = initialOffset > 0;
   const totalPages = total > 0 ? Math.ceil(total / numItems) : 0;
 
   return {
