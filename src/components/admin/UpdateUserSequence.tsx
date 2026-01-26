@@ -875,12 +875,8 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           )}
 
           {/* Activity Log */}
-          <div 
-            ref={logContainerRef}
-            onScroll={handleLogScroll}
-            className="mt-3 p-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 max-h-56 overflow-y-auto space-y-1"
-          >
-            <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100">
+          <div className="mt-3 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-between text-sm font-semibold text-gray-800 dark:text-gray-100 p-3 pb-2">
               <span>Activity Log</span>
               <button
                 type="button"
@@ -891,32 +887,38 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                 Clear
               </button>
             </div>
-            {logs.length === 0 ? (
-              <p className="text-xs text-gray-500 dark:text-gray-400">No log entries yet.</p>
-            ) : (
-              logs.map((log, idx) => (
-                <div
-                  key={log.timestamp + idx}
-                  className={`text-xs rounded px-2 py-1 border ${
-                    log.level === "error"
-                      ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-100"
-                      : log.level === "warning"
-                        ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-100"
-                        : log.level === "success"
-                          ? "border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-100"
-                          : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
-                  }`}
-                >
-                  <span className="text-[11px] mr-2 text-gray-500 dark:text-gray-400">
-                    {new Date(log.timestamp).toLocaleTimeString()}
-                  </span>
-                  <span className="uppercase text-[10px] mr-2 tracking-wide font-semibold">
-                    {log.level}
-                  </span>
-                  <span className="align-middle">{log.message}</span>
-                </div>
-              ))
-            )}
+            <div
+              ref={logContainerRef}
+              onScroll={handleLogScroll}
+              className="max-h-56 overflow-y-auto px-3 pb-3 space-y-1"
+            >
+              {logs.length === 0 ? (
+                <p className="text-xs text-gray-500 dark:text-gray-400">No log entries yet.</p>
+              ) : (
+                logs.map((log, idx) => (
+                  <div
+                    key={log.timestamp + idx}
+                    className={`text-xs rounded px-2 py-1 border ${
+                      log.level === "error"
+                        ? "border-red-200 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-900/30 dark:text-red-100"
+                        : log.level === "warning"
+                          ? "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-100"
+                          : log.level === "success"
+                            ? "border-green-200 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-900/30 dark:text-green-100"
+                            : "border-gray-200 bg-white text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+                    }`}
+                  >
+                    <span className="text-[11px] mr-2 text-gray-500 dark:text-gray-400">
+                      {new Date(log.timestamp).toLocaleTimeString()}
+                    </span>
+                    <span className="uppercase text-[10px] mr-2 tracking-wide font-semibold">
+                      {log.level}
+                    </span>
+                    <span className="align-middle">{log.message}</span>
+                  </div>
+                ))
+              )}
+            </div>
           </div>
         </div>
       </div>
