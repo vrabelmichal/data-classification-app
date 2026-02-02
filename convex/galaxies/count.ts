@@ -370,10 +370,9 @@ export const countFilteredGalaxiesBatch = query({
 
     switch (requestedSort) {
       case "numericId":
-        if (searchNucleus !== undefined) {
-          indexName = "by_numericId_nucleus";
-          indexBuilder = (qb) => qb.eq("nucleus", !!searchNucleus);
-        } else if (searchMagMin || searchMagMax) {
+        // Note: by_numericId_nucleus index has fields [numericId, nucleus] so we cannot
+        // query on nucleus alone. Use by_numeric_id and apply nucleus filter via .filter()
+        if (searchMagMin || searchMagMax) {
           indexName = "by_numericId_mag";
         } else if (searchMeanMueMin || searchMeanMueMax) {
           indexName = "by_numericId_mean_mue";
@@ -382,6 +381,7 @@ export const countFilteredGalaxiesBatch = query({
         } else if (searchReffMin || searchReffMax) {
           indexName = "by_numericId_reff";
         }
+        // searchNucleus is applied via .filter() below
         break;
       case "ra":
         if (searchDecMin || searchDecMax) {
