@@ -451,21 +451,21 @@ export const browseGalaxies = query({
   if (searchMeanMueMax) q = q.filter((f: any) => f.lte(f.field("mean_mue"), parseFloat(searchMeanMueMax)));
   if (searchNucleus !== undefined) q = q.filter((f: any) => f.eq(f.field("nucleus"), !!searchNucleus));
   if (searchTotalClassificationsMin)
-    q = q.filter((f: any) => f.gte(f.field("totalClassifications"), parseInt(searchTotalClassificationsMin, 10)));
+    q = q.filter((f: any) => f.gte(f.field("totalClassifications"), BigInt(searchTotalClassificationsMin)));
   if (searchTotalClassificationsMax)
-    q = q.filter((f: any) => f.lte(f.field("totalClassifications"), parseInt(searchTotalClassificationsMax, 10)));
+    q = q.filter((f: any) => f.lte(f.field("totalClassifications"), BigInt(searchTotalClassificationsMax)));
   if (searchNumVisibleNucleusMin)
-    q = q.filter((f: any) => f.gte(f.field("numVisibleNucleus"), parseInt(searchNumVisibleNucleusMin, 10)));
+    q = q.filter((f: any) => f.gte(f.field("numVisibleNucleus"), BigInt(searchNumVisibleNucleusMin)));
   if (searchNumVisibleNucleusMax)
-    q = q.filter((f: any) => f.lte(f.field("numVisibleNucleus"), parseInt(searchNumVisibleNucleusMax, 10)));
+    q = q.filter((f: any) => f.lte(f.field("numVisibleNucleus"), BigInt(searchNumVisibleNucleusMax)));
   if (searchNumAwesomeFlagMin)
-    q = q.filter((f: any) => f.gte(f.field("numAwesomeFlag"), parseInt(searchNumAwesomeFlagMin, 10)));
+    q = q.filter((f: any) => f.gte(f.field("numAwesomeFlag"), BigInt(searchNumAwesomeFlagMin)));
   if (searchNumAwesomeFlagMax)
-    q = q.filter((f: any) => f.lte(f.field("numAwesomeFlag"), parseInt(searchNumAwesomeFlagMax, 10)));
+    q = q.filter((f: any) => f.lte(f.field("numAwesomeFlag"), BigInt(searchNumAwesomeFlagMax)));
   if (searchTotalAssignedMin)
-    q = q.filter((f: any) => f.gte(f.field("totalAssigned"), parseInt(searchTotalAssignedMin, 10)));
+    q = q.filter((f: any) => f.gte(f.field("totalAssigned"), BigInt(searchTotalAssignedMin)));
   if (searchTotalAssignedMax)
-    q = q.filter((f: any) => f.lte(f.field("totalAssigned"), parseInt(searchTotalAssignedMax, 10)));
+    q = q.filter((f: any) => f.lte(f.field("totalAssigned"), BigInt(searchTotalAssignedMax)));
 
     const { page, isDone, continueCursor } = await q.paginate({ numItems, cursor: cursor || null });
     let galaxies: any[] = page;
