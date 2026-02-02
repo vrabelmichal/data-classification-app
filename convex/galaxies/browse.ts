@@ -450,6 +450,22 @@ export const browseGalaxies = query({
   if (searchMeanMueMin) q = q.filter((f: any) => f.gte(f.field("mean_mue"), parseFloat(searchMeanMueMin)));
   if (searchMeanMueMax) q = q.filter((f: any) => f.lte(f.field("mean_mue"), parseFloat(searchMeanMueMax)));
   if (searchNucleus !== undefined) q = q.filter((f: any) => f.eq(f.field("nucleus"), !!searchNucleus));
+  if (searchTotalClassificationsMin)
+    q = q.filter((f: any) => f.gte(f.field("totalClassifications"), parseInt(searchTotalClassificationsMin, 10)));
+  if (searchTotalClassificationsMax)
+    q = q.filter((f: any) => f.lte(f.field("totalClassifications"), parseInt(searchTotalClassificationsMax, 10)));
+  if (searchNumVisibleNucleusMin)
+    q = q.filter((f: any) => f.gte(f.field("numVisibleNucleus"), parseInt(searchNumVisibleNucleusMin, 10)));
+  if (searchNumVisibleNucleusMax)
+    q = q.filter((f: any) => f.lte(f.field("numVisibleNucleus"), parseInt(searchNumVisibleNucleusMax, 10)));
+  if (searchNumAwesomeFlagMin)
+    q = q.filter((f: any) => f.gte(f.field("numAwesomeFlag"), parseInt(searchNumAwesomeFlagMin, 10)));
+  if (searchNumAwesomeFlagMax)
+    q = q.filter((f: any) => f.lte(f.field("numAwesomeFlag"), parseInt(searchNumAwesomeFlagMax, 10)));
+  if (searchTotalAssignedMin)
+    q = q.filter((f: any) => f.gte(f.field("totalAssigned"), parseInt(searchTotalAssignedMin, 10)));
+  if (searchTotalAssignedMax)
+    q = q.filter((f: any) => f.lte(f.field("totalAssigned"), parseInt(searchTotalAssignedMax, 10)));
 
     const { page, isDone, continueCursor } = await q.paginate({ numItems, cursor: cursor || null });
     let galaxies: any[] = page;
@@ -459,47 +475,7 @@ export const browseGalaxies = query({
     
     // Note: "classified", "unclassified", and "my_sequence" filters are handled by dedicated handlers above
 
-    // Apply classification-based search filters
-    if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
-      galaxies = galaxies.filter(g => {
-        const total = g.totalClassifications || 0;
-        if (searchTotalClassificationsMin && total < parseInt(searchTotalClassificationsMin)) return false;
-        if (searchTotalClassificationsMax && total > parseInt(searchTotalClassificationsMax)) return false;
-        return true;
-      });
-      
-      // Update total count for classification searches
-    }
-
-    // Apply numVisibleNucleus search filters
-    if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
-      galaxies = galaxies.filter(g => {
-        const total = g.numVisibleNucleus || 0;
-        if (searchNumVisibleNucleusMin && total < parseInt(searchNumVisibleNucleusMin)) return false;
-        if (searchNumVisibleNucleusMax && total > parseInt(searchNumVisibleNucleusMax)) return false;
-        return true;
-      });
-    }
-
-    // Apply numAwesomeFlag search filters
-    if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
-      galaxies = galaxies.filter(g => {
-        const total = g.numAwesomeFlag || 0;
-        if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
-        if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
-        return true;
-      });
-    }
-
-    // Apply totalAssigned search filters
-    if (searchTotalAssignedMin || searchTotalAssignedMax) {
-      galaxies = galaxies.filter(g => {
-        const total = g.totalAssigned || 0;
-        if (searchTotalAssignedMin && total < parseInt(searchTotalAssignedMin)) return false;
-        if (searchTotalAssignedMax && total > parseInt(searchTotalAssignedMax)) return false;
-        return true;
-      });
-    }
+    // totalClassifications, numVisibleNucleus, numAwesomeFlag, totalAssigned handled server-side above
 
     searchFilteredTotal = galaxies.length;
 
