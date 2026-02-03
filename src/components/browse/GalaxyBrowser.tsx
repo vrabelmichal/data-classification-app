@@ -16,6 +16,12 @@ export type FilterType = "all" | "my_sequence" | "classified" | "unclassified" |
 export function GalaxyBrowser() {
   usePageTitle("Browse Galaxies");
 
+  // Load system settings to determine which fields to show
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  const showAwesomeFlag = systemSettings?.showAwesomeFlag !== false;
+  const showValidRedshift = systemSettings?.showValidRedshift !== false;
+  const showVisibleNucleus = systemSettings?.showVisibleNucleus !== false;
+
   const {
     // State
     page,
@@ -342,6 +348,9 @@ export function GalaxyBrowser() {
           {/* Controls */}
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
             <GalaxyBrowserSearchForm
+              showAwesomeFlag={showAwesomeFlag}
+              showValidRedshift={showValidRedshift}
+              showVisibleNucleus={showVisibleNucleus}
               searchId={searchId}
               setSearchId={setSearchId}
               searchRaMin={searchRaMin}
@@ -460,6 +469,9 @@ export function GalaxyBrowser() {
       {/* Controls */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
         <GalaxyBrowserSearchForm
+          showAwesomeFlag={showAwesomeFlag}
+          showValidRedshift={showValidRedshift}
+          showVisibleNucleus={showVisibleNucleus}
           searchId={searchId}
           setSearchId={setSearchId}
           searchRaMin={searchRaMin}

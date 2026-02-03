@@ -4,6 +4,11 @@ import { cn } from "../../lib/utils";
 type BoundsField = 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'numFailedFitting' | 'totalAssigned';
 
 interface GalaxyBrowserSearchFormProps {
+  // System settings visibility flags
+  showAwesomeFlag?: boolean;
+  showValidRedshift?: boolean;
+  showVisibleNucleus?: boolean;
+
   // Search state
   searchId: string;
   setSearchId: (value: string) => void;
@@ -79,6 +84,9 @@ interface GalaxyBrowserSearchFormProps {
   onToggleCollapsed: () => void;
 }
 export function GalaxyBrowserSearchForm({
+  showAwesomeFlag = true,
+  showValidRedshift = true,
+  showVisibleNucleus = true,
   searchId,
   setSearchId,
   searchRaMin,
@@ -165,7 +173,7 @@ export function GalaxyBrowserSearchForm({
 
   // User-assigned flags with counts (Yes = 1+, No = 0)
   const userFlagFilters = [
-    {
+    ...(showAwesomeFlag ? [{
       key: 'searchAwesome',
       label: 'Awesome flagged',
       helper: '',
@@ -186,8 +194,8 @@ export function GalaxyBrowserSearchForm({
         minKey: 'searchNumAwesomeFlagMin',
         maxKey: 'searchNumAwesomeFlagMax',
       },
-    },
-    {
+    }] : []),
+    ...(showVisibleNucleus ? [{
       key: 'searchVisibleNucleus',
       label: 'Visible nucleus flag',
       helper: '',
@@ -208,7 +216,7 @@ export function GalaxyBrowserSearchForm({
         minKey: 'searchNumVisibleNucleusMin',
         maxKey: 'searchNumVisibleNucleusMax',
       },
-    },
+    }] : []),
     {
       key: 'searchFailedFitting',
       label: 'Failed fitting',
@@ -242,13 +250,13 @@ export function GalaxyBrowserSearchForm({
         maxKey: 'searchNumFailedFittingMax',
       },
     },
-    {
+    ...(showValidRedshift ? [{
       key: 'searchValidRedshift',
       label: 'Valid redshift',
       helper: '',
       value: searchValidRedshift,
       setter: setSearchValidRedshift,
-    },
+    }] : []),
   ];
 
   // System counts (with Any/Yes/No toggles)
@@ -571,14 +579,15 @@ export function GalaxyBrowserSearchForm({
           </div>
         </div>
 
-        {/* SECTION 2: User-Assigned Flags (with counts) */}
-        <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-800/60 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wide">User-Assigned Flags</h3>
-            <span className="text-xs text-gray-500 dark:text-gray-400">Reviewer checkboxes • Yes = 1+, No = 0</span>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
-            {userFlagFilters.map((filter) => (
+        {/* SECTION 2: User-Assigned Flags (with counts) - Only show if at least one flag is enabled */}
+        {userFlagFilters.length > 0 && (
+          <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-800/60 shadow-sm">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wide">User-Assigned Flags</h3>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Reviewer checkboxes • Yes = 1+, No = 0</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-3">
+              {userFlagFilters.map((filter) => (
               <div key={filter.key} className="flex flex-col gap-2 p-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800/60 shadow-sm">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{filter.label}</div>
@@ -648,6 +657,7 @@ export function GalaxyBrowserSearchForm({
             ))}
           </div>
         </div>
+        )}
 
         {/* SECTION 3: System Counts */}
         <div className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-gray-800 dark:to-gray-800/60 shadow-sm">
