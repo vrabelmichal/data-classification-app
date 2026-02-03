@@ -221,12 +221,26 @@ export const exportGalaxiesBatch = query({
         if (filter === "classified") {
           galaxyExternalIds = Array.from(classifiedIds);
         } else {
-          // unclassified - need to get all galaxies then filter
-          // This is expensive, but necessary for correctness
-          const allGalaxies = await ctx.db.query("galaxies").collect();
-          galaxyExternalIds = allGalaxies
-            .filter((g) => !classifiedIds.has(g.id))
-            .map((g) => g.id);
+          // unclassified - paginate through galaxies to avoid loading all rows at once
+          const batchSize = 1000;
+          let cursor: any = null;
+          let isDone = false;
+
+          while (!isDone) {
+            const page = await ctx.db.query("galaxies").paginate({
+              cursor,
+              numItems: batchSize,
+            });
+
+            for (const g of page.page) {
+              if (!classifiedIds.has(g.id)) {
+                galaxyExternalIds.push(g.id);
+              }
+            }
+
+            cursor = page.continueCursor;
+            isDone = page.isDone;
+          }
         }
       }
 
@@ -378,16 +392,16 @@ function applySearchFilters(g: any, filters: {
   }
 
   // Range filters
-  if (filters.searchRaMin && g.ra < parseFloat(filters.searchRaMin)) return false;
-  if (filters.searchRaMax && g.ra > parseFloat(filters.searchRaMax)) return false;
-  if (filters.searchDecMin && g.dec < parseFloat(filters.searchDecMin)) return false;
-  if (filters.searchDecMax && g.dec > parseFloat(filters.searchDecMax)) return false;
-  if (filters.searchReffMin && g.reff < parseFloat(filters.searchReffMin)) return false;
-  if (filters.searchReffMax && g.reff > parseFloat(filters.searchReffMax)) return false;
-  if (filters.searchQMin && g.q < parseFloat(filters.searchQMin)) return false;
-  if (filters.searchQMax && g.q > parseFloat(filters.searchQMax)) return false;
-  if (filters.searchPaMin && g.pa < parseFloat(filters.searchPaMin)) return false;
-  if (filters.searchPaMax && g.pa > parseFloat(filters.searchPaMax)) return false;
+  if (filters.searchRaMin && g.ra !== undefined && g.ra < parseFloat(filters.searchRaMin)) return false;
+  if (filters.searchRaMax && g.ra !== undefined && g.ra > parseFloat(filters.searchRaMax)) return false;
+  if (filters.searchDecMin && g.dec !== undefined && g.dec < parseFloat(filters.searchDecMin)) return false;
+  if (filters.searchDecMax && g.dec !== undefined && g.dec > parseFloat(filters.searchDecMax)) return false;
+  if (filters.searchReffMin && g.reff !== undefined && g.reff < parseFloat(filters.searchReffMin)) return false;
+  if (filters.searchReffMax && g.reff !== undefined && g.reff > parseFloat(filters.searchReffMax)) return false;
+  if (filters.searchQMin && g.q !== undefined && g.q < parseFloat(filters.searchQMin)) return false;
+  if (filters.searchQMax && g.q !== undefined && g.q > parseFloat(filters.searchQMax)) return false;
+  if (filters.searchPaMin && g.pa !== undefined && g.pa < parseFloat(filters.searchPaMin)) return false;
+  if (filters.searchPaMax && g.pa !== undefined && g.pa > parseFloat(filters.searchPaMax)) return false;
   if (filters.searchMagMin && g.mag !== undefined && g.mag < parseFloat(filters.searchMagMin)) return false;
   if (filters.searchMagMax && g.mag !== undefined && g.mag > parseFloat(filters.searchMagMax)) return false;
   if (filters.searchMeanMueMin && g.mean_mue !== undefined && g.mean_mue < parseFloat(filters.searchMeanMueMin)) return false;
