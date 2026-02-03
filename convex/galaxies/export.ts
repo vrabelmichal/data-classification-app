@@ -226,37 +226,56 @@ export const exportGalaxiesBatch = query({
           .withIndex("by_user", (q: any) => q.eq("userId", userId))
           .unique();
         galaxyExternalIds = sequence?.galaxyExternalIds ?? [];
-      } else if (filter === "classified" || filter === "unclassified") {
+      } else if (filter === "classified") {
+        const classifications = await ctx.db
+          .query("classifications")
+          .withIndex("by_user", (q: any) => q.eq("userId", userId))
+          .collect();
+        galaxyExternalIds = classifications.map((c) => c.galaxyExternalId);
+      } else if (filter === "unclassified") {
+        // For unclassified, process in streaming batches without accumulating all IDs
         const classifications = await ctx.db
           .query("classifications")
           .withIndex("by_user", (q: any) => q.eq("userId", userId))
           .collect();
         const classifiedIds = new Set(classifications.map((c) => c.galaxyExternalId));
 
-        if (filter === "classified") {
-          galaxyExternalIds = Array.from(classifiedIds);
-        } else {
-          // unclassified - paginate through galaxies to avoid loading all rows at once
-          const batchSize = 1000;
-          let cursor: any = null;
-          let isDone = false;
+        // Use cursor-based pagination directly on galaxies table
+        const galaxyCursor = cursor || null;
+        const page = await ctx.db.query("galaxies").paginate({
+          cursor: galaxyCursor,
+          numItems: remainingToFetch * 2, // Fetch extra to account for filtering
+        });
 
-          while (!isDone) {
-            const page = await ctx.db.query("galaxies").paginate({
-              cursor,
-              numItems: batchSize,
-            });
-
-            for (const g of page.page) {
-              if (!classifiedIds.has(g.id)) {
-                galaxyExternalIds.push(g.id);
-              }
-            }
-
-            cursor = page.continueCursor;
-            isDone = page.isDone;
+        const galaxies: any[] = [];
+        for (const galaxy of page.page) {
+          if (classifiedIds.has(galaxy.id)) continue; // Skip classified
+          // Apply search filters
+          if (applySearchFilters(galaxy, {
+            searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax,
+            searchReffMin, searchReffMax, searchQMin, searchQMax,
+            searchPaMin, searchPaMax, searchMagMin, searchMagMax,
+            searchMeanMueMin, searchMeanMueMax, searchNucleus,
+            searchTotalClassificationsMin, searchTotalClassificationsMax,
+            searchNumVisibleNucleusMin, searchNumVisibleNucleusMax,
+            searchNumAwesomeFlagMin, searchNumAwesomeFlagMax,
+            searchNumFailedFittingMin, searchNumFailedFittingMax,
+            searchTotalAssignedMin, searchTotalAssignedMax,
+          })) {
+            galaxies.push(galaxy);
+            if (galaxies.length >= remainingToFetch) break;
           }
         }
+
+        const limitReached = effectiveMaxLimit !== undefined &&
+          (totalExportedSoFar + galaxies.length) >= effectiveMaxLimit;
+
+        return {
+          galaxies: galaxies.map(formatGalaxyForExport),
+          cursor: page.isDone || limitReached ? null : page.continueCursor,
+          isDone: page.isDone || limitReached,
+          limitReached,
+        };
       }
 
       // Fetch galaxies by external IDs with offset pagination
