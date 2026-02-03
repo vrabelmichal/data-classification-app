@@ -195,10 +195,7 @@ export function GalaxyExport({
   const userExportLimitRaw = systemSettings?.userExportLimit;
   const userExportLimit = typeof userExportLimitRaw === "number" ? userExportLimitRaw : DEFAULT_USER_EXPORT_LIMIT;
 
-  // Don't show export UI if limit is 0 for non-admins
-  if (!isAdmin && userExportLimit === 0) {
-    return null;
-  }
+  const shouldHideExport = !isAdmin && userExportLimit === 0;
 
   const effectiveLimit = isAdmin ? undefined : userExportLimit;
 
@@ -342,6 +339,11 @@ export function GalaxyExport({
       cursor: null,
     }));
   }, []);
+
+  // Don't show export UI if limit is 0 for non-admins
+  if (shouldHideExport) {
+    return null;
+  }
 
   return (
     <div className="mt-4 bg-gray-50 dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700">

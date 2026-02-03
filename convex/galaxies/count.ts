@@ -12,7 +12,21 @@ type Sortable =
   | "pa"
   | "mag"
   | "mean_mue"
-  | "nucleus";
+  | "nucleus"
+  | "totalClassifications"
+  | "numVisibleNucleus"
+  | "numAwesomeFlag"
+  | "numFailedFitting"
+  | "totalAssigned";
+
+const safeBigInt = (value: string | undefined | null): bigint | null => {
+  if (value === undefined || value === null || value === "") return null;
+  try {
+    return BigInt(value);
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Count galaxies using the same index strategy as browseGalaxies.
@@ -32,7 +46,12 @@ export const countFilteredGalaxiesBatch = query({
       v.literal("mag"),
       v.literal("mean_mue"),
       v.literal("nucleus"),
-      v.literal("numericId")
+      v.literal("numericId"),
+      v.literal("totalClassifications"),
+      v.literal("numVisibleNucleus"),
+      v.literal("numAwesomeFlag"),
+      v.literal("numFailedFitting"),
+      v.literal("totalAssigned")
     )),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
     filter: v.optional(v.union(
@@ -114,6 +133,12 @@ export const countFilteredGalaxiesBatch = query({
 
     const normalizedSortOrder: "asc" | "desc" = sortOrder === "desc" ? "desc" : "asc";
 
+    const hasTotalClassificationsFilter = !!(searchTotalClassificationsMin || searchTotalClassificationsMax);
+    const hasNumVisibleNucleusFilter = !!(searchNumVisibleNucleusMin || searchNumVisibleNucleusMax);
+    const hasNumAwesomeFlagFilter = !!(searchNumAwesomeFlagMin || searchNumAwesomeFlagMax);
+    const hasNumFailedFittingFilter = !!(searchNumFailedFittingMin || searchNumFailedFittingMax);
+    const hasTotalAssignedFilter = !!(searchTotalAssignedMin || searchTotalAssignedMax);
+
     const allowedSort: Record<Sortable, { index: string; field: string }> = {
       numericId: { index: "by_numeric_id", field: "numericId" },
       id: { index: "by_external_id", field: "id" },
@@ -125,6 +150,11 @@ export const countFilteredGalaxiesBatch = query({
       mag: { index: "by_mag", field: "mag" },
       mean_mue: { index: "by_mean_mue", field: "mean_mue" },
       nucleus: { index: "by_nucleus", field: "nucleus" },
+      totalClassifications: { index: "by_totalClassifications", field: "totalClassifications" },
+      numVisibleNucleus: { index: "by_numVisibleNucleus", field: "numVisibleNucleus" },
+      numAwesomeFlag: { index: "by_numAwesomeFlag", field: "numAwesomeFlag" },
+      numFailedFitting: { index: "by_numFailedFitting", field: "numFailedFitting" },
+      totalAssigned: { index: "by_totalAssigned_numericId", field: "totalAssigned" },
     };
 
     const requestedSort = (Object.keys(allowedSort) as Sortable[]).includes(sortBy as Sortable)
@@ -399,7 +429,52 @@ export const countFilteredGalaxiesBatch = query({
       return out;
     };
 
-    switch (requestedSort) {
+    const applyInt64Range = (qb: any, field: string, min?: string, max?: string) => {
+      let out = qb;
+      const minVal = safeBigInt(min);
+      const maxVal = safeBigInt(max);
+      if (minVal !== null) out = out.gte(field, minVal);
+      if (maxVal !== null) out = out.lte(field, maxVal);
+      return out;
+    };
+
+    const isAggregateSort =
+      requestedSort === "totalClassifications" ||
+      requestedSort === "numVisibleNucleus" ||
+      requestedSort === "numAwesomeFlag" ||
+      requestedSort === "numFailedFitting" ||
+      requestedSort === "totalAssigned";
+
+    const useAggregateIndex =
+      isAggregateSort ||
+      (requestedSort === "numericId" &&
+        (hasTotalAssignedFilter ||
+          hasTotalClassificationsFilter ||
+          hasNumVisibleNucleusFilter ||
+          hasNumAwesomeFlagFilter ||
+          hasNumFailedFittingFilter));
+
+    if (useAggregateIndex) {
+      if (requestedSort === "totalAssigned" || hasTotalAssignedFilter) {
+        indexName = "by_totalAssigned_numericId";
+        indexBuilder = (qb) => applyInt64Range(qb, "totalAssigned", searchTotalAssignedMin, searchTotalAssignedMax);
+      } else if (requestedSort === "totalClassifications" || hasTotalClassificationsFilter) {
+        indexName = "by_totalClassifications";
+        indexBuilder = (qb) => applyInt64Range(qb, "totalClassifications", searchTotalClassificationsMin, searchTotalClassificationsMax);
+      } else if (requestedSort === "numVisibleNucleus" || hasNumVisibleNucleusFilter) {
+        indexName = "by_numVisibleNucleus";
+        indexBuilder = (qb) => applyInt64Range(qb, "numVisibleNucleus", searchNumVisibleNucleusMin, searchNumVisibleNucleusMax);
+      } else if (requestedSort === "numAwesomeFlag" || hasNumAwesomeFlagFilter) {
+        indexName = "by_numAwesomeFlag";
+        indexBuilder = (qb) => applyInt64Range(qb, "numAwesomeFlag", searchNumAwesomeFlagMin, searchNumAwesomeFlagMax);
+      } else if (requestedSort === "numFailedFitting" || hasNumFailedFittingFilter) {
+        indexName = "by_numFailedFitting";
+        indexBuilder = (qb) => applyInt64Range(qb, "numFailedFitting", searchNumFailedFittingMin, searchNumFailedFittingMax);
+      }
+    }
+
+    if (!useAggregateIndex) {
+      switch (requestedSort) {
       case "numericId":
         // Note: by_numericId_nucleus index has fields [numericId, nucleus] so we cannot
         // query on nucleus alone. Use by_numeric_id and apply nucleus filter via .filter()
@@ -480,6 +555,7 @@ export const countFilteredGalaxiesBatch = query({
           indexBuilder = (qb) => applyRange(qb, "pa", searchPaMin, searchPaMax);
         }
         break;
+      }
     }
 
     let qBase = ctx.db.query("galaxies");
@@ -506,6 +582,38 @@ export const countFilteredGalaxiesBatch = query({
     if (searchMeanMueMax) q = q.filter((f: any) => f.lte(f.field("mean_mue"), parseFloat(searchMeanMueMax)));
     if (searchNucleus !== undefined) q = q.filter((f: any) => f.eq(f.field("nucleus"), !!searchNucleus));
 
+    const totalClassificationsMinVal = safeBigInt(searchTotalClassificationsMin);
+    const totalClassificationsMaxVal = safeBigInt(searchTotalClassificationsMax);
+    const numVisibleNucleusMinVal = safeBigInt(searchNumVisibleNucleusMin);
+    const numVisibleNucleusMaxVal = safeBigInt(searchNumVisibleNucleusMax);
+    const numAwesomeFlagMinVal = safeBigInt(searchNumAwesomeFlagMin);
+    const numAwesomeFlagMaxVal = safeBigInt(searchNumAwesomeFlagMax);
+    const numFailedFittingMinVal = safeBigInt(searchNumFailedFittingMin);
+    const numFailedFittingMaxVal = safeBigInt(searchNumFailedFittingMax);
+    const totalAssignedMinVal = safeBigInt(searchTotalAssignedMin);
+    const totalAssignedMaxVal = safeBigInt(searchTotalAssignedMax);
+
+    if (totalClassificationsMinVal !== null)
+      q = q.filter((f: any) => f.gte(f.field("totalClassifications"), totalClassificationsMinVal));
+    if (totalClassificationsMaxVal !== null)
+      q = q.filter((f: any) => f.lte(f.field("totalClassifications"), totalClassificationsMaxVal));
+    if (numVisibleNucleusMinVal !== null)
+      q = q.filter((f: any) => f.gte(f.field("numVisibleNucleus"), numVisibleNucleusMinVal));
+    if (numVisibleNucleusMaxVal !== null)
+      q = q.filter((f: any) => f.lte(f.field("numVisibleNucleus"), numVisibleNucleusMaxVal));
+    if (numAwesomeFlagMinVal !== null)
+      q = q.filter((f: any) => f.gte(f.field("numAwesomeFlag"), numAwesomeFlagMinVal));
+    if (numAwesomeFlagMaxVal !== null)
+      q = q.filter((f: any) => f.lte(f.field("numAwesomeFlag"), numAwesomeFlagMaxVal));
+    if (numFailedFittingMinVal !== null)
+      q = q.filter((f: any) => f.gte(f.field("numFailedFitting"), numFailedFittingMinVal));
+    if (numFailedFittingMaxVal !== null)
+      q = q.filter((f: any) => f.lte(f.field("numFailedFitting"), numFailedFittingMaxVal));
+    if (totalAssignedMinVal !== null)
+      q = q.filter((f: any) => f.gte(f.field("totalAssigned"), totalAssignedMinVal));
+    if (totalAssignedMaxVal !== null)
+      q = q.filter((f: any) => f.lte(f.field("totalAssigned"), totalAssignedMaxVal));
+
     const { page, isDone, continueCursor } = await q.paginate({
       numItems: batchSize,
       cursor: paginationCursor,
@@ -526,51 +634,6 @@ export const countFilteredGalaxiesBatch = query({
       } else {
         filteredPage = [];
       }
-    }
-
-    if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
-      filteredPage = filteredPage.filter((g: any) => {
-        const total = g.totalClassifications || 0;
-        if (searchTotalClassificationsMin && total < parseInt(searchTotalClassificationsMin)) return false;
-        if (searchTotalClassificationsMax && total > parseInt(searchTotalClassificationsMax)) return false;
-        return true;
-      });
-    }
-
-    if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
-      filteredPage = filteredPage.filter((g: any) => {
-        const total = g.numVisibleNucleus || 0;
-        if (searchNumVisibleNucleusMin && total < parseInt(searchNumVisibleNucleusMin)) return false;
-        if (searchNumVisibleNucleusMax && total > parseInt(searchNumVisibleNucleusMax)) return false;
-        return true;
-      });
-    }
-
-    if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
-      filteredPage = filteredPage.filter((g: any) => {
-        const total = g.numAwesomeFlag || 0;
-        if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
-        if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
-        return true;
-      });
-    }
-
-    if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
-      filteredPage = filteredPage.filter((g: any) => {
-        const total = g.numFailedFitting || 0;
-        if (searchNumFailedFittingMin && total < parseInt(searchNumFailedFittingMin)) return false;
-        if (searchNumFailedFittingMax && total > parseInt(searchNumFailedFittingMax)) return false;
-        return true;
-      });
-    }
-
-    if (searchTotalAssignedMin || searchTotalAssignedMax) {
-      filteredPage = filteredPage.filter((g: any) => {
-        const total = g.totalAssigned || 0;
-        if (searchTotalAssignedMin && total < parseInt(searchTotalAssignedMin)) return false;
-        if (searchTotalAssignedMax && total > parseInt(searchTotalAssignedMax)) return false;
-        return true;
-      });
     }
 
     return {
@@ -598,7 +661,12 @@ export const countFilteredGalaxiesBatchLegacy = query({
       v.literal("mag"),
       v.literal("mean_mue"),
       v.literal("nucleus"),
-      v.literal("numericId")
+      v.literal("numericId"),
+      v.literal("totalClassifications"),
+      v.literal("numVisibleNucleus"),
+      v.literal("numAwesomeFlag"),
+      v.literal("numFailedFitting"),
+      v.literal("totalAssigned")
     )),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
     filter: v.optional(v.union(
@@ -691,6 +759,11 @@ export const countFilteredGalaxiesBatchLegacy = query({
       mag: { index: "by_mag" },
       mean_mue: { index: "by_mean_mue" },
       nucleus: { index: "by_nucleus" },
+      totalClassifications: { index: "by_totalClassifications" },
+      numVisibleNucleus: { index: "by_numVisibleNucleus" },
+      numAwesomeFlag: { index: "by_numAwesomeFlag" },
+      numFailedFitting: { index: "by_numFailedFitting" },
+      totalAssigned: { index: "by_totalAssigned_numericId" },
     };
 
     const requestedSort = (Object.keys(allowedSort) as Sortable[]).includes(sortBy as Sortable)

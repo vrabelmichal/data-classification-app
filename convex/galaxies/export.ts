@@ -22,7 +22,12 @@ export const exportGalaxiesBatch = query({
       v.literal("mag"),
       v.literal("mean_mue"),
       v.literal("nucleus"),
-      v.literal("numericId")
+      v.literal("numericId"),
+      v.literal("totalClassifications"),
+      v.literal("numVisibleNucleus"),
+      v.literal("numAwesomeFlag"),
+      v.literal("numFailedFitting"),
+      v.literal("totalAssigned")
     )),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
     filter: v.optional(v.union(
@@ -173,7 +178,12 @@ export const exportGalaxiesBatch = query({
       | "pa"
       | "mag"
       | "mean_mue"
-      | "nucleus";
+      | "nucleus"
+      | "totalClassifications"
+      | "numVisibleNucleus"
+      | "numAwesomeFlag"
+      | "numFailedFitting"
+      | "totalAssigned";
 
     const allowedSort: Record<Sortable, { index: string }> = {
       numericId: { index: "by_numeric_id" },
@@ -186,6 +196,11 @@ export const exportGalaxiesBatch = query({
       mag: { index: "by_mag" },
       mean_mue: { index: "by_mean_mue" },
       nucleus: { index: "by_nucleus" },
+      totalClassifications: { index: "by_totalClassifications" },
+      numVisibleNucleus: { index: "by_numVisibleNucleus" },
+      numAwesomeFlag: { index: "by_numAwesomeFlag" },
+      numFailedFitting: { index: "by_numFailedFitting" },
+      totalAssigned: { index: "by_totalAssigned_numericId" },
     };
     const requestedSort = (Object.keys(allowedSort) as Sortable[]).includes(sortBy as Sortable)
       ? (sortBy as Sortable)

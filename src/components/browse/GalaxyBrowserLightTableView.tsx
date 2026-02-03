@@ -117,20 +117,35 @@ export function GalaxyBrowserLightTableView({
               >
                 μ₀ {getSortIcon("mean_mue")}
               </th>
-              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
-                Classifications
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("totalClassifications")}
+              >
+                Classifications {getSortIcon("totalClassifications")}
               </th>
-              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
-                Visible Nuclei
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("numVisibleNucleus")}
+              >
+                Visible Nuclei {getSortIcon("numVisibleNucleus")}
               </th>
-              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
-                Awesome Flags
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("numAwesomeFlag")}
+              >
+                Awesome Flags {getSortIcon("numAwesomeFlag")}
               </th>
-              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
-                Failed Fittings
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("numFailedFitting")}
+              >
+                Failed Fittings {getSortIcon("numFailedFitting")}
               </th>
-              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
-                Total Assigned
+              <th
+                className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-700"
+                onClick={() => handleSort("totalAssigned")}
+              >
+                Total Assigned {getSortIcon("totalAssigned")}
               </th>
               <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
                 Paper

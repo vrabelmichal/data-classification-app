@@ -10,7 +10,22 @@ import { GalaxyBrowserMobileCards } from "./GalaxyBrowserMobileCards";
 import { GalaxyExport } from "./GalaxyExport";
 // Cursor-based pagination handled in controls; standalone pagination removed
 
-export type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus" | "numericId";
+export type SortField =
+  | "id"
+  | "ra"
+  | "dec"
+  | "reff"
+  | "q"
+  | "pa"
+  | "mag"
+  | "mean_mue"
+  | "nucleus"
+  | "numericId"
+  | "totalClassifications"
+  | "numVisibleNucleus"
+  | "numAwesomeFlag"
+  | "numFailedFitting"
+  | "totalAssigned";
 export type SortOrder = "asc" | "desc";
 export type FilterType = "all" | "my_sequence" | "classified" | "unclassified" | "skipped";
 

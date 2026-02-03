@@ -94,6 +94,11 @@ export function GalaxyBrowserControls({
             <option value="mag">Magnitude</option>
             <option value="mean_mue">Mean Surface Brightness</option>
             <option value="nucleus">Nucleus</option>
+            <option value="totalClassifications">Total Classifications</option>
+            <option value="numVisibleNucleus">Visible Nuclei</option>
+            <option value="numAwesomeFlag">Awesome Flags</option>
+            <option value="numFailedFitting">Failed Fittings</option>
+            <option value="totalAssigned">Total Assigned</option>
           </select>
         </div>
 

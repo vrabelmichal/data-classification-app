@@ -99,7 +99,12 @@ type Sortable =
   | "pa"
   | "mag"
   | "mean_mue"
-  | "nucleus";
+  | "nucleus"
+  | "totalClassifications"
+  | "numVisibleNucleus"
+  | "numAwesomeFlag"
+  | "numFailedFitting"
+  | "totalAssigned";
 
 // Browse galaxies with offset-based pagination for proper page navigation
 
@@ -119,7 +124,12 @@ export const browseGalaxies = query({
       v.literal("mag"),
       v.literal("mean_mue"),
       v.literal("nucleus"),
-      v.literal("numericId")
+      v.literal("numericId"),
+      v.literal("totalClassifications"),
+      v.literal("numVisibleNucleus"),
+      v.literal("numAwesomeFlag"),
+      v.literal("numFailedFitting"),
+      v.literal("totalAssigned")
     )),
     sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
     filter: v.optional(v.union(
@@ -235,6 +245,11 @@ export const browseGalaxies = query({
       mag: { index: "by_mag", field: "mag" },
       mean_mue: { index: "by_mean_mue", field: "mean_mue" },
       nucleus: { index: "by_nucleus", field: "nucleus" },
+      totalClassifications: { index: "by_totalClassifications", field: "totalClassifications" },
+      numVisibleNucleus: { index: "by_numVisibleNucleus", field: "numVisibleNucleus" },
+      numAwesomeFlag: { index: "by_numAwesomeFlag", field: "numAwesomeFlag" },
+      numFailedFitting: { index: "by_numFailedFitting", field: "numFailedFitting" },
+      totalAssigned: { index: "by_totalAssigned_numericId", field: "totalAssigned" },
     };
     const requestedSort = (Object.keys(allowedSort) as Sortable[]).includes(sortBy as Sortable)
       ? (sortBy as Sortable)
@@ -366,6 +381,15 @@ export const browseGalaxies = query({
       return out;
     };
 
+    const applyInt64Range = (qb: any, field: string, min?: string, max?: string) => {
+      let out = qb;
+      const minVal = safeBigInt(min);
+      const maxVal = safeBigInt(max);
+      if (minVal !== null) out = out.gte(field, minVal);
+      if (maxVal !== null) out = out.lte(field, maxVal);
+      return out;
+    };
+
     switch (requestedSort) {
       case "numericId":
         // Note: by_numericId_nucleus index has fields [numericId, nucleus] so we cannot
@@ -445,6 +469,31 @@ export const browseGalaxies = query({
       case "pa":
         if (searchPaMin || searchPaMax) {
           indexBuilder = (qb) => applyRange(qb, "pa", searchPaMin, searchPaMax);
+        }
+        break;
+      case "totalClassifications":
+        if (searchTotalClassificationsMin || searchTotalClassificationsMax) {
+          indexBuilder = (qb) => applyInt64Range(qb, "totalClassifications", searchTotalClassificationsMin, searchTotalClassificationsMax);
+        }
+        break;
+      case "numVisibleNucleus":
+        if (searchNumVisibleNucleusMin || searchNumVisibleNucleusMax) {
+          indexBuilder = (qb) => applyInt64Range(qb, "numVisibleNucleus", searchNumVisibleNucleusMin, searchNumVisibleNucleusMax);
+        }
+        break;
+      case "numAwesomeFlag":
+        if (searchNumAwesomeFlagMin || searchNumAwesomeFlagMax) {
+          indexBuilder = (qb) => applyInt64Range(qb, "numAwesomeFlag", searchNumAwesomeFlagMin, searchNumAwesomeFlagMax);
+        }
+        break;
+      case "numFailedFitting":
+        if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+          indexBuilder = (qb) => applyInt64Range(qb, "numFailedFitting", searchNumFailedFittingMin, searchNumFailedFittingMax);
+        }
+        break;
+      case "totalAssigned":
+        if (searchTotalAssignedMin || searchTotalAssignedMax) {
+          indexBuilder = (qb) => applyInt64Range(qb, "totalAssigned", searchTotalAssignedMin, searchTotalAssignedMax);
         }
         break;
     }

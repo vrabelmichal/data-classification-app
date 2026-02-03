@@ -85,10 +85,21 @@ export function GalaxyBrowserSimpleTableView({
           <th onClick={() => handleSort("mean_mue")}>
             μ₀ {getSortIcon("mean_mue")}
           </th>
-          <th>Classifications</th>
-          <th>Visible Nuclei</th>
-          <th>Awesome Flags</th>
-          <th>Total Assigned</th>
+          <th onClick={() => handleSort("totalClassifications")}>
+            Classifications {getSortIcon("totalClassifications")}
+          </th>
+          <th onClick={() => handleSort("numVisibleNucleus")}>
+            Visible Nuclei {getSortIcon("numVisibleNucleus")}
+          </th>
+          <th onClick={() => handleSort("numAwesomeFlag")}>
+            Awesome Flags {getSortIcon("numAwesomeFlag")}
+          </th>
+          <th onClick={() => handleSort("numFailedFitting")}>
+            Failed Fittings {getSortIcon("numFailedFitting")}
+          </th>
+          <th onClick={() => handleSort("totalAssigned")}>
+            Total Assigned {getSortIcon("totalAssigned")}
+          </th>
           <th>Paper</th>
           <th title="Number of algorithms by Thuruthipilly classifying object as a galaxy">Thur CLS N</th>
           <th>Action</th>
@@ -116,6 +127,7 @@ export function GalaxyBrowserSimpleTableView({
             <td>{galaxy.totalClassifications || 0}</td>
             <td>{galaxy.numVisibleNucleus || 0}</td>
             <td>{galaxy.numAwesomeFlag || 0}</td>
+            <td>{galaxy.numFailedFitting || 0}</td>
             <td>{galaxy.totalAssigned || 0}</td>
             <td>{galaxy.misc?.paper || "—"}</td>
             <td>{galaxy.misc?.thur_cls_n || "—"}</td>
