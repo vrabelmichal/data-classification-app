@@ -29,13 +29,18 @@ const safeBigInt = (value: string | undefined | null): bigint | null => {
 };
 
 /**
- * Count galaxies using the same index strategy as browseGalaxies.
- * The old implementation is kept as countFilteredGalaxiesBatchLegacy for comparison.
+ * Count galaxies with optimal index selection based on filters.
+ * Unlike browse queries, counting doesn't care about sort order - we just need
+ * to efficiently scan matching records. The index is chosen purely based on
+ * which filters can benefit from index range scans.
+ * 
+ * Note: sortBy/sortOrder args are kept for API compatibility but ignored.
  */
 export const countFilteredGalaxiesBatch = query({
   args: {
     cursor: v.optional(v.string()),
     batchSize: v.optional(v.number()),
+    // sortBy/sortOrder kept for API compatibility but ignored for counting
     sortBy: v.optional(v.union(
       v.literal("id"),
       v.literal("ra"),
@@ -100,8 +105,6 @@ export const countFilteredGalaxiesBatch = query({
     const {
       cursor: paginationCursor = null,
       batchSize = 500,
-      sortBy = "numericId",
-      sortOrder = "asc",
       filter,
       searchId,
       searchRaMin,
@@ -131,35 +134,21 @@ export const countFilteredGalaxiesBatch = query({
       searchTotalAssignedMax,
     } = args;
 
-    const normalizedSortOrder: "asc" | "desc" = sortOrder === "desc" ? "desc" : "asc";
-
+    // Detect which filters are active to pick optimal index
+    const hasIdFilter = !!searchId;
+    const hasRaFilter = !!(searchRaMin || searchRaMax);
+    const hasDecFilter = !!(searchDecMin || searchDecMax);
+    const hasReffFilter = !!(searchReffMin || searchReffMax);
+    const hasQFilter = !!(searchQMin || searchQMax);
+    const hasPaFilter = !!(searchPaMin || searchPaMax);
+    const hasMagFilter = !!(searchMagMin || searchMagMax);
+    const hasMeanMueFilter = !!(searchMeanMueMin || searchMeanMueMax);
+    const hasNucleusFilter = searchNucleus !== undefined;
     const hasTotalClassificationsFilter = !!(searchTotalClassificationsMin || searchTotalClassificationsMax);
     const hasNumVisibleNucleusFilter = !!(searchNumVisibleNucleusMin || searchNumVisibleNucleusMax);
     const hasNumAwesomeFlagFilter = !!(searchNumAwesomeFlagMin || searchNumAwesomeFlagMax);
     const hasNumFailedFittingFilter = !!(searchNumFailedFittingMin || searchNumFailedFittingMax);
     const hasTotalAssignedFilter = !!(searchTotalAssignedMin || searchTotalAssignedMax);
-
-    const allowedSort: Record<Sortable, { index: string; field: string }> = {
-      numericId: { index: "by_numeric_id", field: "numericId" },
-      id: { index: "by_external_id", field: "id" },
-      ra: { index: "by_ra", field: "ra" },
-      dec: { index: "by_dec", field: "dec" },
-      reff: { index: "by_reff", field: "reff" },
-      q: { index: "by_q", field: "q" },
-      pa: { index: "by_pa", field: "pa" },
-      mag: { index: "by_mag", field: "mag" },
-      mean_mue: { index: "by_mean_mue", field: "mean_mue" },
-      nucleus: { index: "by_nucleus", field: "nucleus" },
-      totalClassifications: { index: "by_totalClassifications", field: "totalClassifications" },
-      numVisibleNucleus: { index: "by_numVisibleNucleus", field: "numVisibleNucleus" },
-      numAwesomeFlag: { index: "by_numAwesomeFlag", field: "numAwesomeFlag" },
-      numFailedFitting: { index: "by_numFailedFitting", field: "numFailedFitting" },
-      totalAssigned: { index: "by_totalAssigned_numericId", field: "totalAssigned" },
-    };
-
-    const requestedSort = (Object.keys(allowedSort) as Sortable[]).includes(sortBy as Sortable)
-      ? (sortBy as Sortable)
-      : "numericId";
 
     // Special handling for skipped filter mirrors browseGalaxies behavior
     if (filter === "skipped") {
@@ -418,9 +407,20 @@ export const countFilteredGalaxiesBatch = query({
       }
     }
 
-    // Pick best index starting with the sort key and optionally second fields based on filters
-    let indexName = allowedSort[requestedSort].index;
-    let indexBuilder: ((qb: any) => any) | undefined = undefined;
+    // =========================================================================
+    // OPTIMAL INDEX SELECTION FOR COUNTING
+    // =========================================================================
+    // For counting, we don't care about sort order - we just need to efficiently
+    // scan matching records. Pick the best index based on which filters can
+    // leverage index range scans to reduce the number of records scanned.
+    //
+    // Priority order for index selection:
+    // 1. Exact match filters (id, nucleus) - most selective
+    // 2. Aggregate field filters with dedicated indexes
+    // 3. Common range filters with compound indexes
+    // 4. Single-field range filters
+    // 5. Default to by_numeric_id for full table scan
+    // =========================================================================
 
     const applyRange = (qb: any, field: string, min?: string, max?: string) => {
       let out = qb;
@@ -438,131 +438,113 @@ export const countFilteredGalaxiesBatch = query({
       return out;
     };
 
-    const isAggregateSort =
-      requestedSort === "totalClassifications" ||
-      requestedSort === "numVisibleNucleus" ||
-      requestedSort === "numAwesomeFlag" ||
-      requestedSort === "numFailedFitting" ||
-      requestedSort === "totalAssigned";
+    let indexName = "by_numeric_id"; // Default fallback
+    let indexBuilder: ((qb: any) => any) | undefined = undefined;
 
-    const useAggregateIndex =
-      isAggregateSort ||
-      (requestedSort === "numericId" &&
-        (hasTotalAssignedFilter ||
-          hasTotalClassificationsFilter ||
-          hasNumVisibleNucleusFilter ||
-          hasNumAwesomeFlagFilter ||
-          hasNumFailedFittingFilter));
-
-    if (useAggregateIndex) {
-      if (requestedSort === "totalAssigned" || hasTotalAssignedFilter) {
-        indexName = "by_totalAssigned_numericId";
-        indexBuilder = (qb) => applyInt64Range(qb, "totalAssigned", searchTotalAssignedMin, searchTotalAssignedMax);
-      } else if (requestedSort === "totalClassifications" || hasTotalClassificationsFilter) {
-        indexName = "by_totalClassifications";
-        indexBuilder = (qb) => applyInt64Range(qb, "totalClassifications", searchTotalClassificationsMin, searchTotalClassificationsMax);
-      } else if (requestedSort === "numVisibleNucleus" || hasNumVisibleNucleusFilter) {
-        indexName = "by_numVisibleNucleus";
-        indexBuilder = (qb) => applyInt64Range(qb, "numVisibleNucleus", searchNumVisibleNucleusMin, searchNumVisibleNucleusMax);
-      } else if (requestedSort === "numAwesomeFlag" || hasNumAwesomeFlagFilter) {
-        indexName = "by_numAwesomeFlag";
-        indexBuilder = (qb) => applyInt64Range(qb, "numAwesomeFlag", searchNumAwesomeFlagMin, searchNumAwesomeFlagMax);
-      } else if (requestedSort === "numFailedFitting" || hasNumFailedFittingFilter) {
-        indexName = "by_numFailedFitting";
-        indexBuilder = (qb) => applyInt64Range(qb, "numFailedFitting", searchNumFailedFittingMin, searchNumFailedFittingMax);
-      }
+    // 1. Exact match on ID is most selective
+    if (hasIdFilter) {
+      indexName = "by_external_id";
+      indexBuilder = (qb) => qb.eq("id", searchId!.trim());
     }
-
-    if (!useAggregateIndex) {
-      switch (requestedSort) {
-      case "numericId":
-        // Note: by_numericId_nucleus index has fields [numericId, nucleus] so we cannot
-        // query on nucleus alone. Use by_numeric_id and apply nucleus filter via .filter()
-        if (searchMagMin || searchMagMax) {
-          indexName = "by_numericId_mag";
-        } else if (searchMeanMueMin || searchMeanMueMax) {
-          indexName = "by_numericId_mean_mue";
-        } else if (searchQMin || searchQMax) {
-          indexName = "by_numericId_q";
-        } else if (searchReffMin || searchReffMax) {
-          indexName = "by_numericId_reff";
-        }
-        // searchNucleus is applied via .filter() below
-        break;
-      case "ra":
-        if (searchDecMin || searchDecMax) {
-          indexName = "by_ra_dec";
-          indexBuilder = (qb) => applyRange(qb, "ra", searchRaMin, searchRaMax);
-        } else if (searchRaMin || searchRaMax) {
-          indexBuilder = (qb) => applyRange(qb, "ra", searchRaMin, searchRaMax);
-        }
-        break;
-      case "reff":
-        if (searchMeanMueMin || searchMeanMueMax) {
-          indexName = "by_reff_mean_mue";
-          indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
-        } else if (searchMagMin || searchMagMax) {
-          indexName = "by_reff_mag";
-          indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
-        } else if (searchReffMin || searchReffMax) {
-          indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
-        }
-        break;
-      case "mag":
-        if (searchReffMin || searchReffMax) {
-          indexName = "by_mag_reff";
-          indexBuilder = (qb) => applyRange(qb, "mag", searchMagMin, searchMagMax);
-        } else if (searchMagMin || searchMagMax) {
-          indexBuilder = (qb) => applyRange(qb, "mag", searchMagMin, searchMagMax);
-        }
-        break;
-      case "mean_mue":
-        if (searchReffMin || searchReffMax) {
-          indexName = "by_mean_mue_reff";
-          indexBuilder = (qb) => applyRange(qb, "mean_mue", searchMeanMueMin, searchMeanMueMax);
-        } else if (searchMeanMueMin || searchMeanMueMax) {
-          indexBuilder = (qb) => applyRange(qb, "mean_mue", searchMeanMueMin, searchMeanMueMax);
-        }
-        break;
-      case "q":
-        if (searchReffMin || searchReffMax) {
-          indexName = "by_q_reff";
-          indexBuilder = (qb) => applyRange(qb, "q", searchQMin, searchQMax);
-        } else if (searchQMin || searchQMax) {
-          indexBuilder = (qb) => applyRange(qb, "q", searchQMin, searchQMax);
-        }
-        break;
-      case "nucleus":
-        if (searchNucleus !== undefined) {
-          indexBuilder = (qb) => qb.eq("nucleus", !!searchNucleus);
-          if (searchMagMin || searchMagMax) indexName = "by_nucleus_mag";
-          else if (searchMeanMueMin || searchMeanMueMax) indexName = "by_nucleus_mean_mue";
-          else if (searchQMin || searchQMax) indexName = "by_nucleus_q";
-        }
-        break;
-      case "id":
-        if (searchId) {
-          indexBuilder = (qb) => qb.eq("id", searchId.trim());
-        }
-        break;
-      case "dec":
-        if (searchDecMin || searchDecMax) {
-          indexBuilder = (qb) => applyRange(qb, "dec", searchDecMin, searchDecMax);
-        }
-        break;
-      case "pa":
-        if (searchPaMin || searchPaMax) {
-          indexBuilder = (qb) => applyRange(qb, "pa", searchPaMin, searchPaMax);
-        }
-        break;
-      }
+    // 2. Aggregate field filters - use dedicated indexes with range
+    else if (hasTotalAssignedFilter) {
+      indexName = "by_totalAssigned_numericId";
+      indexBuilder = (qb) => applyInt64Range(qb, "totalAssigned", searchTotalAssignedMin, searchTotalAssignedMax);
     }
+    else if (hasTotalClassificationsFilter) {
+      indexName = "by_totalClassifications";
+      indexBuilder = (qb) => applyInt64Range(qb, "totalClassifications", searchTotalClassificationsMin, searchTotalClassificationsMax);
+    }
+    else if (hasNumVisibleNucleusFilter) {
+      indexName = "by_numVisibleNucleus";
+      indexBuilder = (qb) => applyInt64Range(qb, "numVisibleNucleus", searchNumVisibleNucleusMin, searchNumVisibleNucleusMax);
+    }
+    else if (hasNumAwesomeFlagFilter) {
+      indexName = "by_numAwesomeFlag";
+      indexBuilder = (qb) => applyInt64Range(qb, "numAwesomeFlag", searchNumAwesomeFlagMin, searchNumAwesomeFlagMax);
+    }
+    else if (hasNumFailedFittingFilter) {
+      indexName = "by_numFailedFitting";
+      indexBuilder = (qb) => applyInt64Range(qb, "numFailedFitting", searchNumFailedFittingMin, searchNumFailedFittingMax);
+    }
+    // 3. Compound indexes for common filter combinations
+    else if (hasNucleusFilter && hasMagFilter) {
+      indexName = "by_nucleus_mag";
+      indexBuilder = (qb) => qb.eq("nucleus", !!searchNucleus);
+    }
+    else if (hasNucleusFilter && hasMeanMueFilter) {
+      indexName = "by_nucleus_mean_mue";
+      indexBuilder = (qb) => qb.eq("nucleus", !!searchNucleus);
+    }
+    else if (hasNucleusFilter && hasQFilter) {
+      indexName = "by_nucleus_q";
+      indexBuilder = (qb) => qb.eq("nucleus", !!searchNucleus);
+    }
+    else if (hasRaFilter && hasDecFilter) {
+      indexName = "by_ra_dec";
+      indexBuilder = (qb) => applyRange(qb, "ra", searchRaMin, searchRaMax);
+    }
+    else if (hasReffFilter && hasMeanMueFilter) {
+      indexName = "by_reff_mean_mue";
+      indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
+    }
+    else if (hasReffFilter && hasMagFilter) {
+      indexName = "by_reff_mag";
+      indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
+    }
+    else if (hasMeanMueFilter && hasReffFilter) {
+      indexName = "by_mean_mue_reff";
+      indexBuilder = (qb) => applyRange(qb, "mean_mue", searchMeanMueMin, searchMeanMueMax);
+    }
+    else if (hasMagFilter && hasReffFilter) {
+      indexName = "by_mag_reff";
+      indexBuilder = (qb) => applyRange(qb, "mag", searchMagMin, searchMagMax);
+    }
+    else if (hasQFilter && hasReffFilter) {
+      indexName = "by_q_reff";
+      indexBuilder = (qb) => applyRange(qb, "q", searchQMin, searchQMax);
+    }
+    // 4. Single-field filters with dedicated indexes
+    else if (hasNucleusFilter) {
+      indexName = "by_nucleus";
+      indexBuilder = (qb) => qb.eq("nucleus", !!searchNucleus);
+    }
+    else if (hasRaFilter) {
+      indexName = "by_ra";
+      indexBuilder = (qb) => applyRange(qb, "ra", searchRaMin, searchRaMax);
+    }
+    else if (hasDecFilter) {
+      indexName = "by_dec";
+      indexBuilder = (qb) => applyRange(qb, "dec", searchDecMin, searchDecMax);
+    }
+    else if (hasReffFilter) {
+      indexName = "by_reff";
+      indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
+    }
+    else if (hasQFilter) {
+      indexName = "by_q";
+      indexBuilder = (qb) => applyRange(qb, "q", searchQMin, searchQMax);
+    }
+    else if (hasPaFilter) {
+      indexName = "by_pa";
+      indexBuilder = (qb) => applyRange(qb, "pa", searchPaMin, searchPaMax);
+    }
+    else if (hasMagFilter) {
+      indexName = "by_mag";
+      indexBuilder = (qb) => applyRange(qb, "mag", searchMagMin, searchMagMax);
+    }
+    else if (hasMeanMueFilter) {
+      indexName = "by_mean_mue";
+      indexBuilder = (qb) => applyRange(qb, "mean_mue", searchMeanMueMin, searchMeanMueMax);
+    }
+    // 5. Default: use by_numeric_id for stable full table scan
 
     let qBase = ctx.db.query("galaxies");
     let q: any = indexBuilder
       ? qBase.withIndex(indexName as any, indexBuilder as any)
       : qBase.withIndex(indexName as any);
-    q = q.order(normalizedSortOrder as any);
+    // For counting, order doesn't matter but we need to call it for pagination
+    q = q.order("asc");
 
     // Apply additional filters via chained .filter calls
     if (searchId) q = q.filter((f: any) => f.eq(f.field("id"), searchId.trim()));
