@@ -7,6 +7,7 @@ import { GalaxyBrowserSearchForm } from "./GalaxyBrowserSearchForm";
 import { GalaxyBrowserControls } from "./GalaxyBrowserControls";
 import { GalaxyBrowserLightTableView } from "./GalaxyBrowserLightTableView";
 import { GalaxyBrowserMobileCards } from "./GalaxyBrowserMobileCards";
+import { GalaxyExport } from "./GalaxyExport";
 // Cursor-based pagination handled in controls; standalone pagination removed
 
 export type SortField = "id" | "ra" | "dec" | "reff" | "q" | "pa" | "mag" | "mean_mue" | "nucleus" | "numericId";
@@ -21,6 +22,10 @@ export function GalaxyBrowser() {
   const showAwesomeFlag = systemSettings?.showAwesomeFlag !== false;
   const showValidRedshift = systemSettings?.showValidRedshift !== false;
   const showVisibleNucleus = systemSettings?.showVisibleNucleus !== false;
+
+  // Get user profile to check admin status for export
+  const userProfile = useQuery(api.users.getUserProfile);
+  const isAdmin = userProfile?.role === "admin";
 
   const {
     // State
@@ -587,6 +592,47 @@ export function GalaxyBrowser() {
           previewImageName={previewImageName}
         />
       </div>
+
+      {/* Export Section */}
+      <GalaxyExport
+        filter={filter}
+        sortBy={sortBy}
+        sortOrder={sortOrder}
+        isSearchActive={isSearchActive}
+        searchId={searchId}
+        searchRaMin={searchRaMin}
+        searchRaMax={searchRaMax}
+        searchDecMin={searchDecMin}
+        searchDecMax={searchDecMax}
+        searchReffMin={searchReffMin}
+        searchReffMax={searchReffMax}
+        searchQMin={searchQMin}
+        searchQMax={searchQMax}
+        searchPaMin={searchPaMin}
+        searchPaMax={searchPaMax}
+        searchMagMin={searchMagMin}
+        searchMagMax={searchMagMax}
+        searchMeanMueMin={searchMeanMueMin}
+        searchMeanMueMax={searchMeanMueMax}
+        searchNucleus={searchNucleus}
+        searchTotalClassificationsMin={searchTotalClassificationsMin}
+        searchTotalClassificationsMax={searchTotalClassificationsMax}
+        searchNumVisibleNucleusMin={searchNumVisibleNucleusMin}
+        searchNumVisibleNucleusMax={searchNumVisibleNucleusMax}
+        searchNumAwesomeFlagMin={searchNumAwesomeFlagMin}
+        searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
+        searchNumFailedFittingMin={searchNumFailedFittingMin}
+        searchNumFailedFittingMax={searchNumFailedFittingMax}
+        searchTotalAssignedMin={searchTotalAssignedMin}
+        searchTotalAssignedMax={searchTotalAssignedMax}
+        searchAwesome={searchAwesome}
+        searchValidRedshift={searchValidRedshift}
+        searchVisibleNucleus={searchVisibleNucleus}
+        currentPageGalaxies={galaxyData?.galaxies}
+        pageSize={pageSize}
+        page={page}
+        isAdmin={isAdmin}
+      />
 
       {/* Cursor-based pagination is managed in controls */}
     </div>

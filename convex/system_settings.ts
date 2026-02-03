@@ -55,6 +55,7 @@ export const getPublicSystemSettings = query({
       "defaultImageQuality",
       "galaxyBrowserImageQuality",
       "allowPublicOverview",
+      "userExportLimit",
     ] as const;
 
     type PublicSettingKey = (typeof publicSettingsWhitelist)[number];
@@ -90,6 +91,7 @@ export const updateSystemSettings = mutation({
     defaultImageQuality: v.optional(v.union(v.literal("high"), v.literal("low"))),
     galaxyBrowserImageQuality: v.optional(v.union(v.literal("high"), v.literal("low"))),
     availablePapers: v.optional(v.array(v.string())),
+    userExportLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -314,6 +316,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "availablePapers",
           value: args.availablePapers,
+        });
+      }
+    }
+
+    if (args.userExportLimit !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "userExportLimit"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.userExportLimit });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "userExportLimit",
+          value: args.userExportLimit,
         });
       }
     }

@@ -76,6 +76,11 @@ export const DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY = "low" as const;
  */
 export const DEFAULT_AVAILABLE_PAPERS = ["", "new", "old"];
 
+/**
+ * Default maximum number of entries a regular (non-admin) user can export at once
+ */
+export const DEFAULT_USER_EXPORT_LIMIT = 1000;
+
 // ============================================================================
 // Combined Default System Settings
 // ============================================================================
@@ -98,4 +103,5 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   galaxyBrowserImageQuality: DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
+  userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
 };

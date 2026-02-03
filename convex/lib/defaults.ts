@@ -15,6 +15,11 @@ export const DEFAULT_ALLOW_PUBLIC_OVERVIEW = false;
 /**
  * Default system settings values
  */
+/**
+ * Default maximum number of entries a regular (non-admin) user can export at once
+ */
+export const DEFAULT_USER_EXPORT_LIMIT = 1000;
+
 export const DEFAULT_SYSTEM_SETTINGS = {
   allowAnonymous: false,
   emailFrom: "noreply@galaxies.michalvrabel.sk",
@@ -30,4 +35,5 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   galaxyBrowserImageQuality: "low" as const,
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
+  userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
 };
