@@ -492,14 +492,6 @@ export const countFilteredGalaxiesBatch = query({
       indexName = "by_reff_mag";
       indexBuilder = (qb) => applyRange(qb, "reff", searchReffMin, searchReffMax);
     }
-    else if (hasMeanMueFilter && hasReffFilter) {
-      indexName = "by_mean_mue_reff";
-      indexBuilder = (qb) => applyRange(qb, "mean_mue", searchMeanMueMin, searchMeanMueMax);
-    }
-    else if (hasMagFilter && hasReffFilter) {
-      indexName = "by_mag_reff";
-      indexBuilder = (qb) => applyRange(qb, "mag", searchMagMin, searchMagMax);
-    }
     else if (hasQFilter && hasReffFilter) {
       indexName = "by_q_reff";
       indexBuilder = (qb) => applyRange(qb, "q", searchQMin, searchQMax);
