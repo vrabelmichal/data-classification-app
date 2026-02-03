@@ -635,13 +635,13 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   };
 
   // Utility functions
-  const getPlaceholderTextWrapper = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned', type: 'min' | 'max') => {
+  const getPlaceholderTextWrapper = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'numFailedFitting' | 'totalAssigned', type: 'min' | 'max') => {
     // Prefer aggregate-backed searchBounds; fall back to current page bounds only if aggregates are unavailable
     const bounds = searchBounds ?? currentBounds;
     return getPlaceholderText(field, type, bounds);
   };
 
-  const getBoundsForField = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned') => {
+  const getBoundsForField = (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'numFailedFitting' | 'totalAssigned') => {
     const boundsSource = searchBounds ?? currentBounds;
     if (!boundsSource) return undefined;
     

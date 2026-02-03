@@ -59,7 +59,7 @@ export type SearchField =
  * Get placeholder text for search bounds based on field type and min/max
  */
 export const getPlaceholderText = (
-  field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned',
+  field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'numFailedFitting' | 'totalAssigned',
   type: 'min' | 'max',
   bounds?: any,
   isSearchActive?: boolean,
@@ -96,6 +96,7 @@ export const getPlaceholderText = (
     case 'totalClassifications':
     case 'numVisibleNucleus':
     case 'numAwesomeFlag':
+    case 'numFailedFitting':
     case 'totalAssigned':
       // Integer counts, no decimals
       return `${label}: ${value}`;
