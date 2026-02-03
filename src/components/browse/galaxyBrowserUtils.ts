@@ -137,6 +137,8 @@ export const hasFieldChanged = (
       case 'searchNumVisibleNucleusMax': return currentValues.searchNumVisibleNucleusMax !== "";
       case 'searchNumAwesomeFlagMin': return currentValues.searchNumAwesomeFlagMin !== "";
       case 'searchNumAwesomeFlagMax': return currentValues.searchNumAwesomeFlagMax !== "";
+      case 'searchNumFailedFittingMin': return currentValues.searchNumFailedFittingMin !== "";
+      case 'searchNumFailedFittingMax': return currentValues.searchNumFailedFittingMax !== "";
       case 'searchTotalAssignedMin': return currentValues.searchTotalAssignedMin !== "";
       case 'searchTotalAssignedMax': return currentValues.searchTotalAssignedMax !== "";
       default: return false;
@@ -169,6 +171,8 @@ export const hasAnySearchValues = (values: Record<string, any>): boolean => {
     values.searchNumVisibleNucleusMax !== "" ||
     values.searchNumAwesomeFlagMin !== "" ||
     values.searchNumAwesomeFlagMax !== "" ||
+    values.searchNumFailedFittingMin !== "" ||
+    values.searchNumFailedFittingMax !== "" ||
     values.searchTotalAssignedMin !== "" ||
     values.searchTotalAssignedMax !== "" ||
     values.searchAwesome !== undefined ||

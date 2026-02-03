@@ -26,6 +26,7 @@ const PROTECTED_GALAXY_FIELDS = [
   'totalClassifications',
   'numVisibleNucleus',
   'numAwesomeFlag',
+  'numFailedFitting',
   'totalAssigned',
   'perUser',
   'lastAssignedAt',

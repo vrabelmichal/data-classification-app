@@ -127,6 +127,9 @@ export function GalaxyBrowserLightTableView({
                 Awesome Flags
               </th>
               <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
+                Failed Fittings
+              </th>
+              <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
                 Total Assigned
               </th>
               <th className="border border-gray-300 px-3 py-2 text-left font-semibold whitespace-nowrap">
@@ -178,6 +181,7 @@ export function GalaxyBrowserLightTableView({
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.totalClassifications || 0}</td>
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numVisibleNucleus || 0}</td>
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numAwesomeFlag || 0}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numFailedFitting || 0}</td>
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.totalAssigned || 0}</td>
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.paper || "—"}</td>
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.thur_cls_n || "—"}</td>

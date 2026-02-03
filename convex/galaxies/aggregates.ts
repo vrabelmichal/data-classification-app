@@ -195,6 +195,15 @@ export const galaxiesByNumAwesomeFlag = new TableAggregate<{
   sortKey: (doc) => Number(doc.numAwesomeFlag ?? 0), // Convert bigint to number, default to 0
 });
 
+// Aggregate for galaxies sorted by numFailedFitting (number, optional)
+export const galaxiesByNumFailedFitting = new TableAggregate<{
+  Key: number;
+  DataModel: DataModel;
+  TableName: "galaxies";
+}>(components.galaxiesByNumFailedFitting, {
+  sortKey: (doc) => Number(doc.numFailedFitting ?? 0), // Convert bigint to number, default to 0
+});
+
 // Aggregate for galaxies sorted by totalAssigned (number, optional)
 export const galaxiesByTotalAssigned = new TableAggregate<{
   Key: number;
@@ -344,6 +353,7 @@ export const clearGalaxyAggregates = mutation({
     await galaxiesByTotalClassifications.clear(ctx);
     await galaxiesByNumVisibleNucleus.clear(ctx);
     await galaxiesByNumAwesomeFlag.clear(ctx);
+    await galaxiesByNumFailedFitting.clear(ctx);
     await galaxiesByTotalAssigned.clear(ctx);
     await galaxiesByNumericId.clear(ctx);
     // await galaxyIdsAggregate.clear(ctx);
@@ -396,6 +406,7 @@ export const rebuildGalaxyAggregates = mutation({
       await galaxiesByTotalClassifications.clear(ctx);
       await galaxiesByNumVisibleNucleus.clear(ctx);
       await galaxiesByNumAwesomeFlag.clear(ctx);
+      await galaxiesByNumFailedFitting.clear(ctx);
       await galaxiesByTotalAssigned.clear(ctx);
       await galaxiesByNumericId.clear(ctx);
       console.log('[rebuildGalaxyAggregates] Aggregates cleared successfully. Ready to start processing.');
@@ -445,6 +456,7 @@ export const rebuildGalaxyAggregates = mutation({
       await galaxiesByTotalClassifications.insert(ctx, galaxy);
       await galaxiesByNumVisibleNucleus.insert(ctx, galaxy);
       await galaxiesByNumAwesomeFlag.insert(ctx, galaxy);
+      await galaxiesByNumFailedFitting.insert(ctx, galaxy);
       await galaxiesByTotalAssigned.insert(ctx, galaxy);
       await galaxiesByNumericId.insert(ctx, galaxy);
       processed += 1;
@@ -623,6 +635,7 @@ export const getAggregateInfo = query({
       galaxiesByTotalClassificationsCount,
       galaxiesByNumVisibleNucleusCount,
       galaxiesByNumAwesomeFlagCount,
+      galaxiesByNumFailedFittingCount,
       galaxiesByTotalAssignedCount,
       galaxiesByNumericIdCount,
       classificationsByAwesomeFlagCount,
@@ -648,6 +661,7 @@ export const getAggregateInfo = query({
       galaxiesByTotalClassifications.count(ctx),
       galaxiesByNumVisibleNucleus.count(ctx),
       galaxiesByNumAwesomeFlag.count(ctx),
+      galaxiesByNumFailedFitting.count(ctx),
       galaxiesByTotalAssigned.count(ctx),
       galaxiesByNumericId.count(ctx),
       classificationsByAwesomeFlag.count(ctx),
@@ -685,6 +699,8 @@ export const getAggregateInfo = query({
       galaxiesByNumVisibleNucleusMax,
       galaxiesByNumAwesomeFlagMin,
       galaxiesByNumAwesomeFlagMax,
+      galaxiesByNumFailedFittingMin,
+      galaxiesByNumFailedFittingMax,
       galaxiesByTotalAssignedMin,
       galaxiesByTotalAssignedMax,
       galaxiesByNumericIdMin,
@@ -730,6 +746,8 @@ export const getAggregateInfo = query({
       galaxiesByNumVisibleNucleus.max(ctx).then(item => item?.key),
       galaxiesByNumAwesomeFlag.min(ctx).then(item => item?.key),
       galaxiesByNumAwesomeFlag.max(ctx).then(item => item?.key),
+      galaxiesByNumFailedFitting.min(ctx).then(item => item?.key),
+      galaxiesByNumFailedFitting.max(ctx).then(item => item?.key),
       galaxiesByTotalAssigned.min(ctx).then(item => item?.key),
       galaxiesByTotalAssigned.max(ctx).then(item => item?.key),
       galaxiesByNumericId.min(ctx).then(item => item?.key),
@@ -865,6 +883,11 @@ export const getAggregateInfo = query({
         count: galaxiesByNumAwesomeFlagCount,
         min: galaxiesByNumAwesomeFlagMin,
         max: galaxiesByNumAwesomeFlagMax,
+      },
+      galaxiesByNumFailedFitting: {
+        count: galaxiesByNumFailedFittingCount,
+        min: galaxiesByNumFailedFittingMin,
+        max: galaxiesByNumFailedFittingMax,
       },
       galaxiesByTotalAssigned: {
         count: galaxiesByTotalAssignedCount,

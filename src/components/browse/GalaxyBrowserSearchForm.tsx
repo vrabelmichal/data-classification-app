@@ -49,6 +49,10 @@ interface GalaxyBrowserSearchFormProps {
   setSearchNumAwesomeFlagMin: (value: string) => void;
   searchNumAwesomeFlagMax: string;
   setSearchNumAwesomeFlagMax: (value: string) => void;
+  searchNumFailedFittingMin: string;
+  setSearchNumFailedFittingMin: (value: string) => void;
+  searchNumFailedFittingMax: string;
+  setSearchNumFailedFittingMax: (value: string) => void;
   searchTotalAssignedMin: string;
   setSearchTotalAssignedMin: (value: string) => void;
   searchTotalAssignedMax: string;
@@ -119,6 +123,10 @@ export function GalaxyBrowserSearchForm({
   setSearchNumAwesomeFlagMin,
   searchNumAwesomeFlagMax,
   setSearchNumAwesomeFlagMax,
+  searchNumFailedFittingMin,
+  setSearchNumFailedFittingMin,
+  searchNumFailedFittingMax,
+  setSearchNumFailedFittingMax,
   searchTotalAssignedMin,
   setSearchTotalAssignedMin,
   searchTotalAssignedMax,
@@ -151,6 +159,7 @@ export function GalaxyBrowserSearchForm({
     totalClassifications: getBounds('totalClassifications'),
     numVisibleNucleus: getBounds('numVisibleNucleus'),
     numAwesomeFlag: getBounds('numAwesomeFlag'),
+    numFailedFitting: getBounds('numFailedFitting'),
     totalAssigned: getBounds('totalAssigned'),
   };
 
@@ -491,6 +500,33 @@ export function GalaxyBrowserSearchForm({
                   onChange={(e) => setSearchNumAwesomeFlagMax(e.target.value)}
                   placeholder={getPlaceholderText('numAwesomeFlag', 'max')}
                   className={getInputClass('searchNumAwesomeFlagMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Failed Fitting Count
+              </label>
+              <div className="flex space-x-2">
+                <input
+                  type="number"
+                  step="1"
+                  min={bounds.numFailedFitting?.min ?? 0}
+                  max={bounds.numFailedFitting?.max}
+                  value={searchNumFailedFittingMin}
+                  onChange={(e) => setSearchNumFailedFittingMin(e.target.value)}
+                  placeholder={getPlaceholderText('numFailedFitting', 'min')}
+                  className={getInputClass('searchNumFailedFittingMin', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
+                />
+                <input
+                  type="number"
+                  step="1"
+                  min={bounds.numFailedFitting?.min ?? 0}
+                  max={bounds.numFailedFitting?.max}
+                  value={searchNumFailedFittingMax}
+                  onChange={(e) => setSearchNumFailedFittingMax(e.target.value)}
+                  placeholder={getPlaceholderText('numFailedFitting', 'max')}
+                  className={getInputClass('searchNumFailedFittingMax', "flex-1 min-w-0 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white")}
                 />
               </div>
             </div>

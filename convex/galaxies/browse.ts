@@ -13,6 +13,7 @@ import {
   galaxiesByTotalClassifications,
   galaxiesByNumVisibleNucleus,
   galaxiesByNumAwesomeFlag,
+  galaxiesByNumFailedFitting,
   galaxiesByTotalAssigned,
 } from "./aggregates";
 // Aggregates are not used in this implementation; we rely on Convex indexes + paginate
@@ -151,6 +152,8 @@ export const browseGalaxies = query({
     searchNumVisibleNucleusMax: v.optional(v.string()),
     searchNumAwesomeFlagMin: v.optional(v.string()),
     searchNumAwesomeFlagMax: v.optional(v.string()),
+    searchNumFailedFittingMin: v.optional(v.string()),
+    searchNumFailedFittingMax: v.optional(v.string()),
     searchTotalAssignedMin: v.optional(v.string()),
     searchTotalAssignedMax: v.optional(v.string()),
     searchAwesome: v.optional(v.boolean()),
@@ -210,6 +213,8 @@ export const browseGalaxies = query({
       searchNumVisibleNucleusMax,
       searchNumAwesomeFlagMin,
       searchNumAwesomeFlagMax,
+      searchNumFailedFittingMin,
+      searchNumFailedFittingMax,
       searchTotalAssignedMin,
       searchTotalAssignedMax,
       searchAwesome,
@@ -266,6 +271,8 @@ export const browseGalaxies = query({
         searchNumVisibleNucleusMax,
         searchNumAwesomeFlagMin,
         searchNumAwesomeFlagMax,
+        searchNumFailedFittingMin,
+        searchNumFailedFittingMax,
         searchTotalAssignedMin,
         searchTotalAssignedMax,
       });
@@ -302,6 +309,8 @@ export const browseGalaxies = query({
         searchNumVisibleNucleusMax,
         searchNumAwesomeFlagMin,
         searchNumAwesomeFlagMax,
+        searchNumFailedFittingMin,
+        searchNumFailedFittingMax,
         searchTotalAssignedMin,
         searchTotalAssignedMax,
       });
@@ -339,6 +348,8 @@ export const browseGalaxies = query({
         searchNumVisibleNucleusMax,
         searchNumAwesomeFlagMin,
         searchNumAwesomeFlagMax,
+        searchNumFailedFittingMin,
+        searchNumFailedFittingMax,
         searchTotalAssignedMin,
         searchTotalAssignedMax,
       });
@@ -470,6 +481,8 @@ export const browseGalaxies = query({
   const numVisibleNucleusMaxVal = safeBigInt(searchNumVisibleNucleusMax);
   const numAwesomeFlagMinVal = safeBigInt(searchNumAwesomeFlagMin);
   const numAwesomeFlagMaxVal = safeBigInt(searchNumAwesomeFlagMax);
+  const numFailedFittingMinVal = safeBigInt(searchNumFailedFittingMin);
+  const numFailedFittingMaxVal = safeBigInt(searchNumFailedFittingMax);
   const totalAssignedMinVal = safeBigInt(searchTotalAssignedMin);
   const totalAssignedMaxVal = safeBigInt(searchTotalAssignedMax);
 
@@ -485,6 +498,10 @@ export const browseGalaxies = query({
     q = q.filter((f: any) => f.gte(f.field("numAwesomeFlag"), numAwesomeFlagMinVal));
   if (numAwesomeFlagMaxVal !== null)
     q = q.filter((f: any) => f.lte(f.field("numAwesomeFlag"), numAwesomeFlagMaxVal));
+  if (numFailedFittingMinVal !== null)
+    q = q.filter((f: any) => f.gte(f.field("numFailedFitting"), numFailedFittingMinVal));
+  if (numFailedFittingMaxVal !== null)
+    q = q.filter((f: any) => f.lte(f.field("numFailedFitting"), numFailedFittingMaxVal));
   if (totalAssignedMinVal !== null)
     q = q.filter((f: any) => f.gte(f.field("totalAssigned"), totalAssignedMinVal));
   if (totalAssignedMaxVal !== null)
@@ -498,7 +515,7 @@ export const browseGalaxies = query({
     
     // Note: "classified", "unclassified", and "my_sequence" filters are handled by dedicated handlers above
 
-    // totalClassifications, numVisibleNucleus, numAwesomeFlag, totalAssigned handled server-side above
+    // totalClassifications, numVisibleNucleus, numAwesomeFlag, numFailedFitting, totalAssigned handled server-side above
 
     searchFilteredTotal = galaxies.length;
 
@@ -556,6 +573,8 @@ interface HandleSkippedOptions {
   searchNumVisibleNucleusMax?: string;
   searchNumAwesomeFlagMin?: string;
   searchNumAwesomeFlagMax?: string;
+  searchNumFailedFittingMin?: string;
+  searchNumFailedFittingMax?: string;
   searchTotalAssignedMin?: string;
   searchTotalAssignedMax?: string;
 }
@@ -622,6 +641,8 @@ const handleClassifiedGalaxies = async (options: HandleClassifiedOptions) => {
     searchNumVisibleNucleusMax,
     searchNumAwesomeFlagMin,
     searchNumAwesomeFlagMax,
+    searchNumFailedFittingMin,
+    searchNumFailedFittingMax,
     searchTotalAssignedMin,
     searchTotalAssignedMax,
   } = options;
@@ -697,6 +718,18 @@ const handleClassifiedGalaxies = async (options: HandleClassifiedOptions) => {
       const maxVal = searchNumAwesomeFlagMax ? Number.parseInt(searchNumAwesomeFlagMax, 10) : undefined;
       filtered = filtered.filter((g) => {
         const total = typeof g.numAwesomeFlag === "number" ? g.numAwesomeFlag : Number(g.numAwesomeFlag ?? 0);
+        const numericTotal = Number.isFinite(total) ? total : 0;
+        if (minVal !== undefined && numericTotal < minVal) return false;
+        if (maxVal !== undefined && numericTotal > maxVal) return false;
+        return true;
+      });
+    }
+
+    if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+      const minVal = searchNumFailedFittingMin ? Number.parseInt(searchNumFailedFittingMin, 10) : undefined;
+      const maxVal = searchNumFailedFittingMax ? Number.parseInt(searchNumFailedFittingMax, 10) : undefined;
+      filtered = filtered.filter((g) => {
+        const total = typeof g.numFailedFitting === "number" ? g.numFailedFitting : Number(g.numFailedFitting ?? 0);
         const numericTotal = Number.isFinite(total) ? total : 0;
         if (minVal !== undefined && numericTotal < minVal) return false;
         if (maxVal !== undefined && numericTotal > maxVal) return false;
@@ -956,6 +989,8 @@ const handleSkippedGalaxies = async (options: HandleSkippedOptions) => {
     searchNumVisibleNucleusMax,
     searchNumAwesomeFlagMin,
     searchNumAwesomeFlagMax,
+    searchNumFailedFittingMin,
+    searchNumFailedFittingMax,
     searchTotalAssignedMin,
     searchTotalAssignedMax,
   } = options;
@@ -1063,6 +1098,18 @@ const handleSkippedGalaxies = async (options: HandleSkippedOptions) => {
     const maxVal = searchNumAwesomeFlagMax ? Number.parseInt(searchNumAwesomeFlagMax, 10) : undefined;
     filtered = filtered.filter((g) => {
       const total = typeof g.numAwesomeFlag === "number" ? g.numAwesomeFlag : Number(g.numAwesomeFlag ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+    const minVal = searchNumFailedFittingMin ? Number.parseInt(searchNumFailedFittingMin, 10) : undefined;
+    const maxVal = searchNumFailedFittingMax ? Number.parseInt(searchNumFailedFittingMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.numFailedFitting === "number" ? g.numFailedFitting : Number(g.numFailedFitting ?? 0);
       const numericTotal = Number.isFinite(total) ? total : 0;
       if (minVal !== undefined && numericTotal < minVal) return false;
       if (maxVal !== undefined && numericTotal > maxVal) return false;
@@ -1182,6 +1229,8 @@ const handleMySequenceGalaxies = async (options: HandleSkippedOptions) => {
     searchNumVisibleNucleusMax,
     searchNumAwesomeFlagMin,
     searchNumAwesomeFlagMax,
+    searchNumFailedFittingMin,
+    searchNumFailedFittingMax,
     searchTotalAssignedMin,
     searchTotalAssignedMax,
   } = options;
@@ -1301,6 +1350,18 @@ const handleMySequenceGalaxies = async (options: HandleSkippedOptions) => {
     const maxVal = searchNumAwesomeFlagMax ? Number.parseInt(searchNumAwesomeFlagMax, 10) : undefined;
     filtered = filtered.filter((g) => {
       const total = typeof g.numAwesomeFlag === "number" ? g.numAwesomeFlag : Number(g.numAwesomeFlag ?? 0);
+      const numericTotal = Number.isFinite(total) ? total : 0;
+      if (minVal !== undefined && numericTotal < minVal) return false;
+      if (maxVal !== undefined && numericTotal > maxVal) return false;
+      return true;
+    });
+  }
+
+  if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+    const minVal = searchNumFailedFittingMin ? Number.parseInt(searchNumFailedFittingMin, 10) : undefined;
+    const maxVal = searchNumFailedFittingMax ? Number.parseInt(searchNumFailedFittingMax, 10) : undefined;
+    filtered = filtered.filter((g) => {
+      const total = typeof g.numFailedFitting === "number" ? g.numFailedFitting : Number(g.numFailedFitting ?? 0);
       const numericTotal = Number.isFinite(total) ? total : 0;
       if (minVal !== undefined && numericTotal < minVal) return false;
       if (maxVal !== undefined && numericTotal > maxVal) return false;

@@ -67,6 +67,7 @@ export function GalaxyBrowserMobileCards({
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Classifications:</span> {galaxy.totalClassifications || 0}</div>
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Visible Nuclei:</span> {galaxy.numVisibleNucleus || 0}</div>
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Awesome Flags:</span> {galaxy.numAwesomeFlag || 0}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Failed Fittings:</span> {galaxy.numFailedFitting || 0}</div>
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Total Assigned:</span> {galaxy.totalAssigned || 0}</div>
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Paper:</span> {galaxy.misc?.paper || "—"}</div>
                 <div>

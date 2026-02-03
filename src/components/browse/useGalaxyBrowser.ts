@@ -73,6 +73,10 @@ export interface UseGalaxyBrowserReturn {
   setSearchNumAwesomeFlagMin: (value: string) => void;
   searchNumAwesomeFlagMax: string;
   setSearchNumAwesomeFlagMax: (value: string) => void;
+  searchNumFailedFittingMin: string;
+  setSearchNumFailedFittingMin: (value: string) => void;
+  searchNumFailedFittingMax: string;
+  setSearchNumFailedFittingMax: (value: string) => void;
   searchTotalAssignedMin: string;
   setSearchTotalAssignedMin: (value: string) => void;
   searchTotalAssignedMax: string;
@@ -100,8 +104,8 @@ export interface UseGalaxyBrowserReturn {
   previewImageName: string;
 
   // Utility functions
-  getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned', type: 'min' | 'max') => string;
-  getBoundsForField: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'totalAssigned') => { min?: number; max?: number } | undefined;
+  getPlaceholderText: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'numFailedFitting' | 'totalAssigned', type: 'min' | 'max') => string;
+  getBoundsForField: (field: 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'numFailedFitting' | 'totalAssigned') => { min?: number; max?: number } | undefined;
   hasFieldChanged: (field: string) => boolean;
   getInputClass: (field: string, baseClass: string) => string;
   hasAnySearchValues: boolean;
@@ -146,6 +150,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const [searchNumVisibleNucleusMax, setSearchNumVisibleNucleusMax] = useState("");
   const [searchNumAwesomeFlagMin, setSearchNumAwesomeFlagMin] = useState("");
   const [searchNumAwesomeFlagMax, setSearchNumAwesomeFlagMax] = useState("");
+  const [searchNumFailedFittingMin, setSearchNumFailedFittingMin] = useState("");
+  const [searchNumFailedFittingMax, setSearchNumFailedFittingMax] = useState("");
   const [searchTotalAssignedMin, setSearchTotalAssignedMin] = useState("");
   const [searchTotalAssignedMax, setSearchTotalAssignedMax] = useState("");
   const [searchAwesome, setSearchAwesome] = useState<boolean | undefined>(undefined);
@@ -178,6 +184,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const [appliedSearchNumVisibleNucleusMax, setAppliedSearchNumVisibleNucleusMax] = useState("");
   const [appliedSearchNumAwesomeFlagMin, setAppliedSearchNumAwesomeFlagMin] = useState("");
   const [appliedSearchNumAwesomeFlagMax, setAppliedSearchNumAwesomeFlagMax] = useState("");
+  const [appliedSearchNumFailedFittingMin, setAppliedSearchNumFailedFittingMin] = useState("");
+  const [appliedSearchNumFailedFittingMax, setAppliedSearchNumFailedFittingMax] = useState("");
   const [appliedSearchTotalAssignedMin, setAppliedSearchTotalAssignedMin] = useState("");
   const [appliedSearchTotalAssignedMax, setAppliedSearchTotalAssignedMax] = useState("");
   const [appliedSearchAwesome, setAppliedSearchAwesome] = useState<boolean | undefined>(undefined);
@@ -216,6 +224,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     searchNumVisibleNucleusMax: isSearchActive ? (appliedSearchNumVisibleNucleusMax || undefined) : undefined,
     searchNumAwesomeFlagMin: isSearchActive ? (appliedSearchNumAwesomeFlagMin || undefined) : undefined,
     searchNumAwesomeFlagMax: isSearchActive ? (appliedSearchNumAwesomeFlagMax || undefined) : undefined,
+    searchNumFailedFittingMin: isSearchActive ? (appliedSearchNumFailedFittingMin || undefined) : undefined,
+    searchNumFailedFittingMax: isSearchActive ? (appliedSearchNumFailedFittingMax || undefined) : undefined,
     searchTotalAssignedMin: isSearchActive ? (appliedSearchTotalAssignedMin || undefined) : undefined,
     searchTotalAssignedMax: isSearchActive ? (appliedSearchTotalAssignedMax || undefined) : undefined,
     searchAwesome: isSearchActive ? appliedSearchAwesome : undefined,
@@ -259,6 +269,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     searchNumVisibleNucleusMax !== appliedSearchNumVisibleNucleusMax ||
     searchNumAwesomeFlagMin !== appliedSearchNumAwesomeFlagMin ||
     searchNumAwesomeFlagMax !== appliedSearchNumAwesomeFlagMax ||
+    searchNumFailedFittingMin !== appliedSearchNumFailedFittingMin ||
+    searchNumFailedFittingMax !== appliedSearchNumFailedFittingMax ||
     searchTotalAssignedMin !== appliedSearchTotalAssignedMin ||
     searchTotalAssignedMax !== appliedSearchTotalAssignedMax ||
     searchAwesome !== appliedSearchAwesome ||
@@ -290,6 +302,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     searchNumVisibleNucleusMax,
     searchNumAwesomeFlagMin,
     searchNumAwesomeFlagMax,
+    searchNumFailedFittingMin,
+    searchNumFailedFittingMax,
     searchTotalAssignedMin,
     searchTotalAssignedMax,
     searchAwesome,
@@ -400,6 +414,14 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
             setSearchNumAwesomeFlagMax(parsed.searchNumAwesomeFlagMax);
             setAppliedSearchNumAwesomeFlagMax(parsed.searchNumAwesomeFlagMax);
           }
+          if (typeof parsed.searchNumFailedFittingMin === "string") {
+            setSearchNumFailedFittingMin(parsed.searchNumFailedFittingMin);
+            setAppliedSearchNumFailedFittingMin(parsed.searchNumFailedFittingMin);
+          }
+          if (typeof parsed.searchNumFailedFittingMax === "string") {
+            setSearchNumFailedFittingMax(parsed.searchNumFailedFittingMax);
+            setAppliedSearchNumFailedFittingMax(parsed.searchNumFailedFittingMax);
+          }
           if (typeof parsed.searchTotalAssignedMin === "string") {
             setSearchTotalAssignedMin(parsed.searchTotalAssignedMin);
             setAppliedSearchTotalAssignedMin(parsed.searchTotalAssignedMin);
@@ -458,6 +480,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
       searchNumVisibleNucleusMax: appliedSearchNumVisibleNucleusMax,
       searchNumAwesomeFlagMin: appliedSearchNumAwesomeFlagMin,
       searchNumAwesomeFlagMax: appliedSearchNumAwesomeFlagMax,
+      searchNumFailedFittingMin: appliedSearchNumFailedFittingMin,
+      searchNumFailedFittingMax: appliedSearchNumFailedFittingMax,
       searchTotalAssignedMin: appliedSearchTotalAssignedMin,
       searchTotalAssignedMax: appliedSearchTotalAssignedMax,
       searchAwesome: appliedSearchAwesome,
@@ -470,7 +494,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     } catch (e) {
       console.warn("Failed to save galaxy browser settings", e);
     }
-  }, [pageSize, sortBy, sortOrder, filter, appliedSearchId, appliedSearchRaMin, appliedSearchRaMax, appliedSearchDecMin, appliedSearchDecMax, appliedSearchReffMin, appliedSearchReffMax, appliedSearchQMin, appliedSearchQMax, appliedSearchPaMin, appliedSearchPaMax, appliedSearchMagMin, appliedSearchMagMax, appliedSearchMeanMueMin, appliedSearchMeanMueMax, appliedSearchNucleus, appliedSearchTotalClassificationsMin, appliedSearchTotalClassificationsMax, appliedSearchNumVisibleNucleusMin, appliedSearchNumVisibleNucleusMax, appliedSearchNumAwesomeFlagMin, appliedSearchNumAwesomeFlagMax, appliedSearchTotalAssignedMin, appliedSearchTotalAssignedMax, appliedSearchAwesome, appliedSearchValidRedshift, appliedSearchVisibleNucleus, isSearchFormCollapsed]);
+  }, [pageSize, sortBy, sortOrder, filter, appliedSearchId, appliedSearchRaMin, appliedSearchRaMax, appliedSearchDecMin, appliedSearchDecMax, appliedSearchReffMin, appliedSearchReffMax, appliedSearchQMin, appliedSearchQMax, appliedSearchPaMin, appliedSearchPaMax, appliedSearchMagMin, appliedSearchMagMax, appliedSearchMeanMueMin, appliedSearchMeanMueMax, appliedSearchNucleus, appliedSearchTotalClassificationsMin, appliedSearchTotalClassificationsMax, appliedSearchNumVisibleNucleusMin, appliedSearchNumVisibleNucleusMax, appliedSearchNumAwesomeFlagMin, appliedSearchNumAwesomeFlagMax, appliedSearchNumFailedFittingMin, appliedSearchNumFailedFittingMax, appliedSearchTotalAssignedMin, appliedSearchTotalAssignedMax, appliedSearchAwesome, appliedSearchValidRedshift, appliedSearchVisibleNucleus, isSearchFormCollapsed]);
 
   useEffect(() => {
     if (!didHydrateFromStorage.current) return;
@@ -532,6 +556,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setAppliedSearchNumVisibleNucleusMax(searchNumVisibleNucleusMax);
     setAppliedSearchNumAwesomeFlagMin(searchNumAwesomeFlagMin);
     setAppliedSearchNumAwesomeFlagMax(searchNumAwesomeFlagMax);
+    setAppliedSearchNumFailedFittingMin(searchNumFailedFittingMin);
+    setAppliedSearchNumFailedFittingMax(searchNumFailedFittingMax);
     setAppliedSearchTotalAssignedMin(searchTotalAssignedMin);
     setAppliedSearchTotalAssignedMax(searchTotalAssignedMax);
     setAppliedSearchAwesome(searchAwesome);
@@ -566,6 +592,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setSearchNumVisibleNucleusMax("");
     setSearchNumAwesomeFlagMin("");
     setSearchNumAwesomeFlagMax("");
+    setSearchNumFailedFittingMin("");
+    setSearchNumFailedFittingMax("");
     setSearchTotalAssignedMin("");
     setSearchTotalAssignedMax("");
     setSearchAwesome(undefined);
@@ -593,6 +621,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setAppliedSearchNumVisibleNucleusMax("");
     setAppliedSearchNumAwesomeFlagMin("");
     setAppliedSearchNumAwesomeFlagMax("");
+    setAppliedSearchNumFailedFittingMin("");
+    setAppliedSearchNumFailedFittingMax("");
     setAppliedSearchTotalAssignedMin("");
     setAppliedSearchTotalAssignedMax("");
     setAppliedSearchAwesome(undefined);
@@ -655,6 +685,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
       searchNumVisibleNucleusMax,
       searchNumAwesomeFlagMin,
       searchNumAwesomeFlagMax,
+      searchNumFailedFittingMin,
+      searchNumFailedFittingMax,
       searchTotalAssignedMin,
       searchTotalAssignedMax,
       searchAwesome,
@@ -683,6 +715,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
       searchNumVisibleNucleusMax: appliedSearchNumVisibleNucleusMax,
       searchNumAwesomeFlagMin: appliedSearchNumAwesomeFlagMin,
       searchNumAwesomeFlagMax: appliedSearchNumAwesomeFlagMax,
+      searchNumFailedFittingMin: appliedSearchNumFailedFittingMin,
+      searchNumFailedFittingMax: appliedSearchNumFailedFittingMax,
       searchTotalAssignedMin: appliedSearchTotalAssignedMin,
       searchTotalAssignedMax: appliedSearchTotalAssignedMax,
       searchAwesome: appliedSearchAwesome,
@@ -756,6 +790,10 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setSearchNumAwesomeFlagMin,
     searchNumAwesomeFlagMax,
     setSearchNumAwesomeFlagMax,
+    searchNumFailedFittingMin,
+    setSearchNumFailedFittingMin,
+    searchNumFailedFittingMax,
+    setSearchNumFailedFittingMax,
     searchTotalAssignedMin,
     setSearchTotalAssignedMin,
     searchTotalAssignedMax,

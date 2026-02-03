@@ -19,6 +19,7 @@ import {
   galaxiesByTotalClassifications,
   galaxiesByNumAwesomeFlag,
   galaxiesByNumVisibleNucleus,
+  galaxiesByNumFailedFitting,
 } from "./aggregates";
 
 /**
@@ -28,7 +29,7 @@ import {
  */
 async function safeReplaceGalaxyAggregate(
   ctx: any,
-  aggregate: typeof galaxiesByTotalClassifications | typeof galaxiesByNumAwesomeFlag | typeof galaxiesByNumVisibleNucleus,
+  aggregate: typeof galaxiesByTotalClassifications | typeof galaxiesByNumAwesomeFlag | typeof galaxiesByNumVisibleNucleus | typeof galaxiesByNumFailedFitting,
   oldDoc: Doc<"galaxies">,
   newDoc: Doc<"galaxies">
 ) {
@@ -159,7 +160,7 @@ export const rebuildGalaxyIdsTable = mutation({
   },
 });
 
-// Full scan: recompute totalClassifications, numAwesomeFlag, numVisibleNucleus for every galaxy
+// Full scan: recompute totalClassifications, numAwesomeFlag, numVisibleNucleus, numFailedFitting for every galaxy
 export const backfillGalaxyClassificationStats = mutation({
   args: {
     cursor: v.optional(v.string()),
@@ -183,6 +184,7 @@ export const backfillGalaxyClassificationStats = mutation({
       const totalClassifications = BigInt(classifications.length);
       const awesomeCount = BigInt(classifications.filter((c) => c.awesome_flag).length);
       const visibleCount = BigInt(classifications.filter((c) => c.visible_nucleus).length);
+      const failedCount = BigInt(classifications.filter((c) => c.failed_fitting).length);
 
       const updates: Partial<Doc<'galaxies'>> = {};
 
@@ -194,6 +196,9 @@ export const backfillGalaxyClassificationStats = mutation({
       }
       if ((galaxy.numVisibleNucleus ?? BigInt(0)) !== visibleCount) {
         updates.numVisibleNucleus = visibleCount;
+      }
+      if ((galaxy.numFailedFitting ?? BigInt(0)) !== failedCount) {
+        updates.numFailedFitting = failedCount;
       }
 
       if (Object.keys(updates).length > 0) {
@@ -208,6 +213,9 @@ export const backfillGalaxyClassificationStats = mutation({
           }
           if (updates.numVisibleNucleus !== undefined) {
             await safeReplaceGalaxyAggregate(ctx, galaxiesByNumVisibleNucleus, galaxy, refreshed);
+          }
+          if (updates.numFailedFitting !== undefined) {
+            await safeReplaceGalaxyAggregate(ctx, galaxiesByNumFailedFitting, galaxy, refreshed);
           }
         }
         updated += 1;
@@ -336,6 +344,7 @@ export const fastBackfillGalaxyClassificationStats = mutation({
       const totalClassifications = BigInt(allClassifications.length);
       const awesomeCount = BigInt(allClassifications.filter((c) => c.awesome_flag).length);
       const visibleCount = BigInt(allClassifications.filter((c) => c.visible_nucleus).length);
+      const failedCount = BigInt(allClassifications.filter((c) => c.failed_fitting).length);
 
       const updates: Partial<Doc<'galaxies'>> = {};
 
@@ -347,6 +356,9 @@ export const fastBackfillGalaxyClassificationStats = mutation({
       }
       if ((galaxy.numVisibleNucleus ?? BigInt(0)) !== visibleCount) {
         updates.numVisibleNucleus = visibleCount;
+      }
+      if ((galaxy.numFailedFitting ?? BigInt(0)) !== failedCount) {
+        updates.numFailedFitting = failedCount;
       }
 
       if (Object.keys(updates).length > 0) {
@@ -361,6 +373,9 @@ export const fastBackfillGalaxyClassificationStats = mutation({
           }
           if (updates.numVisibleNucleus !== undefined) {
             await safeReplaceGalaxyAggregate(ctx, galaxiesByNumVisibleNucleus, galaxy, refreshed);
+          }
+          if (updates.numFailedFitting !== undefined) {
+            await safeReplaceGalaxyAggregate(ctx, galaxiesByNumFailedFitting, galaxy, refreshed);
           }
         }
         galaxiesUpdated += 1;
@@ -520,6 +535,7 @@ export const zeroOutGalaxyStatistics = mutation({
         totalClassifications: BigInt(0),
         numVisibleNucleus: BigInt(0),
         numAwesomeFlag: BigInt(0),
+        numFailedFitting: BigInt(0),
       };
       await ctx.db.patch(galaxy._id, update);
       updated += 1;

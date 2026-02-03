@@ -64,6 +64,8 @@ export const countFilteredGalaxiesBatch = query({
     searchNumVisibleNucleusMax: v.optional(v.string()),
     searchNumAwesomeFlagMin: v.optional(v.string()),
     searchNumAwesomeFlagMax: v.optional(v.string()),
+    searchNumFailedFittingMin: v.optional(v.string()),
+    searchNumFailedFittingMax: v.optional(v.string()),
     searchTotalAssignedMin: v.optional(v.string()),
     searchTotalAssignedMax: v.optional(v.string()),
     searchAwesome: v.optional(v.boolean()),
@@ -104,6 +106,8 @@ export const countFilteredGalaxiesBatch = query({
       searchNumVisibleNucleusMax,
       searchNumAwesomeFlagMin,
       searchNumAwesomeFlagMax,
+      searchNumFailedFittingMin,
+      searchNumFailedFittingMax,
       searchTotalAssignedMin,
       searchTotalAssignedMax,
     } = args;
@@ -188,6 +192,15 @@ export const countFilteredGalaxiesBatch = query({
           const total = g.numAwesomeFlag || 0;
           if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
           if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
+          return true;
+        });
+      }
+
+      if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+        allGalaxies = allGalaxies.filter((g: any) => {
+          const total = g.numFailedFitting || 0;
+          if (searchNumFailedFittingMin && total < parseInt(searchNumFailedFittingMin)) return false;
+          if (searchNumFailedFittingMax && total > parseInt(searchNumFailedFittingMax)) return false;
           return true;
         });
       }
@@ -279,6 +292,15 @@ export const countFilteredGalaxiesBatch = query({
           });
         }
 
+        if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+          classifiedGalaxies = classifiedGalaxies.filter((g: any) => {
+            const total = g.numFailedFitting || 0;
+            if (searchNumFailedFittingMin && total < parseInt(searchNumFailedFittingMin)) return false;
+            if (searchNumFailedFittingMax && total > parseInt(searchNumFailedFittingMax)) return false;
+            return true;
+          });
+        }
+
         if (searchTotalAssignedMin || searchTotalAssignedMax) {
           classifiedGalaxies = classifiedGalaxies.filter((g: any) => {
             const total = g.totalAssigned || 0;
@@ -340,6 +362,15 @@ export const countFilteredGalaxiesBatch = query({
             const total = g.numAwesomeFlag || 0;
             if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
             if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
+            return true;
+          });
+        }
+
+        if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+          unclassifiedGalaxies = unclassifiedGalaxies.filter((g: any) => {
+            const total = g.numFailedFitting || 0;
+            if (searchNumFailedFittingMin && total < parseInt(searchNumFailedFittingMin)) return false;
+            if (searchNumFailedFittingMax && total > parseInt(searchNumFailedFittingMax)) return false;
             return true;
           });
         }
@@ -524,6 +555,15 @@ export const countFilteredGalaxiesBatch = query({
       });
     }
 
+    if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+      filteredPage = filteredPage.filter((g: any) => {
+        const total = g.numFailedFitting || 0;
+        if (searchNumFailedFittingMin && total < parseInt(searchNumFailedFittingMin)) return false;
+        if (searchNumFailedFittingMax && total > parseInt(searchNumFailedFittingMax)) return false;
+        return true;
+      });
+    }
+
     if (searchTotalAssignedMin || searchTotalAssignedMax) {
       filteredPage = filteredPage.filter((g: any) => {
         const total = g.totalAssigned || 0;
@@ -590,6 +630,8 @@ export const countFilteredGalaxiesBatchLegacy = query({
     searchNumVisibleNucleusMax: v.optional(v.string()),
     searchNumAwesomeFlagMin: v.optional(v.string()),
     searchNumAwesomeFlagMax: v.optional(v.string()),
+    searchNumFailedFittingMin: v.optional(v.string()),
+    searchNumFailedFittingMax: v.optional(v.string()),
     searchTotalAssignedMin: v.optional(v.string()),
     searchTotalAssignedMax: v.optional(v.string()),
     searchAwesome: v.optional(v.boolean()),
@@ -630,6 +672,8 @@ export const countFilteredGalaxiesBatchLegacy = query({
       searchNumVisibleNucleusMax,
       searchNumAwesomeFlagMin,
       searchNumAwesomeFlagMax,
+      searchNumFailedFittingMin,
+      searchNumFailedFittingMax,
       searchTotalAssignedMin,
       searchTotalAssignedMax,
     } = args;
@@ -706,6 +750,15 @@ export const countFilteredGalaxiesBatchLegacy = query({
           const total = g.numAwesomeFlag || 0;
           if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
           if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
+          return true;
+        });
+      }
+
+      if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+        allGalaxies = allGalaxies.filter((g: any) => {
+          const total = g.numFailedFitting || 0;
+          if (searchNumFailedFittingMin && total < parseInt(searchNumFailedFittingMin)) return false;
+          if (searchNumFailedFittingMax && total > parseInt(searchNumFailedFittingMax)) return false;
           return true;
         });
       }
@@ -805,6 +858,15 @@ export const countFilteredGalaxiesBatchLegacy = query({
         const total = g.numAwesomeFlag || 0;
         if (searchNumAwesomeFlagMin && total < parseInt(searchNumAwesomeFlagMin)) return false;
         if (searchNumAwesomeFlagMax && total > parseInt(searchNumAwesomeFlagMax)) return false;
+        return true;
+      });
+    }
+
+    if (searchNumFailedFittingMin || searchNumFailedFittingMax) {
+      filteredPage = filteredPage.filter((g: any) => {
+        const total = g.numFailedFitting || 0;
+        if (searchNumFailedFittingMin && total < parseInt(searchNumFailedFittingMin)) return false;
+        if (searchNumFailedFittingMax && total > parseInt(searchNumFailedFittingMax)) return false;
         return true;
       });
     }

@@ -40,6 +40,7 @@ export const galaxySchemaDefinition = {
 
   numVisibleNucleus: v.optional(v.int64()),
   numAwesomeFlag: v.optional(v.int64()),
+  numFailedFitting: v.optional(v.int64()),
 
   totalAssigned: v.optional(v.int64()),
   perUser: v.optional(v.record(v.string(), v.int64())),
@@ -202,7 +203,8 @@ const applicationTables = {
     // Indexes for aggregate fields
     .index("by_totalClassifications", ["totalClassifications"])
     .index("by_numVisibleNucleus", ["numVisibleNucleus"])
-    .index("by_numAwesomeFlag", ["numAwesomeFlag"]),
+    .index("by_numAwesomeFlag", ["numAwesomeFlag"])
+    .index("by_numFailedFitting", ["numFailedFitting"]),
 
   // Split photometry tables (one doc per galaxy per band)
   galaxies_photometry_g: defineTable(photometryBandSchema).index("by_galaxy", ["galaxyRef"]),

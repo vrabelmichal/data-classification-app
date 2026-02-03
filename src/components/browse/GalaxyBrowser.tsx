@@ -80,6 +80,10 @@ export function GalaxyBrowser() {
     setSearchNumAwesomeFlagMin,
     searchNumAwesomeFlagMax,
     setSearchNumAwesomeFlagMax,
+    searchNumFailedFittingMin,
+    setSearchNumFailedFittingMin,
+    searchNumFailedFittingMax,
+    setSearchNumFailedFittingMax,
     searchTotalAssignedMin,
     setSearchTotalAssignedMin,
     searchTotalAssignedMax,
@@ -161,6 +165,8 @@ export function GalaxyBrowser() {
       searchNumVisibleNucleusMax: isSearchActive ? searchNumVisibleNucleusMax : undefined,
       searchNumAwesomeFlagMin: isSearchActive ? searchNumAwesomeFlagMin : undefined,
       searchNumAwesomeFlagMax: isSearchActive ? searchNumAwesomeFlagMax : undefined,
+      searchNumFailedFittingMin: isSearchActive ? searchNumFailedFittingMin : undefined,
+      searchNumFailedFittingMax: isSearchActive ? searchNumFailedFittingMax : undefined,
       searchTotalAssignedMin: isSearchActive ? searchTotalAssignedMin : undefined,
       searchTotalAssignedMax: isSearchActive ? searchTotalAssignedMax : undefined,
       searchAwesome: isSearchActive ? searchAwesome : undefined,
@@ -200,6 +206,7 @@ export function GalaxyBrowser() {
       searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchMagMin, searchMagMax, 
       searchMeanMueMin, searchMeanMueMax, searchNucleus, searchTotalClassificationsMin, searchTotalClassificationsMax,
       searchNumVisibleNucleusMin, searchNumVisibleNucleusMax, searchNumAwesomeFlagMin, searchNumAwesomeFlagMax,
+      searchNumFailedFittingMin, searchNumFailedFittingMax,
       searchTotalAssignedMin, searchTotalAssignedMax, searchAwesome, searchValidRedshift, searchVisibleNucleus]);
 
   if (!galaxyData) {
@@ -262,6 +269,10 @@ export function GalaxyBrowser() {
               setSearchNumAwesomeFlagMin={setSearchNumAwesomeFlagMin}
               searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
               setSearchNumAwesomeFlagMax={setSearchNumAwesomeFlagMax}
+              searchNumFailedFittingMin={searchNumFailedFittingMin}
+              setSearchNumFailedFittingMin={setSearchNumFailedFittingMin}
+              searchNumFailedFittingMax={searchNumFailedFittingMax}
+              setSearchNumFailedFittingMax={setSearchNumFailedFittingMax}
               searchTotalAssignedMin={searchTotalAssignedMin}
               setSearchTotalAssignedMin={setSearchTotalAssignedMin}
               searchTotalAssignedMax={searchTotalAssignedMax}
@@ -375,6 +386,10 @@ export function GalaxyBrowser() {
               setSearchNumAwesomeFlagMin={setSearchNumAwesomeFlagMin}
               searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
               setSearchNumAwesomeFlagMax={setSearchNumAwesomeFlagMax}
+              searchNumFailedFittingMin={searchNumFailedFittingMin}
+              setSearchNumFailedFittingMin={setSearchNumFailedFittingMin}
+              searchNumFailedFittingMax={searchNumFailedFittingMax}
+              setSearchNumFailedFittingMax={setSearchNumFailedFittingMax}
               searchTotalAssignedMin={searchTotalAssignedMin}
               setSearchTotalAssignedMin={setSearchTotalAssignedMin}
               searchTotalAssignedMax={searchTotalAssignedMax}
@@ -489,6 +504,10 @@ export function GalaxyBrowser() {
           setSearchNumAwesomeFlagMin={setSearchNumAwesomeFlagMin}
           searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
           setSearchNumAwesomeFlagMax={setSearchNumAwesomeFlagMax}
+          searchNumFailedFittingMin={searchNumFailedFittingMin}
+          setSearchNumFailedFittingMin={setSearchNumFailedFittingMin}
+          searchNumFailedFittingMax={searchNumFailedFittingMax}
+          setSearchNumFailedFittingMax={setSearchNumFailedFittingMax}
           searchTotalAssignedMin={searchTotalAssignedMin}
           setSearchTotalAssignedMin={setSearchTotalAssignedMin}
           searchTotalAssignedMax={searchTotalAssignedMax}

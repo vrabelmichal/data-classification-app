@@ -18,6 +18,7 @@ app.use(aggregate, { name: "galaxiesByMeanMue" });
 app.use(aggregate, { name: "galaxiesByTotalClassifications" });
 app.use(aggregate, { name: "galaxiesByNumVisibleNucleus" });
 app.use(aggregate, { name: "galaxiesByNumAwesomeFlag" });
+app.use(aggregate, { name: "galaxiesByNumFailedFitting" });
 app.use(aggregate, { name: "galaxiesByTotalAssigned" });
 app.use(aggregate, { name: "galaxiesByNumericId" });
 // Labeling aggregates
