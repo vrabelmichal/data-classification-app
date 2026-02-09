@@ -9,12 +9,18 @@ export function BlacklistManagement() {
   const [newReason, setNewReason] = useState("");
   const [bulkReason, setBulkReason] = useState("");
   const [isUploading, setIsUploading] = useState(false);
+  const [isClearing, setIsClearing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{
     processed: number;
     total: number;
     added: number;
     skipped: number;
     notFound: number;
+  } | null>(null);
+  const [clearProgress, setClearProgress] = useState<{
+    removed: number;
+    total?: number;
+    batches: number;
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -150,16 +156,41 @@ export function BlacklistManagement() {
   };
 
   const handleClearBlacklist = async () => {
+    if (isClearing) {
+      return;
+    }
     if (!window.confirm("Are you sure you want to clear the entire blacklist? This cannot be undone.")) {
       return;
     }
 
     try {
-      const result = await clearBlacklist({});
-      toast.success(`Removed ${result.removed} galaxies from blacklist`);
+      const total = typeof blacklistCount === "number" ? blacklistCount : undefined;
+      setIsClearing(true);
+      setClearProgress({ removed: 0, total, batches: 0 });
+
+      let removedTotal = 0;
+      let batches = 0;
+      let hasMore = true;
+
+      while (hasMore) {
+        const result = await clearBlacklist({ batchSize: 250 });
+        batches += 1;
+        removedTotal += result.removed;
+        hasMore = result.hasMore;
+
+        setClearProgress({ removed: removedTotal, total, batches });
+
+        if (result.removed === 0) {
+          break;
+        }
+      }
+
+      toast.success(`Removed ${removedTotal} galaxies from blacklist`);
     } catch (error) {
       toast.error("Failed to clear blacklist");
       console.error(error);
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -363,14 +394,37 @@ export function BlacklistManagement() {
                 onClick={() => void handleClearBlacklist()}
                 title="Permanently remove all galaxies from the blacklist (irreversible)"
                 aria-label="Permanently clear the entire blacklist (irreversible)"
-                className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+                disabled={isClearing}
+                className="inline-flex items-center gap-2 px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4" aria-hidden>
                   <line x1="18" y1="6" x2="6" y2="18" />
                   <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
-                <span>Clear entire blacklist (irreversible)</span>
+                <span>{isClearing ? "Clearing blacklist..." : "Clear entire blacklist (irreversible)"}</span>
               </button>
+            </div>
+          )}
+          {clearProgress && (
+            <div className="mt-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <div className="text-sm text-red-900 dark:text-red-100">
+                {isClearing ? "Clearing blacklist in batches..." : "Cleanup complete."}
+              </div>
+              <div className="text-xs text-red-700 dark:text-red-200 mt-1">
+                Removed: {clearProgress.removed}
+                {clearProgress.total !== undefined ? ` / ${clearProgress.total}` : ""} | Batches: {clearProgress.batches}
+              </div>
+              <div className="mt-2 h-2 bg-red-200 dark:bg-red-800 rounded-full overflow-hidden">
+                <div
+                  className={`h-full ${clearProgress.total !== undefined ? "bg-red-600" : "bg-red-500 animate-pulse"}`}
+                  style={{
+                    width:
+                      clearProgress.total && clearProgress.total > 0
+                        ? `${Math.min(100, (clearProgress.removed / clearProgress.total) * 100)}%`
+                        : "100%",
+                  }}
+                />
+              </div>
             </div>
           )}
         </div>

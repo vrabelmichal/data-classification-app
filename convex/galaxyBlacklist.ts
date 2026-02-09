@@ -300,19 +300,31 @@ export const bulkRemoveFromBlacklist = mutation({
 
 // Clear entire blacklist (admin only) - use with caution
 export const clearBlacklist = mutation({
-  args: {},
-  async handler(ctx) {
+  args: {
+    batchSize: v.optional(v.number()),
+  },
+  async handler(ctx, args) {
     await requireAdmin(ctx);
 
-    const allBlacklisted = await ctx.db.query("galaxyBlacklist").collect();
+    const rawBatchSize = args.batchSize ?? 250;
+    const batchSize = Math.min(Math.max(Math.floor(rawBatchSize), 1), 1000);
 
-    for (const item of allBlacklisted) {
+    const results = await ctx.db
+      .query("galaxyBlacklist")
+      .withIndex("by_added_at")
+      .order("asc")
+      .take(batchSize + 1);
+
+    const items = results.slice(0, batchSize);
+
+    for (const item of items) {
       await ctx.db.delete(item._id);
     }
 
     return {
       success: true,
-      removed: allBlacklisted.length,
+      removed: items.length,
+      hasMore: results.length > batchSize,
     };
   },
 });
