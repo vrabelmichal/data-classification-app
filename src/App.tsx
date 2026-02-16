@@ -189,7 +189,7 @@ function App() {
             </div>
           )}
         </Authenticated>
-        <Toaster position="top-right" />
+        <Toaster position="top-center" />
       </BrowserRouter>
     </main>
   );
