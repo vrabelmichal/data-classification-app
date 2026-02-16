@@ -471,42 +471,50 @@ export function ClassificationInterface() {
 
     if (e.shiftKey && e.key.toLowerCase() === 'p') {
       e.preventDefault();
+      e.stopPropagation();
       if (isOnline) handlePrevious();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 'a') {
       e.preventDefault();
+      e.stopPropagation();
       handleAladinClick();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 'n') {
       e.preventDefault();
+      e.stopPropagation();
       if (isOnline) handleNext();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 's') {
       e.preventDefault();
+      e.stopPropagation();
       if (isOnline) handleSkip();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 'c') {
       e.preventDefault();
+      e.stopPropagation();
       handleContrastPrevious();
       return;
     }
     if (e.key.toLowerCase() === 'c') {
       e.preventDefault();
+      e.stopPropagation();
       handleContrastClick();
       return;
     }
     // Shift+R shortcut for toggle ellipse overlay (handled here to prevent quick input conflict if focused)
     if (e.shiftKey && e.key.toLowerCase() === 'r') {
       e.preventDefault();
+      e.stopPropagation();
       setShowEllipseOverlay((prev) => !prev);
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 'm') {
       e.preventDefault();
+      e.stopPropagation();
       setShowMasks((prev) => !prev);
       return;
     }
@@ -778,29 +786,32 @@ export function ClassificationInterface() {
   );
 
   const renderMaskControl = () => (
-    <button
-      onClick={() => setShowMasks((prev) => !prev)}
-      className={cn(
-        "relative flex items-center justify-center gap-2 rounded-lg transition-all duration-200 font-medium border shadow-sm",
-        isMobile ? "w-full py-2.5 px-3" : "px-3 py-1.5",
-        showMasks
-          ? "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/60"
-          : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-600"
-      )}
-      title="Toggle masked images (Shift+M)"
-    >
-      <span className="text-sm flex items-center">
-        <MaskIcon className="w-4 h-4 mr-2" />
-        {isMobile ? (
-          <span className="mr-1">Masks:</span>
-        ) : (
-          <></>
-        )}
-        <span className="font-semibold inline-block w-[3ch] text-center">
-          {showMasks ? "ON" : "OFF"}
-        </span>
-      </span>
-    </button>
+    <div className={cn("relative inline-block text-left", isMobile && "w-full")}>
+      <div className={cn(
+        "flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700",
+        isMobile ? "p-1 w-full" : "p-0.5"
+      )}>
+        <button
+          onClick={() => setShowMasks((prev) => !prev)}
+          className={cn(
+            "relative flex items-center justify-center gap-2 rounded-md transition-all duration-200 font-medium",
+            isMobile ? "flex-1 py-2.5" : "px-3 py-1",
+            showMasks
+              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+          )}
+          title="Toggle masked images (Shift+M)"
+        >
+          <MaskIcon className="w-4 h-4" />
+          <span className="text-sm flex items-center">
+            {isMobile && <span className="mr-1">Masks:</span>}
+            <span className="font-semibold inline-block w-[3ch] text-center">
+              {showMasks ? "ON" : "OFF"}
+            </span>
+          </span>
+        </button>
+      </div>
+    </div>
   );
 
   // Loading state - check if the relevant galaxy query is still loading
@@ -974,9 +985,9 @@ export function ClassificationInterface() {
 
       {/* Display Options */}
       <div className="w-full">
-        <div className="flex justify-end gap-2">
-          {renderMaskControl()}
-          {renderEllipseControl()}
+        <div className="flex gap-2">
+          <div className="flex-1">{renderMaskControl()}</div>
+          <div className="flex-1">{renderEllipseControl()}</div>
         </div>
       </div>
 
