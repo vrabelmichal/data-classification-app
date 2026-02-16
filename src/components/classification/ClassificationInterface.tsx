@@ -102,7 +102,7 @@ export function ClassificationInterface() {
   const [shouldRefocusQuickInput, setShouldRefocusQuickInput] = useState(false);
 
   const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
-  const [showMasks, setShowMasks] = useState(false);
+  const [showMasks, setShowMasks] = useState(true);
   const [showEllipseSettings, setShowEllipseSettings] = useState(false);
   const settingsButtonRef = useRef<HTMLDivElement>(null);
 
