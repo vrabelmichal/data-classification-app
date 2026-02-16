@@ -59,6 +59,26 @@ export function EyeIcon({ className }: IconProps) {
   );
 }
 
+export function MaskIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="currentColor"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M2.4 3.4 Q8 2.2 13.6 3.4 L14.1 9.6 Q14.3 12.0 12.7 13.4 Q10.8 15.2 8.0 15.4 Q5.2 15.2 3.3 13.4 Q1.7 12.0 1.9 9.6 L2.4 3.4 Z
+           M4.7 7.2 a0.85 1.25 0 1 0 1.7 0 a0.85 1.25 0 1 0 -1.7 0 Z
+           M9.6 7.2 a0.85 1.25 0 1 0 1.7 0 a0.85 1.25 0 1 0 -1.7 0 Z
+           M5.6 10.9 Q8.0 11.7 10.4 10.9 Q10.8 11.5 10.1 12.1 Q8.0 12.6 5.9 12.1 Q5.2 11.5 5.6 10.9 Z"
+      />
+    </svg>
+  );
+}
+
 export function AladinLogo({ className, width, height, size }: IconProps) {
   const style: React.CSSProperties = {};
   if (size !== undefined) {

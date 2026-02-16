@@ -23,7 +23,7 @@ import { CommentsField } from "./CommentsField";
 // Mobile-specific components
 import { MobileImageSlider } from "./MobileImageSlider";
 import { MobileSliderControls } from "./MobileSliderControls";
-import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon } from "./icons";
+import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon, MaskIcon } from "./icons";
 import { MobileClassificationForm } from "./MobileClassificationForm";
 import { CommentsModal } from "./CommentsModal";
 
@@ -36,6 +36,7 @@ import { getImagePriority, processImageLabel, shouldShowEllipse as shouldShowEll
 
 // Types
 import type { ImageType } from "./types";
+import type { ContrastGroupEntry } from "../../images/types";
 
 const imageDisplaySettings = loadImageDisplaySettings();
 const classificationImageSettings = imageDisplaySettings.classification;
@@ -51,6 +52,35 @@ const defaultMobileOrder = classificationImageSettings.defaultMobileOrder;
  * - 'key': Settings are tied to specific image keys. The setting follows the image across groups.
  */
 const ELLIPSE_SETTINGS_MODE: 'position' | 'key' = 'position';
+
+function resolveContrastGroupEntry(
+  entry: ContrastGroupEntry,
+  showMasks: boolean,
+): {
+  key: string;
+  label: string;
+  configKey: string;
+} | null {
+  const key = showMasks
+    ? (entry.key_masked ?? entry.key)
+    : (entry.key ?? entry.key_masked);
+
+  if (!key) {
+    return null;
+  }
+
+  const label = showMasks
+    ? (entry.label_masked ?? entry.label ?? key)
+    : (entry.label ?? entry.label_masked ?? key);
+
+  const configKey = entry.key ?? entry.key_masked ?? key;
+
+  return {
+    key,
+    label,
+    configKey,
+  };
+}
 
 export function ClassificationInterface() {
   // Route and navigation
@@ -72,6 +102,7 @@ export function ClassificationInterface() {
   const [shouldRefocusQuickInput, setShouldRefocusQuickInput] = useState(false);
 
   const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
+  const [showMasks, setShowMasks] = useState(false);
   const [showEllipseSettings, setShowEllipseSettings] = useState(false);
   const settingsButtonRef = useRef<HTMLDivElement>(null);
 
@@ -147,10 +178,18 @@ export function ClassificationInterface() {
   const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
 
   // Create imageTypes array
-  const imageTypes: ImageType[] = currentImageGroup.map(({ key, label, showEllipse, rectangle, allowEllipse }, index) => {
+  const imageTypes: ImageType[] = currentImageGroup.map((entry, index) => {
+    const resolvedEntry = resolveContrastGroupEntry(entry, showMasks);
+    if (!resolvedEntry) {
+      return null;
+    }
+
+    const { key, label, configKey } = resolvedEntry;
+    const { showEllipse, rectangle, allowEllipse } = entry;
+
     // Determine effective showEllipse based on user preferences and mode
     // In 'position' mode, use index as key; in 'key' mode, use actual image key
-    const settingsKey = ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : key;
+    const settingsKey = ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : configKey;
     const userPref = userPrefs?.ellipseSettings?.[settingsKey];
     const isAllowed = allowEllipse !== false;
     const effectiveShowEllipse = isAllowed ? (userPref ?? showEllipse === true) : false;
@@ -170,7 +209,7 @@ export function ClassificationInterface() {
       // Store position index for settings
       positionIndex: index,
     };
-  });
+  }).filter((item): item is ImageType => item !== null);
 
   // Sort imageTypes based on numColumns
   const sortedImageTypes = [...imageTypes].sort(
@@ -260,8 +299,19 @@ export function ClassificationInterface() {
   }, []);
 
   useEffect(() => {
+    const saved = localStorage.getItem('showMasks');
+    if (saved !== null) {
+      setShowMasks(JSON.parse(saved));
+    }
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('showEllipseOverlay', JSON.stringify(showEllipseOverlay));
   }, [showEllipseOverlay]);
+
+  useEffect(() => {
+    localStorage.setItem('showMasks', JSON.stringify(showMasks));
+  }, [showMasks]);
 
   // Dynamic page title
   usePageTitle(() => {
@@ -455,6 +505,11 @@ export function ClassificationInterface() {
       setShowEllipseOverlay((prev) => !prev);
       return;
     }
+    if (e.shiftKey && e.key.toLowerCase() === 'm') {
+      e.preventDefault();
+      setShowMasks((prev) => !prev);
+      return;
+    }
     if (e.key === 'Enter' && formState.canSubmit && isOnline) {
       e.preventDefault();
       handleSubmit();
@@ -501,6 +556,10 @@ export function ClassificationInterface() {
           case 'r':
             e.preventDefault();
             setShowEllipseOverlay((prev) => !prev);
+            return;
+          case 'm':
+            e.preventDefault();
+            setShowMasks((prev) => !prev);
             return;
           case 'a':
             e.preventDefault();
@@ -683,7 +742,7 @@ export function ClassificationInterface() {
           <EllipseIcon className="w-4 h-4" />
           <span className="text-sm flex items-center">
             {isMobile ? (
-              <span className="mr-1">Effective radius (r<sub>eff</sub>) overlay:</span>
+              <span className="mr-1">r<sub>eff</sub>:</span>
             ) : (
               <></>
             )}
@@ -716,6 +775,32 @@ export function ClassificationInterface() {
       {/* Settings Popup/Content */}
       {showEllipseSettings && renderEllipseSettingsContent()}
     </div>
+  );
+
+  const renderMaskControl = () => (
+    <button
+      onClick={() => setShowMasks((prev) => !prev)}
+      className={cn(
+        "relative flex items-center justify-center gap-2 rounded-lg transition-all duration-200 font-medium border shadow-sm",
+        isMobile ? "w-full py-2.5 px-3" : "px-3 py-1.5",
+        showMasks
+          ? "bg-emerald-100 text-emerald-700 border-emerald-200 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-800 dark:hover:bg-emerald-900/60"
+          : "bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600 dark:hover:bg-slate-600"
+      )}
+      title="Toggle masked images (Shift+M)"
+    >
+      <span className="text-sm flex items-center">
+        <MaskIcon className="w-4 h-4 mr-2" />
+        {isMobile ? (
+          <span className="mr-1">Masks:</span>
+        ) : (
+          <></>
+        )}
+        <span className="font-semibold inline-block w-[3ch] text-center">
+          {showMasks ? "ON" : "OFF"}
+        </span>
+      </span>
+    </button>
   );
 
   // Loading state - check if the relevant galaxy query is still loading
@@ -889,7 +974,8 @@ export function ClassificationInterface() {
 
       {/* Display Options */}
       <div className="w-full">
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-2">
+          {renderMaskControl()}
           {renderEllipseControl()}
         </div>
       </div>
@@ -1019,6 +1105,7 @@ export function ClassificationInterface() {
               ) : null}
             </div>
             <div className="flex items-center space-x-2">
+              {renderMaskControl()}
               {renderEllipseControl()}
               <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0.5">
                 <button

@@ -17,17 +17,18 @@ export const mixedContrastGroupPreset: ImageDisplaySettings = {
         { key: "unified_zscale_band_masked_model", label: "Unified Model\n(zscale, masked)" },
       ],
       [
-        { key: "band_100_log_masked", label: "Band\n(log, 100%, masked)", showEllipse: true },
-        { key: "residual_0_5_99_5_maskthresh", label: "Residual\n(0.5–99.5, mask-thresh)" },
-        { key: "model_100_unmasked", label: "Model\n(100%, unmasked)" },
-      ],
-      [
         { key: "unified_zscale_band_unmasked_band", label: "Unified Band\n(zscale, unmasked)", showEllipse: true },
         { key: "unified_zscale_band_unmasked_residual", label: "Unified Residual\n(zscale, unmasked)" },
         { key: "unified_zscale_band_unmasked_model", label: "Unified Model\n(zscale, unmasked)" },
       ],
       [
-        { key: "band_100_log_unmasked", label: "Band\n(log, 100%, unmasked)", showEllipse: true },
+        {
+          key: "band_100_log_unmasked",
+          label: "Band\n(log, 100%, unmasked)",
+          key_masked: "band_100_log_masked",
+          label_masked: "Band\n(log, 100%, masked)",
+          showEllipse: true,
+        },
         { key: "residual_0_5_99_5_maskthresh", label: "Residual\n(0.5–99.5, mask-thresh)" },
         { key: "model_100_unmasked", label: "Model\n(100%, unmasked)" },
       ],

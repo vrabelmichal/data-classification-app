@@ -69,6 +69,7 @@ export function KeyboardShortcuts({
         { key: "C", description: "Cycle contrast groups" },
         { key: "Shift+C", description: "Previous contrast group" },
         { key: "Shift+R", description: "Toggle effective radius (reff) overlay" },
+        { key: "Shift+M", description: "Toggle masked images" },
       ],
     },
     {

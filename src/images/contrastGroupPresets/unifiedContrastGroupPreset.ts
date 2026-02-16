@@ -22,9 +22,25 @@ export const unifiedContrastGroupPreset: ImageDisplaySettings = {
         { key: "unified_100_log_band_masked_model", label: "Unified Model\n(log, 100%, masked)" },
       ],
       [
-        { key: "unified_zscale_band_unmasked_band", label: "Unified Band\n(zscale, unmasked)", showEllipse: true },
-        { key: "unified_zscale_band_unmasked_residual", label: "Unified Residual\n(zscale, unmasked)" },
-        { key: "unified_zscale_band_unmasked_model", label: "Unified Model\n(zscale, unmasked)" },
+        {
+          key: "unified_zscale_band_unmasked_band",
+          label: "Unified Band\n(zscale, unmasked)",
+          key_masked: "unified_zscale_band_masked_band",
+          label_masked: "Unified Band\n(zscale, masked)",
+          showEllipse: true,
+        },
+        {
+          key: "unified_zscale_band_unmasked_residual",
+          label: "Unified Residual\n(zscale, unmasked)",
+          key_masked: "unified_zscale_band_masked_residual",
+          label_masked: "Unified Residual\n(zscale, masked)",
+        },
+        {
+          key: "unified_zscale_band_unmasked_model",
+          label: "Unified Model\n(zscale, unmasked)",
+          key_masked: "unified_zscale_band_masked_model",
+          label_masked: "Unified Model\n(zscale, masked)",
+        },
       ],
     ]),
     defaultMobileOrder: [3, 0, 1, 4, 5, 2],

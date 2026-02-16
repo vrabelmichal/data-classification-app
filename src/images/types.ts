@@ -5,9 +5,12 @@ export interface ImageRectangle {
   y: number;
   width: number;
   height: number;
-}export interface ContrastGroupEntry {
-  key: string;
-  label: string;
+}
+export interface ContrastGroupEntry {
+  key?: string;
+  label?: string;
+  key_masked?: string;
+  label_masked?: string;
   forcedQuality?: ImageQuality;
   showEllipse?: boolean;
   allowEllipse?: boolean;
