@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { getOptionalUserId, requireConfirmedUser } from "./lib/auth";
+import { getOptionalUserId, requireAdmin, requireConfirmedUser } from "./lib/auth";
 import { Doc } from "./_generated/dataModel";
 import {
   classificationsByCreated,
@@ -92,10 +92,18 @@ async function safeReplaceClassificationAggregate(
 // Get progress
 
 export const getProgress = query({
-  args: {},
-  handler: async (ctx) => {
-    const userId = await getOptionalUserId(ctx);
-    if (!userId) return null;
+  args: {
+    targetUserId: v.optional(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const currentUserId = await getOptionalUserId(ctx);
+    if (!currentUserId) return null;
+
+    let userId = currentUserId;
+    if (args.targetUserId && args.targetUserId !== currentUserId) {
+      await requireAdmin(ctx, { notAdminMessage: "Only admins can view other users' progress" });
+      userId = args.targetUserId;
+    }
 
     // Get user's current sequence
     const sequence = await ctx.db

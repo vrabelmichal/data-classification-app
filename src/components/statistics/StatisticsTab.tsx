@@ -23,7 +23,10 @@ export function StatisticsTab() {
     api.users.getUserStats,
     selectedUserId ? { targetUserId: selectedUserId } : {}
   );
-  const progress = useQuery(api.classification.getProgress);
+  const progress = useQuery(
+    api.classification.getProgress,
+    selectedUserId ? { targetUserId: selectedUserId } : {}
+  );
 
   // Preserve last successful stats to avoid layout jumps/scrollbar flicker while refetching
   useEffect(() => {
