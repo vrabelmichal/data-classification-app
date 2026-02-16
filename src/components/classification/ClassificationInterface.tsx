@@ -119,7 +119,7 @@ export function ClassificationInterface() {
     routeGalaxyId ? { externalId: routeGalaxyId } : "skip"
   );
   const galaxy = useQuery(api.galaxies.navigation.getNextGalaxyToClassify, routeGalaxyId ? "skip" : {});
-  const progress = useQuery(api.classification.getProgress);
+  const progress = useQuery(api.classification.getProgress, {});
   const userPrefs = useQuery(api.users.getUserPreferences);
   const userProfile = useQuery(api.users.getUserProfile);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -178,7 +178,7 @@ export function ClassificationInterface() {
   const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
 
   // Create imageTypes array
-  const imageTypes: ImageType[] = currentImageGroup.map((entry, index) => {
+  const imageTypes = currentImageGroup.map<ImageType | null>((entry, index) => {
     const resolvedEntry = resolveContrastGroupEntry(entry, showMasks);
     if (!resolvedEntry) {
       return null;
