@@ -1,65 +1,83 @@
-import {
-  generatedImageDisplaySettingsPresets,
-  ImageDisplaySettingsPreset,
-  ImageDisplaySettingsPresetMap,
-} from "./contrastGroupPresets";
-import {
-  ensureSixItemContrastGroups,
-  rectangle256x256in1024x1024,
-} from "./contrastGroupPresets/shared";
+import { buildContrastGroups, rectangle256x256in1024x1024 } from "./contrastGroupPresets/shared";
 import { ImageDisplaySettings } from "./types";
 
-export const originalDefaultImageDisplaySettings: ImageDisplaySettings = {
+export { rectangle256x256in1024x1024 };
+
+export const defaultImageDisplaySettings: ImageDisplaySettings = {
   previewImageName: "aplpy_linear_based_on_109534177__1_995_unmasked_irg",
   classification: {
     defaultGroupIndex: 0,
-    contrastGroups: ensureSixItemContrastGroups([
+    contrastGroups: buildContrastGroups([
       [
-        { key: "g_zscale_masked", label: "Masked g-Band\n(zscale)", showEllipse: true },
-        { key: "residual_zscale", label: "Residual\n(zscale)" },
-        { key: "model_100_0", label: "Galfit Model\n(100%)" },
-        { key: "aplpy_linear_based_on_109534177__1_995_unmasked_irg", label: "APLpy linear\n(109534177-based, irg)", showEllipse: true }, // i,r,g bands
-        { key: "aplpy_zscale_unmasked", label: "APLpy Zscale\n(unmasked)" },
-        { key: "aplpy_linear_p1_995_wide_unmasked", label: "APLpy Linear\n(p1_995 wide)", forcedQuality: "low", rectangle: rectangle256x256in1024x1024, allowEllipse: false },
+        // Practical: Linear scaling for band and model, narrower range for residual
+        {
+          key: "unified_100_band_maskthresh_band",
+          label: "Unified Band\n(100%, mask-thresh)",
+          key_masked: "unified_100_band_masked_band",
+          label_masked: "Unified Band\n(100%, masked)",
+          showEllipse: true,
+        },
+        { key: "residual_0_5_99_5_maskthresh", label: "Residual\n(0.5–99.5, mask-thresh)" },
+        { key: "unified_100_band_masked_model", label: "Unified Model\n(100%, masked)" },
       ],
       [
-        { key: "g_99_0_masked", label: "Masked g-Band\n(99.0%)", showEllipse: true },
-        { key: "residual_99_7", label: "Residual\n(99.7%)" },
-        { key: "model_99_7", label: "Galfit Model\n(99.7%)" },
-        { key: "aplpy_linear_based_on_109534177_unmasked", label: "APLpy Linear\n(109534177-based)", showEllipse: true }, // !
-        { key: "lupton__q_8__stretch_20", label: "Lupton\n(q=8, stretch=20, unmasked)" }, // ?
-        { key: "aplpy_linear_p1_995_wide_unmasked", label: "APLpy Linear\n(p1_995 wide)", forcedQuality: "low", rectangle: rectangle256x256in1024x1024, allowEllipse: false },
+        // Unified Log: Log scaling, unified - thresholds based on band image, so residual and model are shown with same range as band
+        {
+          key: "unified_100_log_band_maskthresh_band",
+          label: "Unified Band\n(log, 100%, mask-thresh)",
+          key_masked: "unified_100_log_band_masked_band",
+          label_masked: "Unified Band\n(log, 100%, masked)",
+          showEllipse: true,
+        },
+        { key: "unified_100_log_band_masked_residual", label: "Unified Residual\n(log, 100%, masked)" },
+        { key: "unified_100_log_band_masked_model", label: "Unified Model\n(log, 100%, masked)" },
       ],
       [
-        { key: "g_99_0_masked", label: "Masked g-Band\n(99.0%)", showEllipse: true },
-        { key: "residual_99_7", label: "Residual\n(99.7%)" },
-        { key: "model_99_7", label: "Galfit Model\n(99.7%)" },
-        { key: "aplpy_linear_based_on_109534177_unmasked", label: "APLpy Linear\n(109534177-based)", showEllipse: true }, // !
-        { key: "aplpy_defaults_unmasked", label: "APLpy Defaults\n(unmasked)" }, // ?
-        { key: "aplpy_linear_p1_995_wide_unmasked", label: "APLpy Linear\n(p1_995 wide)", forcedQuality: "low", rectangle: rectangle256x256in1024x1024, allowEllipse: false },
+        // Unified Linear: Linear scaling, unified - thresholds based on band image, so residual and model are shown with same range as band
+        {
+          key: "unified_100_band_maskthresh_band",
+          label: "Unified Band\n(100%, mask-thresh)",
+          key_masked: "unified_100_band_masked_band",
+          label_masked: "Unified Band\n(100%, masked)",
+          showEllipse: true,
+        },
+        { key: "unified_100_band_masked_residual", label: "Unified Residual\n(100%, masked)" },
+        { key: "unified_100_band_masked_model", label: "Unified Model\n(100%, masked)" },
       ],
-      
       [
-        { key: "g_99_9_masked", label: "Masked g-Band\n(99.9%)", showEllipse: true },
-        { key: "residual_100_0", label: "Residual\n(100%)" },
-        { key: "model_99_9", label: "Galfit Model\n(99.9%)" },
-        { key: "aplpy_linear_based_on_365515297_unmasked", label: "APLpy Linear\n(365515297-based)", showEllipse: true }, // !
-        { key: "aplpy_arcsinh_p001_100_vmid02_masked_irg", label: "APLpy Arcsinh\n(p0.01–100, vmid=0.2, mask, irg)" }, // i,r,g bands
-        { key: "aplpy_linear_p1_995_wide_unmasked", label: "APLpy Linear\n(p1_995 wide)", forcedQuality: "low", rectangle: rectangle256x256in1024x1024, allowEllipse: false },
+        // Mixture of potentially useful views: log scale for unmasked band image, full value range (stretch) based on unmasked region of residual, full value range for model 
+        {
+          key: "band_100_log_unmasked",
+          label: "Band\n(log, 100%, unmasked)",
+          showEllipse: true,
+        },
+        { key: "residual_100_maskthresh", label: "Residual\n(100%, mask-thresh)" },
+        { key: "model_100_unmasked", label: "Model\n(100%, unmasked)" },
+      ],
+      [
+        // Unified Zscale: Zscale stretches based on unmasked band image, so all three images have same stretch parameters
+        {
+          key: "unified_zscale_band_unmasked_band",
+          label: "Unified Band\n(zscale, unmasked)",
+          key_masked: "unified_zscale_band_masked_band",
+          label_masked: "Unified Band\n(zscale, masked)",
+          showEllipse: true,
+        },
+        {
+          key: "unified_zscale_band_unmasked_residual",
+          label: "Unified Residual\n(zscale, unmasked)",
+          key_masked: "unified_zscale_band_masked_residual",
+          label_masked: "Unified Residual\n(zscale, masked)",
+        },
+        {
+          key: "unified_zscale_band_unmasked_model",
+          label: "Unified Model\n(zscale, unmasked)",
+          key_masked: "unified_zscale_band_masked_model",
+          label_masked: "Unified Model\n(zscale, masked)",
+        },
       ],
     ]),
     defaultMobileOrder: [3, 0, 1, 4, 5, 2],
   },
 };
-
-export const IMAGE_DISPLAY_SETTINGS_PRESET: ImageDisplaySettingsPreset = "allNewImages";
-
-export { rectangle256x256in1024x1024 };
-
-const imageDisplaySettingsPresets: ImageDisplaySettingsPresetMap = {
-  original: originalDefaultImageDisplaySettings,
-  ...generatedImageDisplaySettingsPresets,
-};
-
-export const defaultImageDisplaySettings: ImageDisplaySettings = imageDisplaySettingsPresets[IMAGE_DISPLAY_SETTINGS_PRESET];
 
