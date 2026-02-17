@@ -7,17 +7,7 @@ export const allNewImagesContrastGroupPreset: ImageDisplaySettings = {
     defaultGroupIndex: 0,
     contrastGroups: buildContrastGroups([
       [
-        {
-          key: "unified_zscale_band_maskthresh_band",
-          label: "Unified Band\n(zscale, mask-thresh)",
-          key_masked: "unified_zscale_band_masked_band",
-          label_masked: "Unified Band\n(zscale, masked)",
-          showEllipse: true,
-        },
-        { key: "unified_zscale_band_masked_residual", label: "Unified Residual\n(zscale, masked)" },
-        { key: "unified_zscale_band_masked_model", label: "Unified Model\n(zscale, masked)" },
-      ],
-      [
+        // "Practical" contrast group, linear for band and model, narrower range for residual
         {
           key: "unified_100_band_maskthresh_band",
           label: "Unified Band\n(100%, mask-thresh)",
@@ -25,7 +15,7 @@ export const allNewImagesContrastGroupPreset: ImageDisplaySettings = {
           label_masked: "Unified Band\n(100%, masked)",
           showEllipse: true,
         },
-        { key: "unified_100_band_masked_residual", label: "Unified Residual\n(100%, masked)" },
+        { key: "residual_0_5_99_5_maskthresh", label: "Residual\n(0.5–99.5, mask-thresh)" },
         { key: "unified_100_band_masked_model", label: "Unified Model\n(100%, masked)" },
       ],
       [
@@ -40,22 +30,6 @@ export const allNewImagesContrastGroupPreset: ImageDisplaySettings = {
         { key: "unified_100_log_band_masked_model", label: "Unified Model\n(log, 100%, masked)" },
       ],
       [
-        { key: "band_100_log_masked", label: "Band\n(log, 100%, masked)", showEllipse: true },
-        { key: "residual_100_maskthresh", label: "Residual\n(100%, mask-thresh)" },
-        { key: "model_100_unmasked", label: "Model\n(100%, unmasked)" },
-      ],
-      [
-        {
-          key: "band_100_log_unmasked",
-          label: "Band\n(log, 100%, unmasked)",
-          key_masked: "band_100_log_masked",
-          label_masked: "Band\n(log, 100%, masked)",
-          showEllipse: true,
-        },
-        { key: "residual_0_5_99_5_maskthresh", label: "Residual\n(0.5–99.5, mask-thresh)" },
-        { key: "model_100_unmasked", label: "Model\n(100%, unmasked)" },
-      ],
-      [
         {
           key: "unified_100_band_maskthresh_band",
           label: "Unified Band\n(100%, mask-thresh)",
@@ -63,18 +37,16 @@ export const allNewImagesContrastGroupPreset: ImageDisplaySettings = {
           label_masked: "Unified Band\n(100%, masked)",
           showEllipse: true,
         },
-        { key: "residual_0_5_99_5_maskthresh", label: "Residual\n(0.5–99.5, mask-thresh)" },
-        { key: "model_100_unmasked", label: "Model\n(100%, unmasked)" },
+        { key: "unified_100_band_masked_residual", label: "Unified Residual\n(100%, masked)" },
+        { key: "unified_100_band_masked_model", label: "Unified Model\n(100%, masked)" },
       ],
       [
         {
-          key: "unified_100_log_band_maskthresh_band",
-          label: "Unified Band\n(log, 100%, mask-thresh)",
-          key_masked: "unified_100_log_band_masked_band",
-          label_masked: "Unified Band\n(log, 100%, masked)",
+          key: "band_100_log_unmasked",
+          label: "Band\n(log, 100%, unmasked)",
           showEllipse: true,
         },
-        { key: "residual_0_5_99_5_maskthresh", label: "Residual\n(0.5–99.5, mask-thresh)" },
+        { key: "residual_100_maskthresh", label: "Residual\n(100%, mask-thresh)" },
         { key: "model_100_unmasked", label: "Model\n(100%, unmasked)" },
       ],
       [
