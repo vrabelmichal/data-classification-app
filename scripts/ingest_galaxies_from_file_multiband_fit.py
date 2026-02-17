@@ -17,6 +17,11 @@ Priority for configuration:
 Expected variables:
 - VITE_CONVEX_HTTP_ACTIONS_URL
 - INGEST_TOKEN
+
+OBJECT ID FILTERING (for testing):
+To test ingestion of specific objects, use one of:
+- --object-ids ID1,ID2,ID3 (comma-separated list)
+- --object-ids-file path/to/ids.txt (one ID per line)
 """
 
 import argparse
@@ -361,6 +366,41 @@ def send_ingest(convex_url, ingest_token, galaxies, mode="insert", timeout_sec=6
 
 
 # --------------------------------------------------------------------------------------
+# Object ID filtering
+# --------------------------------------------------------------------------------------
+def load_object_ids(object_ids_str: str = None, object_ids_file: str = None) -> set:
+    """
+    Load object IDs from command line arguments or file.
+    
+    Args:
+        object_ids_str: Comma-separated object IDs
+        object_ids_file: Path to file with one object ID per line
+    
+    Returns:
+        Set of object IDs as strings
+    """
+    object_ids = set()
+    
+    if object_ids_str:
+        # Parse comma-separated IDs, strip whitespace
+        ids = [oid.strip() for oid in object_ids_str.split(',') if oid.strip()]
+        object_ids.update(ids)
+        logger.info(f"✓ Loaded {len(ids)} object IDs from command line")
+    
+    if object_ids_file:
+        file_path = Path(object_ids_file)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Object IDs file not found: {file_path}")
+        
+        with open(file_path, 'r') as f:
+            ids = [line.strip() for line in f if line.strip()]
+        object_ids.update(ids)
+        logger.info(f"✓ Loaded {len(ids)} object IDs from file: {file_path}")
+    
+    return object_ids
+
+
+# --------------------------------------------------------------------------------------
 # Batch process
 # --------------------------------------------------------------------------------------
 def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False, continue_on_error=False, global_offset=0, mode="insert"):
@@ -556,6 +596,8 @@ OPERATION MODES:
     parser.add_argument("--continue-on-error", action="store_true", help="Continue with next batch on error (default: stop immediately)")
     parser.add_argument("--mode", choices=["insert", "update", "upsert"], default="insert",
                         help="Operation mode: insert (default), update, or upsert")
+    parser.add_argument("--object-ids", help="Comma-separated object IDs to process (for testing)")
+    parser.add_argument("--object-ids-file", help="File path with one object ID per line (for testing)")
     args = parser.parse_args()
 
     # Warn if batch size is too large
@@ -582,6 +624,22 @@ OPERATION MODES:
         else:
             df = df.iloc[offset:]
         logger.info(f"✓ Loaded {len(df)} rows from {parquet_file} (offset={offset}, limit={limit})")
+        
+        # Filter by object IDs if provided
+        if args.object_ids or args.object_ids_file:
+            object_ids = load_object_ids(args.object_ids, args.object_ids_file)
+            rows_before_filter = len(df)
+            # Convert object IDs to strings to match dataframe values
+            df['coadd_object_id_str'] = df['coadd_object_id'].astype(str)
+            df = df[df['coadd_object_id_str'].isin(object_ids)]
+            df = df.drop(columns=['coadd_object_id_str'])
+            rows_after_filter = len(df)
+            logger.info(f"  Filtered by object IDs: {rows_before_filter} → {rows_after_filter} rows")
+            if rows_after_filter == 0:
+                logger.warning(f"⚠️  No matching object IDs found in the data!")
+                logger.warning(f"    Available columns: {list(df.columns) if total_rows > 0 else 'empty'}")
+                return
+        
         logger.info(f"  Mode: {args.mode}")
         # logger.info("📋 Sample:\n" + df.head().to_string())
 
