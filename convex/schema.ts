@@ -335,13 +335,18 @@ const applicationTables = {
       v.literal("resolved"),
       v.literal("closed")
     ),
+    // "general" = normal report, "quick_tap" = created by 4-tap gesture on galaxy
+    category: v.optional(v.union(v.literal("general"), v.literal("quick_tap"))),
+    // Galaxy external ID associated with the report (used for quick_tap events)
+    galaxyExternalId: v.optional(v.string()),
     createdAt: v.number(), // timestamp
     resolvedAt: v.optional(v.number()), // timestamp when marked as resolved
     adminNotes: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_status", ["status"])
-    .index("by_created_at", ["createdAt"]),
+    .index("by_created_at", ["createdAt"])
+    .index("by_category", ["category"]),
 
   // User-Galaxy classification status for efficient "classified by me" / "unclassified by me" queries
   // This table enables indexed pagination without loading all galaxies into memory

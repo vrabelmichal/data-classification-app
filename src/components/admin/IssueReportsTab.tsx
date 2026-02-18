@@ -7,7 +7,7 @@ import { Id } from "../../../convex/_generated/dataModel";
 type ReportStatus = "open" | "in_progress" | "resolved" | "closed";
 
 export function IssueReportsTab() {
-  const reports = useQuery(api.issueReports.getAllReports);
+  const reports = useQuery(api.issueReports.getAllReports, {});
   const [filterStatus, setFilterStatus] = useState<ReportStatus | "all">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState<{ [key: string]: string }>({});

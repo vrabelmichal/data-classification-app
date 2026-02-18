@@ -11,12 +11,16 @@ interface ReportIssueModalProps {
 export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
   const [description, setDescription] = useState("");
   const [currentUrl, setCurrentUrl] = useState("");
+  const [galaxyExternalId, setGalaxyExternalId] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const submitReport = useMutation(api.issueReports.submitReport);
 
   useEffect(() => {
     if (isOpen && typeof window !== "undefined") {
       setCurrentUrl(window.location.href);
+      // Extract galaxy ID if we're on a classify page: /classify/<galaxyId>
+      const match = window.location.pathname.match(/^\/classify\/(.+)$/);
+      setGalaxyExternalId(match ? match[1] : undefined);
     }
   }, [isOpen]);
 
@@ -30,7 +34,7 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
 
     setIsSubmitting(true);
     try {
-      await submitReport({ description, url: currentUrl || undefined });
+      await submitReport({ description, url: currentUrl || undefined, galaxyExternalId });
       toast.success("Issue reported successfully. Thank you!");
       setDescription("");
       onClose();

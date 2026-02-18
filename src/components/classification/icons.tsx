@@ -172,3 +172,36 @@ export function SettingsIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function BugIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 9V7a4 4 0 018 0v2"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 21a7 7 0 110-14 7 7 0 010 14z"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 10v4m0 0l2 2m-2-2l-2 2"
+      />
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 9h3M18 9h3M5.5 5.5l2 2M16.5 5.5l-2 2M5.5 18.5l2-2M18.5 18.5l-2-2"
+      />
+    </svg>
+  );
+}

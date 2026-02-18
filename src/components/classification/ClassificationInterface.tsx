@@ -23,7 +23,8 @@ import { CommentsField } from "./CommentsField";
 // Mobile-specific components
 import { MobileImageSlider } from "./MobileImageSlider";
 import { MobileSliderControls } from "./MobileSliderControls";
-import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon, MaskIcon } from "./icons";
+import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon, MaskIcon, BugIcon } from "./icons";
+import { ReportIssueModal } from "../ReportIssueModal";
 import { MobileClassificationForm } from "./MobileClassificationForm";
 import { CommentsModal } from "./CommentsModal";
 
@@ -106,6 +107,13 @@ export function ClassificationInterface() {
   const [mobileSliderIndex, setMobileSliderIndex] = useState(0);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
 
+  // Report issue modal state
+  const [showReportIssueModal, setShowReportIssueModal] = useState(false);
+
+  // Quick-tap / 4-tap issue reporting state
+  const quickTapCountRef = useRef(0);
+  const quickTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Online status
   const isOnline = useOnlineStatus();
 
@@ -136,6 +144,7 @@ export function ClassificationInterface() {
 
   const getNextGalaxyMutation = useMutation(api.galaxies.navigation.getNextGalaxyToClassifyMutation);
   const updatePreferences = useMutation(api.users.updatePreferences);
+  const submitQuickTapReport = useMutation(api.issueReports.submitQuickTapReport);
 
   // Display galaxy
   const displayGalaxy = currentGalaxy || galaxy;
@@ -780,6 +789,60 @@ export function ClassificationInterface() {
     </div>
   );
 
+  // Handle report button click with 4-tap quick-report logic
+  const handleReportButtonClick = () => {
+    if (!currentGalaxy) {
+      setShowReportIssueModal(true);
+      return;
+    }
+
+    quickTapCountRef.current += 1;
+
+    // If 4 taps reached within the window — auto-submit immediately
+    if (quickTapCountRef.current >= 4) {
+      quickTapCountRef.current = 0;
+      if (quickTapTimeoutRef.current) clearTimeout(quickTapTimeoutRef.current);
+      quickTapTimeoutRef.current = null;
+      // Auto-create quick-tap issue
+      submitQuickTapReport({
+        galaxyExternalId: currentGalaxy.id,
+        url: typeof window !== "undefined" ? window.location.href : undefined,
+      })
+        .then(() => {
+          toast.success("Quick issue report created for this galaxy!");
+        })
+        .catch(() => {
+          toast.error("Failed to create quick issue report");
+        });
+      return;
+    }
+
+    // Otherwise wait 500 ms; if no more taps arrive, open the normal report modal
+    if (quickTapTimeoutRef.current) clearTimeout(quickTapTimeoutRef.current);
+    quickTapTimeoutRef.current = setTimeout(() => {
+      quickTapCountRef.current = 0;
+      quickTapTimeoutRef.current = null;
+      setShowReportIssueModal(true);
+    }, 500);
+  };
+
+  const renderReportButton = (mobileStyle = false) => (
+    <div className={cn("flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700", mobileStyle ? "p-1 w-full" : "p-0.5")}>
+      <button
+        onClick={handleReportButtonClick}
+        className={cn(
+          "rounded-md transition-colors flex items-center justify-center gap-2 font-medium",
+          mobileStyle ? "flex-1 py-2.5 px-3" : "p-1.5",
+          "text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+        )}
+        title="Report an issue — click 4× quickly to auto-report this galaxy without a description"
+      >
+        <BugIcon className="w-4 h-4" />
+        {mobileStyle && <span className="text-sm">Report Issue</span>}
+      </button>
+    </div>
+  );
+
   const renderMaskControl = () => (
     <div className={cn("relative inline-block text-left", isMobile && "w-full")}>
       <div className={cn(
@@ -1122,6 +1185,7 @@ export function ClassificationInterface() {
                   <span className="text-sm font-medium">?</span>
                 </button>
               </div>
+              {renderReportButton()}
             </div>
           </div>
         )}
@@ -1131,6 +1195,11 @@ export function ClassificationInterface() {
         <div className="mt-8">
           {progress && <ProgressBar progress={progress} />}
         </div>
+        {isMobile && (
+          <div className="mt-4 w-full">
+            {renderReportButton(true)}
+          </div>
+        )}
 
         <KeyboardShortcuts
           isOpen={showKeyboardHelp}
@@ -1139,6 +1208,12 @@ export function ClassificationInterface() {
           showAwesomeFlag={showAwesomeFlag}
           showValidRedshift={showValidRedshift}
           showVisibleNucleus={showVisibleNucleus}
+        />
+
+        {/* Report Issue Modal */}
+        <ReportIssueModal
+          isOpen={showReportIssueModal}
+          onClose={() => setShowReportIssueModal(false)}
         />
 
         {/* Comments Modal - works on both mobile and desktop */}
