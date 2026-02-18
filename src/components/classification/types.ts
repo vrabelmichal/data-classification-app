@@ -23,6 +23,8 @@ export interface ImageRectangle {
 
 export interface ImageType {
   key: string;
+  /** Stable config key (entry.key before mask resolution) used for ellipse settings storage. */
+  configKey: string;
   name: string;
   displayName: React.ReactNode;
   url: string | null;

@@ -188,6 +188,7 @@ export function ClassificationInterface() {
 
     return {
       key,
+      configKey,
       name: label,
       displayName: processImageLabel(label),
       url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, {
@@ -631,7 +632,9 @@ export function ClassificationInterface() {
 
   // Get the settings key for an image based on mode
   const getSettingsKey = (img: any, index: number): string => {
-    return ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : img.key;
+    // In 'key' mode, use the stable configKey (entry.key before mask resolution)
+    // so the settings key is consistent regardless of whether masks are shown.
+    return ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : img.configKey;
   };
 
   const renderEllipseSettingsContent = () => {
