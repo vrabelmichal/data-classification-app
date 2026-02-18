@@ -7,6 +7,17 @@ type KeyboardShortcutsSectionProps = {
 export function KeyboardShortcutsSection({ settings }: KeyboardShortcutsSectionProps) {
   const { failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus } = settings;
 
+  const allowedCharacters = [
+    "-",
+    "0",
+    "1",
+    "2",
+    ...(showAwesomeFlag ? ["a"] : []),
+    ...(showValidRedshift ? ["r"] : []),
+    ...(showVisibleNucleus ? ["n"] : []),
+    ...(failedFittingMode === "checkbox" ? ["f"] : []),
+  ].join(",");
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
@@ -82,10 +93,7 @@ export function KeyboardShortcutsSection({ settings }: KeyboardShortcutsSectionP
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-300">Allowed characters</span>
               <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                -,0,1,2{showAwesomeFlag ? ",a" : ""}
-                {showValidRedshift ? ",r" : ""}
-                {showVisibleNucleus ? ",n" : ""}
-                {failedFittingMode === "checkbox" ? ",f" : ""}
+                {allowedCharacters}
               </span>
             </div>
             {showAwesomeFlag && (
