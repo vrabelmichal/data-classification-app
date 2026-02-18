@@ -29,6 +29,7 @@ import os
 import sys
 import time
 import json
+import re
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Union
@@ -362,7 +363,69 @@ def send_ingest(convex_url, ingest_token, galaxies, mode="insert", timeout_sec=6
     }
     payload = {"galaxies": galaxies, "mode": mode}
     logger.info(f"POST {url} with {len(galaxies)} galaxies (mode={mode})")
-    return requests.post(url, headers=headers, data=json.dumps(payload), timeout=timeout_sec)
+
+    transient_statuses = {429, 502, 503, 504}
+    max_attempts = 3
+    backoff_base_sec = 1.0
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=timeout_sec)
+        except requests.RequestException as exc:
+            if attempt >= max_attempts:
+                raise
+            sleep_sec = backoff_base_sec * attempt
+            logger.warning(
+                f"⚠ Request error on attempt {attempt}/{max_attempts}: {exc}. "
+                f"Retrying in {sleep_sec:.1f}s..."
+            )
+            time.sleep(sleep_sec)
+            continue
+
+        if resp.status_code in transient_statuses and attempt < max_attempts:
+            sleep_sec = backoff_base_sec * attempt
+            logger.warning(
+                f"⚠ Transient HTTP {resp.status_code} on attempt {attempt}/{max_attempts}. "
+                f"Retrying in {sleep_sec:.1f}s..."
+            )
+            time.sleep(sleep_sec)
+            continue
+
+        return resp
+
+    raise RuntimeError("Unreachable: send_ingest retry loop exited unexpectedly")
+
+
+def parse_response_json(resp: requests.Response) -> Dict[str, Any]:
+    """Parse JSON response safely; returns {} when body is not valid JSON."""
+    try:
+        parsed = resp.json()
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def summarize_error_detail(resp: requests.Response, result_json: Dict[str, Any], max_len: int = 500) -> str:
+    """Build a concise, readable error detail string for logs."""
+    if result_json.get("detail"):
+        detail = str(result_json["detail"])
+    else:
+        body = (resp.text or "").strip()
+        if not body:
+            return "No details"
+
+        if "<html" in body.lower():
+            title_match = re.search(r"<title>\s*(.*?)\s*</title>", body, re.IGNORECASE | re.DOTALL)
+            if title_match:
+                detail = f"HTML error page: {title_match.group(1).strip()}"
+            else:
+                detail = "HTML error page returned by upstream/proxy"
+        else:
+            detail = " ".join(body.split())
+
+    if len(detail) > max_len:
+        return detail[:max_len] + "..."
+    return detail
 
 
 # --------------------------------------------------------------------------------------
@@ -449,13 +512,12 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
                 
                 if not dry_run:
                     resp = send_ingest(convex_url, ingest_token, batch, mode=mode)
-                    
-                    try:
-                        result_json = resp.json()
-                    except Exception:
-                        result_json = {}
-                    
-                    if resp.status_code == 200 and result_json.get("success", True):
+
+                    result_json = parse_response_json(resp)
+
+                    # Success requires HTTP 200 and a parseable JSON object.
+                    # This avoids false positives when an upstream returns HTML/text with HTTP 200.
+                    if resp.status_code == 200 and result_json and result_json.get("success", True):
                         # Success - batch was committed
                         # Handle response based on mode
                         if mode == "insert":
@@ -482,8 +544,10 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
                         
                         # Extract detailed error info
                         error_msg = result_json.get("error", f"HTTP {resp.status_code}")
-                        error_detail = result_json.get("detail", resp.text[:500] if resp.text else "No details")
+                        error_detail = summarize_error_detail(resp, result_json)
                         was_rolled_back = result_json.get("rollback", False)
+                        if resp.status_code in {429, 502, 503, 504}:
+                            error_detail = f"{error_detail} | transient upstream error after retries"
                         
                         # Calculate exact failure position
                         global_batch_start = global_offset + batch_start_idx
@@ -699,6 +763,10 @@ OPERATION MODES:
         
         logger.info("=" * 60)
 
+    except RuntimeError as e:
+        logger.error(f"❌ Error: {e}")
+        logger.error("(Fail-fast stopped ingestion at first failed batch. Use --continue-on-error to continue.)")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"❌ Error: {e}")
         import traceback
