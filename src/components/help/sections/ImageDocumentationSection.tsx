@@ -43,6 +43,17 @@ export function ImageDocumentationSection() {
   const mobileOrder = defaultImageDisplaySettings.classification.defaultMobileOrder ?? [0, 1, 2, 3, 4, 5];
   const firstGroup = contrastGroups[0] ?? [];
   const mobileExamples = mobileOrder.map((index) => firstGroup[index]);
+
+  const mobileOrderPhrase = (() => {
+    if (!mobileOrder || mobileOrder.length === 0) return "No mobile order configured.";
+    if (mobileOrder.length === 1) return `This means mobile starts with index ${mobileOrder[0]}.`;
+    if (mobileOrder.length === 2) return `This means mobile starts with index ${mobileOrder[0]}, and finally ${mobileOrder[1]}.`;
+    const first = mobileOrder[0];
+    const middle = mobileOrder.slice(1, -1).join(", ");
+    const last = mobileOrder[mobileOrder.length - 1];
+    return `This means mobile starts with index ${first}, then ${middle}, and finally ${last}.`;
+  })();
+
   const imagesByPosition = Array.from({ length: 6 }, (_, positionIndex) =>
     contrastGroups.map((group, groupIndex) => ({
       groupNumber: groupIndex + 1,
@@ -144,14 +155,9 @@ export function ImageDocumentationSection() {
 {`Configured order: [${mobileOrder.join(", ")}]
 
 Example sequence:
-1) index ${mobileOrder[0]}
-2) index ${mobileOrder[1]}
-3) index ${mobileOrder[2]}
-4) index ${mobileOrder[3]}
-5) index ${mobileOrder[4]}
-6) index ${mobileOrder[5]}`}
+${mobileOrder.map((idx, i) => `${i + 1}) index ${idx}`).join("\n")}`}
             </pre>
-            <p className="mt-2">This means mobile starts with index 3, then 0, 1, 4, 5, and finally 2.</p>
+            <p className="mt-2">{mobileOrderPhrase}</p>
             <div className="mt-3 rounded-lg bg-sky-50 dark:bg-sky-950/30 p-3">
               <p className="font-semibold text-sky-900 dark:text-sky-100 mb-2">Example using Contrast Group 1</p>
               <ol className="list-decimal list-inside space-y-1 text-sky-900/90 dark:text-sky-100/90">
