@@ -20,9 +20,9 @@ export function Help() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const appName = (systemSettings?.appName ?? DEFAULT_APP_NAME) as string;
   const failedFittingMode = (systemSettings?.failedFittingMode as FailedFittingMode) ?? DEFAULT_FAILED_FITTING_MODE;
-  const showAwesomeFlag = Boolean(systemSettings?.showAwesomeFlag) ?? DEFAULT_SHOW_AWESOME_FLAG;
-  const showValidRedshift = Boolean(systemSettings?.showValidRedshift) ?? DEFAULT_SHOW_VALID_REDSHIFT;
-  const showVisibleNucleus = Boolean(systemSettings?.showVisibleNucleus) ?? DEFAULT_SHOW_VISIBLE_NUCLEUS;
+  const showAwesomeFlag = Boolean(systemSettings?.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG);
+  const showValidRedshift = Boolean(systemSettings?.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT);
+  const showVisibleNucleus = Boolean(systemSettings?.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS);
 
   const location = useLocation();
 
