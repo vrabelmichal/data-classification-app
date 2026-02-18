@@ -7,7 +7,7 @@ export interface ImageRectangle {
   height: number;
 }
 export interface ContrastGroupEntry {
-  key?: string;
+  key: string;
   label?: string;
   key_masked?: string;
   label_masked?: string;

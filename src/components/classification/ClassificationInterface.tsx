@@ -60,20 +60,16 @@ function resolveContrastGroupEntry(
   key: string;
   label: string;
   configKey: string;
-} | null {
+} {
   const key = showMasks
     ? (entry.key_masked ?? entry.key)
-    : (entry.key ?? entry.key_masked);
-
-  if (!key) {
-    return null;
-  }
+    : entry.key;
 
   const label = showMasks
     ? (entry.label_masked ?? entry.label ?? key)
     : (entry.label ?? entry.label_masked ?? key);
 
-  const configKey = entry.key ?? entry.key_masked ?? key;
+  const configKey = entry.key;
 
   return {
     key,
@@ -180,10 +176,6 @@ export function ClassificationInterface() {
   // Create imageTypes array
   const imageTypes = currentImageGroup.map<ImageType | null>((entry, index) => {
     const resolvedEntry = resolveContrastGroupEntry(entry, showMasks);
-    if (!resolvedEntry) {
-      return null;
-    }
-
     const { key, label, configKey } = resolvedEntry;
     const { showEllipse, rectangle, allowEllipse } = entry;
 
