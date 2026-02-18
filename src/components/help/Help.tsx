@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useQuery } from "convex/react";
+import { Routes, Route, useLocation, Navigate } from "react-router";
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import {
@@ -14,7 +14,7 @@ import { ClassificationSection } from "./sections/ClassificationSection";
 import { GettingStartedSection } from "./sections/GettingStartedSection";
 import { ImageDocumentationSection } from "./sections/ImageDocumentationSection";
 import { KeyboardShortcutsSection } from "./sections/KeyboardShortcutsSection";
-import { FailedFittingMode, HelpFeatureFlags, HelpTab } from "./types";
+import { FailedFittingMode, HelpFeatureFlags } from "./types";
 
 export function Help() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -24,7 +24,17 @@ export function Help() {
   const showValidRedshift = Boolean(systemSettings?.showValidRedshift) ?? DEFAULT_SHOW_VALID_REDSHIFT;
   const showVisibleNucleus = Boolean(systemSettings?.showVisibleNucleus) ?? DEFAULT_SHOW_VISIBLE_NUCLEUS;
 
-  const [activeTab, setActiveTab] = useState<HelpTab>("getting-started");
+  const location = useLocation();
+
+  // Determine page title based on current path
+  const getPageTitle = () => {
+    if (location.pathname.includes("/help/classification")) return "Help - Categories & Flags";
+    if (location.pathname.includes("/help/shortcuts")) return "Help - Keyboard Shortcuts";
+    if (location.pathname.includes("/help/image-docs")) return "Help - Image Documentation";
+    return "Help - Getting Started";
+  };
+
+  usePageTitle(getPageTitle());
 
   const featureFlags: HelpFeatureFlags = {
     failedFittingMode,
@@ -32,8 +42,6 @@ export function Help() {
     showValidRedshift,
     showVisibleNucleus,
   };
-
-  usePageTitle("Help");
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
@@ -45,12 +53,15 @@ export function Help() {
       </div>
 
       <div className="space-y-8">
-        <HelpTabs activeTab={activeTab} onChange={setActiveTab} />
+        <HelpTabs />
 
-        {activeTab === "getting-started" && <GettingStartedSection appName={appName} />}
-        {activeTab === "classification" && <ClassificationSection settings={featureFlags} />}
-        {activeTab === "shortcuts" && <KeyboardShortcutsSection settings={featureFlags} />}
-        {activeTab === "image-docs" && <ImageDocumentationSection />}
+        <Routes>
+          <Route index element={<GettingStartedSection appName={appName} />} />
+          <Route path="classification" element={<ClassificationSection settings={featureFlags} />} />
+          <Route path="shortcuts" element={<KeyboardShortcutsSection settings={featureFlags} />} />
+          <Route path="image-docs" element={<ImageDocumentationSection />} />
+          <Route path="*" element={<Navigate to="/help" replace />} />
+        </Routes>
       </div>
     </div>
   );
