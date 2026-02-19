@@ -25,6 +25,7 @@ export interface UseGalaxyBrowserReturn {
   setFilter: (filter: FilterType) => void;
   goNext: () => void;
   goPrev: () => void;
+  goFirst: () => void;
   isSearchFormCollapsed: boolean;
   setIsSearchFormCollapsed: Dispatch<SetStateAction<boolean>>;
 
@@ -533,6 +534,12 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setPage((p) => Math.max(1, p - 1));
   };
 
+  const goFirst = () => {
+    setCursor(null);
+    setCursorStack([]);
+    setPage(1);
+  };
+
   const applySearch = () => {
     setAppliedSearchId(searchId);
     setAppliedSearchRaMin(searchRaMin);
@@ -742,6 +749,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setFilter,
     goNext,
     goPrev,
+    goFirst,
     isSearchFormCollapsed,
     setIsSearchFormCollapsed,
 

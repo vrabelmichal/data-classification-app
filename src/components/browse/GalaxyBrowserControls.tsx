@@ -18,6 +18,7 @@ interface GalaxyBrowserControlsProps {
   hasNext: boolean;
   goPrev: () => void;
   goNext: () => void;
+  goFirst: () => void;
 
   // Data
   galaxyData: any;
@@ -28,6 +29,9 @@ interface GalaxyBrowserControlsProps {
   isComputingTotal?: boolean;
   computedTotal?: number | null;
     accumulatedCount?: number;
+
+  // Quick review mode
+  onEnterReviewMode?: () => void;
 }
 
 export function GalaxyBrowserControls({
@@ -44,12 +48,14 @@ export function GalaxyBrowserControls({
   hasNext,
   goPrev,
   goNext,
+  goFirst,
   galaxyData,
   statusText,
   onComputeTotal,
   isComputingTotal = false,
   computedTotal = null,
     accumulatedCount = 0,
+  onEnterReviewMode,
 }: GalaxyBrowserControlsProps) {
   const { total } = galaxyData || {};
 
@@ -140,6 +146,16 @@ export function GalaxyBrowserControls({
       <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center space-x-2">
           <button
+            onClick={goFirst}
+            disabled={!hasPrevious}
+            className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="First page"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M18 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
             onClick={goPrev}
             disabled={!hasPrevious}
             className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -186,6 +202,18 @@ export function GalaxyBrowserControls({
                   : 'Counting...'
                 : `Total ${computedTotal}`}
             </span>
+          )}
+          {onEnterReviewMode && (
+            <button
+              onClick={onEnterReviewMode}
+              className="px-3 py-1 text-xs border border-purple-300 dark:border-purple-600 rounded-md bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 flex items-center justify-center gap-1.5"
+              title="Review galaxies one by one in full-screen mode"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.9L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+              </svg>
+              <span>Quick Review</span>
+            </button>
           )}
         </div>
         <div className="text-sm text-gray-700 dark:text-gray-300 text-left sm:text-right">
