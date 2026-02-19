@@ -218,11 +218,24 @@ export function GalaxyQuickReview({
     }
   }, [galaxies.length, initialIndex, isAtEnd, nextCursor]);
 
-  // No prefetch – hard cap at the initial 50-item batch to avoid blinking.
+  // Prefetch next batch when approaching the end of the current buffer
+  const PREFETCH_THRESHOLD = 10;
+  useEffect(() => {
+    if (isAtEnd) return;
+    if (nextCursor === null || nextCursor === undefined) return;
+    if (currentIndex >= galaxies.length - PREFETCH_THRESHOLD) {
+      if (!processedCursors.current.has(nextCursor)) {
+        setFetchCursor(nextCursor);
+      }
+    }
+  }, [currentIndex, galaxies.length, isAtEnd, nextCursor]);
 
-  // Notify parent of current galaxy
+  // Notify parent of current galaxy.
+  // Guard: don't fire until initialIndex has been applied so we never
+  // briefly report index 0 on remount (which would desync the browser page).
   const currentGalaxy = galaxies[currentIndex] ?? null;
   useEffect(() => {
+    if (!initialIndexApplied.current) return;
     if (currentGalaxy?.id) onGalaxyChange(currentGalaxy.id, currentIndex);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentGalaxy?.id, currentIndex]);
@@ -231,9 +244,28 @@ export function GalaxyQuickReview({
   const canGoNext = currentIndex < galaxies.length - 1 || (!isAtEnd && nextCursor !== null);
   const canGoPrev = currentIndex > 0;
 
+  // Track whether the user pressed Next while at the buffer edge
+  const pendingAdvance = useRef(false);
+
   const goNext = useCallback(() => {
-    setCurrentIndex((i) => (i < galaxies.length - 1 ? i + 1 : i));
-  }, [galaxies.length]);
+    if (currentIndex < galaxies.length - 1) {
+      setCurrentIndex((i) => i + 1);
+    } else if (!isAtEnd && nextCursor !== null && nextCursor !== undefined) {
+      // At the end of current buffer but more data available — trigger fetch
+      pendingAdvance.current = true;
+      if (!processedCursors.current.has(nextCursor)) {
+        setFetchCursor(nextCursor);
+      }
+    }
+  }, [currentIndex, galaxies.length, isAtEnd, nextCursor]);
+
+  // Auto-advance once new data arrives after the user pressed Next at boundary
+  useEffect(() => {
+    if (pendingAdvance.current && currentIndex < galaxies.length - 1) {
+      pendingAdvance.current = false;
+      setCurrentIndex((i) => i + 1);
+    }
+  }, [galaxies.length, currentIndex]);
 
   const goPrev = useCallback(() => {
     setCurrentIndex((i) => (i > 0 ? i - 1 : 0));
@@ -242,17 +274,19 @@ export function GalaxyQuickReview({
   const goFirst = useCallback(() => setCurrentIndex(0), []);
 
   // Keyboard
+  const toggleEllipse = useCallback(() => setShowEllipse((v) => !v), []);
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
-      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (tag === "input" || tag === "textarea") return;
       if (e.key === "ArrowRight" || e.key === "n") { e.preventDefault(); goNext(); }
       else if (e.key === "ArrowLeft" || e.key === "p") { e.preventDefault(); goPrev(); }
+      else if (e.key === "R" && e.shiftKey) { e.preventDefault(); toggleEllipse(); }
     };
     document.addEventListener("keydown", handleKey);
     return () => document.removeEventListener("keydown", handleKey);
-  }, [goNext, goPrev, onClose]);
+  }, [goNext, goPrev, onClose, toggleEllipse]);
 
   const isLoading = !batchResult && galaxies.length === 0;
 
@@ -261,15 +295,15 @@ export function GalaxyQuickReview({
     <div className="fixed inset-0 z-50 flex flex-col bg-gray-950">
       {/* ── Header ── */}
       <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2 bg-gray-900 border-b border-gray-700">
-        {/* Jump-to-first */}
+        {/* Jump-to-first (matching << icon from GalaxyBrowserControls) */}
         <button
           onClick={goFirst}
           disabled={currentIndex === 0}
-          title="Jump to first (Home)"
+          title="Jump to first"
           className="flex-shrink-0 p-1 rounded text-gray-500 hover:text-white hover:bg-gray-700 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M4 12h16" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7M18 19l-7-7 7-7" />
           </svg>
         </button>
 
@@ -278,9 +312,21 @@ export function GalaxyQuickReview({
           {galaxies.length > 0 ? `${currentIndex + 1} / ${isAtEnd ? galaxies.length : `${galaxies.length}+`}` : "…"}
         </span>
 
-        {/* Galaxy ID */}
+        {/* Galaxy ID + Classify button */}
         {currentGalaxy && (
-          <span className="text-blue-300 text-xs font-mono truncate min-w-0">{currentGalaxy.id}</span>
+          <>
+            <span className="text-blue-300 text-xs font-mono truncate min-w-0">{currentGalaxy.id}</span>
+            <Link
+              to={`/classify/${currentGalaxy.id}`}
+              onClick={onClose}
+              className="flex-shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors shadow"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              Classify
+            </Link>
+          </>
         )}
 
         <div className="flex-1 min-w-0" />
@@ -362,20 +408,6 @@ export function GalaxyQuickReview({
                 </div>
               </div>
 
-              {/* Classify button + prefetch indicator */}
-              <div className="flex-shrink-0 flex items-center gap-3">
-                <Link
-                  to={`/classify/${currentGalaxy.id}`}
-                  onClick={onClose}
-                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors shadow"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  Classify
-                </Link>
-              </div>
-
               {/* Info panel */}
               <div className="flex-shrink-0 w-full max-w-2xl px-3 pb-2">
                 <GalaxyInfoPanel galaxy={currentGalaxy} />
@@ -405,6 +437,7 @@ export function GalaxyQuickReview({
       <div className="flex-shrink-0 flex flex-wrap items-center justify-center gap-3 sm:gap-6 px-4 py-1.5 bg-gray-900 border-t border-gray-800 text-xs text-gray-600">
         <span>← / p — prev</span>
         <span>→ / n — next</span>
+        <span>Shift+R — toggle Reff</span>
       </div>
     </div>
   );

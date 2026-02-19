@@ -161,16 +161,22 @@ export function GalaxyBrowser() {
   const [lastViewedGalaxyId, setLastViewedGalaxyId] = useState<string | null>(null);
   const [lastReviewIndex, setLastReviewIndex] = useState(0);
 
-  // Sequential page navigator used after closing quick review.
+  // Sequential page navigator used *after* closing QR: steps forward/backward
+  // one browser page at a time, gated on each fresh galaxyData response so we
+  // never use a stale cursor.
   // pendingNavRef > 0  → need to advance (goNext)
-  // pendingNavRef < 0  → need to go back (goPrev)
-  // Each step is gated on a fresh galaxyData response to avoid stale cursors.
+  // pendingNavRef < 0  → need to go back   (goPrev)
   const pendingNavRef = useRef(0);
   const lastProcessedGalaxyDataRef = useRef<unknown>(null);
+  // True while post-close page-stepping hasn't finished yet (hides the table).
+  const [isSyncingPage, setIsSyncingPage] = useState(false);
 
   useEffect(() => {
-    if (pendingNavRef.current === 0) return;
-    if (!galaxyData) return; // still loading — wait for the real response, don't reset
+    if (pendingNavRef.current === 0) {
+      if (isSyncingPage) setIsSyncingPage(false);
+      return;
+    }
+    if (!galaxyData) return; // still loading – wait
     if (galaxyData === lastProcessedGalaxyDataRef.current) return;
     lastProcessedGalaxyDataRef.current = galaxyData;
     if (pendingNavRef.current > 0) {
@@ -178,18 +184,25 @@ export function GalaxyBrowser() {
         pendingNavRef.current--;
         goNext();
       } else {
-        pendingNavRef.current = 0; // reached end of data
+        pendingNavRef.current = 0;
+        setIsSyncingPage(false);
       }
     } else {
       if (hasPrevious) {
         pendingNavRef.current++;
         goPrev();
       } else {
-        pendingNavRef.current = 0; // reached beginning
+        pendingNavRef.current = 0;
+        setIsSyncingPage(false);
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [galaxyData]);
+
+  // NOTE: We intentionally do NOT step the browser while QR is open.
+  // Calling goNext()/goPrev() while QR is visible makes galaxyData go undefined,
+  // which switches the render branch and unmounts QR, resetting all its state.
+  // Instead, we sync the page only after the overlay is closed (see handleCloseReview).
 
   const handleOpenReview = () => {
     pendingNavRef.current = 0; // cancel any in-flight navigation
@@ -204,22 +217,21 @@ export function GalaxyBrowser() {
     setLastReviewIndex(index);
   };
 
-  // On close: navigate the browser to the page that matches the QR position.
-  // QR always loads from cursor=undefined (result index 0), so the target
-  // browser page is Math.floor(lastReviewIndex / pageSize) + 1 (1-based).
-  // We compute the delta from the CURRENT browser page so we never need goFirst().
-  // The first step is fired immediately here; the useEffect above handles the rest.
+  // On close: compute which browser page matches the last QR position and
+  // start stepping toward it.  isSyncingPage hides the table while we navigate
+  // so the user only sees the final page (no intermediate flashing).
   const handleCloseReview = () => {
     setIsReviewMode(false);
     const targetPage = Math.floor(lastReviewIndex / pageSize) + 1; // 1-based
-    const delta = targetPage - page; // page = current browser page (from useGalaxyBrowser)
-    if (delta === 0) return;
-    lastProcessedGalaxyDataRef.current = null; // allow current galaxyData to trigger effect
+    const delta = targetPage - page;
+    if (delta === 0) return; // already on the right page
+    setIsSyncingPage(true);
+    lastProcessedGalaxyDataRef.current = null; // let current galaxyData trigger effect
     if (delta > 0) {
-      pendingNavRef.current = delta - 1; // remaining steps after the one below
+      pendingNavRef.current = delta - 1; // first step fires immediately below
       goNext();
     } else {
-      pendingNavRef.current = delta + 1; // remaining steps (negative) after the one below
+      pendingNavRef.current = delta + 1;
       goPrev();
     }
   };
@@ -304,6 +316,54 @@ export function GalaxyBrowser() {
       searchNumVisibleNucleusMin, searchNumVisibleNucleusMax, searchNumAwesomeFlagMin, searchNumAwesomeFlagMax,
       searchNumFailedFittingMin, searchNumFailedFittingMax,
       searchTotalAssignedMin, searchTotalAssignedMax, searchAwesome, searchValidRedshift, searchVisibleNucleus]);
+
+  // ── QR overlay ──
+  // Rendered BEFORE the if (!galaxyData) early returns so it stays mounted
+  // during background page transitions (galaxyData temporarily undefined).
+  const quickReviewOverlay = isReviewMode ? (
+    <GalaxyQuickReview
+      filters={{
+        sortBy,
+        sortOrder,
+        filter,
+        isSearchActive,
+        searchId: isSearchActive ? searchId : undefined,
+        searchRaMin: isSearchActive ? searchRaMin : undefined,
+        searchRaMax: isSearchActive ? searchRaMax : undefined,
+        searchDecMin: isSearchActive ? searchDecMin : undefined,
+        searchDecMax: isSearchActive ? searchDecMax : undefined,
+        searchReffMin: isSearchActive ? searchReffMin : undefined,
+        searchReffMax: isSearchActive ? searchReffMax : undefined,
+        searchQMin: isSearchActive ? searchQMin : undefined,
+        searchQMax: isSearchActive ? searchQMax : undefined,
+        searchPaMin: isSearchActive ? searchPaMin : undefined,
+        searchPaMax: isSearchActive ? searchPaMax : undefined,
+        searchMagMin: isSearchActive ? searchMagMin : undefined,
+        searchMagMax: isSearchActive ? searchMagMax : undefined,
+        searchMeanMueMin: isSearchActive ? searchMeanMueMin : undefined,
+        searchMeanMueMax: isSearchActive ? searchMeanMueMax : undefined,
+        searchNucleus: isSearchActive ? searchNucleus : undefined,
+        searchTotalClassificationsMin: isSearchActive ? searchTotalClassificationsMin : undefined,
+        searchTotalClassificationsMax: isSearchActive ? searchTotalClassificationsMax : undefined,
+        searchNumVisibleNucleusMin: isSearchActive ? searchNumVisibleNucleusMin : undefined,
+        searchNumVisibleNucleusMax: isSearchActive ? searchNumVisibleNucleusMax : undefined,
+        searchNumAwesomeFlagMin: isSearchActive ? searchNumAwesomeFlagMin : undefined,
+        searchNumAwesomeFlagMax: isSearchActive ? searchNumAwesomeFlagMax : undefined,
+        searchNumFailedFittingMin: isSearchActive ? searchNumFailedFittingMin : undefined,
+        searchNumFailedFittingMax: isSearchActive ? searchNumFailedFittingMax : undefined,
+        searchTotalAssignedMin: isSearchActive ? searchTotalAssignedMin : undefined,
+        searchTotalAssignedMax: isSearchActive ? searchTotalAssignedMax : undefined,
+        searchAwesome: isSearchActive ? searchAwesome : undefined,
+        searchValidRedshift: isSearchActive ? searchValidRedshift : undefined,
+        searchVisibleNucleus: isSearchActive ? searchVisibleNucleus : undefined,
+      } satisfies GalaxyQuickReviewFilters}
+      effectiveImageQuality={effectiveImageQuality}
+      userPrefs={userPrefs}
+      initialIndex={reviewInitialIndex}
+      onGalaxyChange={handleReviewGalaxyChange}
+      onClose={handleCloseReview}
+    />
+  ) : null;
 
   if (!galaxyData) {
     if (hasPrevious) {
@@ -423,6 +483,9 @@ export function GalaxyBrowser() {
               <p className="text-sm text-gray-600 dark:text-gray-300">Updating results...</p>
             </div>
           </div>
+
+          {/* QR overlay stays mounted during page transitions */}
+          {quickReviewOverlay}
         </div>
       );
     } else {
@@ -545,6 +608,9 @@ export function GalaxyBrowser() {
               <p className="text-gray-600 dark:text-gray-300">Loading galaxies...</p>
             </div>
           </div>
+
+          {/* QR overlay stays mounted during first load too */}
+          {quickReviewOverlay}
         </div>
       );
     }
@@ -661,76 +727,45 @@ export function GalaxyBrowser() {
         />
       </div>
 
-      {/* Quick Review Mode */}
-      {isReviewMode && (
-        <GalaxyQuickReview
-          filters={{
-            sortBy,
-            sortOrder,
-            filter,
-            isSearchActive,
-            searchId: isSearchActive ? searchId : undefined,
-            searchRaMin: isSearchActive ? searchRaMin : undefined,
-            searchRaMax: isSearchActive ? searchRaMax : undefined,
-            searchDecMin: isSearchActive ? searchDecMin : undefined,
-            searchDecMax: isSearchActive ? searchDecMax : undefined,
-            searchReffMin: isSearchActive ? searchReffMin : undefined,
-            searchReffMax: isSearchActive ? searchReffMax : undefined,
-            searchQMin: isSearchActive ? searchQMin : undefined,
-            searchQMax: isSearchActive ? searchQMax : undefined,
-            searchPaMin: isSearchActive ? searchPaMin : undefined,
-            searchPaMax: isSearchActive ? searchPaMax : undefined,
-            searchMagMin: isSearchActive ? searchMagMin : undefined,
-            searchMagMax: isSearchActive ? searchMagMax : undefined,
-            searchMeanMueMin: isSearchActive ? searchMeanMueMin : undefined,
-            searchMeanMueMax: isSearchActive ? searchMeanMueMax : undefined,
-            searchNucleus: isSearchActive ? searchNucleus : undefined,
-            searchTotalClassificationsMin: isSearchActive ? searchTotalClassificationsMin : undefined,
-            searchTotalClassificationsMax: isSearchActive ? searchTotalClassificationsMax : undefined,
-            searchNumVisibleNucleusMin: isSearchActive ? searchNumVisibleNucleusMin : undefined,
-            searchNumVisibleNucleusMax: isSearchActive ? searchNumVisibleNucleusMax : undefined,
-            searchNumAwesomeFlagMin: isSearchActive ? searchNumAwesomeFlagMin : undefined,
-            searchNumAwesomeFlagMax: isSearchActive ? searchNumAwesomeFlagMax : undefined,
-            searchNumFailedFittingMin: isSearchActive ? searchNumFailedFittingMin : undefined,
-            searchNumFailedFittingMax: isSearchActive ? searchNumFailedFittingMax : undefined,
-            searchTotalAssignedMin: isSearchActive ? searchTotalAssignedMin : undefined,
-            searchTotalAssignedMax: isSearchActive ? searchTotalAssignedMax : undefined,
-            searchAwesome: isSearchActive ? searchAwesome : undefined,
-            searchValidRedshift: isSearchActive ? searchValidRedshift : undefined,
-            searchVisibleNucleus: isSearchActive ? searchVisibleNucleus : undefined,
-          } satisfies GalaxyQuickReviewFilters}
-          effectiveImageQuality={effectiveImageQuality}
-          userPrefs={userPrefs}
-          initialIndex={reviewInitialIndex}
-          onGalaxyChange={handleReviewGalaxyChange}
-          onClose={handleCloseReview}
-        />
-      )}
+      {/* Quick Review Mode — rendered via shared variable so it stays mounted
+         across all code paths (including loading early returns above) */}
+      {quickReviewOverlay}
 
       {/* Desktop Table View */}
-      <div className="hidden lg:block w-full min-w-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto overflow-y-hidden">
-        <GalaxyBrowserLightTableView
-          galaxyData={galaxyData}
-          userPrefs={userPrefs}
-          effectiveImageQuality={effectiveImageQuality}
-          previewImageName={previewImageName}
-          sortBy={sortBy}
-          sortOrder={sortOrder}
-          handleSort={handleSort}
-          lastViewedGalaxyId={lastViewedGalaxyId ?? undefined}
-        />
-      </div>
+      {isSyncingPage ? (
+        <div className="flex justify-center items-center py-16">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3" />
+            <p className="text-gray-500 dark:text-gray-400 text-sm">Syncing page…</p>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="hidden lg:block w-full min-w-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto overflow-y-hidden">
+            <GalaxyBrowserLightTableView
+              galaxyData={galaxyData}
+              userPrefs={userPrefs}
+              effectiveImageQuality={effectiveImageQuality}
+              previewImageName={previewImageName}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              handleSort={handleSort}
+              lastViewedGalaxyId={lastViewedGalaxyId ?? undefined}
+            />
+          </div>
 
-      {/* Mobile Card View */}
-      <div className="lg:hidden">
-        <GalaxyBrowserMobileCards
-          galaxyData={galaxyData}
-          userPrefs={userPrefs}
-          effectiveImageQuality={effectiveImageQuality}
-          previewImageName={previewImageName}
-          lastViewedGalaxyId={lastViewedGalaxyId ?? undefined}
-        />
-      </div>
+          {/* Mobile Card View */}
+          <div className="lg:hidden">
+            <GalaxyBrowserMobileCards
+              galaxyData={galaxyData}
+              userPrefs={userPrefs}
+              effectiveImageQuality={effectiveImageQuality}
+              previewImageName={previewImageName}
+              lastViewedGalaxyId={lastViewedGalaxyId ?? undefined}
+            />
+          </div>
+        </>
+      )}
 
       {/* Export Section */}
       <GalaxyExport
