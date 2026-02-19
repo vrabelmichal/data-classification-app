@@ -73,8 +73,8 @@ def str_or_int_to_str(val):
 NESTED_COLUMN_MAPPING: Dict[str, Union[tuple, Dict[str, Any], None]] = {
     # core
     "id": ("coadd_object_id", str_or_int_to_str),
-    "ra": ("ra", float),
-    "dec": ("dec", float),
+    "ra": ("ra", float),  # should be sersic_ra__best_available_fit
+    "dec": ("dec", float),  # should be sersic_dec__best_available_fit
     "reff": ("sersic_reff_arcsec__best_available_fit", float),
     "reff_pixels": ("sersic_reff_pixels__best_available_fit", float),
     "q": ("sersic_q__best_available_fit", float),
