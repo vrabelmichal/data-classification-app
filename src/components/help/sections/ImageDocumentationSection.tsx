@@ -40,6 +40,8 @@ export function ImageDocumentationSection() {
   const [labelInput, setLabelInput] = useState("123456789 (g ≡b lin Q99.9)");
   const decodedLabel = useMemo(() => parseImageLabel(labelInput), [labelInput]);
   const contrastGroups = defaultImageDisplaySettings.classification.contrastGroups;
+  const groupLabels = defaultImageDisplaySettings.classification.groupLabels ?? [];
+  const groupDescriptions = defaultImageDisplaySettings.classification.groupDescriptions ?? [];
   const mobileOrder = defaultImageDisplaySettings.classification.defaultMobileOrder ?? [0, 1, 2, 3, 4, 5];
   const firstGroup = contrastGroups[0] ?? [];
   const mobileExamples = mobileOrder.map((index) => firstGroup[index]);
@@ -200,6 +202,40 @@ ${mobileOrder.map((idx, i) => `${i + 1}) index ${idx}`).join("\n")}`}
               </ul>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Contrast Group Descriptions</h3>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
+          Each contrast group uses different scaling and normalization strategies to reveal different aspects of galaxy structure.
+          Use the <kbd className="mx-1 px-1.5 py-0.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 font-mono">C</kbd> and{" "}
+          <kbd className="mx-1 px-1.5 py-0.5 text-xs rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 font-mono">Shift+C</kbd>{" "}
+          keys to cycle through groups during classification.
+        </p>
+        <div className="space-y-3">
+          {contrastGroups.map((_, groupIndex) => {
+            const groupNumber = groupIndex + 1;
+            const label = groupLabels[groupIndex];
+            const description = groupDescriptions[groupIndex];
+
+            return (
+              <div
+                key={groupIndex}
+                className="rounded-lg border border-gray-200 dark:border-gray-600 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/20 dark:to-indigo-950/20 p-4"
+              >
+                <h4 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                  <span className="inline-block bg-blue-600 dark:bg-blue-500 text-white px-2 py-0.5 rounded-md text-xs font-bold mr-2">
+                    Group {groupNumber}
+                  </span>
+                  {label || `Group ${groupNumber}`}
+                </h4>
+                <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
+                  {description || "No description available."}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </div>
 

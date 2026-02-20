@@ -1,4 +1,4 @@
-import { ContrastGroup, ContrastGroupEntry, ImageRectangle } from "../types";
+import { ContrastGroup, ContrastGroupEntry, ContrastGroupWithDescription, ImageRectangle } from "../types";
 
 export const rectangle256x256in1024x1024: ImageRectangle = {
   x: 384,
@@ -55,8 +55,19 @@ export function ensureSixItemContrastGroups(groups: ContrastGroup[]): ContrastGr
   });
 }
 
-export function buildContrastGroups(firstThreeByGroup: ContrastGroup[]): ContrastGroup[] {
-  const groups = firstThreeByGroup.map((firstThree, index) => {
+export function buildContrastGroups(
+  firstThreeByGroup: (ContrastGroup | ContrastGroupWithDescription)[]
+): { groups: ContrastGroup[]; labels: string[]; descriptions: string[] } {
+  const groups: ContrastGroup[] = [];
+  const labels: string[] = [];
+  const descriptions: string[] = [];
+
+  firstThreeByGroup.forEach((groupOrObj, index) => {
+    // Handle both array format (legacy) and object format (with label and description)
+    const firstThree = Array.isArray(groupOrObj) ? groupOrObj : groupOrObj.entries;
+    const label = Array.isArray(groupOrObj) ? undefined : groupOrObj.label;
+    const description = Array.isArray(groupOrObj) ? undefined : groupOrObj.description;
+
     if (firstThree.length !== 3) {
       throw new Error(
         `[ImageDisplaySettings] Contrast group ${index} has ${firstThree.length} items in positions 1-3. Expected exactly 3 (band, residual, model).`,
@@ -70,8 +81,14 @@ export function buildContrastGroups(firstThreeByGroup: ContrastGroup[]): Contras
       );
     }
 
-    return [...firstThree, ...fixedTail];
+    groups.push([...firstThree, ...fixedTail]);
+    labels.push(label || "");
+    descriptions.push(description || "");
   });
 
-  return ensureSixItemContrastGroups(groups);
+  return {
+    groups: ensureSixItemContrastGroups(groups),
+    labels,
+    descriptions,
+  };
 }

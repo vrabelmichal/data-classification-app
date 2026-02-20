@@ -17,8 +17,17 @@ export interface ContrastGroupEntry {
   rectangle?: ImageRectangle;
 }
 export type ContrastGroup = ContrastGroupEntry[];
+
+export interface ContrastGroupWithDescription {
+  entries: ContrastGroupEntry[];
+  label?: string;
+  description?: string;
+}
+
 export interface ClassificationImageSettings {
   contrastGroups: ContrastGroup[];
+  groupLabels?: string[];
+  groupDescriptions?: string[];
   defaultGroupIndex: number;
   defaultMobileOrder?: number[];
 }
