@@ -28,7 +28,7 @@ export function GalaxyImages({
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
       {imageTypes.map((imageType, index) => (
         <div 
-          key={index} 
+          key={imageType.url ?? `slot-${index}`} 
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4"
         >
           <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 text-center">

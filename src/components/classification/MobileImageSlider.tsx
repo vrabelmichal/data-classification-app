@@ -154,7 +154,7 @@ export function MobileImageSlider({
         >
           {imageTypes.map((imageType, index) => (
             <div
-              key={index}
+              key={imageType.url ?? `slot-${index}`}
               className="w-full flex-shrink-0 p-2"
               style={{ minWidth: "100%" }}
             >
