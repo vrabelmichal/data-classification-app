@@ -7,6 +7,7 @@ export const submitReport = mutation({
   args: {
     description: v.string(),
     url: v.optional(v.string()),
+    galaxyExternalId: v.optional(v.string()),
   },
   async handler(ctx, args) {
     const userId = await requireUserId(ctx);
@@ -16,6 +17,8 @@ export const submitReport = mutation({
       description: args.description.trim(),
       url: args.url?.trim(),
       status: "open",
+      category: "general",
+      galaxyExternalId: args.galaxyExternalId?.trim() || undefined,
       createdAt: Date.now(),
     });
 
@@ -23,9 +26,63 @@ export const submitReport = mutation({
   },
 });
 
+// Submit a quick-tap report (4-tap gesture on a galaxy)
+export const submitQuickTapReport = mutation({
+  args: {
+    galaxyExternalId: v.string(),
+    url: v.optional(v.string()),
+  },
+  async handler(ctx, args) {
+    const userId = await requireUserId(ctx);
+
+    const reportId = await ctx.db.insert("issueReports", {
+      userId,
+      description: "",
+      url: args.url?.trim(),
+      status: "open",
+      category: "quick_tap",
+      galaxyExternalId: args.galaxyExternalId,
+      createdAt: Date.now(),
+    });
+
+    return reportId;
+  },
+});
+
+// Get the galaxy external IDs of all quick-tap reports (public, paginated)
+export const getIssueIds = query({
+  args: {
+    category: v.optional(v.union(v.literal("general"), v.literal("quick_tap"))),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
+  },
+  async handler(ctx, args) {
+    const limit = Math.min(args.limit ?? 500, 1000);
+
+    const page = args.category
+      ? await ctx.db
+          .query("issueReports")
+          .withIndex("by_category", (q) => q.eq("category", args.category))
+          .paginate({ cursor: args.cursor ?? null, numItems: limit })
+      : await ctx.db
+          .query("issueReports")
+          .paginate({ cursor: args.cursor ?? null, numItems: limit });
+
+    return {
+      ids: page.page.map((r) => r._id as string),
+      galaxyIds: page.page.map((r) => r.galaxyExternalId ?? null),
+      isDone: page.isDone,
+      continueCursor: page.continueCursor,
+    };
+  },
+});
+
 // Get all issue reports (admin only)
 export const getAllReports = query({
-  async handler(ctx) {
+  args: {
+    filterCategory: v.optional(v.union(v.literal("general"), v.literal("quick_tap"), v.literal("all"))),
+  },
+  async handler(ctx, args) {
     await requireAdmin(ctx);
 
     const reports = await ctx.db.query("issueReports").collect();
@@ -34,10 +91,6 @@ export const getAllReports = query({
     const enrichedReports = await Promise.all(
       reports.map(async (report) => {
         const reportUser = await ctx.db.get(report.userId);
-        const profile = await ctx.db
-          .query("userProfiles")
-          .withIndex("by_user", (q) => q.eq("userId", report.userId))
-          .unique();
         return {
           ...report,
           userEmail: reportUser?.email || "Unknown",
@@ -47,7 +100,12 @@ export const getAllReports = query({
     );
 
     // Sort by created date descending (newest first)
-    return enrichedReports.sort((a, b) => b.createdAt - a.createdAt);
+    const sorted = enrichedReports.sort((a, b) => b.createdAt - a.createdAt);
+
+    // Filter by category if requested
+    const filterCategory = args.filterCategory ?? "all";
+    if (filterCategory === "all") return sorted;
+    return sorted.filter((r) => (r.category ?? "general") === filterCategory);
   },
 });
 

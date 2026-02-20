@@ -1,7 +1,7 @@
-import { usePageTitle } from "../../hooks/usePageTitle";
 import { useQuery } from "convex/react";
+import { Routes, Route, useLocation, Navigate } from "react-router";
 import { api } from "../../../convex/_generated/api";
-import { KidsExamplesCarousel } from "./KidsExamplesCarousel";
+import { usePageTitle } from "../../hooks/usePageTitle";
 import {
   DEFAULT_APP_NAME,
   DEFAULT_FAILED_FITTING_MODE,
@@ -9,18 +9,42 @@ import {
   DEFAULT_SHOW_VALID_REDSHIFT,
   DEFAULT_SHOW_VISIBLE_NUCLEUS,
 } from "../../lib/defaults";
+import { HelpTabs } from "./HelpTabs";
+import { ClassificationSection } from "./sections/ClassificationSection";
+import { GettingStartedSection } from "./sections/GettingStartedSection";
+import { ImageDocumentationSection } from "./sections/ImageDocumentationSection";
+import { KeyboardShortcutsSection } from "./sections/KeyboardShortcutsSection";
+import { FailedFittingMode, HelpFeatureFlags } from "./types";
 
 export function Help() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
-  const appName = systemSettings?.appName ?? DEFAULT_APP_NAME;
-  const failedFittingMode = (systemSettings?.failedFittingMode as "legacy" | "checkbox") ?? DEFAULT_FAILED_FITTING_MODE;
-  const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG;
-  const showValidRedshift = systemSettings?.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT;
-  const showVisibleNucleus = systemSettings?.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS;
+  const appName = (systemSettings?.appName ?? DEFAULT_APP_NAME) as string;
+  const failedFittingMode = (systemSettings?.failedFittingMode as FailedFittingMode) ?? DEFAULT_FAILED_FITTING_MODE;
+  const showAwesomeFlag = Boolean(systemSettings?.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG);
+  const showValidRedshift = Boolean(systemSettings?.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT);
+  const showVisibleNucleus = Boolean(systemSettings?.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS);
 
-  usePageTitle("Help");
+  const location = useLocation();
+
+  // Determine page title based on current path
+  const getPageTitle = () => {
+    if (location.pathname.includes("/help/classification")) return "Help - Categories & Flags";
+    if (location.pathname.includes("/help/shortcuts")) return "Help - Keyboard Shortcuts";
+    if (location.pathname.includes("/help/image-docs")) return "Help - Image Documentation";
+    return "Help - Getting Started";
+  };
+
+  usePageTitle(getPageTitle());
+
+  const featureFlags: HelpFeatureFlags = {
+    failedFittingMode,
+    showAwesomeFlag,
+    showValidRedshift,
+    showVisibleNucleus,
+  };
+
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Help & Guide</h1>
         <p className="mt-2 text-gray-600 dark:text-gray-300">
@@ -29,313 +53,15 @@ export function Help() {
       </div>
 
       <div className="space-y-8">
+        <HelpTabs />
 
-        {/* KiDS Manual Labeling Examples */}
-        <KidsExamplesCarousel />
-
-        {/* Getting Started */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <span className="mr-2">🚀</span>
-            Getting Started
-          </h2>
-          <div className="space-y-4 text-gray-600 dark:text-gray-300">
-            <p>
-              Welcome to {appName}! You're contributing to real scientific research by helping astronomers 
-              classify galaxies from telescope images. Here's how to get started:
-            </p>
-            <ol className="list-decimal list-inside space-y-2 ml-4">
-              <li>Look at the galaxy image carefully</li>
-              <li>Choose the LSB classification (Non-LSB, or LSB)</li>
-              <li>Choose the morphology (Featureless, Irregular, Spiral, or Elliptical)</li>
-              <li>Set flags if applicable</li>
-              <li>Add any comments or sky background notes if helpful</li>
-              <li>Submit your classification or skip if unsure</li>
-            </ol>
-          </div>
-        </div>
-
-        {/* Classification Categories */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <span className="mr-2">🌌</span>
-            Classification Categories
-          </h2>
-          
-          <div className="space-y-6">
-            {/* LSB Classification */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">LSB Classification</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {failedFittingMode === "legacy" && (
-                  <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-                      <span className="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
-                      Failed Fitting
-                    </h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300">
-                      The fitting process failed or could not be completed for this galaxy.
-                    </p>
-                  </div>
-                )}
-                
-                <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-                    <span className="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
-                    Non-LSB
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Anything that is not a galaxy.
-                  </p>
-                </div>
-                
-                <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-                    <span className="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
-                    LSB
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Anything that looks like a galaxy.
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                {failedFittingMode === "legacy" 
-                  ? 'Set the LSB classification using the controls in the classification form, or use the quick-input field (first character: "-" for failed fitting, "0" for Non-LSB, "1" for LSB).'
-                  : 'Set the LSB classification using the controls in the classification form, or use the quick-input field (first character: "0" for Non-LSB, "1" for LSB). Failed fitting is indicated by a separate checkbox or "f" flag in quick input.'
-                }
-              </p>
-            </div>
-
-            {/* Morphology */}
-            <div>
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Morphology</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-                    <span className="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
-                    Featureless
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    No clear structural features visible - smooth appearance.
-                  </p>
-                </div>
-                
-                <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-                    <span className="w-3 h-3 bg-yellow-500 rounded-full mr-2"></span>
-                    Not sure (Irr/other)
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Irregular or uncertain morphology - doesn't fit other categories clearly.
-                  </p>
-                </div>
-                
-                <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-                    <span className="w-3 h-3 bg-blue-500 rounded-full mr-2"></span>
-                    LTG (Sp)
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Late-type galaxy (Spiral) - shows spiral arms or disk structure.
-                  </p>
-                </div>
-                
-                <div className="border border-gray-200 dark:border-gray-600 rounded-lg p-4">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 flex items-center">
-                    <span className="w-3 h-3 bg-purple-500 rounded-full mr-2"></span>
-                    ETG (Ell)
-                  </h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-300">
-                    Early-type galaxy (Elliptical) - smooth, oval-shaped appearance.
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Set the morphology using the controls in the classification form, or use the quick-input field (second character: "-" for Featureless, "0" for Not sure, "1" for LTG, "2" for ETG).
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Flags */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <span className="mr-2">🏁</span>
-            Classification Flags
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {failedFittingMode === "checkbox" && (
-              <div>
-                <h3 className="font-medium text-gray-900 dark:text-white mb-2">Failed Fitting (Press F)</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Check this if the fitting process failed or could not be completed for this galaxy.
-                  This is a separate flag in checkbox mode.
-                </p>
-              </div>
-            )}
-            {showAwesomeFlag && (
-              <div>
-                <h3 className="font-medium text-gray-900 dark:text-white mb-2">Awesome Flag (Press A)</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Mark this galaxy as "awesome" if it shows particularly interesting or beautiful features 
-                  that might be worth highlighting for educational or outreach purposes.
-                </p>
-              </div>
-            )}
-            {showValidRedshift && (
-              <div>
-                <h3 className="font-medium text-gray-900 dark:text-white mb-2">Valid Redshift (Press R)</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Check this if you believe the redshift measurement for this galaxy appears reliable 
-                  based on the image quality and galaxy features.
-                </p>
-              </div>
-            )}
-            {showVisibleNucleus && (
-              <div>
-                <h3 className="font-medium text-gray-900 dark:text-white mb-2">Visible Nucleus (Press N)</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-300">
-                  Check this if you can see a clear nucleus or central concentration in the galaxy.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Keyboard Shortcuts */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <span className="mr-2">⌨️</span>
-            Keyboard Shortcuts
-          </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-              <h3 className="font-medium text-gray-900 dark:text-white mb-2">Navigation & Actions</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Previous galaxy</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">P</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Next galaxy</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">N</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Submit</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Enter</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Skip</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">S</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Global Previous</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+P</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Global Next</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+N</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Global Skip</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+S</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Open current galaxy in Aladin</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+A</kbd>
-                </div>
-              </div>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-900 dark:text-white mb-2">View Controls</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Cycle contrast groups</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">C</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Previous contrast group</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+C</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Show keyboard help</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">?</kbd>
-                </div>
-              </div>
-            </div>
-            <div>
-              <h3 className="font-medium text-gray-900 dark:text-white mb-2">Quick Input Field</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Allowed characters</span>
-                  <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700 px-2 py-1 rounded">
-                    -,0,1,2{showAwesomeFlag ? ',a' : ''}{showValidRedshift ? ',r' : ''}{showVisibleNucleus ? ',n' : ''}{failedFittingMode === "checkbox" ? ",f" : ""}
-                  </span>
-                </div>
-                {showAwesomeFlag && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Awesome flag</span>
-                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">A</kbd>
-                  </div>
-                )}
-                {showValidRedshift && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Valid redshift</span>
-                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">R</kbd>
-                  </div>
-                )}
-                {showVisibleNucleus && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Visible nucleus</span>
-                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">N</kbd>
-                  </div>
-                )}
-                {failedFittingMode === "checkbox" && (
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 dark:text-gray-300">Failed fitting</span>
-                    <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">F</kbd>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Cycle contrast</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">C</kbd>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600 dark:text-gray-300">Previous contrast (from anywhere)</span>
-                  <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+C</kbd>
-                </div>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Only allowed characters can be typed. Shift shortcuts work globally (e.g. Shift+C goes to the previous contrast group).
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Scientific Impact */}
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
-            <span className="mr-2">🔬</span>
-            Your Scientific Impact
-          </h2>
-          <div className="text-gray-600 dark:text-gray-300 space-y-3">
-            <p>
-              Your classifications contribute to real astronomical research! Scientists use this data to:
-            </p>
-            <ul className="list-disc list-inside space-y-1 ml-4">
-              <li>Study Low Surface Brightness galaxies and their properties</li>
-              <li>Understand galaxy morphology and evolution</li>
-              <li>Improve automated classification algorithms</li>
-              <li>Create statistical samples for research papers</li>
-              <li>Discover rare and unusual galaxy types</li>
-            </ul>
-            <p className="text-sm italic">
-              Thank you for contributing to our understanding of the cosmos! 🌟
-            </p>
-          </div>
-        </div>
-
+        <Routes>
+          <Route index element={<GettingStartedSection appName={appName} />} />
+          <Route path="classification" element={<ClassificationSection settings={featureFlags} />} />
+          <Route path="shortcuts" element={<KeyboardShortcutsSection settings={featureFlags} />} />
+          <Route path="image-docs" element={<ImageDocumentationSection />} />
+          <Route path="*" element={<Navigate to="/help" replace />} />
+        </Routes>
       </div>
     </div>
   );

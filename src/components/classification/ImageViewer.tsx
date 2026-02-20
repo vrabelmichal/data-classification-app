@@ -6,7 +6,7 @@ const ENABLE_HALF_LIGHT_CIRCLE = true;
 
 // Scale factors for half-light overlay
 const HALF_LIGHT_ORIGINAL_SIZE = 256;
-const HALF_LIGHT_IMAGE_SIZE = 500;
+const HALF_LIGHT_IMAGE_SIZE = 256;
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
@@ -17,6 +17,43 @@ const ZOOMED_IMAGE_BACKGROUND = "white";
 
 // Enable pixelated rendering for zoomed images (set to true for pixelation, false for smooth interpolation)
 const ENABLE_PIXELATED_ZOOM = true;
+
+// ── Pixel coordinate corrections for the ellipse overlay ────────────────────
+//
+// GALFIT stores pixel positions in 1-based FITS coordinates:
+//   x  increases RIGHTWARD  (same direction as SVG +x)
+//   y  increases UPWARD     (opposite to SVG +y which points downward)
+//
+// X correction  (PIXEL_OFFSET_CORRECTION_X = -0.5)
+// ─────────────────────────────────────────────────
+//   In FITS, pixel 1 has its centre at x_fits = 1.
+//   In the SVG viewBox, pixel 0 has its centre at x_svg = 0.5.
+//   Conversion (1-based pixel-centre → SVG pixel-centre):
+//     x_svg = x_fits − 1 + 0.5 = x_fits − 0.5
+//   Implemented as: (x + PIXEL_OFFSET_CORRECTION_X)  where  PIXEL_OFFSET_CORRECTION_X = −0.5.
+//
+// Y correction  (PIXEL_OFFSET_CORRECTION_Y = +1.5)
+// ─────────────────────────────────────────────────
+//   The PNG images served to the browser are vertically flipped relative to
+//   raw FITS storage order (np.flipud applied at tile-generation time), so
+//   FITS y = 1 (sky bottom) maps to the BOTTOM of the displayed image, and
+//   FITS y = H (sky top) maps to the TOP — correct astronomical orientation.
+//
+//   The axis flip from FITS (y-up) to SVG (y-down) is: y_svg_row = H − y_fits.
+//   Then adding the pixel-centre shift (+0.5) gives:
+//     cy_theoretical = (H − y + 0.5) × scaleY
+//
+//   In practice an additional +1.0 offset was found empirically – most likely
+//   a 1-pixel boundary shift introduced by the tile-cutting pipeline (e.g. the
+//   cutout of size H is extracted starting one pixel off from the GALFIT stamp
+//   origin). This gives the combined constant:
+//     PIXEL_OFFSET_CORRECTION_Y = 0.5 + 1.0 = 1.5
+//
+//   Implemented as: (H − y + PIXEL_OFFSET_CORRECTION_Y) × scaleY.
+//
+// These constants should be revisited if the tile-generation pipeline changes.
+const PIXEL_OFFSET_CORRECTION_X = -0.5;
+const PIXEL_OFFSET_CORRECTION_Y = +1.5;
 
 const clampZoomValue = (value: number) => Math.min(Math.max(value, MIN_ZOOM), MAX_ZOOM);
 
@@ -421,13 +458,41 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   const scaleX = imageWidth ? imageWidth / HALF_LIGHT_ORIGINAL_SIZE : HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
   const scaleY = imageHeight ? imageHeight / HALF_LIGHT_ORIGINAL_SIZE : HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
 
-  // Calculate ellipse parameters
+  // ── Ellipse overlay parameters ────────────────────────────────────────────
+  //
+  // Centre coordinates – see PIXEL_OFFSET_CORRECTION_X/Y constants above for
+  // the full derivation.  Summary:
+  //
+  //   cx = (x + PIXEL_OFFSET_CORRECTION_X) × scaleX
+  //      = (x − 0.5) × scaleX
+  //        [x is 1-based rightward; −0.5 aligns to SVG pixel centre]
+  //
+  //   cy = (HALF_LIGHT_ORIGINAL_SIZE − y + PIXEL_OFFSET_CORRECTION_Y) × scaleY
+  //      = (H − y + 1.5) × scaleY
+  //        [H − y flips the FITS y-up axis to SVG y-down;
+  //         +0.5 is the pixel-centre correction;
+  //         +1.0 is an empirical pipeline offset]
+  //
+  // ── Position angle ────────────────────────────────────────────────────────
+  //
+  // SVG rotate(angle, cx, cy) rotates CLOCKWISE on screen for positive angle
+  // (because SVG +y points downward).
+  //
+  // The semi-major axis (rx) starts along +x (East on screen).
+  // Rotating 90° CW places it along −y = North (upward).
+  // GALFIT PA is measured CCW from North; CCW is opposite to SVG's CW positive,
+  // so each degree of PA subtracts from the base 90° rotation:
+  //
+  //   svgRotation = 90 − pa
+  //
+  // Verification: PA = 0 → 90° CW → North ✓ | PA = 90 → 0° → East ✓
+  // Matches the Python reference: mpl_angle = 90 + (−pa) = 90 − pa.
   const ellipseParams = ENABLE_HALF_LIGHT_CIRCLE && reff && pa !== undefined && q && x !== undefined && y !== undefined ? {
-    cx: x * scaleX,
-    cy: y * scaleY,
+    cx: (x + PIXEL_OFFSET_CORRECTION_X) * scaleX,
+    cy: (HALF_LIGHT_ORIGINAL_SIZE - y + PIXEL_OFFSET_CORRECTION_Y) * scaleY,
     rx: reff * scaleX,
     ry: reff * q * scaleY,
-    rotation: 90 - pa  // Adjusted for astronomical PA convention (east of north)
+    rotation: 90 - pa,
   } : null;
 
   // Rectangle overlay parameters (uses absolute pixel coordinates from config)

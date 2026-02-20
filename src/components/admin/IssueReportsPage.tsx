@@ -6,12 +6,15 @@ import { Id } from "../../../convex/_generated/dataModel";
 import { usePageTitle } from "../../hooks/usePageTitle";
 
 type ReportStatus = "open" | "in_progress" | "resolved" | "closed";
+type ReportCategory = "all" | "general" | "quick_tap";
 
 type EnrichedReport = {
   _id: Id<"issueReports">;
   userId: Id<"users">;
   description: string;
   status: ReportStatus;
+  category?: "general" | "quick_tap";
+  galaxyExternalId?: string;
   createdAt: number;
   resolvedAt?: number;
   adminNotes?: string;
@@ -50,20 +53,57 @@ export function IssueReportsPage() {
   usePageTitle("Issue Reports");
 
   const userProfile = useQuery(api.users.getUserProfile);
-  const reports = useQuery(api.issueReports.getAllReports) as
-    | EnrichedReport[]
-    | undefined
-    | null;
 
-  const isAdmin = userProfile?.role === "admin";
-
+  const [filterCategory, setFilterCategory] = useState<ReportCategory>("all");
   const [filterStatus, setFilterStatus] = useState<ReportStatus | "all">("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, ReportStatus>>({});
 
+  const reports = useQuery(api.issueReports.getAllReports, {
+    filterCategory: filterCategory === "all" ? "all" : filterCategory,
+  }) as EnrichedReport[] | undefined | null;
+
+  const isAdmin = userProfile?.role === "admin";
+
+  // Derived filtered list (used both for rendering and download)
+  const filteredReports = (reports || []).filter((r) =>
+    filterStatus === "all" ? true : r.status === filterStatus
+  );
+
   const updateStatus = useMutation(api.issueReports.updateReportStatus);
   const deleteReport = useMutation(api.issueReports.deleteReport);
+
+  // Download galaxy IDs from currently-displayed reports (client-side, instant)
+  const handleDownloadGalaxyIds = (unique: boolean) => {
+    const withIds = filteredReports
+      .map((r) => r.galaxyExternalId)
+      .filter((id): id is string => Boolean(id));
+
+    const ids = unique ? [...new Set(withIds)] : withIds;
+    const catTag = filterCategory === "all" ? "all" : filterCategory;
+    const filename = unique
+      ? `reported_galaxy_ids_${catTag}_unique.txt`
+      : `reported_galaxy_ids_${catTag}_all.txt`;
+
+    const blob = new Blob([ids.join("\n")], { type: "text/plain" });
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = objectUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(objectUrl);
+    toast.success(
+      unique
+        ? `Downloaded ${ids.length} unique galaxy ID(s) (${withIds.length} reports have a galaxy ID)`
+        : `Downloaded ${ids.length} galaxy ID(s)`
+    );
+  };
+
+  // Count reports in the current filtered view that have a galaxy ID
+  const reportsWithGalaxyId = filteredReports.filter((r) => r.galaxyExternalId).length;
 
   if (userProfile === undefined || reports === undefined) {
     return (
@@ -86,11 +126,6 @@ export function IssueReportsPage() {
       </div>
     );
   }
-
-  const filteredReports =
-    filterStatus === "all"
-      ? reports || []
-      : (reports || []).filter((r) => r.status === filterStatus);
 
   const handleStatusChange = async (
     reportId: Id<"issueReports">,
@@ -159,28 +194,81 @@ export function IssueReportsPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
-      <div className="mb-8 flex items-center justify-between flex-wrap gap-4">
+      <div className="mb-8 flex items-start justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Issue Reports</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-300">
             Total: {(reports || []).length} | Showing: {filteredReports.length}
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
-          {["all", "open", "in_progress", "resolved", "closed"].map((status) => (
-            <button
-              key={status}
-              onClick={() => setFilterStatus(status as ReportStatus | "all")}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                filterStatus === status
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"
-              }`}
-            >
-              {status === "all" ? "All" : statusConfig[status as ReportStatus]?.label || status}
-            </button>
-          ))}
+        <div className="flex flex-col gap-3">
+          {/* Category filter */}
+          <div className="flex gap-2 flex-wrap items-center">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1">Category:</span>
+            {(["all", "general", "quick_tap"] as ReportCategory[]).map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setFilterCategory(cat)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterCategory === cat
+                    ? cat === "quick_tap"
+                      ? "bg-orange-500 text-white"
+                      : "bg-blue-600 text-white"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"
+                }`}
+              >
+                {cat === "all" ? "All" : cat === "general" ? "General" : "⚡ Quick Tap"}
+              </button>
+            ))}
+
+          </div>
+          {/* Status filter */}
+          <div className="flex gap-2 flex-wrap items-center">
+            <span className="text-xs font-medium text-gray-500 dark:text-gray-400 mr-1">Status:</span>
+            {["all", "open", "in_progress", "resolved", "closed"].map((status) => (
+              <button
+                key={status}
+                onClick={() => setFilterStatus(status as ReportStatus | "all")}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  filterStatus === status
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white hover:bg-gray-300 dark:hover:bg-gray-600"
+                }`}
+              >
+                {status === "all" ? "All" : statusConfig[status as ReportStatus]?.label || status}
+              </button>
+            ))}
+          </div>
         </div>
+      </div>
+
+      {/* Download bar — always visible, downloads galaxy IDs from the current filtered view */}
+      <div className="mb-6 flex flex-wrap items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/10 border border-blue-200 dark:border-blue-800 rounded-lg">
+        <span className="text-sm font-medium text-blue-800 dark:text-blue-300">
+          ⬇ Download galaxy IDs
+          {reportsWithGalaxyId > 0
+            ? ` (${reportsWithGalaxyId} of ${filteredReports.length} reports have a galaxy ID)`
+            : " — none in current view have a galaxy ID"}:
+        </span>
+        <button
+          onClick={() => handleDownloadGalaxyIds(false)}
+          disabled={reportsWithGalaxyId === 0}
+          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-green-600 hover:bg-green-700 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          title="Download all galaxy IDs in current view, one per line (may contain duplicates)"
+        >
+          All IDs (.txt)
+        </button>
+        <button
+          onClick={() => handleDownloadGalaxyIds(true)}
+          disabled={reportsWithGalaxyId === 0}
+          className="px-3 py-1.5 rounded-lg text-sm font-medium bg-green-700 hover:bg-green-800 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          title="Download only unique galaxy IDs (each ID appears once even if reported multiple times)"
+        >
+          Unique IDs (.txt)
+        </button>
+        <span className="text-xs text-blue-600 dark:text-blue-400">
+          Respects current category &amp; status filters.
+        </span>
       </div>
 
       {filteredReports.length === 0 ? (
@@ -207,7 +295,7 @@ export function IssueReportsPage() {
                 <div className="p-4">
                   <div className="flex items-start justify-between mb-3">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                           {report.userName || "Unknown"} ({report.userEmail || "Unknown"})
                         </h3>
@@ -218,6 +306,11 @@ export function IssueReportsPage() {
                         >
                           {statusConfig[currentStatus as ReportStatus]?.label}
                         </span>
+                        {(report.category === "quick_tap") && (
+                          <span className="px-3 py-1 rounded-full text-sm font-medium bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300">
+                            ⚡ Quick Tap
+                          </span>
+                        )}
                       </div>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {new Date(report.createdAt).toLocaleString()}
@@ -228,6 +321,12 @@ export function IssueReportsPage() {
                           </>
                         )}
                       </p>
+                      {report.galaxyExternalId && (
+                        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                          <span className="font-medium">Galaxy ID:</span>{" "}
+                          <code className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-xs font-mono">{report.galaxyExternalId}</code>
+                        </p>
+                      )}
                       <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 break-all">
                         <span className="font-medium">Reported URL:</span>{" "}
                         {report.url ? (

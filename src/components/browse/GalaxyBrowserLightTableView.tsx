@@ -13,6 +13,8 @@ interface GalaxyBrowserLightTableViewProps {
   sortBy: SortField;
   sortOrder: 'asc' | 'desc';
   handleSort: (field: SortField) => void;
+  /** Galaxy id last viewed in Quick Review — highlighted with a visual indicator */
+  lastViewedGalaxyId?: string;
 }
 
 export function GalaxyBrowserLightTableView({
@@ -23,6 +25,7 @@ export function GalaxyBrowserLightTableView({
   sortBy,
   sortOrder,
   handleSort,
+  lastViewedGalaxyId,
 }: GalaxyBrowserLightTableViewProps) {
   const getSortIcon = (field: SortField) => {
     if (sortBy !== field) {
@@ -163,13 +166,21 @@ export function GalaxyBrowserLightTableView({
           </thead>
           <tbody>
             {galaxies.map((galaxy: any, index: number) => {
-              const rowBackgroundClass = index % 2 === 0 ? "bg-white dark:bg-gray-900/10" : "bg-gray-50 dark:bg-gray-900/30";
-              const stickyCellBackgroundClass = index % 2 === 0 ? "bg-white dark:bg-gray-900/20" : "bg-gray-50 dark:bg-gray-900/40";
+              const isLastViewed = lastViewedGalaxyId === galaxy.id;
+              const rowBackgroundClass = isLastViewed
+                ? "bg-purple-50 dark:bg-purple-900/20"
+                : index % 2 === 0 ? "bg-white dark:bg-gray-900/10" : "bg-gray-50 dark:bg-gray-900/30";
+              const stickyCellBackgroundClass = isLastViewed
+                ? "bg-purple-50 dark:bg-purple-900/30"
+                : index % 2 === 0 ? "bg-white dark:bg-gray-900/20" : "bg-gray-50 dark:bg-gray-900/40";
 
               return (
                 <tr key={galaxy._id} className={rowBackgroundClass}>
                   <td className="border border-gray-300 px-3 py-2 align-top">
-                    <div className="h-16 w-16 overflow-hidden rounded">
+                    <div className="h-16 w-16 overflow-hidden rounded relative">
+                      {isLastViewed && (
+                        <div className="absolute top-0.5 right-0.5 z-10 w-2.5 h-2.5 rounded-full bg-purple-500 border border-white dark:border-gray-900 shadow" title="Last viewed in Quick Review" />
+                      )}
                       <ImageViewer
                         imageUrl={getImageUrl(galaxy.id, previewImageName, {
                           quality: effectiveImageQuality,

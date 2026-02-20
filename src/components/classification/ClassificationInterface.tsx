@@ -23,7 +23,8 @@ import { CommentsField } from "./CommentsField";
 // Mobile-specific components
 import { MobileImageSlider } from "./MobileImageSlider";
 import { MobileSliderControls } from "./MobileSliderControls";
-import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon } from "./icons";
+import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon, MaskIcon, BugIcon } from "./icons";
+import { ReportIssueModal } from "../ReportIssueModal";
 import { MobileClassificationForm } from "./MobileClassificationForm";
 import { CommentsModal } from "./CommentsModal";
 
@@ -36,6 +37,7 @@ import { getImagePriority, processImageLabel, shouldShowEllipse as shouldShowEll
 
 // Types
 import type { ImageType } from "./types";
+import type { ContrastGroupEntry } from "../../images/types";
 
 const imageDisplaySettings = loadImageDisplaySettings();
 const classificationImageSettings = imageDisplaySettings.classification;
@@ -51,6 +53,31 @@ const defaultMobileOrder = classificationImageSettings.defaultMobileOrder;
  * - 'key': Settings are tied to specific image keys. The setting follows the image across groups.
  */
 const ELLIPSE_SETTINGS_MODE: 'position' | 'key' = 'position';
+
+function resolveContrastGroupEntry(
+  entry: ContrastGroupEntry,
+  showMasks: boolean,
+): {
+  key: string;
+  label: string;
+  configKey: string;
+} {
+  const key = showMasks
+    ? (entry.key_masked ?? entry.key)
+    : entry.key;
+
+  const label = showMasks
+    ? (entry.label_masked ?? entry.label ?? key)
+    : (entry.label ?? entry.label_masked ?? key);
+
+  const configKey = entry.key;
+
+  return {
+    key,
+    label,
+    configKey,
+  };
+}
 
 export function ClassificationInterface() {
   // Route and navigation
@@ -72,12 +99,20 @@ export function ClassificationInterface() {
   const [shouldRefocusQuickInput, setShouldRefocusQuickInput] = useState(false);
 
   const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
+  const [showMasks, setShowMasks] = useState(true);
   const [showEllipseSettings, setShowEllipseSettings] = useState(false);
   const settingsButtonRef = useRef<HTMLDivElement>(null);
 
   // Mobile-specific state
   const [mobileSliderIndex, setMobileSliderIndex] = useState(0);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+
+  // Report issue modal state
+  const [showReportIssueModal, setShowReportIssueModal] = useState(false);
+
+  // Quick-tap / 4-tap issue reporting state
+  const quickTapCountRef = useRef(0);
+  const quickTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Online status
   const isOnline = useOnlineStatus();
@@ -88,7 +123,7 @@ export function ClassificationInterface() {
     routeGalaxyId ? { externalId: routeGalaxyId } : "skip"
   );
   const galaxy = useQuery(api.galaxies.navigation.getNextGalaxyToClassify, routeGalaxyId ? "skip" : {});
-  const progress = useQuery(api.classification.getProgress);
+  const progress = useQuery(api.classification.getProgress, {});
   const userPrefs = useQuery(api.users.getUserPreferences);
   const userProfile = useQuery(api.users.getUserProfile);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -109,6 +144,7 @@ export function ClassificationInterface() {
 
   const getNextGalaxyMutation = useMutation(api.galaxies.navigation.getNextGalaxyToClassifyMutation);
   const updatePreferences = useMutation(api.users.updatePreferences);
+  const submitQuickTapReport = useMutation(api.issueReports.submitQuickTapReport);
 
   // Display galaxy
   const displayGalaxy = currentGalaxy || galaxy;
@@ -147,16 +183,21 @@ export function ClassificationInterface() {
   const effectiveImageQuality = userPrefs?.imageQuality || defaultImageQuality;
 
   // Create imageTypes array
-  const imageTypes: ImageType[] = currentImageGroup.map(({ key, label, showEllipse, rectangle, allowEllipse }, index) => {
+  const imageTypes = currentImageGroup.map<ImageType | null>((entry, index) => {
+    const resolvedEntry = resolveContrastGroupEntry(entry, showMasks);
+    const { key, label, configKey } = resolvedEntry;
+    const { showEllipse, rectangle, allowEllipse } = entry;
+
     // Determine effective showEllipse based on user preferences and mode
     // In 'position' mode, use index as key; in 'key' mode, use actual image key
-    const settingsKey = ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : key;
+    const settingsKey = ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : configKey;
     const userPref = userPrefs?.ellipseSettings?.[settingsKey];
     const isAllowed = allowEllipse !== false;
     const effectiveShowEllipse = isAllowed ? (userPref ?? showEllipse === true) : false;
 
     return {
       key,
+      configKey,
       name: label,
       displayName: processImageLabel(label),
       url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, {
@@ -170,7 +211,7 @@ export function ClassificationInterface() {
       // Store position index for settings
       positionIndex: index,
     };
-  });
+  }).filter((item): item is ImageType => item !== null);
 
   // Sort imageTypes based on numColumns
   const sortedImageTypes = [...imageTypes].sort(
@@ -260,8 +301,19 @@ export function ClassificationInterface() {
   }, []);
 
   useEffect(() => {
+    const saved = localStorage.getItem('showMasks');
+    if (saved !== null) {
+      setShowMasks(JSON.parse(saved));
+    }
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem('showEllipseOverlay', JSON.stringify(showEllipseOverlay));
   }, [showEllipseOverlay]);
+
+  useEffect(() => {
+    localStorage.setItem('showMasks', JSON.stringify(showMasks));
+  }, [showMasks]);
 
   // Dynamic page title
   usePageTitle(() => {
@@ -421,38 +473,51 @@ export function ClassificationInterface() {
 
     if (e.shiftKey && e.key.toLowerCase() === 'p') {
       e.preventDefault();
+      e.stopPropagation();
       if (isOnline) handlePrevious();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 'a') {
       e.preventDefault();
+      e.stopPropagation();
       handleAladinClick();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 'n') {
       e.preventDefault();
+      e.stopPropagation();
       if (isOnline) handleNext();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 's') {
       e.preventDefault();
+      e.stopPropagation();
       if (isOnline) handleSkip();
       return;
     }
     if (e.shiftKey && e.key.toLowerCase() === 'c') {
       e.preventDefault();
+      e.stopPropagation();
       handleContrastPrevious();
       return;
     }
     if (e.key.toLowerCase() === 'c') {
       e.preventDefault();
+      e.stopPropagation();
       handleContrastClick();
       return;
     }
     // Shift+R shortcut for toggle ellipse overlay (handled here to prevent quick input conflict if focused)
     if (e.shiftKey && e.key.toLowerCase() === 'r') {
       e.preventDefault();
+      e.stopPropagation();
       setShowEllipseOverlay((prev) => !prev);
+      return;
+    }
+    if (e.shiftKey && e.key.toLowerCase() === 'm') {
+      e.preventDefault();
+      e.stopPropagation();
+      setShowMasks((prev) => !prev);
       return;
     }
     if (e.key === 'Enter' && formState.canSubmit && isOnline) {
@@ -501,6 +566,10 @@ export function ClassificationInterface() {
           case 'r':
             e.preventDefault();
             setShowEllipseOverlay((prev) => !prev);
+            return;
+          case 'm':
+            e.preventDefault();
+            setShowMasks((prev) => !prev);
             return;
           case 'a':
             e.preventDefault();
@@ -572,7 +641,9 @@ export function ClassificationInterface() {
 
   // Get the settings key for an image based on mode
   const getSettingsKey = (img: any, index: number): string => {
-    return ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : img.key;
+    // In 'key' mode, use the stable configKey (entry.key before mask resolution)
+    // so the settings key is consistent regardless of whether masks are shown.
+    return ELLIPSE_SETTINGS_MODE === 'position' ? `pos_${index}` : img.configKey;
   };
 
   const renderEllipseSettingsContent = () => {
@@ -683,7 +754,7 @@ export function ClassificationInterface() {
           <EllipseIcon className="w-4 h-4" />
           <span className="text-sm flex items-center">
             {isMobile ? (
-              <span className="mr-1">Effective radius (r<sub>eff</sub>) overlay:</span>
+              <span className="mr-1">r<sub>eff</sub>:</span>
             ) : (
               <></>
             )}
@@ -715,6 +786,89 @@ export function ClassificationInterface() {
 
       {/* Settings Popup/Content */}
       {showEllipseSettings && renderEllipseSettingsContent()}
+    </div>
+  );
+
+  // Handle report button click with 4-tap quick-report logic
+  const handleReportButtonClick = () => {
+    if (!currentGalaxy) {
+      setShowReportIssueModal(true);
+      return;
+    }
+
+    quickTapCountRef.current += 1;
+
+    // If 4 taps reached within the window — auto-submit immediately
+    if (quickTapCountRef.current >= 4) {
+      quickTapCountRef.current = 0;
+      if (quickTapTimeoutRef.current) clearTimeout(quickTapTimeoutRef.current);
+      quickTapTimeoutRef.current = null;
+      // Auto-create quick-tap issue
+      submitQuickTapReport({
+        galaxyExternalId: currentGalaxy.id,
+        url: typeof window !== "undefined" ? window.location.href : undefined,
+      })
+        .then(() => {
+          toast.success("Quick issue report created for this galaxy!");
+        })
+        .catch(() => {
+          toast.error("Failed to create quick issue report");
+        });
+      return;
+    }
+
+    // Otherwise wait 500 ms; if no more taps arrive, open the normal report modal
+    if (quickTapTimeoutRef.current) clearTimeout(quickTapTimeoutRef.current);
+    quickTapTimeoutRef.current = setTimeout(() => {
+      quickTapCountRef.current = 0;
+      quickTapTimeoutRef.current = null;
+      setShowReportIssueModal(true);
+    }, 500);
+  };
+
+  const renderReportButton = (mobileStyle = false) => (
+    <div className={cn("flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700", mobileStyle ? "p-1 w-full" : "p-0.5")}>
+      <button
+        onClick={handleReportButtonClick}
+        className={cn(
+          "rounded-md transition-colors flex items-center justify-center gap-2 font-medium",
+          mobileStyle ? "flex-1 py-2.5 px-3" : "p-1.5",
+          "text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+        )}
+        title="Report an issue — click 4× quickly to auto-report this galaxy without a description"
+      >
+        <BugIcon className="w-4 h-4" />
+        {mobileStyle && <span className="text-sm">Report Issue</span>}
+      </button>
+    </div>
+  );
+
+  const renderMaskControl = () => (
+    <div className={cn("relative inline-block text-left", isMobile && "w-full")}>
+      <div className={cn(
+        "flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700",
+        isMobile ? "p-1 w-full" : "p-0.5"
+      )}>
+        <button
+          onClick={() => setShowMasks((prev) => !prev)}
+          className={cn(
+            "relative flex items-center justify-center gap-2 rounded-md transition-all duration-200 font-medium",
+            isMobile ? "flex-1 py-2.5" : "px-3 py-1",
+            showMasks
+              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+              : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
+          )}
+          title="Toggle masked images (Shift+M)"
+        >
+          <MaskIcon className="w-4 h-4" />
+          <span className="text-sm flex items-center">
+            {isMobile && <span className="mr-1">Masks:</span>}
+            <span className="font-semibold inline-block w-[3ch] text-center">
+              {showMasks ? "ON" : "OFF"}
+            </span>
+          </span>
+        </button>
+      </div>
     </div>
   );
 
@@ -889,8 +1043,9 @@ export function ClassificationInterface() {
 
       {/* Display Options */}
       <div className="w-full">
-        <div className="flex justify-end">
-          {renderEllipseControl()}
+        <div className="flex gap-2">
+          <div className="flex-1">{renderMaskControl()}</div>
+          <div className="flex-1">{renderEllipseControl()}</div>
         </div>
       </div>
 
@@ -1019,6 +1174,7 @@ export function ClassificationInterface() {
               ) : null}
             </div>
             <div className="flex items-center space-x-2">
+              {renderMaskControl()}
               {renderEllipseControl()}
               <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0.5">
                 <button
@@ -1029,6 +1185,7 @@ export function ClassificationInterface() {
                   <span className="text-sm font-medium">?</span>
                 </button>
               </div>
+              {renderReportButton()}
             </div>
           </div>
         )}
@@ -1038,6 +1195,11 @@ export function ClassificationInterface() {
         <div className="mt-8">
           {progress && <ProgressBar progress={progress} />}
         </div>
+        {isMobile && (
+          <div className="mt-4 w-full">
+            {renderReportButton(true)}
+          </div>
+        )}
 
         <KeyboardShortcuts
           isOpen={showKeyboardHelp}
@@ -1046,6 +1208,12 @@ export function ClassificationInterface() {
           showAwesomeFlag={showAwesomeFlag}
           showValidRedshift={showValidRedshift}
           showVisibleNucleus={showVisibleNucleus}
+        />
+
+        {/* Report Issue Modal */}
+        <ReportIssueModal
+          isOpen={showReportIssueModal}
+          onClose={() => setShowReportIssueModal(false)}
         />
 
         {/* Comments Modal - works on both mobile and desktop */}

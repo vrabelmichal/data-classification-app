@@ -27,7 +27,7 @@ export function getImageUrl(
 
   // Check if any group has this image with a forced quality
   for (const group of settings.classification.contrastGroups) {
-    const entry = group.find((e) => e.key === name);
+    const entry = group.find((e) => e.key === name || e.key_masked === name);
     if (entry?.forcedQuality) {
       forcedQuality = entry.forcedQuality;
       break;

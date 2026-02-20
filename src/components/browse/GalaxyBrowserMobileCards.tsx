@@ -10,6 +10,8 @@ interface GalaxyBrowserMobileCardsProps {
   userPrefs: any;
   effectiveImageQuality: "high" | "medium" | "low";
   previewImageName: string;
+  /** Galaxy id last viewed in Quick Review — highlighted with a visual indicator */
+  lastViewedGalaxyId?: string;
 }
 
 export function GalaxyBrowserMobileCards({
@@ -17,6 +19,7 @@ export function GalaxyBrowserMobileCards({
   userPrefs,
   effectiveImageQuality,
   previewImageName,
+  lastViewedGalaxyId,
 }: GalaxyBrowserMobileCardsProps) {
   if (!galaxyData) {
     return (
@@ -33,10 +36,16 @@ export function GalaxyBrowserMobileCards({
 
   return (
     <div className="space-y-4">
-      {galaxies.map((galaxy: any) => (
+      {galaxies.map((galaxy: any) => {
+        const isLastViewed = lastViewedGalaxyId === galaxy.id;
+        return (
         <div
           key={galaxy._id}
-          className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+          className={`rounded-lg shadow-sm border p-4 ${
+            isLastViewed
+              ? "bg-purple-50 dark:bg-purple-900/20 border-purple-300 dark:border-purple-700"
+              : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+          }`}
         >
           <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 space-y-4 sm:space-y-0">
             <div className="flex-shrink-0 w-full sm:w-1/3 max-w-64 max-h-64 aspect-square mx-auto sm:mx-0">
@@ -53,6 +62,12 @@ export function GalaxyBrowserMobileCards({
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
                   {galaxy.id}
                 </h3>
+                {isLastViewed && (
+                  <span className="ml-2 flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
+                    <span className="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block" />
+                    Last viewed
+                  </span>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 dark:text-gray-300 mb-3">
@@ -91,7 +106,8 @@ export function GalaxyBrowserMobileCards({
             </Link>
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

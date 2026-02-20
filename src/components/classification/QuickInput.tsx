@@ -63,20 +63,39 @@ export function QuickInput({
 
   return (
     <div className="relative bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-      <div className="flex items-center gap-2">
-        <input
-          ref={inputRef}
-          type="text"
-          name="quick-input"
-          id="quick-input"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyDown={onKeyDown}
-          placeholder={`Type a code, e.g., ${examples.join(' or ')}; press Enter to submit.`}
-          disabled={disabled}
-          aria-label="Quick input classification code"
-          className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white placeholder:text-xs disabled:opacity-50 disabled:cursor-not-allowed"
-        />
+      <div className="flex items-center gap-2 w-full">
+        <div className="relative flex-1 min-w-0">
+          <input
+            ref={inputRef}
+            type="text"
+            name="quick-input"
+            id="quick-input"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={`Type a code, e.g., ${examples.join(' or ')}; press Enter to submit.`}
+            disabled={disabled}
+            aria-label="Quick input classification code"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent dark:bg-gray-700 dark:text-white placeholder:text-xs disabled:opacity-50 disabled:cursor-not-allowed"
+          />
+          {showFormatDetails && (
+            <div className="absolute left-0 right-0 top-full mt-1 z-50 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg p-3 text-xs text-gray-700 dark:text-gray-300">
+              <div className="flex items-start justify-between gap-2">
+                <p className="leading-snug">
+                  Format: [LSB: -/0/1] [Morph: -/0/1/2]{flagsString}. Press Enter to submit.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowFormatDetails(false)}
+                  className="h-6 w-6 flex items-center justify-center rounded-md text-base font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700 px-3"
+                  aria-label="Close format details"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
         <button
           type="button"
           onClick={() => setShowFormatDetails(true)}
@@ -87,24 +106,6 @@ export function QuickInput({
           ?
         </button>
       </div>
-
-      {showFormatDetails && (
-        <div className="absolute right-3 bottom-3 w-72 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg p-3 text-xs text-gray-700 dark:text-gray-300">
-          <div className="flex items-start justify-between gap-2">
-            <p className="leading-snug">
-              Format: [LSB: -/0/1] [Morph: -/0/1/2]{flagsString}. Press Enter to submit.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowFormatDetails(false)}
-              className="h-9 w-9 flex items-center justify-center rounded-md text-base font-semibold text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-700"
-              aria-label="Close format details"
-            >
-              ×
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -17,6 +17,11 @@ Priority for configuration:
 Expected variables:
 - VITE_CONVEX_HTTP_ACTIONS_URL
 - INGEST_TOKEN
+
+OBJECT ID FILTERING (for testing):
+To test ingestion of specific objects, use one of:
+- --object-ids ID1,ID2,ID3 (comma-separated list)
+- --object-ids-file path/to/ids.txt (one ID per line)
 """
 
 import argparse
@@ -24,6 +29,7 @@ import os
 import sys
 import time
 import json
+import re
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Union
@@ -67,8 +73,8 @@ def str_or_int_to_str(val):
 NESTED_COLUMN_MAPPING: Dict[str, Union[tuple, Dict[str, Any], None]] = {
     # core
     "id": ("coadd_object_id", str_or_int_to_str),
-    "ra": ("ra", float),
-    "dec": ("dec", float),
+    "ra": ("ra", float),  # should be sersic_ra__best_available_fit
+    "dec": ("dec", float),  # should be sersic_dec__best_available_fit
     "reff": ("sersic_reff_arcsec__best_available_fit", float),
     "reff_pixels": ("sersic_reff_pixels__best_available_fit", float),
     "q": ("sersic_q__best_available_fit", float),
@@ -357,7 +363,104 @@ def send_ingest(convex_url, ingest_token, galaxies, mode="insert", timeout_sec=6
     }
     payload = {"galaxies": galaxies, "mode": mode}
     logger.info(f"POST {url} with {len(galaxies)} galaxies (mode={mode})")
-    return requests.post(url, headers=headers, data=json.dumps(payload), timeout=timeout_sec)
+
+    transient_statuses = {429, 502, 503, 504}
+    max_attempts = 3
+    backoff_base_sec = 1.0
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=timeout_sec)
+        except requests.RequestException as exc:
+            if attempt >= max_attempts:
+                raise
+            sleep_sec = backoff_base_sec * attempt
+            logger.warning(
+                f"⚠ Request error on attempt {attempt}/{max_attempts}: {exc}. "
+                f"Retrying in {sleep_sec:.1f}s..."
+            )
+            time.sleep(sleep_sec)
+            continue
+
+        if resp.status_code in transient_statuses and attempt < max_attempts:
+            sleep_sec = backoff_base_sec * attempt
+            logger.warning(
+                f"⚠ Transient HTTP {resp.status_code} on attempt {attempt}/{max_attempts}. "
+                f"Retrying in {sleep_sec:.1f}s..."
+            )
+            time.sleep(sleep_sec)
+            continue
+
+        return resp
+
+    raise RuntimeError("Unreachable: send_ingest retry loop exited unexpectedly")
+
+
+def parse_response_json(resp: requests.Response) -> Dict[str, Any]:
+    """Parse JSON response safely; returns {} when body is not valid JSON."""
+    try:
+        parsed = resp.json()
+        return parsed if isinstance(parsed, dict) else {}
+    except Exception:
+        return {}
+
+
+def summarize_error_detail(resp: requests.Response, result_json: Dict[str, Any], max_len: int = 500) -> str:
+    """Build a concise, readable error detail string for logs."""
+    if result_json.get("detail"):
+        detail = str(result_json["detail"])
+    else:
+        body = (resp.text or "").strip()
+        if not body:
+            return "No details"
+
+        if "<html" in body.lower():
+            title_match = re.search(r"<title>\s*(.*?)\s*</title>", body, re.IGNORECASE | re.DOTALL)
+            if title_match:
+                detail = f"HTML error page: {title_match.group(1).strip()}"
+            else:
+                detail = "HTML error page returned by upstream/proxy"
+        else:
+            detail = " ".join(body.split())
+
+    if len(detail) > max_len:
+        return detail[:max_len] + "..."
+    return detail
+
+
+# --------------------------------------------------------------------------------------
+# Object ID filtering
+# --------------------------------------------------------------------------------------
+def load_object_ids(object_ids_str: str = None, object_ids_file: str = None) -> set:
+    """
+    Load object IDs from command line arguments or file.
+    
+    Args:
+        object_ids_str: Comma-separated object IDs
+        object_ids_file: Path to file with one object ID per line
+    
+    Returns:
+        Set of object IDs as strings
+    """
+    object_ids = set()
+    
+    if object_ids_str:
+        # Parse comma-separated IDs, strip whitespace
+        ids = [oid.strip() for oid in object_ids_str.split(',') if oid.strip()]
+        object_ids.update(ids)
+        logger.info(f"✓ Loaded {len(ids)} object IDs from command line")
+    
+    if object_ids_file:
+        file_path = Path(object_ids_file)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Object IDs file not found: {file_path}")
+        
+        with open(file_path, 'r') as f:
+            ids = [line.strip() for line in f if line.strip()]
+        object_ids.update(ids)
+        logger.info(f"✓ Loaded {len(ids)} object IDs from file: {file_path}")
+    
+    return object_ids
 
 
 # --------------------------------------------------------------------------------------
@@ -409,13 +512,12 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
                 
                 if not dry_run:
                     resp = send_ingest(convex_url, ingest_token, batch, mode=mode)
-                    
-                    try:
-                        result_json = resp.json()
-                    except Exception:
-                        result_json = {}
-                    
-                    if resp.status_code == 200 and result_json.get("success", True):
+
+                    result_json = parse_response_json(resp)
+
+                    # Success requires HTTP 200 and a parseable JSON object.
+                    # This avoids false positives when an upstream returns HTML/text with HTTP 200.
+                    if resp.status_code == 200 and result_json and result_json.get("success", True):
                         # Success - batch was committed
                         # Handle response based on mode
                         if mode == "insert":
@@ -442,8 +544,10 @@ def process_parquet(df, convex_url, ingest_token, batch_size=100, dry_run=False,
                         
                         # Extract detailed error info
                         error_msg = result_json.get("error", f"HTTP {resp.status_code}")
-                        error_detail = result_json.get("detail", resp.text[:500] if resp.text else "No details")
+                        error_detail = summarize_error_detail(resp, result_json)
                         was_rolled_back = result_json.get("rollback", False)
+                        if resp.status_code in {429, 502, 503, 504}:
+                            error_detail = f"{error_detail} | transient upstream error after retries"
                         
                         # Calculate exact failure position
                         global_batch_start = global_offset + batch_start_idx
@@ -556,6 +660,8 @@ OPERATION MODES:
     parser.add_argument("--continue-on-error", action="store_true", help="Continue with next batch on error (default: stop immediately)")
     parser.add_argument("--mode", choices=["insert", "update", "upsert"], default="insert",
                         help="Operation mode: insert (default), update, or upsert")
+    parser.add_argument("--object-ids", help="Comma-separated object IDs to process (for testing)")
+    parser.add_argument("--object-ids-file", help="File path with one object ID per line (for testing)")
     args = parser.parse_args()
 
     # Warn if batch size is too large
@@ -582,6 +688,22 @@ OPERATION MODES:
         else:
             df = df.iloc[offset:]
         logger.info(f"✓ Loaded {len(df)} rows from {parquet_file} (offset={offset}, limit={limit})")
+        
+        # Filter by object IDs if provided
+        if args.object_ids or args.object_ids_file:
+            object_ids = load_object_ids(args.object_ids, args.object_ids_file)
+            rows_before_filter = len(df)
+            # Convert object IDs to strings to match dataframe values
+            df['coadd_object_id_str'] = df['coadd_object_id'].astype(str)
+            df = df[df['coadd_object_id_str'].isin(object_ids)]
+            df = df.drop(columns=['coadd_object_id_str'])
+            rows_after_filter = len(df)
+            logger.info(f"  Filtered by object IDs: {rows_before_filter} → {rows_after_filter} rows")
+            if rows_after_filter == 0:
+                logger.warning(f"⚠️  No matching object IDs found in the data!")
+                logger.warning(f"    Available columns: {list(df.columns) if total_rows > 0 else 'empty'}")
+                return
+        
         logger.info(f"  Mode: {args.mode}")
         # logger.info("📋 Sample:\n" + df.head().to_string())
 
@@ -641,6 +763,10 @@ OPERATION MODES:
         
         logger.info("=" * 60)
 
+    except RuntimeError as e:
+        logger.error(f"❌ Error: {e}")
+        logger.error("(Fail-fast stopped ingestion at first failed batch. Use --continue-on-error to continue.)")
+        sys.exit(1)
     except Exception as e:
         logger.error(f"❌ Error: {e}")
         import traceback
