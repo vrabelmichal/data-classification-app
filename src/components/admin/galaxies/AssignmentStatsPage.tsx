@@ -110,6 +110,13 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 // ---------------------------------------------------------------------------
+// System limits
+// ---------------------------------------------------------------------------
+
+/** Maximum number of galaxies that can be in a single user's sequence. */
+const MAX_SEQUENCE_SIZE = 8192;
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 
@@ -699,7 +706,7 @@ export function AssignmentStatsPage() {
                 <input
                   type="number"
                   min={1}
-                  max={8192}
+                  max={MAX_SEQUENCE_SIZE}
                   value={seqSize}
                   onChange={(e) => setSeqSize(Math.max(1, Number(e.target.value)))}
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
@@ -772,19 +779,47 @@ export function AssignmentStatsPage() {
                       </p>
                     </div>
 
-                    <div className="bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-700 rounded-lg p-4">
-                      <p className="text-xs font-medium text-violet-600 dark:text-violet-400 mb-1 uppercase tracking-wide">
-                        Sequence size needed (fixed users U={extraUsers})
-                      </p>
-                      <p className="text-3xl font-bold text-violet-700 dark:text-violet-300">
-                        {calcResult.seqSizeNeeded !== null
-                          ? fmt(calcResult.seqSizeNeeded)
-                          : "—"}
-                      </p>
-                      <p className="text-xs text-violet-500 dark:text-violet-400 mt-1">
-                        galaxies per user with U={extraUsers} additional users
-                      </p>
-                    </div>
+                    {(() => {
+                      const needed = calcResult.seqSizeNeeded;
+                      const overLimit = needed !== null && needed > MAX_SEQUENCE_SIZE;
+                      return (
+                        <div className={`rounded-lg border p-4 ${
+                          overLimit
+                            ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700"
+                            : "bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-700"
+                        }`}>
+                          <p className={`text-xs font-medium mb-1 uppercase tracking-wide ${
+                            overLimit
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-violet-600 dark:text-violet-400"
+                          }`}>
+                            Sequence size needed (fixed users U={extraUsers})
+                          </p>
+                          <p className={`text-3xl font-bold ${
+                            overLimit
+                              ? "text-red-700 dark:text-red-300"
+                              : "text-violet-700 dark:text-violet-300"
+                          }`}>
+                            {needed !== null ? fmt(needed) : "—"}
+                          </p>
+                          <p className={`text-xs mt-1 ${
+                            overLimit
+                              ? "text-red-500 dark:text-red-400"
+                              : "text-violet-500 dark:text-violet-400"
+                          }`}>
+                            galaxies per user with U={extraUsers} additional users
+                          </p>
+                          {overLimit && needed !== null && (
+                            <p className="mt-2 text-xs font-semibold text-red-600 dark:text-red-400">
+                              ⚠ Exceeds system limit of {MAX_SEQUENCE_SIZE.toLocaleString()}.
+                              You need at least{" "}
+                              <strong>{Math.ceil(calcResult.slotsNeededTotal / MAX_SEQUENCE_SIZE).toLocaleString()}</strong>{" "}
+                              additional users to stay within the limit.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -846,7 +881,7 @@ export function AssignmentStatsPage() {
                   <input
                     type="number"
                     min={0}
-                    max={8192}
+                    max={MAX_SEQUENCE_SIZE}
                     value={currentSeqSize}
                     onChange={(e) => setCurrentSeqSize(Math.max(0, Number(e.target.value)))}
                     className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
@@ -871,8 +906,8 @@ export function AssignmentStatsPage() {
 
                 const additionalPerUser = Math.ceil(slots / existingUsers);
                 const newTotal = currentSeqSize + additionalPerUser;
-                const exceeds = newTotal > 8192;
-                const maxAddlWithinLimit = Math.max(0, 8192 - currentSeqSize);
+                const exceeds = newTotal > MAX_SEQUENCE_SIZE;
+                const maxAddlWithinLimit = Math.max(0, MAX_SEQUENCE_SIZE - currentSeqSize);
                 const usersNeededIfCapped =
                   maxAddlWithinLimit > 0
                     ? Math.ceil(slots / maxAddlWithinLimit)
@@ -926,7 +961,7 @@ export function AssignmentStatsPage() {
                           }`}
                         >
                           C={currentSeqSize} + {fmt(additionalPerUser)}
-                          {exceeds && " — exceeds 8192 limit!"}
+                          {exceeds && ` — exceeds ${MAX_SEQUENCE_SIZE.toLocaleString()} limit!`}
                         </p>
                       </div>
 
@@ -969,7 +1004,7 @@ export function AssignmentStatsPage() {
                       const alreadyCovered = calcResult!.galaxiesAtOrAbove;
                       const currentPct = total > 0 ? (alreadyCovered / total) * 100 : 0;
 
-                      // Slots actually available after applying the 8192 cap (if needed)
+                      // Slots actually available after applying the MAX_SEQUENCE_SIZE cap (if needed)
                       const provided = additionalPerUser * existingUsers;
                       const cappedProvided = exceeds
                         ? existingUsers * maxAddlWithinLimit
