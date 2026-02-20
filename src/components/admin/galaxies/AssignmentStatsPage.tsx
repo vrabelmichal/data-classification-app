@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { usePageTitle } from "../../../hooks/usePageTitle";
@@ -27,6 +27,7 @@ interface ComputationState {
   totalGalaxies: number | null;
   histogram: Histogram;
   error: string | null;
+  skippedTotal: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +128,7 @@ export function AssignmentStatsPage() {
     totalGalaxies: null,
     histogram: {},
     error: null,
+    skippedTotal: 0,
   });
 
   // Cancel flag
@@ -140,12 +142,33 @@ export function AssignmentStatsPage() {
   const [existingUsers, setExistingUsers] = useState(5);
   const [currentSeqSize, setCurrentSeqSize] = useState(200);
 
+  // Filters
+  const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
+  const [papersInitialised, setPapersInitialised] = useState(false);
+  const [excludeBlacklisted, setExcludeBlacklisted] = useState(true);
+
+  // Initialise paper selection from system settings (select all by default)
+  useEffect(() => {
+    if (!papersInitialised && summary?.availablePapers && summary.availablePapers.length > 0) {
+      setSelectedPapers(new Set(summary.availablePapers));
+      setPapersInitialised(true);
+    }
+  }, [summary?.availablePapers, papersInitialised]);
+
   // ---------------------------------------------------------------------------
   // Handlers
   // ---------------------------------------------------------------------------
 
   const handleCompute = useCallback(async () => {
     cancelRef.current = false;
+
+    // Build paper filter: undefined means all papers
+    const availablePapers = summary?.availablePapers ?? [];
+    const paperFilter =
+      availablePapers.length > 0 && selectedPapers.size < availablePapers.length
+        ? Array.from(selectedPapers)
+        : undefined;
+
     setState({
       running: true,
       done: false,
@@ -153,26 +176,43 @@ export function AssignmentStatsPage() {
       totalGalaxies: summary?.totalGalaxies ?? null,
       histogram: {},
       error: null,
+      skippedTotal: 0,
     });
 
     let cursor: string | undefined = undefined;
     let accHistogram: Histogram = {};
     let processed = 0;
+    let skippedTotal = 0;
+    // Cache blacklist IDs returned by the first call to avoid reloading each batch
+    let cachedBlacklistedIds: string[] | undefined = undefined;
 
     try {
       while (true) {
         if (cancelRef.current) break;
 
-        const result = await computeBatch({ cursor, batchSize: 5000 });
+        const result = await computeBatch({
+          cursor,
+          batchSize: 5000,
+          paperFilter,
+          excludeBlacklisted: excludeBlacklisted && !cachedBlacklistedIds ? true : undefined,
+          blacklistedIds: cachedBlacklistedIds,
+        });
+
+        // Cache blacklisted IDs returned on the first call
+        if (result.blacklistedIds) {
+          cachedBlacklistedIds = result.blacklistedIds;
+        }
 
         accHistogram = mergeHistograms(accHistogram, result.counts);
         processed += result.batchCount;
+        skippedTotal += result.skippedCount;
 
         setState((prev) => ({
           ...prev,
           processedGalaxies: processed,
           totalGalaxies: result.totalGalaxies ?? prev.totalGalaxies,
           histogram: { ...accHistogram },
+          skippedTotal,
         }));
 
         if (result.isDone || !result.nextCursor) break;
@@ -189,7 +229,7 @@ export function AssignmentStatsPage() {
       const msg = (err as Error)?.message ?? "Unknown error";
       setState((prev) => ({ ...prev, running: false, error: msg }));
     }
-  }, [computeBatch, summary?.totalGalaxies]);
+  }, [computeBatch, summary?.totalGalaxies, summary?.availablePapers, selectedPapers, excludeBlacklisted]);
 
   const handleCancel = useCallback(() => {
     cancelRef.current = true;
@@ -205,6 +245,7 @@ export function AssignmentStatsPage() {
       totalGalaxies: null,
       histogram: {},
       error: null,
+      skippedTotal: 0,
     });
   }, []);
 
@@ -250,10 +291,22 @@ export function AssignmentStatsPage() {
             <span className="font-semibold">Total galaxies (aggregate):</span>{" "}
             {summary.totalGalaxies !== null ? fmt(summary.totalGalaxies) : "—"}
           </span>
+          {summary.blacklistedCount > 0 && (
+            <span>
+              <span className="font-semibold">Blacklisted:</span>{" "}
+              {fmt(summary.blacklistedCount)}
+            </span>
+          )}
           {state.done && hasData && (
             <span>
-              <span className="font-semibold">Galaxies scanned:</span>{" "}
-              {fmt(state.processedGalaxies)}
+              <span className="font-semibold">Galaxies matched:</span>{" "}
+              {fmt(state.processedGalaxies - state.skippedTotal)}
+            </span>
+          )}
+          {state.done && state.skippedTotal > 0 && (
+            <span>
+              <span className="font-semibold">Skipped (filtered/blacklisted):</span>{" "}
+              {fmt(state.skippedTotal)}
             </span>
           )}
         </div>
@@ -268,6 +321,85 @@ export function AssignmentStatsPage() {
           Scanning all galaxies in batches of 5,000.  Depending on the dataset
           size this may take a minute.
         </p>
+
+        {/* Paper filter */}
+        {summary?.availablePapers && summary.availablePapers.length > 0 && (
+          <div className="mb-5">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Paper filter</p>
+            <div className="flex flex-wrap gap-2">
+              {summary.availablePapers.map((paper) => {
+                const checked = selectedPapers.has(paper);
+                const label = paper === "" ? "(no paper)" : paper;
+                return (
+                  <label
+                    key={paper}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-sm cursor-pointer select-none transition-colors ${
+                      checked
+                        ? "bg-blue-100 dark:bg-blue-900/40 border-blue-400 dark:border-blue-500 text-blue-800 dark:text-blue-200"
+                        : "bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400"
+                    } ${state.running ? "opacity-50 pointer-events-none" : ""}`}
+                  >
+                    <input
+                      type="checkbox"
+                      className="sr-only"
+                      checked={checked}
+                      disabled={state.running}
+                      onChange={() => {
+                        setSelectedPapers((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(paper)) next.delete(paper);
+                          else next.add(paper);
+                          return next;
+                        });
+                      }}
+                    />
+                    <span>{checked ? "✓" : ""}</span>
+                    <span>{label}</span>
+                  </label>
+                );
+              })}
+              <button
+                type="button"
+                disabled={state.running}
+                onClick={() => setSelectedPapers(new Set(summary.availablePapers))}
+                className="text-xs text-blue-600 dark:text-blue-400 hover:underline disabled:opacity-50"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                disabled={state.running}
+                onClick={() => setSelectedPapers(new Set())}
+                className="text-xs text-gray-500 dark:text-gray-400 hover:underline disabled:opacity-50"
+              >
+                None
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Blacklist toggle */}
+        <div className="mb-5">
+          <label className={`inline-flex items-center gap-2 text-sm cursor-pointer select-none ${
+            state.running ? "opacity-50 pointer-events-none" : ""
+          }`}>
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded"
+              checked={excludeBlacklisted}
+              disabled={state.running}
+              onChange={(e) => setExcludeBlacklisted(e.target.checked)}
+            />
+            <span className="font-medium text-gray-700 dark:text-gray-300">
+              Exclude blacklisted galaxies
+            </span>
+            {summary?.blacklistedCount !== undefined && summary.blacklistedCount > 0 && (
+              <span className="text-xs text-gray-400 dark:text-gray-500">
+                ({fmt(summary.blacklistedCount)} blacklisted)
+              </span>
+            )}
+          </label>
+        </div>
 
         <div className="flex flex-wrap gap-3 items-center">
           {!state.running && (
@@ -337,6 +469,49 @@ export function AssignmentStatsPage() {
         )}
       </div>
 
+      {/* Global analysis target — affects the chart, table highlights, and all calculators */}
+      <div className="bg-indigo-50 dark:bg-indigo-900/20 border-2 border-indigo-300 dark:border-indigo-600 rounded-lg p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300 mb-0.5">
+            Assignment Target &mdash; N
+          </p>
+          <p className="text-xs text-indigo-600 dark:text-indigo-400">
+            The minimum number of times every galaxy should be assigned. Affects
+            the chart colours, table row highlights, and both calculators below.
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setTargetN((n) => Math.max(1, n - 1))}
+            className="w-8 h-8 rounded-full border border-indigo-300 dark:border-indigo-500 bg-white dark:bg-gray-800 text-indigo-700 dark:text-indigo-300 font-bold text-lg leading-none hover:bg-indigo-100 dark:hover:bg-indigo-800 transition-colors flex items-center justify-center"
+            aria-label="Decrease N"
+          >
+            &minus;
+          </button>
+          <div className="text-center">
+            <span className="block text-4xl font-extrabold text-indigo-700 dark:text-indigo-300 w-16 text-center">{targetN}</span>
+            <span className="text-xs text-indigo-500 dark:text-indigo-400">assignments</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setTargetN((n) => Math.min(100, n + 1))}
+            className="w-8 h-8 rounded-full border border-indigo-300 dark:border-indigo-500 bg-white dark:bg-gray-800 text-indigo-700 dark:text-indigo-300 font-bold text-lg leading-none hover:bg-indigo-100 dark:hover:bg-indigo-800 transition-colors flex items-center justify-center"
+            aria-label="Increase N"
+          >
+            +
+          </button>
+          <input
+            type="number"
+            min={1}
+            max={100}
+            value={targetN}
+            onChange={(e) => setTargetN(Math.max(1, Math.min(100, Number(e.target.value))))}
+            className="w-20 border border-indigo-300 dark:border-indigo-500 rounded-md px-2 py-1.5 bg-white dark:bg-gray-800 text-indigo-700 dark:text-indigo-300 text-sm text-center"
+          />
+        </div>
+      </div>
+
       {/* Results */}
       {hasData && (
         <>
@@ -374,14 +549,19 @@ export function AssignmentStatsPage() {
                       const pct = totalCount > 0 ? (count / totalCount) * 100 : 0;
                       const runningPct = totalCount > 0 ? (running / totalCount) * 100 : 0;
                       const isBelow = i < targetN;
+                      const isTarget = i === targetN;
+                      const isAbove = i > targetN;
+                      const rowBg = isBelow
+                        ? "bg-amber-50 dark:bg-amber-900/10"
+                        : isTarget
+                          ? "bg-green-100 dark:bg-green-900/25"
+                          : isAbove
+                            ? "bg-green-50 dark:bg-green-900/10"
+                            : "";
                       return (
                         <tr
                           key={i}
-                          className={`border-b border-gray-100 dark:border-gray-700/50 ${
-                            isBelow
-                              ? "bg-amber-50 dark:bg-amber-900/10"
-                              : ""
-                          }`}
+                          className={`border-b border-gray-100 dark:border-gray-700/50 ${rowBg}`}
                         >
                           <td className="py-2 pr-6 text-gray-900 dark:text-white font-medium">
                             {i}
@@ -393,6 +573,16 @@ export function AssignmentStatsPage() {
                             {i > 0 && isBelow && (
                               <span className="ml-2 text-xs text-amber-600 dark:text-amber-400 font-normal">
                                 (below target)
+                              </span>
+                            )}
+                            {isTarget && (
+                              <span className="ml-2 text-xs text-green-700 dark:text-green-400 font-semibold">
+                                ← target
+                              </span>
+                            )}
+                            {isAbove && (
+                              <span className="ml-2 text-xs text-green-600 dark:text-green-500 font-normal">
+                                (above target)
                               </span>
                             )}
                           </td>
@@ -501,24 +691,7 @@ export function AssignmentStatsPage() {
             </p>
 
             {/* Inputs */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Target min. assignments (N)
-                </label>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={targetN}
-                  onChange={(e) => setTargetN(Math.max(1, Number(e.target.value)))}
-                  className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                />
-                <p className="mt-1 text-xs text-gray-400">
-                  Every galaxy should be assigned at least this many times.
-                </p>
-              </div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Sequence size per user (S)
@@ -790,26 +963,95 @@ export function AssignmentStatsPage() {
                       </div>
                     )}
 
-                    {/* Visual: how much of the needed slots the expansion covers */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
-                        <span>Slots provided vs slots needed</span>
-                        <span>
-                          {fmt(Math.min(additionalPerUser * existingUsers, slots))} /{" "}
-                          {fmt(slots)}
-                        </span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                        <div
-                          className={`h-3 rounded-full transition-all duration-500 ${
-                            exceeds ? "bg-amber-500" : "bg-teal-500"
-                          }`}
-                          style={{
-                            width: `${Math.min(100, (additionalPerUser * existingUsers / slots) * 100)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
+                    {/* Visual: current vs projected coverage */}
+                    {(() => {
+                      const total = calcResult!.totalGalaxies;
+                      const alreadyCovered = calcResult!.galaxiesAtOrAbove;
+                      const currentPct = total > 0 ? (alreadyCovered / total) * 100 : 0;
+
+                      // Slots actually available after applying the 8192 cap (if needed)
+                      const provided = additionalPerUser * existingUsers;
+                      const cappedProvided = exceeds
+                        ? existingUsers * maxAddlWithinLimit
+                        : provided;
+
+                      // Greedy optimal simulation: fill galaxies closest to target first
+                      // (maximises number of galaxies that reach N)
+                      let remaining = cappedProvided;
+                      let projected = alreadyCovered;
+                      for (let k = targetN - 1; k >= 0 && remaining > 0; k--) {
+                        const need = targetN - k;
+                        const count = state.histogram[k] ?? 0;
+                        if (count === 0) continue;
+                        const canFull = Math.min(count, Math.floor(remaining / need));
+                        projected += canFull;
+                        remaining -= canFull * need;
+                      }
+                      const projectedPct = total > 0 ? (projected / total) * 100 : 0;
+                      const gain = projected - alreadyCovered;
+
+                      return (
+                        <div className="space-y-4">
+                          {/* Bar 1 — current */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                              <span className="font-medium">Current coverage</span>
+                              <span>
+                                {fmt(alreadyCovered)} / {fmt(total)}{" "}
+                                ({currentPct.toFixed(1)} %)
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
+                              <div
+                                className="h-3 rounded-full transition-all duration-500 bg-gray-400 dark:bg-gray-500"
+                                style={{ width: `${Math.min(100, currentPct)}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-gray-400 dark:text-gray-500">
+                              Galaxies already at ≥ {targetN} assignment{targetN !== 1 ? "s" : ""} — does not change with E or C
+                            </p>
+                          </div>
+
+                          {/* Bar 2 — projected after expansion */}
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
+                              <span className={`font-medium ${exceeds ? "text-amber-600 dark:text-amber-400" : "text-teal-600 dark:text-teal-400"}`}>
+                                Projected after expansion{exceeds ? " (capped at 8 192)" : ""}
+                              </span>
+                              <span>
+                                {fmt(projected)} / {fmt(total)}{" "}
+                                ({projectedPct.toFixed(1)} %)
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 relative">
+                              {/* grey base: current coverage */}
+                              <div
+                                className="absolute top-0 left-0 h-3 rounded-full bg-gray-400 dark:bg-gray-500"
+                                style={{ width: `${Math.min(100, currentPct)}%` }}
+                              />
+                              {/* teal extension: gain from expansion */}
+                              <div
+                                className={`absolute top-0 h-3 rounded-full transition-all duration-500 ${exceeds ? "bg-amber-500" : "bg-teal-500"}`}
+                                style={{
+                                  left: `${Math.min(100, currentPct)}%`,
+                                  width: `${Math.max(0, Math.min(100 - currentPct, projectedPct - currentPct))}%`,
+                                }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-xs text-gray-400 dark:text-gray-500">
+                              <span>
+                                +{fmt(gain)} galaxies newly covered (optimal distribution)
+                              </span>
+                              {projectedPct >= 100 && (
+                                <span className="text-teal-600 dark:text-teal-400 font-medium">
+                                  ✓ Full coverage achievable
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })()}
