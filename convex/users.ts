@@ -425,6 +425,13 @@ export const getAllUsers = query({
           .withIndex("by_user", (q) => q.eq("userId", user._id))
           .unique();
 
+        // Fetch galaxy sequence to get assigned count
+        const sequence = await ctx.db
+          .query("galaxySequences")
+          .withIndex("by_user", (q) => q.eq("userId", user._id))
+          .unique();
+        const assignedGalaxiesCount = sequence?.galaxyExternalIds?.length ?? 0;
+
         // If no profile exists, create a temporary one for display
         if (!profile) {
           return {
@@ -434,6 +441,7 @@ export const getAllUsers = query({
             isActive: false,
             isConfirmed: false,
             classificationsCount: 0,
+            assignedGalaxiesCount,
             joinedAt: user._creationTime,
             lastActiveAt: user._creationTime,
             sequenceGenerated: false,
@@ -443,6 +451,7 @@ export const getAllUsers = query({
 
         return {
           ...profile,
+          assignedGalaxiesCount,
           user,
         };
       })

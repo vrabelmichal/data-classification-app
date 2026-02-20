@@ -2,9 +2,23 @@ import { useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { cn } from "../../lib/utils";
+import type { ReactNode } from "react";
 
 interface UsersTabProps {
   users: any[];
+}
+
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
+function fmt(value: number, decimals = 1): string {
+  return Number.isFinite(value) ? value.toFixed(decimals) : "N/A";
 }
 
 export function UsersTab({ users }: UsersTabProps) {
@@ -91,7 +105,7 @@ export function UsersTab({ users }: UsersTabProps) {
 
   const handleDownloadUsers = () => {
     // Create CSV content
-    const headers = ["Name", "Email", "Role", "Classifications", "Joined At", "Active", "Confirmed"];
+    const headers = ["Name", "Email", "Role", "Classifications", "Assigned Galaxies", "Joined At", "Active", "Confirmed"];
     const rows = users.map(userProfile => {
       const hasProfile = !userProfile._id.toString().startsWith('temp_');
       const registered = hasProfile && userProfile.joinedAt ? new Date(userProfile.joinedAt).toISOString() : "N/A";
@@ -101,6 +115,7 @@ export function UsersTab({ users }: UsersTabProps) {
         userProfile.user?.email || "No email",
         hasProfile ? userProfile.role : "No Profile",
         userProfile.classificationsCount || 0,
+        userProfile.assignedGalaxiesCount ?? 0,
         registered,
         hasProfile ? (userProfile.isActive ? "Active" : "Inactive") : "N/A",
         hasProfile ? (userProfile.isConfirmed ? "Confirmed" : "Pending") : "N/A"
@@ -136,6 +151,7 @@ export function UsersTab({ users }: UsersTabProps) {
   };
 
   return (
+    <>
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center justify-between">
@@ -172,6 +188,9 @@ export function UsersTab({ users }: UsersTabProps) {
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Classifications
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+                Assigned
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
                 Joined At
@@ -225,6 +244,13 @@ export function UsersTab({ users }: UsersTabProps) {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     {userProfile.classificationsCount}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    {(userProfile.assignedGalaxiesCount ?? 0) > 0 ? (
+                      <span>{userProfile.assignedGalaxiesCount}</span>
+                    ) : (
+                      <span className="text-gray-400 dark:text-gray-500">—</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
                     {hasProfile && userProfile.joinedAt ? (
@@ -325,6 +351,81 @@ export function UsersTab({ users }: UsersTabProps) {
           <p className="text-gray-500 dark:text-gray-400">No users found</p>
         </div>
       )}
+    </div>
+    {users.length > 0 && <UsersStatsPanel users={users} />}
+    </>
+  );
+}
+
+function UsersStatsPanel({ users }: { users: any[] }) {
+  const profileUsers = users.filter(u => !u._id.toString().startsWith('temp_'));
+
+  // Assigned galaxies
+  const assignedCounts = users.map(u => u.assignedGalaxiesCount ?? 0);
+  const withAssigned = assignedCounts.filter(c => c > 0);
+  const withoutAssigned = assignedCounts.filter(c => c === 0).length;
+
+  const avgAssigned = withAssigned.length > 0
+    ? withAssigned.reduce((a, b) => a + b, 0) / withAssigned.length
+    : 0;
+  const maxAssigned = withAssigned.length > 0 ? Math.max(...withAssigned) : 0;
+  const minAssigned = withAssigned.length > 0 ? Math.min(...withAssigned) : 0;
+  const medAssigned = median(withAssigned);
+
+  // Classification counts (all users)
+  const classCounts = users.map(u => u.classificationsCount ?? 0);
+  const nonZeroClass = classCounts.filter(c => c > 0);
+  const avgClass = classCounts.length > 0
+    ? classCounts.reduce((a, b) => a + b, 0) / classCounts.length
+    : 0;
+  const maxClass = classCounts.length > 0 ? Math.max(...classCounts) : 0;
+  const medClass = median(classCounts);
+
+  // Pending approval
+  const pendingApproval = profileUsers.filter(u => !u.isConfirmed).length;
+
+  const StatCard = ({ label, value, sub }: { label: string; value: string | number; sub?: string }) => (
+    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 flex flex-col gap-1">
+      <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">{label}</span>
+      <span className="text-2xl font-bold text-gray-900 dark:text-white">{value}</span>
+      {sub && <span className="text-xs text-gray-500 dark:text-gray-400">{sub}</span>}
+    </div>
+  );
+
+  const SectionTitle = ({ children }: { children: ReactNode }) => (
+    <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200 mb-3 mt-2">{children}</h3>
+  );
+
+  return (
+    <div className="mt-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-5">User Statistics</h2>
+
+      {/* Overview */}
+      <SectionTitle>Overview</SectionTitle>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Total Users" value={users.length} />
+        <StatCard label="With Profile" value={profileUsers.length} />
+        <StatCard label="Pending Approval" value={pendingApproval} sub="awaiting confirmation" />
+        <StatCard label="No Assigned Galaxies" value={withoutAssigned} sub={`${withAssigned.length} have assignments`} />
+      </div>
+
+      {/* Assigned galaxies */}
+      <SectionTitle>Assigned Galaxies (users with assignments only)</SectionTitle>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <StatCard label="Avg Assigned" value={fmt(avgAssigned)} />
+        <StatCard label="Max Assigned" value={maxAssigned > 0 ? maxAssigned : "—"} />
+        <StatCard label="Min Assigned" value={minAssigned > 0 ? minAssigned : "—"} />
+        <StatCard label="Median Assigned" value={medAssigned > 0 ? fmt(medAssigned) : "—"} />
+      </div>
+
+      {/* Classifications */}
+      <SectionTitle>Classifications (all users)</SectionTitle>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <StatCard label="Avg Classified" value={fmt(avgClass)} />
+        <StatCard label="Max Classified" value={maxClass} />
+        <StatCard label="Median Classified" value={fmt(medClass)} />
+        <StatCard label="Active classifiers" value={nonZeroClass.length} sub="users with ≥1 classification" />
+      </div>
     </div>
   );
 }
