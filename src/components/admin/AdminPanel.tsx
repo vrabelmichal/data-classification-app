@@ -11,20 +11,21 @@ import { SystemTab } from "./SystemTab";
 import { NotificationsTab } from "./NotificationsTab";
 
 export function AdminPanel() {
-  // Dynamic page title that reflects the active admin tab
+  // Dynamic page title is now managed by individual subpages for galaxies tab
+  // Other tabs still use this hook
   usePageTitle(() => {
     const path = location.pathname;
     const tab = (() => {
       if (path === "/admin" || path === "/admin/") return "Admin";
       if (path.startsWith("/admin/users")) return "Users";
-      if (path.startsWith("/admin/galaxies")) return "Galaxies";
+      if (path.startsWith("/admin/galaxies")) return ""; // Managed by subpages
       if (path.startsWith("/admin/notifications")) return "Notifications";
       if (path.startsWith("/admin/settings")) return "Settings";
       if (path.startsWith("/admin/maintenance")) return "Maintenance";
       if (path.startsWith("/admin/system")) return "System";
       return "Admin";
     })();
-    return `Admin – ${tab}`;
+    return tab ? `Admin – ${tab}` : "";
   });
   const location = useLocation();
   
@@ -86,7 +87,7 @@ export function AdminPanel() {
               to={tab.path}
               className={cn(
                 "flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap",
-                location.pathname === tab.path
+                location.pathname.startsWith(tab.path)
                   ? "border-blue-500 text-blue-600 dark:text-blue-400"
                   : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
               )}
@@ -101,7 +102,7 @@ export function AdminPanel() {
       <Routes>
         <Route index element={<Navigate to="users" replace />} />
         <Route path="users" element={<UsersTab users={users} />} />
-        <Route path="galaxies" element={<GalaxiesTab users={users} systemSettings={systemSettings} />} />
+        <Route path="galaxies/*" element={<GalaxiesTab users={users} systemSettings={systemSettings} />} />
         <Route path="notifications" element={<NotificationsTab />} />
         <Route path="settings" element={<SettingsTab systemSettings={systemSettings} />} />
         <Route path="maintenance" element={<MaintenanceTab />} />

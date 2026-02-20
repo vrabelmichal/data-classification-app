@@ -17,6 +17,7 @@ import type * as emailSettings from "../emailSettings.js";
 import type * as export_database from "../export_database.js";
 import type * as galaxies from "../galaxies.js";
 import type * as galaxies_aggregates from "../galaxies/aggregates.js";
+import type * as galaxies_assignmentStats from "../galaxies/assignmentStats.js";
 import type * as galaxies_batch_ingest from "../galaxies/batch_ingest.js";
 import type * as galaxies_browse from "../galaxies/browse.js";
 import type * as galaxies_core from "../galaxies/core.js";
@@ -63,6 +64,7 @@ declare const fullApi: ApiFromModules<{
   export_database: typeof export_database;
   galaxies: typeof galaxies;
   "galaxies/aggregates": typeof galaxies_aggregates;
+  "galaxies/assignmentStats": typeof galaxies_assignmentStats;
   "galaxies/batch_ingest": typeof galaxies_batch_ingest;
   "galaxies/browse": typeof galaxies_browse;
   "galaxies/core": typeof galaxies_core;
