@@ -6,7 +6,7 @@ const ENABLE_HALF_LIGHT_CIRCLE = true;
 
 // Scale factors for half-light overlay
 const HALF_LIGHT_ORIGINAL_SIZE = 256;
-const HALF_LIGHT_IMAGE_SIZE = 500;
+const HALF_LIGHT_IMAGE_SIZE = 256;
 
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 8;
@@ -17,6 +17,17 @@ const ZOOMED_IMAGE_BACKGROUND = "white";
 
 // Enable pixelated rendering for zoomed images (set to true for pixelation, false for smooth interpolation)
 const ENABLE_PIXELATED_ZOOM = true;
+
+// Pixel coordinate origin correction.
+// x is stored in 1-based pixel coordinates and increases rightward (same as SVG).
+// y is stored in 1-based GALFIT/FITS pixel coordinates and increases UPWARD
+// (opposite to SVG). The x offset is corrected by subtracting this constant;
+// the y axis is flipped via (HALF_LIGHT_ORIGINAL_SIZE − y) which absorbs the
+// 1-based offset automatically.
+// Set to 1 while the catalogue carries 1-based coordinates.
+// Set to 0 when the upstream pipeline already emits 0-based coordinates.
+const PIXEL_OFFSET_CORRECTION_X = -0.5;
+const PIXEL_OFFSET_CORRECTION_Y = +1.5;
 
 const clampZoomValue = (value: number) => Math.min(Math.max(value, MIN_ZOOM), MAX_ZOOM);
 
@@ -421,13 +432,42 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   const scaleX = imageWidth ? imageWidth / HALF_LIGHT_ORIGINAL_SIZE : HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
   const scaleY = imageHeight ? imageHeight / HALF_LIGHT_ORIGINAL_SIZE : HALF_LIGHT_IMAGE_SIZE / HALF_LIGHT_ORIGINAL_SIZE;
 
-  // Calculate ellipse parameters
+  // ── Ellipse overlay parameters ────────────────────────────────────────────
+  //
+  // The catalogue stores GALFIT/FITS 1-based pixel coordinates:
+  //   x – increases rightward  (same as SVG +x)
+  //   y – increases UPWARD     (opposite to SVG +y which points downward)
+  //
+  // Because the web-app PNGs are pre-flipped vertically (np.flipud at tile-
+  // generation time), the y axis must be mirrored within the original 256 px
+  // reference frame *before* scaling to the displayed image dimensions:
+  //
+  // ── Position angle ────────────────────────────────────────────────────────
+  //
+  // SVG rotate(angle) applies the standard CCW rotation matrix in SVG's y-down
+  // coordinate system, which appears clockwise on screen for positive angle.
+  //
+  // The semi-major axis (rx) starts along +x. Rotating 90° places it along +y
+  // (downward) or equivalently along −y (upward) since an ellipse has 180°
+  // symmetry.
+  //
+  // GALFIT PA is measured CCW from +y (upward = North in the original FITS
+  // frame). After the vertical flip the sense of PA reverses, giving an
+  // effective pa_for_draw = −pa. The Python reference computes:
+  //   mpl_angle = 90 + pa_for_draw = 90 − pa
+  //
+  // Because matplotlib Ellipse(angle) with origin='upper' and SVG rotate()
+  // both use the same rotation matrix in the same y-down coordinate system,
+  // the SVG angle equals the matplotlib angle:
+  //
+  //   svgRotation = 90 − pa
+  //
   const ellipseParams = ENABLE_HALF_LIGHT_CIRCLE && reff && pa !== undefined && q && x !== undefined && y !== undefined ? {
-    cx: x * scaleX,
-    cy: y * scaleY,
+    cx: (x + PIXEL_OFFSET_CORRECTION_X) * scaleX,
+    cy: (HALF_LIGHT_ORIGINAL_SIZE - y  + PIXEL_OFFSET_CORRECTION_Y) * scaleY,
     rx: reff * scaleX,
     ry: reff * q * scaleY,
-    rotation: 90 - pa  // Adjusted for astronomical PA convention (east of north)
+    rotation: 90 - pa,
   } : null;
 
   // Rectangle overlay parameters (uses absolute pixel coordinates from config)
