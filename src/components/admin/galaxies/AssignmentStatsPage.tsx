@@ -143,16 +143,20 @@ export function AssignmentStatsPage() {
 
   // Calculator inputs
   const [targetN, setTargetN] = useState(3);
-  const [seqSize, setSeqSize] = useState(200);
+  const [seqSize, setSeqSize] = useState(3090);
   const [extraUsers, setExtraUsers] = useState(5);
   // "Increase existing sequences" calculator
   const [existingUsers, setExistingUsers] = useState(5);
   const [currentSeqSize, setCurrentSeqSize] = useState(200);
 
+  // Modals
+  const [showSlotsModal, setShowSlotsModal] = useState(false);
+
   // Filters
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
   const [papersInitialised, setPapersInitialised] = useState(false);
   const [excludeBlacklisted, setExcludeBlacklisted] = useState(true);
+  const [seqStatsInitialised, setSeqStatsInitialised] = useState(false);
 
   // Initialise paper selection from system settings (select all by default)
   useEffect(() => {
@@ -161,6 +165,17 @@ export function AssignmentStatsPage() {
       setPapersInitialised(true);
     }
   }, [summary?.availablePapers, papersInitialised]);
+
+  // Initialise calculator inputs from real sequence statistics once available
+  useEffect(() => {
+    if (seqStatsInitialised) return;
+    const u = (summary as any)?.usersWithSequences;
+    const m = (summary as any)?.medianSequenceSize;
+    if (u == null && m == null) return;
+    if (u != null && u > 0) setExistingUsers(u);
+    if (m != null && m > 0) setSeqSize(Math.round(m));
+    setSeqStatsInitialised(true);
+  }, [(summary as any)?.usersWithSequences, (summary as any)?.medianSequenceSize, seqStatsInitialised]);
 
   // ---------------------------------------------------------------------------
   // Handlers
@@ -712,7 +727,12 @@ export function AssignmentStatsPage() {
                   className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                 />
                 <p className="mt-1 text-xs text-gray-400">
-                  How many galaxies each new user would be assigned.
+                  How many galaxies each new user would be assigned.{" "}
+                  {(summary as any)?.medianSequenceSize != null && (
+                    <span className="text-indigo-500 dark:text-indigo-400">
+                      Initialised from median of existing sequences ({Math.round((summary as any).medianSequenceSize).toLocaleString()}).
+                    </span>
+                  )}
                 </p>
               </div>
 
@@ -755,12 +775,32 @@ export function AssignmentStatsPage() {
                     sub={`${(100 - calcResult.coveredPct).toFixed(1)} % remaining`}
                     color={calcResult.galaxiesBelow > 0 ? "amber" : "green"}
                   />
-                  <StatCard
-                    label="Total assignment slots needed"
-                    value={fmt(calcResult.slotsNeededTotal)}
-                    sub="to reach target N for all galaxies"
-                    color={calcResult.slotsNeededTotal > 0 ? "red" : "green"}
-                  />
+                  {/* Total slots card with Explain button */}
+                  {(() => {
+                    const color = calcResult.slotsNeededTotal > 0 ? "red" : "green";
+                    const colorClasses = {
+                      red: "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-700 text-red-700 dark:text-red-300",
+                      green: "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300",
+                    }[color];
+                    return (
+                      <div className={`rounded-lg border p-4 ${colorClasses}`}>
+                        <p className="text-xs font-medium uppercase tracking-wide opacity-70 mb-1">Total assignment slots needed</p>
+                        <p className="text-2xl font-bold">{fmt(calcResult.slotsNeededTotal)}</p>
+                        <p className="text-xs opacity-60 mt-1">
+                          to reach target N for all galaxies
+                          {calcResult.slotsNeededTotal > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setShowSlotsModal(true)}
+                              className="ml-2 text-xs font-medium px-1.5 py-0.5 rounded border border-current opacity-70 hover:opacity-100 transition-opacity align-baseline"
+                            >
+                              Explain
+                            </button>
+                          )}
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {calcResult.slotsNeededTotal > 0 && (
@@ -773,6 +813,9 @@ export function AssignmentStatsPage() {
                         {calcResult.usersNeededForSlots !== null
                           ? fmt(calcResult.usersNeededForSlots)
                           : "—"}
+                      </p>
+                      <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-2 font-mono">
+                        &lceil;slots&nbsp;/&nbsp;S&rceil;&nbsp;=&nbsp;&lceil;{fmt(calcResult.slotsNeededTotal)}&nbsp;/&nbsp;{seqSize}&rceil;
                       </p>
                       <p className="text-xs text-indigo-500 dark:text-indigo-400 mt-1">
                         additional users, each assigned S={seqSize} galaxies
@@ -801,6 +844,13 @@ export function AssignmentStatsPage() {
                               : "text-violet-700 dark:text-violet-300"
                           }`}>
                             {needed !== null ? fmt(needed) : "—"}
+                          </p>
+                          <p className={`text-xs mt-2 font-mono ${
+                            overLimit
+                              ? "text-red-600 dark:text-red-400"
+                              : "text-violet-600 dark:text-violet-400"
+                          }`}>
+                            &lceil;slots&nbsp;/&nbsp;U&rceil;&nbsp;=&nbsp;&lceil;{fmt(calcResult.slotsNeededTotal)}&nbsp;/&nbsp;{extraUsers}&rceil;
                           </p>
                           <p className={`text-xs mt-1 ${
                             overLimit
@@ -870,7 +920,12 @@ export function AssignmentStatsPage() {
                     className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
                   />
                   <p className="mt-1 text-xs text-gray-400">
-                    Number of users who already have an active sequence.
+                    Number of users who already have an active sequence.{" "}
+                    {(summary as any)?.usersWithSequences != null && (
+                      <span className="text-indigo-500 dark:text-indigo-400">
+                        Auto-detected: {((summary as any).usersWithSequences as number).toLocaleString()} users.
+                      </span>
+                    )}
                   </p>
                 </div>
 
@@ -923,8 +978,11 @@ export function AssignmentStatsPage() {
                         <p className="text-3xl font-bold text-teal-700 dark:text-teal-300">
                           +{fmt(additionalPerUser)}
                         </p>
+                        <p className="text-xs text-teal-600 dark:text-teal-400 mt-2 font-mono">
+                          &lceil;slots&nbsp;/&nbsp;E&rceil;&nbsp;=&nbsp;&lceil;{fmt(slots)}&nbsp;/&nbsp;{existingUsers}&rceil;
+                        </p>
                         <p className="text-xs text-teal-500 dark:text-teal-400 mt-1">
-                          split evenly across E={existingUsers} users
+                          split evenly across E={existingUsers} existing users
                         </p>
                       </div>
 
@@ -960,7 +1018,7 @@ export function AssignmentStatsPage() {
                               : "text-teal-500 dark:text-teal-400"
                           }`}
                         >
-                          C={currentSeqSize} + {fmt(additionalPerUser)}
+                          C={currentSeqSize} + {fmt(additionalPerUser)} = {fmt(newTotal)}
                           {exceeds && ` — exceeds ${MAX_SEQUENCE_SIZE.toLocaleString()} limit!`}
                         </p>
                       </div>
@@ -972,8 +1030,16 @@ export function AssignmentStatsPage() {
                         <p className="text-3xl font-bold text-gray-700 dark:text-gray-300">
                           {fmt(additionalPerUser * existingUsers)}
                         </p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-2 font-mono">
+                          additional&nbsp;&times;&nbsp;E&nbsp;=&nbsp;{fmt(additionalPerUser)}&nbsp;&times;&nbsp;{existingUsers}
+                        </p>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          vs {fmt(slots)} slots needed (rounding up per user)
+                          slots needed:&nbsp;<span className="font-semibold">{fmt(slots)}</span>
+                          {additionalPerUser * existingUsers > slots && (
+                            <span className="text-gray-400">
+                              {" "}(+{fmt(additionalPerUser * existingUsers - slots)} rounding overhead)
+                            </span>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -981,12 +1047,12 @@ export function AssignmentStatsPage() {
                     {exceeds && (
                       <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4 text-sm space-y-1">
                         <p className="font-semibold text-amber-700 dark:text-amber-300">
-                          ⚠ Sequence size would exceed the 8 192-galaxy limit
+                          ⚠ Sequence size would exceed the {MAX_SEQUENCE_SIZE.toLocaleString()}-galaxy limit
                         </p>
                         <p className="text-amber-600 dark:text-amber-400">
                           Each user can be assigned at most{" "}
                           <strong>{fmt(maxAddlWithinLimit)}</strong> additional galaxies
-                          (up to the 8 192 cap).
+                          (up to the {MAX_SEQUENCE_SIZE.toLocaleString()} cap).
                         </p>
                         {usersNeededIfCapped !== null && (
                           <p className="text-amber-600 dark:text-amber-400">
@@ -1094,6 +1160,100 @@ export function AssignmentStatsPage() {
           )}
         </>
       )}
+
+      {/* Slots explanation modal */}
+      {showSlotsModal && calcResult && (() => {
+        // Build per-bucket breakdown
+        const rows: { k: number; count: number; deficit: number; contribution: number }[] = [];
+        for (let k = 0; k < targetN; k++) {
+          const count = state.histogram[k] ?? 0;
+          if (count === 0) continue;
+          const deficit = targetN - k;
+          rows.push({ k, count, deficit, contribution: deficit * count });
+        }
+        return (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            onClick={() => setShowSlotsModal(false)}
+          >
+            <div
+              className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-white">
+                    How are the total slots calculated?
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    For every galaxy with fewer than N={targetN} assignments, we count how many more it needs.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowSlotsModal(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none ml-4"
+                  aria-label="Close"
+                >
+                  &times;
+                </button>
+              </div>
+
+              {/* Modal body */}
+              <div className="overflow-y-auto px-6 py-4 space-y-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  Formula per bucket:&nbsp;
+                  <span className="font-mono bg-gray-100 dark:bg-gray-700 px-1 rounded">
+                    slots contributed = (N &minus; k) &times; count(k)
+                  </span>
+                </p>
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700 text-left">
+                        <th className="py-2 pr-6 font-medium text-gray-600 dark:text-gray-400">Times assigned (k)</th>
+                        <th className="py-2 pr-6 text-right font-medium text-gray-600 dark:text-gray-400">Galaxies count</th>
+                        <th className="py-2 pr-6 text-right font-medium text-gray-600 dark:text-gray-400">Deficit (N&minus;k)</th>
+                        <th className="py-2 text-right font-medium text-gray-600 dark:text-gray-400">Slots needed</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ k, count, deficit, contribution }) => (
+                        <tr key={k} className="border-b border-gray-100 dark:border-gray-700/50">
+                          <td className="py-1.5 pr-6 font-mono text-gray-800 dark:text-gray-200">
+                            {k}{k === 0 && <span className="ml-1 text-xs text-red-500">(unassigned)</span>}
+                          </td>
+                          <td className="py-1.5 pr-6 text-right text-gray-700 dark:text-gray-300">{fmt(count)}</td>
+                          <td className="py-1.5 pr-6 text-right font-mono text-gray-700 dark:text-gray-300">
+                            {targetN}&minus;{k}&nbsp;=&nbsp;<strong>{deficit}</strong>
+                          </td>
+                          <td className="py-1.5 text-right font-mono text-gray-900 dark:text-white">
+                            {fmt(deficit)}&nbsp;&times;&nbsp;{fmt(count)}&nbsp;=&nbsp;<strong>{fmt(contribution)}</strong>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="border-t-2 border-gray-300 dark:border-gray-600">
+                        <td colSpan={3} className="py-2 pr-6 font-semibold text-gray-900 dark:text-white">Total</td>
+                        <td className="py-2 text-right font-bold text-red-700 dark:text-red-300 text-base">
+                          {fmt(calcResult.slotsNeededTotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                <p className="text-xs text-gray-400 dark:text-gray-500">
+                  Buckets with k &ge; N (already at or above target) contribute 0 and are not shown.
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Empty state */}
       {!hasData && !state.running && (

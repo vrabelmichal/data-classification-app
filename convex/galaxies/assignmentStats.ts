@@ -135,7 +135,24 @@ export const getAssignmentStatsSummary = query({
 
     const blacklistedCount = (await ctx.db.query("galaxyBlacklist").collect()).length;
 
-    return { authorized: true, totalGalaxies, availablePapers, blacklistedCount };
+    // Sequence statistics: count users with a non-empty sequence and compute
+    // the median sequence size (used to pre-populate the calculator inputs).
+    const sequences = await ctx.db.query("galaxySequences").collect();
+    const seqSizes = sequences
+      .map((s) => s.galaxyExternalIds?.length ?? 0)
+      .filter((n) => n > 0);
+    seqSizes.sort((a, b) => a - b);
+    const usersWithSequences = seqSizes.length;
+    let medianSequenceSize: number | null = null;
+    if (seqSizes.length > 0) {
+      const mid = Math.floor(seqSizes.length / 2);
+      medianSequenceSize =
+        seqSizes.length % 2 === 0
+          ? (seqSizes[mid - 1] + seqSizes[mid]) / 2
+          : seqSizes[mid];
+    }
+
+    return { authorized: true, totalGalaxies, availablePapers, blacklistedCount, usersWithSequences, medianSequenceSize };
   },
 });
 
