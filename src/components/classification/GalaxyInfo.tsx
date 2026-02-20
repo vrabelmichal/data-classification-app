@@ -48,6 +48,12 @@ export function GalaxyInfo({
           {displayGalaxy.reff.toFixed(2)}″ ({displayGalaxy.reff_pixels.toFixed(2)} pixels)
         </div>
         <div>
+          <span className="font-medium">x, y (px):</span>{" "}
+          {displayGalaxy.x !== undefined && displayGalaxy.y !== undefined
+            ? `${displayGalaxy.x.toFixed(1)}, ${displayGalaxy.y.toFixed(1)}`
+            : "—"}
+        </div>
+        <div>
           <span className="font-medium">q:</span> {displayGalaxy.q.toFixed(3)}
         </div>
         <div>
