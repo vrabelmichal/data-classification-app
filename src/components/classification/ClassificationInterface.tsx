@@ -135,6 +135,10 @@ export function ClassificationInterface() {
     api.galaxies.skipped.isGalaxySkipped,
     currentGalaxy ? { galaxyExternalId: currentGalaxy.id } : "skip"
   );
+  const isBlacklisted = useQuery(
+    api.galaxyBlacklist.isGalaxyBlacklisted,
+    currentGalaxy ? { galaxyExternalId: currentGalaxy.id } : "skip"
+  );
 
   // Mutations
   const submitClassification = useMutation(api.classification.submitClassification);
@@ -981,6 +985,14 @@ export function ClassificationInterface() {
   // Render mobile or desktop layout
   const renderMobileLayout = () => (
     <div className="block space-y-4">
+      {/* Blacklisted banner */}
+      {isBlacklisted === true && (
+        <div className="flex items-center gap-2 rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2">
+          <span className="text-red-600 dark:text-red-400 text-lg leading-none">🚫</span>
+          <span className="text-sm font-semibold text-red-700 dark:text-red-400">Blacklisted</span>
+          <span className="text-sm text-red-600 dark:text-red-400">— This galaxy has been blacklisted and will not appear in classification sequences.</span>
+        </div>
+      )}
       {/* 1. Image Slider with overlay controls */}
       <MobileImageSlider
         imageTypes={mobileImageTypes}
@@ -1158,10 +1170,12 @@ export function ClassificationInterface() {
             <div className="flex items-center space-x-4">
               <h1 className={cn(
                 "text-2xl font-bold text-gray-900 dark:text-white",
-                isSkipped === true && "bg-yellow-100 dark:bg-yellow-900/20 px-2 py-1 rounded"
+                isSkipped === true && "bg-yellow-100 dark:bg-yellow-900/20 px-2 py-1 rounded",
+                isBlacklisted === true && "bg-red-100 dark:bg-red-900/20 px-2 py-1 rounded"
               )}>
                 Galaxy: {displayGalaxy.id}
                 {isSkipped === true && <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">(in skipped table)</span>}
+                {isBlacklisted === true && <span className="ml-2 text-sm font-semibold text-red-600 dark:text-red-400">(blacklisted)</span>}
               </h1>
               {navigation && navigation.currentIndex !== -1 ? (
                 <div className="text-sm text-gray-500 dark:text-gray-400">
