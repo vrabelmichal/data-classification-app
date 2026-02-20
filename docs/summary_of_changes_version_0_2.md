@@ -1,4 +1,4 @@
-# Update related to the new catalog and version 0.2 of the classification website  
+# Version 0.2 update – new catalog & site changes
 
 Dear all,  
 There has been a **major update** to the classification website that has been in progress over the past two weeks.
