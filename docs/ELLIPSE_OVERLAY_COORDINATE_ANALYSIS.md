@@ -103,10 +103,8 @@ constant is therefore:
 PIXEL_OFFSET_CORRECTION_Y = 0.5 (pixel-centre) + 1.0 (pipeline offset) = 1.5
 ```
 
-The +1.0 is a systematic shift introduced by the tile-cutting pipeline — most
-likely the cutout window used to generate the 256 × 256 PNG tiles is offset by
-one pixel relative to the coordinate origin assumed by GALFIT (e.g. the
-pipeline crops `data[1:257]` instead of `data[0:256]`).
+The +1.0 is a systematic shift introduced by the data processing pipeline — most
+likely it is due to an error in the procedure used to flip coordinates of FITS files (images) later used by GALFIT(m).
 
 **Update `PIXEL_OFFSET_CORRECTION_Y` if the tile-generation pipeline changes.**
 
