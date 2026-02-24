@@ -100,6 +100,52 @@ export const getGalaxyStatsBatch = internalQuery({
   },
 });
 
+/**
+ * Paginates through galaxies and returns per-paper counts for this batch,
+ * both including and excluding blacklisted galaxies.
+ */
+export const getPaperStatsBatch = internalQuery({
+  args: {
+    cursor: v.optional(v.string()),
+    batchSize: v.number(),
+    blacklistedIds: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query("galaxies")
+      .paginate({
+        numItems: args.batchSize,
+        cursor: args.cursor ?? null,
+      });
+
+    const blacklistSet =
+      args.blacklistedIds && args.blacklistedIds.length > 0
+        ? new Set(args.blacklistedIds)
+        : null;
+
+    const countsAll: Record<string, number> = {};
+    const countsExcludingBlacklisted: Record<string, number> = {};
+
+    for (const doc of result.page) {
+      const paper = doc.misc?.paper ?? "";
+      countsAll[paper] = (countsAll[paper] ?? 0) + 1;
+
+      if (!blacklistSet || !blacklistSet.has(doc.id)) {
+        countsExcludingBlacklisted[paper] =
+          (countsExcludingBlacklisted[paper] ?? 0) + 1;
+      }
+    }
+
+    return {
+      countsAll,
+      countsExcludingBlacklisted,
+      nextCursor: result.isDone ? null : result.continueCursor,
+      isDone: result.isDone,
+      batchCount: result.page.length,
+    };
+  },
+});
+
 // ----------------------------------------------------------------------------
 // Public query: quick summary (no heavy scan)
 // ----------------------------------------------------------------------------
@@ -119,6 +165,9 @@ export const getAssignmentStatsSummary = query({
         totalGalaxies: null,
         availablePapers: [] as string[],
         blacklistedCount: 0,
+        paperTotals: {} as Record<string, number>,
+        paperTotalsExcludingBlacklisted: {} as Record<string, number>,
+        paperStatsComputed: false,
       };
     }
 
@@ -133,7 +182,35 @@ export const getAssignmentStatsSummary = query({
     const availablePapers: string[] =
       (settings as any)?.availablePapers ?? DEFAULT_AVAILABLE_PAPERS;
 
-    const blacklistedCount = (await ctx.db.query("galaxyBlacklist").collect()).length;
+    const blacklistedRows = await ctx.db.query("galaxyBlacklist").collect();
+    const blacklistedIdsSet = new Set(blacklistedRows.map((row) => row.galaxyExternalId));
+    const blacklistedCount = blacklistedIdsSet.size;
+
+    let paperTotals: Record<string, number> = {};
+    let paperTotalsExcludingBlacklisted: Record<string, number> = {};
+    let paperStatsComputed = true;
+
+    try {
+      for await (const doc of ctx.db.query("galaxies")) {
+        const paper = doc.misc?.paper ?? "";
+        paperTotals[paper] = (paperTotals[paper] ?? 0) + 1;
+        if (!blacklistedIdsSet.has(doc.id)) {
+          paperTotalsExcludingBlacklisted[paper] =
+            (paperTotalsExcludingBlacklisted[paper] ?? 0) + 1;
+        }
+      }
+
+      // Ensure all configured papers are present in both maps, even if zero.
+      for (const paper of availablePapers) {
+        paperTotals[paper] = paperTotals[paper] ?? 0;
+        paperTotalsExcludingBlacklisted[paper] =
+          paperTotalsExcludingBlacklisted[paper] ?? 0;
+      }
+    } catch {
+      paperStatsComputed = false;
+      paperTotals = {};
+      paperTotalsExcludingBlacklisted = {};
+    }
 
     // Sequence statistics: count users with a non-empty sequence and compute
     // the median sequence size (used to pre-populate the calculator inputs).
@@ -152,7 +229,17 @@ export const getAssignmentStatsSummary = query({
           : seqSizes[mid];
     }
 
-    return { authorized: true, totalGalaxies, availablePapers, blacklistedCount, usersWithSequences, medianSequenceSize };
+    return {
+      authorized: true,
+      totalGalaxies,
+      availablePapers,
+      blacklistedCount,
+      usersWithSequences,
+      medianSequenceSize,
+      paperTotals,
+      paperTotalsExcludingBlacklisted,
+      paperStatsComputed,
+    };
   },
 });
 
@@ -169,6 +256,16 @@ type HistogramBatchResult = {
   totalGalaxies: number | null;
   /** Populated on the first call when excludeBlacklisted=true so the caller
    *  can cache and pass it back on subsequent calls to avoid reloading. */
+  blacklistedIds?: string[];
+};
+
+type PaperStatsBatchResult = {
+  countsAll: Record<string, number>;
+  countsExcludingBlacklisted: Record<string, number>;
+  nextCursor: string | null;
+  isDone: boolean;
+  batchCount: number;
+  totalGalaxies: number | null;
   blacklistedIds?: string[];
 };
 
@@ -238,6 +335,61 @@ export const computeHistogramBatch = action({
       skippedCount: result.skippedCount,
       totalGalaxies,
       // Return blacklistedIds so the caller can cache and reuse them
+      blacklistedIds: args.excludeBlacklisted ? blacklistedIds : undefined,
+    };
+  },
+});
+
+/**
+ * Computes one paginated batch of per-paper totals, with and without blacklist exclusion.
+ */
+export const computePaperStatsBatch = action({
+  args: {
+    cursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+    blacklistedIds: v.optional(v.array(v.string())),
+    excludeBlacklisted: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<PaperStatsBatchResult> => {
+    const callerProfile = await ctx.runQuery(api.users.getUserProfile);
+    if (!callerProfile || callerProfile.role !== "admin") {
+      throw new Error("Not authorized");
+    }
+
+    const totalGalaxies: number | null = await ctx.runQuery(
+      internal.galaxies.assignmentStats.getTotalGalaxyCount,
+      {}
+    );
+
+    let blacklistedIds: string[] | undefined = args.blacklistedIds;
+    if (args.excludeBlacklisted && !blacklistedIds) {
+      blacklistedIds = await ctx.runQuery(
+        internal.galaxies.assignmentStats.loadBlacklistedIds,
+        {}
+      );
+    }
+
+    const batchSize = Math.min(args.batchSize ?? 5000, 5000);
+
+    const result: {
+      countsAll: Record<string, number>;
+      countsExcludingBlacklisted: Record<string, number>;
+      nextCursor: string | null;
+      isDone: boolean;
+      batchCount: number;
+    } = await ctx.runQuery(internal.galaxies.assignmentStats.getPaperStatsBatch, {
+      cursor: args.cursor,
+      batchSize,
+      blacklistedIds,
+    });
+
+    return {
+      countsAll: result.countsAll,
+      countsExcludingBlacklisted: result.countsExcludingBlacklisted,
+      nextCursor: result.nextCursor,
+      isDone: result.isDone,
+      batchCount: result.batchCount,
+      totalGalaxies,
       blacklistedIds: args.excludeBlacklisted ? blacklistedIds : undefined,
     };
   },
