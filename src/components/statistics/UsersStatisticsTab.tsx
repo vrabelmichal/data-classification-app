@@ -69,6 +69,43 @@ function formatDate(value: number | null) {
   return new Date(value).toLocaleString();
 }
 
+function getColumnValue(row: Row, key: ColumnKey): string {
+  switch (key) {
+    case "user":
+      return row.name || row.email || row.userId;
+    case "labels":
+      return row.classificationsCount.toLocaleString();
+    case "assigned":
+      return row.assignedGalaxies.toLocaleString();
+    case "completed":
+      return row.completedInSequence.toLocaleString();
+    case "completion":
+      return `${row.completionPercent.toFixed(1)}%`;
+    case "lastActive":
+      return formatDate(row.lastActiveAt);
+    case "active":
+      return row.isActive ? "Yes" : "No";
+    case "role":
+      return row.role;
+    case "joined":
+      return formatDate(row.joinedAt);
+    case "awesome":
+      return row.awesomeCount.toLocaleString();
+    case "visibleNucleus":
+      return row.visibleNucleusCount.toLocaleString();
+    case "validRedshift":
+      return row.validRedshiftCount.toLocaleString();
+    case "failedFitting":
+      return row.failedFittingCount.toLocaleString();
+    case "skipped":
+      return row.skippedInSequence.toLocaleString();
+    case "remaining":
+      return row.remainingInSequence.toLocaleString();
+    default:
+      return "—";
+  }
+}
+
 export function UsersStatisticsTab() {
   const rows = useQuery(api.users.getUsersStatisticsOverview) as Row[] | undefined;
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(defaultVisibility);
@@ -177,7 +214,41 @@ export function UsersStatisticsTab() {
           </details>
         </div>
 
-        <div className="mt-4 overflow-x-auto">
+        <div className="mt-4 space-y-3 md:hidden">
+          {rows.map((row) => {
+            const displayName = row.name || row.email || row.userId;
+            return (
+              <div
+                key={row.userId}
+                className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30"
+              >
+                <div className="mb-3">
+                  <div className="font-semibold text-gray-900 dark:text-white">{displayName}</div>
+                  {row.email && <div className="text-xs text-gray-500 dark:text-gray-400">{row.email}</div>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  {columns
+                    .filter((column) => column.key !== "user" && visibleColumns[column.key])
+                    .map((column) => (
+                      <div key={column.key} className="min-w-0">
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{column.label}</div>
+                        <div className="font-medium text-gray-900 dark:text-white truncate">
+                          {getColumnValue(row, column.key)}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {rows.length === 0 && (
+            <div className="py-8 text-center text-gray-500 dark:text-gray-400">No users found.</div>
+          )}
+        </div>
+
+        <div className="mt-4 hidden md:block overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700 text-left text-gray-600 dark:text-gray-300">
