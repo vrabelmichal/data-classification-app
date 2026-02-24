@@ -5,18 +5,21 @@ import { usePageTitle } from "../../hooks/usePageTitle";
 import { OverviewTab } from "./OverviewTab";
 import { cn } from "../../lib/utils";
 import { StatisticsTab } from "./StatisticsTab";
+import { UsersStatisticsTab } from "./UsersStatisticsTab";
 
 export function Statistics() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const userProfile = useQuery(api.users.getUserProfile);
   const location = useLocation();
-  // Change page title based on the active tab (Overview vs Statistics)
+  // Change page title based on the active tab
   const isOverview = location.pathname.startsWith("/statistics/overview");
-  usePageTitle(isOverview ? "Overview Statistics" : "My Statistics");
+  const isUsersStatistics = location.pathname.startsWith("/statistics/users");
+  usePageTitle(isOverview ? "Overview Statistics" : isUsersStatistics ? "Users Statistics" : "My Statistics");
   
   const isAdmin = userProfile?.role === "admin";
   const allowPublicOverview = systemSettings?.allowPublicOverview ?? false;
   const canAccessOverview = Boolean(isAdmin || allowPublicOverview);
+  const canAccessUsersStatistics = Boolean(isAdmin);
 
   if (systemSettings === undefined || userProfile === undefined) {
     return (
@@ -43,6 +46,9 @@ export function Statistics() {
               {[
                 { id: "my-statistics", label: "My Statistics", icon: "📊", path: "/statistics" },
                 { id: "overview", label: "Overview", icon: "📈", path: "/statistics/overview" },
+                ...(canAccessUsersStatistics
+                  ? [{ id: "users", label: "Users", icon: "👥", path: "/statistics/users" }]
+                  : []),
               ].map((tab) => (
                 <Link
                   key={tab.id}
@@ -64,6 +70,16 @@ export function Statistics() {
           <Routes>
             <Route index element={<StatisticsTab />} />
             <Route path="overview" element={<OverviewTab />} />
+            <Route
+              path="users"
+              element={
+                canAccessUsersStatistics ? (
+                  <UsersStatisticsTab />
+                ) : (
+                  <Navigate to={canAccessOverview ? "/statistics/overview" : "/statistics"} replace />
+                )
+              }
+            />
           </Routes>
         </>
       )}

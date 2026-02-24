@@ -350,6 +350,81 @@ export const getUsersForSelection = query({
   },
 });
 
+// Admin: Lightweight per-user statistics overview for table views
+export const getUsersStatisticsOverview = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx, { notAdminMessage: "Only admins can access per-user statistics" });
+
+    const [allUsers, allProfiles, allSequences] = await Promise.all([
+      ctx.db.query("users").collect(),
+      ctx.db.query("userProfiles").collect(),
+      ctx.db.query("galaxySequences").collect(),
+    ]);
+
+    const profilesByUserId = new Map(allProfiles.map((profile) => [profile.userId, profile]));
+
+    const latestSequenceByUserId = new Map<Id<"users">, Doc<"galaxySequences">>();
+    for (const sequence of allSequences) {
+      const existing = latestSequenceByUserId.get(sequence.userId);
+      if (!existing || sequence._creationTime > existing._creationTime) {
+        latestSequenceByUserId.set(sequence.userId, sequence);
+      }
+    }
+
+    const rows = allUsers.map((user) => {
+      const profile = profilesByUserId.get(user._id);
+      const sequence = latestSequenceByUserId.get(user._id);
+
+      const assignedGalaxies = sequence?.galaxyExternalIds?.length ?? 0;
+      const classifiedInSequence = sequence?.numClassified ?? 0;
+      const skippedInSequence = sequence?.numSkipped ?? 0;
+      const completedInSequence = classifiedInSequence + skippedInSequence;
+      const remainingInSequence = Math.max(assignedGalaxies - completedInSequence, 0);
+      const completionPercent =
+        assignedGalaxies > 0 ? (completedInSequence / assignedGalaxies) * 100 : 0;
+
+      return {
+        userId: user._id,
+        name: (user as any).name ?? null,
+        email: (user as any).email ?? null,
+        role: profile?.role ?? "user",
+        isActive: profile?.isActive ?? false,
+        isConfirmed: profile?.isConfirmed ?? null,
+        joinedAt: profile?.joinedAt ?? user._creationTime,
+        lastActiveAt: profile?.lastActiveAt ?? null,
+
+        classificationsCount: profile?.classificationsCount ?? 0,
+        awesomeCount: profile?.awesomeCount ?? 0,
+        visibleNucleusCount: profile?.visibleNucleusCount ?? 0,
+        validRedshiftCount: profile?.validRedshiftCount ?? 0,
+        failedFittingCount: profile?.failedFittingCount ?? 0,
+
+        assignedGalaxies,
+        classifiedInSequence,
+        skippedInSequence,
+        completedInSequence,
+        remainingInSequence,
+        completionPercent,
+      };
+    });
+
+    rows.sort((a, b) => {
+      if (b.classificationsCount !== a.classificationsCount) {
+        return b.classificationsCount - a.classificationsCount;
+      }
+      if ((b.lastActiveAt ?? 0) !== (a.lastActiveAt ?? 0)) {
+        return (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0);
+      }
+      const aName = a.name || a.email || "";
+      const bName = b.name || b.email || "";
+      return aName.localeCompare(bName);
+    });
+
+    return rows;
+  },
+});
+
 // Admin: Get user by ID
 export const getUserById = query({
   args: { userId: v.id("users") },
