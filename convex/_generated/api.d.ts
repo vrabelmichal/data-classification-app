@@ -28,6 +28,7 @@ import type * as galaxies_maintenance from "../galaxies/maintenance.js";
 import type * as galaxies_mock from "../galaxies/mock.js";
 import type * as galaxies_navigation from "../galaxies/navigation.js";
 import type * as galaxies_navigation_deprecated from "../galaxies/navigation_deprecated.js";
+import type * as galaxies_paperStats from "../galaxies/paperStats.js";
 import type * as galaxies_sequence from "../galaxies/sequence.js";
 import type * as galaxies_skipped from "../galaxies/skipped.js";
 import type * as galaxyBlacklist from "../galaxyBlacklist.js";
@@ -75,6 +76,7 @@ declare const fullApi: ApiFromModules<{
   "galaxies/mock": typeof galaxies_mock;
   "galaxies/navigation": typeof galaxies_navigation;
   "galaxies/navigation_deprecated": typeof galaxies_navigation_deprecated;
+  "galaxies/paperStats": typeof galaxies_paperStats;
   "galaxies/sequence": typeof galaxies_sequence;
   "galaxies/skipped": typeof galaxies_skipped;
   galaxyBlacklist: typeof galaxyBlacklist;
