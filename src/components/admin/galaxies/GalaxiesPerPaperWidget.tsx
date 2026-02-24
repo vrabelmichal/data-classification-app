@@ -110,8 +110,17 @@ export function GalaxiesPerPaperWidget() {
   }, []);
 
   const hasData = Object.keys(paperStats.countsAll).length > 0;
+  const scannedTotal = Object.values(paperStats.countsAll).reduce((sum, value) => sum + value, 0);
+  const aggregateTotal = paperStats.totalGalaxies;
+  const hasAggregateMismatch =
+    paperStats.done &&
+    aggregateTotal !== null &&
+    scannedTotal > 0 &&
+    aggregateTotal !== scannedTotal;
   const progressPct =
-    paperStats.totalGalaxies && paperStats.totalGalaxies > 0
+    paperStats.done
+      ? 100
+      : paperStats.totalGalaxies && paperStats.totalGalaxies > 0
       ? Math.min(100, (paperStats.processedGalaxies / paperStats.totalGalaxies) * 100)
       : null;
 
@@ -181,7 +190,8 @@ export function GalaxiesPerPaperWidget() {
             <span>
               {paperStats.running ? "Scanning…" : "Scan complete"} {fmt(paperStats.processedGalaxies)} galaxies processed
             </span>
-            {paperStats.totalGalaxies && <span>{fmt(paperStats.totalGalaxies)} total</span>}
+            {paperStats.running && paperStats.totalGalaxies && <span>{fmt(paperStats.totalGalaxies)} total</span>}
+            {paperStats.done && <span>{fmt(scannedTotal)} scanned total</span>}
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
             <div
@@ -191,6 +201,11 @@ export function GalaxiesPerPaperWidget() {
               style={{ width: `${progressPct ?? (paperStats.running ? 5 : 100)}%` }}
             />
           </div>
+          {hasAggregateMismatch && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              Aggregate total ({fmt(aggregateTotal!)}) differs from scanned galaxies table total ({fmt(scannedTotal)}).
+            </p>
+          )}
         </div>
       )}
 

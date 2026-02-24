@@ -21,3 +21,4 @@ export { RebuildTotalClassificationsAggregateSection } from './RebuildTotalClass
 export { BackfillUserGalaxyClassificationsSection } from './BackfillUserGalaxyClassificationsSection';
 export { BackfillUserClassificationCountersSection } from './BackfillUserClassificationCountersSection';
 export { FastBackfillUserClassificationCountersSection } from './FastBackfillUserClassificationCountersSection';
+export { GalaxyCountDiagnosticsSection } from './GalaxyCountDiagnosticsSection';

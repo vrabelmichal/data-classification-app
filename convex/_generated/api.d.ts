@@ -22,6 +22,7 @@ import type * as galaxies_batch_ingest from "../galaxies/batch_ingest.js";
 import type * as galaxies_browse from "../galaxies/browse.js";
 import type * as galaxies_core from "../galaxies/core.js";
 import type * as galaxies_count from "../galaxies/count.js";
+import type * as galaxies_countDiagnostics from "../galaxies/countDiagnostics.js";
 import type * as galaxies_deprecated from "../galaxies/deprecated.js";
 import type * as galaxies_export from "../galaxies/export.js";
 import type * as galaxies_maintenance from "../galaxies/maintenance.js";
@@ -70,6 +71,7 @@ declare const fullApi: ApiFromModules<{
   "galaxies/browse": typeof galaxies_browse;
   "galaxies/core": typeof galaxies_core;
   "galaxies/count": typeof galaxies_count;
+  "galaxies/countDiagnostics": typeof galaxies_countDiagnostics;
   "galaxies/deprecated": typeof galaxies_deprecated;
   "galaxies/export": typeof galaxies_export;
   "galaxies/maintenance": typeof galaxies_maintenance;
