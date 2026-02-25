@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
+import { MaintenanceModeSection } from "./MaintenanceModeSection";
 import {
   GenerateMockDataSection,
   SeedGalaxyAssignmentStatsSection,
@@ -48,6 +49,9 @@ export function MaintenanceTab() {
 
   return (
     <div>
+      {/* Maintenance Mode Toggles */}
+      <MaintenanceModeSection />
+
       {/* Regular Maintenance Section */}
       <section className="mb-12">
         <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white border-b pb-2 border-gray-200 dark:border-gray-700">Regular Maintenance</h2>

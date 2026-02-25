@@ -77,6 +77,11 @@ export const DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY = "low" as const;
 export const DEFAULT_AVAILABLE_PAPERS = ["", "new", "old"];
 
 /**
+ * Maintenance mode: disable new classifications
+ */
+export const DEFAULT_MAINTENANCE_DISABLE_NEW_CLASSIFICATIONS = false;
+
+/**
  * Default maximum number of entries a regular (non-admin) user can export at once
  */
 export const DEFAULT_USER_EXPORT_LIMIT = 1000;

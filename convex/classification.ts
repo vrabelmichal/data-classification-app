@@ -153,6 +153,13 @@ export const submitClassification = mutation({
   handler: async (ctx, args) => {
     const { userId, profile } = await requireConfirmedUser(ctx);
 
+    // Check maintenance mode – block all classifications if disabled
+    const maintenanceDoc = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", "maintenanceDisableClassifications"))
+      .unique();
+    const maintenanceDisableClassifications = maintenanceDoc?.value === true;
+
     // Get system settings for failed fitting mode
     const failedFittingModeDoc = await ctx.db
       .query("systemSettings")
@@ -173,6 +180,11 @@ export const submitClassification = mutation({
     if (failedFittingMode === "legacy" && args.lsb_class === -1) {
       finalFailedFitting = true;
       finalLsbClass = fallbackLsbClass;
+    }
+
+    // Block all classifications (new and edits) when maintenance mode is active
+    if (maintenanceDisableClassifications) {
+      throw new Error("Classifications are currently disabled for maintenance. Please try again later.");
     }
 
     // Check if already classified

@@ -7,6 +7,7 @@ interface ActionButtonsProps {
   navigation: NavigationStateOrNull;
   isOnline: boolean;
   isSkipped?: boolean;
+  isMaintenanceMode?: boolean;
   onSubmit: () => void;
   onSkip: () => void;
   onPrevious: () => void;
@@ -19,19 +20,24 @@ export function ActionButtons({
   navigation,
   isOnline,
   isSkipped,
+  isMaintenanceMode = false,
   onSubmit,
   onSkip,
   onPrevious,
   onNext,
 }: ActionButtonsProps) {
+  const submitDisabled = !canSubmit || formLocked || !isOnline || isMaintenanceMode;
+  const submitActive = canSubmit && !formLocked && isOnline && !isMaintenanceMode;
+
   return (
     <div className="grid grid-cols-2 gap-3">
       <button
         onClick={onSubmit}
-        disabled={!canSubmit || formLocked || !isOnline}
+        disabled={submitDisabled}
+        title={isMaintenanceMode ? "New classifications are temporarily disabled for maintenance" : undefined}
         className={cn(
           "py-3 px-4 rounded-lg font-semibold transition-colors",
-          canSubmit && !formLocked && isOnline
+          submitActive
             ? "bg-green-600 hover:bg-green-700 text-white"
             : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
         )}

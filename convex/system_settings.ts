@@ -56,6 +56,7 @@ export const getPublicSystemSettings = query({
       "galaxyBrowserImageQuality",
       "allowPublicOverview",
       "userExportLimit",
+      "maintenanceDisableClassifications",
     ] as const;
 
     type PublicSettingKey = (typeof publicSettingsWhitelist)[number];
@@ -92,6 +93,8 @@ export const updateSystemSettings = mutation({
     galaxyBrowserImageQuality: v.optional(v.union(v.literal("high"), v.literal("low"))),
     availablePapers: v.optional(v.array(v.string())),
     userExportLimit: v.optional(v.number()),
+    // Maintenance mode flags
+    maintenanceDisableClassifications: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
@@ -332,6 +335,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "userExportLimit",
           value: args.userExportLimit,
+        });
+      }
+    }
+
+    if (args.maintenanceDisableClassifications !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "maintenanceDisableClassifications"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.maintenanceDisableClassifications });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "maintenanceDisableClassifications",
+          value: args.maintenanceDisableClassifications,
         });
       }
     }

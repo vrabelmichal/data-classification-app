@@ -36,4 +36,6 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
   userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
+  // Maintenance mode flags
+  maintenanceDisableClassifications: false,
 };

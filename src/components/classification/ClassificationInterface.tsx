@@ -18,6 +18,7 @@ import { QuickInput } from "./QuickInput";
 import { ClassificationForm } from "./ClassificationForm";
 import { ActionButtons } from "./ActionButtons";
 import { OfflineBanner } from "./OfflineBanner";
+import { MaintenanceBanner } from "./MaintenanceBanner";
 import { CommentsField } from "./CommentsField";
 
 // Mobile-specific components
@@ -164,6 +165,7 @@ export function ClassificationInterface() {
   const showAwesomeFlag = systemSettings?.showAwesomeFlag !== false;
   const showValidRedshift = systemSettings?.showValidRedshift !== false;
   const showVisibleNucleus = systemSettings?.showVisibleNucleus !== false;
+  const maintenanceDisableClassifications = systemSettings?.maintenanceDisableClassifications === true;
 
   const formState = useClassificationForm(
     currentGalaxy,
@@ -364,6 +366,10 @@ export function ClassificationInterface() {
       toast.error("Cannot submit while offline");
       return;
     }
+    if (maintenanceDisableClassifications) {
+      toast.error("Classifications are temporarily disabled for maintenance.");
+      return;
+    }
     if (!currentGalaxy || formState.lsbClass === null || formState.morphology === null) return;
     try {
       const timeSpent = Date.now() - startTime;
@@ -392,7 +398,7 @@ export function ClassificationInterface() {
       toast.error("Failed to submit classification");
       console.error(error);
     }
-  }, [currentGalaxy, formState, startTime, submitClassification, getNextGalaxyMutation, navigate, isOnline]);
+  }, [currentGalaxy, formState, startTime, submitClassification, getNextGalaxyMutation, navigate, isOnline, maintenanceDisableClassifications]);
 
   const handleSkip = useCallback(async () => {
     if (!isOnline) {
@@ -524,7 +530,7 @@ export function ClassificationInterface() {
       setShowMasks((prev) => !prev);
       return;
     }
-    if (e.key === 'Enter' && formState.canSubmit && isOnline) {
+    if (e.key === 'Enter' && formState.canSubmit && isOnline && !maintenanceDisableClassifications) {
       e.preventDefault();
       handleSubmit();
     } else if (e.key === 'a' && showAwesomeFlag) {
@@ -1047,6 +1053,7 @@ export function ClassificationInterface() {
         navigation={navigation}
         isOnline={isOnline}
         isSkipped={isSkipped === true}
+        isMaintenanceMode={maintenanceDisableClassifications}
         onSubmit={handleSubmit}
         onSkip={handleSkip}
         onPrevious={handlePrevious}
@@ -1151,6 +1158,7 @@ export function ClassificationInterface() {
           navigation={navigation}
           isOnline={isOnline}
           isSkipped={isSkipped === true}
+          isMaintenanceMode={maintenanceDisableClassifications}
           onSubmit={handleSubmit}
           onSkip={handleSkip}
           onPrevious={handlePrevious}
@@ -1163,7 +1171,8 @@ export function ClassificationInterface() {
   return (
     <>
       {!isOnline && <OfflineBanner />}
-      <div className={cn("w-full mx-auto px-2 sm:px-6 lg:px-12 pb-20 md:pb-6", isMobile ? "pt-3" : "pt-6")} style={{ maxWidth: "1920px" }}>
+      {isOnline && maintenanceDisableClassifications && <MaintenanceBanner />}
+      <div className={cn("w-full mx-auto px-2 sm:px-6 lg:px-12 pb-20 md:pb-6", isMobile ? "pt-3" : "pt-6", (!isOnline || maintenanceDisableClassifications) && "mt-12")} style={{ maxWidth: "1920px" }}>
         {/* Desktop header - hidden on mobile */}
         {!isMobile && (
           <div className="flex justify-between items-center mb-6">
