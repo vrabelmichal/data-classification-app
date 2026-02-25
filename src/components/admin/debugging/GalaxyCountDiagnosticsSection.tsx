@@ -140,6 +140,9 @@ export function GalaxyCountDiagnosticsSection() {
   const [historyItems, setHistoryItems] = useState<DiagnosticsHistoryItem[]>([]);
   const [historyNextCursor, setHistoryNextCursor] = useState<string | null>(null);
   const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+  const [historyDetailsId, setHistoryDetailsId] = useState<Id<"galaxyCountDiagnosticsHistory"> | null>(null);
+  const [historyDetailsViewMode, setHistoryDetailsViewMode] = useState<TableViewMode>("important");
+  const [pendingMoveToOlderInModal, setPendingMoveToOlderInModal] = useState(false);
 
   const [deleteTarget, setDeleteTarget] = useState<DiagnosticsHistoryItem | null>(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
@@ -161,6 +164,8 @@ export function GalaxyCountDiagnosticsSection() {
       setHistoryItems([]);
       setHistoryNextCursor(null);
       setHistoryLoadingMore(false);
+      setHistoryDetailsId(null);
+      setPendingMoveToOlderInModal(false);
       return;
     }
 
@@ -168,6 +173,8 @@ export function GalaxyCountDiagnosticsSection() {
     setHistoryItems([]);
     setHistoryNextCursor(null);
     setHistoryLoadingMore(false);
+    setHistoryDetailsId(null);
+    setPendingMoveToOlderInModal(false);
   }, [historyExpanded, historyDateFilter]);
 
   useEffect(() => {
@@ -189,6 +196,16 @@ export function GalaxyCountDiagnosticsSection() {
       return [...prev, ...nextItems];
     });
   }, [historyCursor, historyExpanded, historyResult]);
+
+  useEffect(() => {
+    if (!pendingMoveToOlderInModal || !historyDetailsId) return;
+
+    const currentIndex = historyItems.findIndex((item) => item._id === historyDetailsId);
+    if (currentIndex >= 0 && currentIndex < historyItems.length - 1) {
+      setHistoryDetailsId(historyItems[currentIndex + 1]._id);
+      setPendingMoveToOlderInModal(false);
+    }
+  }, [historyDetailsId, historyItems, pendingMoveToOlderInModal]);
 
   const handleRun = useCallback(async () => {
     cancelRef.current = false;
@@ -300,6 +317,39 @@ export function GalaxyCountDiagnosticsSection() {
     setHistoryLoadingMore(true);
     setHistoryCursor(historyNextCursor);
   }, [historyLoadingMore, historyNextCursor]);
+
+  const handleOpenHistoryDetails = useCallback((item: DiagnosticsHistoryItem) => {
+    setHistoryDetailsId(item._id);
+    setHistoryDetailsViewMode("important");
+    setPendingMoveToOlderInModal(false);
+  }, []);
+
+  const handleNavigateHistoryDetailsOlder = useCallback(() => {
+    if (!historyDetailsId) return;
+
+    const currentIndex = historyItems.findIndex((item) => item._id === historyDetailsId);
+    if (currentIndex < 0) return;
+
+    if (currentIndex < historyItems.length - 1) {
+      setHistoryDetailsId(historyItems[currentIndex + 1]._id);
+      return;
+    }
+
+    if (historyNextCursor && !historyLoadingMore) {
+      setPendingMoveToOlderInModal(true);
+      setHistoryLoadingMore(true);
+      setHistoryCursor(historyNextCursor);
+    }
+  }, [historyDetailsId, historyItems, historyLoadingMore, historyNextCursor]);
+
+  const handleNavigateHistoryDetailsNewer = useCallback(() => {
+    if (!historyDetailsId) return;
+
+    const currentIndex = historyItems.findIndex((item) => item._id === historyDetailsId);
+    if (currentIndex > 0) {
+      setHistoryDetailsId(historyItems[currentIndex - 1]._id);
+    }
+  }, [historyDetailsId, historyItems]);
 
   const handleConfirmDeleteHistory = useCallback(async () => {
     if (!deleteTarget || deleteInProgress) return;
@@ -496,6 +546,124 @@ export function GalaxyCountDiagnosticsSection() {
       ? metricsRows
       : tableViewMode === "important"
       ? metricsRows.filter((row) => row.important)
+      : [];
+
+  const selectedHistoryIndex = historyDetailsId
+    ? historyItems.findIndex((item) => item._id === historyDetailsId)
+    : -1;
+  const selectedHistory = selectedHistoryIndex >= 0 ? historyItems[selectedHistoryIndex] : null;
+
+  const historyMetricsRows = useMemo<DiagnosticsMetricRow[]>(() => {
+    if (!selectedHistory) return [];
+
+    const importantScanTables: DiagnosticsTable[] = [
+      "galaxies",
+      "galaxyIds",
+      "classifications",
+      "userGalaxyClassifications",
+      "galaxyBlacklist",
+    ];
+
+    const aggregateMap: Partial<Record<DiagnosticsTable, number | null>> = {
+      galaxies: selectedHistory.aggregateCounts.galaxiesById ?? null,
+      galaxyIds: selectedHistory.aggregateCounts.galaxyIdsAggregate ?? null,
+      classifications: selectedHistory.aggregateCounts.classificationsByCreated ?? null,
+    };
+
+    const additionalScanTables = diagnosticsTables.filter(
+      (table) => !importantScanTables.includes(table)
+    );
+
+    const scanRows: DiagnosticsMetricRow[] = [...importantScanTables, ...additionalScanTables].map(
+      (table) => {
+        const scanned = selectedHistory.tableScanCounts[table] ?? 0;
+        const expected = aggregateMap[table] ?? null;
+        const delta = expected !== null ? scanned - expected : null;
+
+        return {
+          key: `history_scan_${table}`,
+          label: `Scanned ${tableLabels[table]}`,
+          value: fmt(scanned),
+          delta: signedDelta(delta),
+          important: importantScanTables.includes(table),
+        };
+      }
+    );
+
+    const aggregateAndBlacklistRows: DiagnosticsMetricRow[] = [
+      {
+        key: "history_agg_galaxies_by_id",
+        label: "Aggregate galaxiesById",
+        value: fmt(selectedHistory.aggregateCounts.galaxiesById ?? null),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "history_agg_galaxy_ids",
+        label: "Aggregate galaxyIdsAggregate",
+        value: fmt(selectedHistory.aggregateCounts.galaxyIdsAggregate ?? null),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "history_agg_classifications",
+        label: "Aggregate classificationsByCreated",
+        value: fmt(selectedHistory.aggregateCounts.classificationsByCreated ?? null),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "history_blacklist_unique",
+        label: "Blacklist unique external IDs",
+        value: fmt(selectedHistory.blacklistDetails.uniqueExternalIds),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "history_blacklist_found",
+        label: "Blacklisted IDs found in galaxies",
+        value: fmt(selectedHistory.blacklistDetails.presentInGalaxies),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "history_blacklist_missing",
+        label: "Blacklisted IDs missing from galaxies",
+        value: fmt(selectedHistory.blacklistDetails.missingFromGalaxies),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "history_missing_numeric_id",
+        label: "Galaxies missing numericId (scan)",
+        value: fmt(selectedHistory.missingNumericIdInGalaxies),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "history_agg_galaxies_by_numeric_id",
+        label: "Aggregate galaxiesByNumericId",
+        value: fmt(selectedHistory.aggregateCounts.galaxiesByNumericId ?? null),
+        delta: "—",
+        important: false,
+      },
+      {
+        key: "history_blacklist_total",
+        label: "Blacklist rows (total)",
+        value: fmt(selectedHistory.blacklistDetails.totalRows),
+        delta: "—",
+        important: false,
+      },
+    ];
+
+    return [...scanRows, ...aggregateAndBlacklistRows];
+  }, [selectedHistory]);
+
+  const visibleHistoryMetricRows =
+    historyDetailsViewMode === "all"
+      ? historyMetricsRows
+      : historyDetailsViewMode === "important"
+      ? historyMetricsRows.filter((row) => row.important)
       : [];
 
   if (summary === undefined) {
@@ -705,13 +873,22 @@ export function GalaxyCountDiagnosticsSection() {
                           by {item.createdByName} ({item.createdByEmail}) • run date {item.runDate}
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(item)}
-                        className="text-xs px-2 py-1 rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
-                        Delete
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenHistoryDetails(item)}
+                          className="text-xs px-2 py-1 rounded border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
+                        >
+                          View details
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(item)}
+                          className="text-xs px-2 py-1 rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
 
                     <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-gray-700 dark:text-gray-300">
@@ -763,6 +940,120 @@ export function GalaxyCountDiagnosticsSection() {
           </div>
           <div className={`rounded-md border p-3 text-sm ${scan.missingNumericIdInGalaxies === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
             Missing numericId in galaxies: {fmt(scan.missingNumericIdInGalaxies)}
+          </div>
+        </div>
+      )}
+
+      {selectedHistory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-40 p-4">
+          <div className="w-full max-w-6xl max-h-[90vh] overflow-hidden rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl flex flex-col">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white">Historical Diagnostics Details</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                  Run date {selectedHistory.runDate} • saved {fmtDateTime(selectedHistory.createdAt)} • by {selectedHistory.createdByName} ({selectedHistory.createdByEmail})
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryDetailsId(null)}
+                className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+              >
+                Close
+              </button>
+            </div>
+
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={handleNavigateHistoryDetailsNewer}
+                disabled={selectedHistoryIndex <= 0}
+                className="inline-flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 text-sm font-medium py-2 px-3 rounded-md transition-colors disabled:opacity-50"
+              >
+                ← Newer
+              </button>
+
+              <div className="text-xs text-gray-500 dark:text-gray-400">
+                {selectedHistoryIndex >= 0 ? `Record ${selectedHistoryIndex + 1} of ${historyItems.length}` : "Record"}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleNavigateHistoryDetailsOlder}
+                disabled={historyLoadingMore && pendingMoveToOlderInModal ? true : selectedHistoryIndex < 0 || (selectedHistoryIndex >= historyItems.length - 1 && !historyNextCursor)}
+                className="inline-flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 text-sm font-medium py-2 px-3 rounded-md transition-colors disabled:opacity-50"
+              >
+                {historyLoadingMore && pendingMoveToOlderInModal ? "Loading…" : "Older →"}
+              </button>
+            </div>
+
+            <div className="p-4 overflow-y-auto space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setHistoryDetailsViewMode("folded")}
+                  className={`inline-flex items-center justify-center text-xs font-medium py-1.5 px-3 rounded-md border transition-colors ${
+                    historyDetailsViewMode === "folded"
+                      ? "bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  Folded
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoryDetailsViewMode("important")}
+                  className={`inline-flex items-center justify-center text-xs font-medium py-1.5 px-3 rounded-md border transition-colors ${
+                    historyDetailsViewMode === "important"
+                      ? "bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  Important (default)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoryDetailsViewMode("all")}
+                  className={`inline-flex items-center justify-center text-xs font-medium py-1.5 px-3 rounded-md border transition-colors ${
+                    historyDetailsViewMode === "all"
+                      ? "bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+                  }`}
+                >
+                  Unfolded (all)
+                </button>
+              </div>
+
+              {historyDetailsViewMode === "folded" ? (
+                <div className="text-sm text-gray-600 dark:text-gray-300 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4">
+                  Diagnostics table is folded.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700">
+                        <th className="text-left py-2 pr-4 font-medium text-gray-600 dark:text-gray-400">Metric</th>
+                        <th className="text-right py-2 pr-4 font-medium text-gray-600 dark:text-gray-400">Value</th>
+                        <th className="text-right py-2 font-medium text-gray-600 dark:text-gray-400">Delta</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleHistoryMetricRows.map((row, index) => (
+                        <tr
+                          key={row.key}
+                          className={index < visibleHistoryMetricRows.length - 1 ? "border-b border-gray-100 dark:border-gray-700/60" : ""}
+                        >
+                          <td className="py-2 pr-4 text-gray-900 dark:text-white">{row.label}</td>
+                          <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{row.value}</td>
+                          <td className="py-2 text-right text-gray-500 dark:text-gray-400">{row.delta}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
