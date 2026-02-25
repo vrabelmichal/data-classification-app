@@ -9,6 +9,7 @@ import { toast } from "sonner";
 export function MaintenanceModeSection() {
   const systemSettings = useQuery(api.system_settings.getSystemSettings);
   const updateSystemSettings = useMutation(api.system_settings.updateSystemSettings);
+  const disableClassificationsLabelId = "maintenance-disable-classifications-label";
 
   const disableClassifications = systemSettings?.maintenanceDisableClassifications ?? false;
 
@@ -58,6 +59,7 @@ export function MaintenanceModeSection() {
                 : "bg-gray-200 dark:bg-gray-600",
             ].join(" ")}
             aria-pressed={disableClassifications}
+            aria-labelledby={disableClassificationsLabelId}
           >
             <span
               className={[
@@ -71,7 +73,10 @@ export function MaintenanceModeSection() {
           {/* Label + description */}
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm font-semibold text-gray-900 dark:text-white">
+              <span
+                id={disableClassificationsLabelId}
+                className="text-sm font-semibold text-gray-900 dark:text-white"
+              >
                 Disable all classifications
               </span>
               {disableClassifications && (

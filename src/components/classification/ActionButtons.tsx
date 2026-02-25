@@ -26,24 +26,42 @@ export function ActionButtons({
   onPrevious,
   onNext,
 }: ActionButtonsProps) {
-  const submitDisabled = !canSubmit || formLocked || !isOnline || isMaintenanceMode;
+  const maintenanceMessageId = "submit-maintenance-message";
+  const submitDisabled = !canSubmit || formLocked || !isOnline;
+  const submitBlockedByMaintenance = isMaintenanceMode;
+  const submitUnavailable = submitDisabled || submitBlockedByMaintenance;
   const submitActive = canSubmit && !formLocked && isOnline && !isMaintenanceMode;
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      <button
-        onClick={onSubmit}
-        disabled={submitDisabled}
-        title={isMaintenanceMode ? "New classifications are temporarily disabled for maintenance" : undefined}
-        className={cn(
-          "py-3 px-4 rounded-lg font-semibold transition-colors",
-          submitActive
-            ? "bg-green-600 hover:bg-green-700 text-white"
-            : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-        )}
-      >
-        Submit
-      </button>
+    <div className="flex flex-col gap-2">
+      {isMaintenanceMode && (
+        <p
+          id={maintenanceMessageId}
+          className="text-sm text-amber-700 dark:text-amber-300"
+        >
+          New classifications are temporarily disabled for maintenance.
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-3">
+        <button
+          onClick={() => {
+            if (!submitUnavailable) {
+              onSubmit();
+            }
+          }}
+          disabled={submitDisabled}
+          aria-disabled={submitUnavailable}
+          aria-describedby={isMaintenanceMode ? maintenanceMessageId : undefined}
+          className={cn(
+            "py-3 px-4 rounded-lg font-semibold transition-colors",
+            submitActive
+              ? "bg-green-600 hover:bg-green-700 text-white"
+              : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
+          )}
+        >
+          Submit
+        </button>
       <button
         onClick={onSkip}
         disabled={formLocked || !isOnline}
@@ -82,6 +100,7 @@ export function ActionButtons({
       >
         Next
       </button>
+      </div>
     </div>
   );
 }

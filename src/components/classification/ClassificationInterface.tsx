@@ -165,7 +165,8 @@ export function ClassificationInterface() {
   const showAwesomeFlag = systemSettings?.showAwesomeFlag !== false;
   const showValidRedshift = systemSettings?.showValidRedshift !== false;
   const showVisibleNucleus = systemSettings?.showVisibleNucleus !== false;
-  const maintenanceDisableClassifications = systemSettings?.maintenanceDisableClassifications === true;
+  const settingsLoading = systemSettings === undefined;
+  const maintenanceDisableClassifications = settingsLoading || systemSettings?.maintenanceDisableClassifications === true;
 
   const formState = useClassificationForm(
     currentGalaxy,
