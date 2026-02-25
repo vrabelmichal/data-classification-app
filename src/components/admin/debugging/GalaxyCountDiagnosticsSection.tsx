@@ -2,14 +2,80 @@ import { useAction, useQuery } from "convex/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 
+type DiagnosticsTable =
+  | "galaxies"
+  | "galaxyIds"
+  | "galaxyBlacklist"
+  | "galaxies_photometry_g"
+  | "galaxies_photometry_r"
+  | "galaxies_photometry_i"
+  | "galaxies_source_extractor"
+  | "galaxies_thuruthipilly"
+  | "classifications"
+  | "skippedGalaxies"
+  | "userGalaxyClassifications";
+
+const diagnosticsTables: DiagnosticsTable[] = [
+  "galaxies",
+  "galaxyIds",
+  "galaxyBlacklist",
+  "galaxies_photometry_g",
+  "galaxies_photometry_r",
+  "galaxies_photometry_i",
+  "galaxies_source_extractor",
+  "galaxies_thuruthipilly",
+  "classifications",
+  "skippedGalaxies",
+  "userGalaxyClassifications",
+];
+
+const tableLabels: Record<DiagnosticsTable, string> = {
+  galaxies: "galaxies",
+  galaxyIds: "galaxyIds",
+  galaxyBlacklist: "galaxyBlacklist",
+  galaxies_photometry_g: "galaxies_photometry_g",
+  galaxies_photometry_r: "galaxies_photometry_r",
+  galaxies_photometry_i: "galaxies_photometry_i",
+  galaxies_source_extractor: "galaxies_source_extractor",
+  galaxies_thuruthipilly: "galaxies_thuruthipilly",
+  classifications: "classifications",
+  skippedGalaxies: "skippedGalaxies",
+  userGalaxyClassifications: "userGalaxyClassifications",
+};
+
+function createEmptyScannedByTable(): Record<DiagnosticsTable, number> {
+  return {
+    galaxies: 0,
+    galaxyIds: 0,
+    galaxyBlacklist: 0,
+    galaxies_photometry_g: 0,
+    galaxies_photometry_r: 0,
+    galaxies_photometry_i: 0,
+    galaxies_source_extractor: 0,
+    galaxies_thuruthipilly: 0,
+    classifications: 0,
+    skippedGalaxies: 0,
+    userGalaxyClassifications: 0,
+  };
+}
+
 type ScanState = {
   running: boolean;
   done: boolean;
   error: string | null;
-  scannedGalaxies: number;
-  scannedGalaxyIds: number;
+  scannedByTable: Record<DiagnosticsTable, number>;
   missingNumericIdInGalaxies: number;
-  phase: "idle" | "galaxies" | "galaxyIds" | "done";
+  phase: "idle" | DiagnosticsTable | "done";
+};
+
+type TableViewMode = "folded" | "important" | "all";
+
+type DiagnosticsMetricRow = {
+  key: string;
+  label: string;
+  value: string;
+  delta: string;
+  important: boolean;
 };
 
 function fmt(n: number | null | undefined): string {
@@ -32,11 +98,11 @@ export function GalaxyCountDiagnosticsSection() {
     running: false,
     done: false,
     error: null,
-    scannedGalaxies: 0,
-    scannedGalaxyIds: 0,
+    scannedByTable: createEmptyScannedByTable(),
     missingNumericIdInGalaxies: 0,
     phase: "idle",
   });
+  const [tableViewMode, setTableViewMode] = useState<TableViewMode>("important");
 
   const handleRun = useCallback(async () => {
     cancelRef.current = false;
@@ -44,59 +110,41 @@ export function GalaxyCountDiagnosticsSection() {
       running: true,
       done: false,
       error: null,
-      scannedGalaxies: 0,
-      scannedGalaxyIds: 0,
+      scannedByTable: createEmptyScannedByTable(),
       missingNumericIdInGalaxies: 0,
-      phase: "galaxies",
+      phase: diagnosticsTables[0],
     });
 
     try {
-      let galaxiesCursor: string | undefined = undefined;
-      let galaxyIdsCursor: string | undefined = undefined;
-      let scannedGalaxies = 0;
-      let scannedGalaxyIds = 0;
+      const scannedByTable = createEmptyScannedByTable();
       let missingNumericIdInGalaxies = 0;
 
-      while (true) {
+      for (const table of diagnosticsTables) {
         if (cancelRef.current) break;
 
-        const result = await computeBatch({
-          table: "galaxies",
-          cursor: galaxiesCursor,
-          batchSize: 5000,
-        });
+        let tableCursor: string | undefined = undefined;
+        while (!cancelRef.current) {
+          const result = await computeBatch({
+            table,
+            cursor: tableCursor,
+            batchSize: 5000,
+          });
 
-        scannedGalaxies += result.batchCount;
-        missingNumericIdInGalaxies += result.missingNumericIdInBatch ?? 0;
+          scannedByTable[table] += result.batchCount;
+          if (table === "galaxies") {
+            missingNumericIdInGalaxies += result.missingNumericIdInBatch ?? 0;
+          }
 
-        setScan((prev) => ({
-          ...prev,
-          phase: "galaxies",
-          scannedGalaxies,
-          missingNumericIdInGalaxies,
-        }));
+          setScan((prev) => ({
+            ...prev,
+            phase: table,
+            scannedByTable: { ...scannedByTable },
+            missingNumericIdInGalaxies,
+          }));
 
-        if (result.isDone || !result.nextCursor) break;
-        galaxiesCursor = result.nextCursor;
-      }
-
-      while (!cancelRef.current) {
-        const result = await computeBatch({
-          table: "galaxyIds",
-          cursor: galaxyIdsCursor,
-          batchSize: 5000,
-        });
-
-        scannedGalaxyIds += result.batchCount;
-
-        setScan((prev) => ({
-          ...prev,
-          phase: "galaxyIds",
-          scannedGalaxyIds,
-        }));
-
-        if (result.isDone || !result.nextCursor) break;
-        galaxyIdsCursor = result.nextCursor;
+          if (result.isDone || !result.nextCursor) break;
+          tableCursor = result.nextCursor;
+        }
       }
 
       setScan((prev) => ({
@@ -119,15 +167,33 @@ export function GalaxyCountDiagnosticsSection() {
   const aggregateGalaxyIds = summary?.aggregateCounts?.galaxyIdsAggregate ?? null;
   const aggregateGalaxiesById = summary?.aggregateCounts?.galaxiesById ?? null;
   const aggregateGalaxiesByNumericId = summary?.aggregateCounts?.galaxiesByNumericId ?? null;
+  const aggregateClassifications = summary?.aggregateCounts?.classificationsByCreated ?? null;
+
+  const blacklistedUnique = summary?.blacklistDetails?.uniqueExternalIds ?? 0;
+  const blacklistedPresentInGalaxies = summary?.blacklistDetails?.presentInGalaxies ?? 0;
+  const blacklistedMissingFromGalaxies = summary?.blacklistDetails?.missingFromGalaxies ?? 0;
+
+  const scannedGalaxies = scan.scannedByTable.galaxies;
+  const scannedGalaxyIds = scan.scannedByTable.galaxyIds;
+  const scannedClassifications = scan.scannedByTable.classifications;
+  const scannedUserGalaxyClassifications = scan.scannedByTable.userGalaxyClassifications;
 
   const progressEstimateTotal = useMemo(() => {
-    const estimatedGalaxies = aggregateGalaxiesById ?? 0;
-    const estimatedGalaxyIds = aggregateGalaxyIds ?? 0;
-    const sum = estimatedGalaxies + estimatedGalaxyIds;
-    return sum > 0 ? sum : null;
-  }, [aggregateGalaxiesById, aggregateGalaxyIds]);
+    const estimatedCounts = summary?.estimatedTableCounts;
+    if (!estimatedCounts) return null;
 
-  const progressCurrent = scan.scannedGalaxies + scan.scannedGalaxyIds;
+    const total = diagnosticsTables.reduce((sum, table) => {
+      const n = estimatedCounts[table];
+      return n === null || n === undefined ? sum : sum + n;
+    }, 0);
+
+    return total > 0 ? total : null;
+  }, [summary?.estimatedTableCounts]);
+
+  const progressCurrent = diagnosticsTables.reduce(
+    (sum, table) => sum + scan.scannedByTable[table],
+    0
+  );
   const progressPct =
     scan.done
       ? 100
@@ -135,16 +201,150 @@ export function GalaxyCountDiagnosticsSection() {
       ? Math.min(100, (progressCurrent / progressEstimateTotal) * 100)
       : null;
 
-  const deltaGalaxiesVsGalaxyIds =
-    scan.done ? scan.scannedGalaxies - scan.scannedGalaxyIds : null;
+  const deltaGalaxiesVsGalaxyIds = scan.done ? scannedGalaxies - scannedGalaxyIds : null;
   const deltaGalaxiesVsAggregateById =
     scan.done && aggregateGalaxiesById !== null
-      ? scan.scannedGalaxies - aggregateGalaxiesById
+      ? scannedGalaxies - aggregateGalaxiesById
       : null;
   const deltaGalaxyIdsVsAggregate =
     scan.done && aggregateGalaxyIds !== null
-      ? scan.scannedGalaxyIds - aggregateGalaxyIds
+      ? scannedGalaxyIds - aggregateGalaxyIds
       : null;
+
+  const deltaClassificationsVsAggregate =
+    scan.done && aggregateClassifications !== null
+      ? scannedClassifications - aggregateClassifications
+      : null;
+
+  const eligibleFromScan =
+    scan.done ? scannedGalaxies - blacklistedPresentInGalaxies : null;
+  const deltaEligibleScanVsAggregate =
+    scan.done && summary?.derivedCounts?.eligibleGalaxiesFromAggregate !== null
+      ? (eligibleFromScan ?? 0) - summary.derivedCounts.eligibleGalaxiesFromAggregate
+      : null;
+
+  const deltaClassificationMirror =
+    scan.done ? scannedUserGalaxyClassifications - scannedClassifications : null;
+
+  const metricsRows = useMemo<DiagnosticsMetricRow[]>(() => {
+    const importantScanTables: DiagnosticsTable[] = [
+      "galaxies",
+      "galaxyIds",
+      "classifications",
+      "userGalaxyClassifications",
+      "galaxyBlacklist",
+    ];
+
+    const additionalScanTables = diagnosticsTables.filter(
+      (table) => !importantScanTables.includes(table)
+    );
+
+    const scanRows: DiagnosticsMetricRow[] = [
+      ...importantScanTables,
+      ...additionalScanTables,
+    ].map((table) => {
+      const expected = summary?.estimatedTableCounts?.[table] ?? null;
+      const scanned = scan.scannedByTable[table];
+      const delta = scan.done && expected !== null ? scanned - expected : null;
+
+      return {
+        key: `scan_${table}`,
+        label: `Scanned ${tableLabels[table]}`,
+        value: scan.running || scan.done ? fmt(scanned) : "—",
+        delta: scan.done ? signedDelta(delta) : "—",
+        important: importantScanTables.includes(table),
+      };
+    });
+
+    const aggregateAndBlacklistRows: DiagnosticsMetricRow[] = [
+      {
+        key: "agg_galaxies_by_id",
+        label: "Aggregate galaxiesById",
+        value: fmt(aggregateGalaxiesById),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "agg_galaxy_ids",
+        label: "Aggregate galaxyIdsAggregate",
+        value: fmt(aggregateGalaxyIds),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "agg_classifications",
+        label: "Aggregate classificationsByCreated",
+        value: fmt(aggregateClassifications),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "blacklist_unique",
+        label: "Blacklist unique external IDs",
+        value: fmt(blacklistedUnique),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "blacklist_found",
+        label: "Blacklisted IDs found in galaxies",
+        value: fmt(blacklistedPresentInGalaxies),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "blacklist_missing",
+        label: "Blacklisted IDs missing from galaxies",
+        value: fmt(blacklistedMissingFromGalaxies),
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "missing_numeric_id",
+        label: "Galaxies missing numericId (scan)",
+        value: scan.done ? fmt(scan.missingNumericIdInGalaxies) : "—",
+        delta: "—",
+        important: true,
+      },
+      {
+        key: "agg_galaxies_by_numeric_id",
+        label: "Aggregate galaxiesByNumericId",
+        value: fmt(aggregateGalaxiesByNumericId),
+        delta: "—",
+        important: false,
+      },
+      {
+        key: "blacklist_total",
+        label: "Blacklist rows (total)",
+        value: fmt(summary?.blacklistedCount),
+        delta: "—",
+        important: false,
+      },
+    ];
+
+    return [...scanRows, ...aggregateAndBlacklistRows];
+  }, [
+    aggregateClassifications,
+    aggregateGalaxyIds,
+    aggregateGalaxiesById,
+    aggregateGalaxiesByNumericId,
+    blacklistedMissingFromGalaxies,
+    blacklistedPresentInGalaxies,
+    blacklistedUnique,
+    scan.done,
+    scan.missingNumericIdInGalaxies,
+    scan.running,
+    scan.scannedByTable,
+    summary?.blacklistedCount,
+    summary?.estimatedTableCounts,
+  ]);
+
+  const visibleMetricRows =
+    tableViewMode === "all"
+      ? metricsRows
+      : tableViewMode === "important"
+      ? metricsRows.filter((row) => row.important)
+      : [];
 
   if (summary === undefined) {
     return (
@@ -193,6 +393,42 @@ export function GalaxyCountDiagnosticsSection() {
         No automatic full-table reads: scans run only after clicking the button and process in 5,000-row batches.
       </p>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => setTableViewMode("folded")}
+          className={`inline-flex items-center justify-center text-xs font-medium py-1.5 px-3 rounded-md border transition-colors ${
+            tableViewMode === "folded"
+              ? "bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+          }`}
+        >
+          Folded
+        </button>
+        <button
+          type="button"
+          onClick={() => setTableViewMode("important")}
+          className={`inline-flex items-center justify-center text-xs font-medium py-1.5 px-3 rounded-md border transition-colors ${
+            tableViewMode === "important"
+              ? "bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+          }`}
+        >
+          Important (default)
+        </button>
+        <button
+          type="button"
+          onClick={() => setTableViewMode("all")}
+          className={`inline-flex items-center justify-center text-xs font-medium py-1.5 px-3 rounded-md border transition-colors ${
+            tableViewMode === "all"
+              ? "bg-gray-900 text-white border-gray-900 dark:bg-gray-100 dark:text-gray-900 dark:border-gray-100"
+              : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+          }`}
+        >
+          Unfolded (all)
+        </button>
+      </div>
+
       {(scan.running || scan.done) && (
         <div className="space-y-2">
           <div className="flex justify-between text-xs text-gray-500 dark:text-gray-400">
@@ -200,7 +436,7 @@ export function GalaxyCountDiagnosticsSection() {
               {scan.running ? "Scanning…" : "Scan complete"} phase: {scan.phase}
             </span>
             <span>
-              galaxies {fmt(scan.scannedGalaxies)} • galaxyIds {fmt(scan.scannedGalaxyIds)}
+              scanned {fmt(progressCurrent)} rows across {diagnosticsTables.length} tables
             </span>
           </div>
           <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -220,59 +456,55 @@ export function GalaxyCountDiagnosticsSection() {
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full text-sm">
-          <thead>
-            <tr className="border-b border-gray-200 dark:border-gray-700">
-              <th className="text-left py-2 pr-4 font-medium text-gray-600 dark:text-gray-400">Metric</th>
-              <th className="text-right py-2 pr-4 font-medium text-gray-600 dark:text-gray-400">Value</th>
-              <th className="text-right py-2 font-medium text-gray-600 dark:text-gray-400">Delta</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-b border-gray-100 dark:border-gray-700/60">
-              <td className="py-2 pr-4 text-gray-900 dark:text-white">Scanned galaxies table</td>
-              <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{scan.done ? fmt(scan.scannedGalaxies) : "—"}</td>
-              <td className="py-2 text-right text-gray-500 dark:text-gray-400">{scan.done ? signedDelta(deltaGalaxiesVsAggregateById) : "—"}</td>
-            </tr>
-            <tr className="border-b border-gray-100 dark:border-gray-700/60">
-              <td className="py-2 pr-4 text-gray-900 dark:text-white">Scanned galaxyIds table</td>
-              <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{scan.done ? fmt(scan.scannedGalaxyIds) : "—"}</td>
-              <td className="py-2 text-right text-gray-500 dark:text-gray-400">{scan.done ? signedDelta(deltaGalaxyIdsVsAggregate) : "—"}</td>
-            </tr>
-            <tr className="border-b border-gray-100 dark:border-gray-700/60">
-              <td className="py-2 pr-4 text-gray-900 dark:text-white">Aggregate galaxiesById</td>
-              <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{fmt(aggregateGalaxiesById)}</td>
-              <td className="py-2 text-right text-gray-500 dark:text-gray-400">—</td>
-            </tr>
-            <tr className="border-b border-gray-100 dark:border-gray-700/60">
-              <td className="py-2 pr-4 text-gray-900 dark:text-white">Aggregate galaxiesByNumericId</td>
-              <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{fmt(aggregateGalaxiesByNumericId)}</td>
-              <td className="py-2 text-right text-gray-500 dark:text-gray-400">—</td>
-            </tr>
-            <tr className="border-b border-gray-100 dark:border-gray-700/60">
-              <td className="py-2 pr-4 text-gray-900 dark:text-white">Aggregate galaxyIdsAggregate</td>
-              <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{fmt(aggregateGalaxyIds)}</td>
-              <td className="py-2 text-right text-gray-500 dark:text-gray-400">—</td>
-            </tr>
-            <tr className="border-b border-gray-100 dark:border-gray-700/60">
-              <td className="py-2 pr-4 text-gray-900 dark:text-white">Blacklisted galaxies</td>
-              <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{fmt(summary.blacklistedCount)}</td>
-              <td className="py-2 text-right text-gray-500 dark:text-gray-400">—</td>
-            </tr>
-            <tr>
-              <td className="py-2 pr-4 text-gray-900 dark:text-white">Galaxies missing numericId (scan)</td>
-              <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{scan.done ? fmt(scan.missingNumericIdInGalaxies) : "—"}</td>
-              <td className="py-2 text-right text-gray-500 dark:text-gray-400">—</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {tableViewMode === "folded" ? (
+        <div className="text-sm text-gray-600 dark:text-gray-300 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4">
+          Diagnostics table is folded.
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 dark:border-gray-700">
+                <th className="text-left py-2 pr-4 font-medium text-gray-600 dark:text-gray-400">Metric</th>
+                <th className="text-right py-2 pr-4 font-medium text-gray-600 dark:text-gray-400">Value</th>
+                <th className="text-right py-2 font-medium text-gray-600 dark:text-gray-400">Delta</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleMetricRows.map((row, index) => (
+                <tr
+                  key={row.key}
+                  className={index < visibleMetricRows.length - 1 ? "border-b border-gray-100 dark:border-gray-700/60" : ""}
+                >
+                  <td className="py-2 pr-4 text-gray-900 dark:text-white">{row.label}</td>
+                  <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{row.value}</td>
+                  <td className="py-2 text-right text-gray-500 dark:text-gray-400">{row.delta}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {scan.done && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div className={`rounded-md border p-3 text-sm ${deltaGalaxiesVsGalaxyIds === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
             galaxies table vs galaxyIds table: {signedDelta(deltaGalaxiesVsGalaxyIds)}
+          </div>
+          <div className={`rounded-md border p-3 text-sm ${deltaGalaxiesVsAggregateById === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+            galaxies scan vs galaxiesById aggregate: {signedDelta(deltaGalaxiesVsAggregateById)}
+          </div>
+          <div className={`rounded-md border p-3 text-sm ${deltaGalaxyIdsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+            galaxyIds scan vs aggregate: {signedDelta(deltaGalaxyIdsVsAggregate)}
+          </div>
+          <div className={`rounded-md border p-3 text-sm ${deltaClassificationsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+            classifications scan vs aggregate: {signedDelta(deltaClassificationsVsAggregate)}
+          </div>
+          <div className={`rounded-md border p-3 text-sm ${deltaClassificationMirror === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+            userGalaxyClassifications vs classifications: {signedDelta(deltaClassificationMirror)}
+          </div>
+          <div className={`rounded-md border p-3 text-sm ${deltaEligibleScanVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+            eligible galaxies (scan minus blacklist-in-galaxies) vs derived aggregate: {signedDelta(deltaEligibleScanVsAggregate)}
           </div>
           <div className={`rounded-md border p-3 text-sm ${scan.missingNumericIdInGalaxies === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
             Missing numericId in galaxies: {fmt(scan.missingNumericIdInGalaxies)}
