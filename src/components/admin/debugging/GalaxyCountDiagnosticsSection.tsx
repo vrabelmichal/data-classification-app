@@ -92,6 +92,8 @@ type RepairState = {
   type: RepairType | null;
   running: boolean;
   done: boolean;
+  cancelled: boolean;
+  cancelRequested: boolean;
   error: string | null;
   processed: number;
 };
@@ -135,6 +137,7 @@ export function GalaxyCountDiagnosticsSection() {
   const saveDiagnosticsResult = useMutation(api.galaxies.countDiagnostics.saveGalaxyCountDiagnosticsResult);
   const deleteDiagnosticsRecord = useMutation(api.galaxies.countDiagnostics.deleteGalaxyCountDiagnosticsHistoryRecord);
   const cancelRef = useRef(false);
+  const repairCancelRef = useRef(false);
 
   const [scan, setScan] = useState<ScanState>({
     running: false,
@@ -173,6 +176,8 @@ export function GalaxyCountDiagnosticsSection() {
     type: null,
     running: false,
     done: false,
+    cancelled: false,
+    cancelRequested: false,
     error: null,
     processed: 0,
   });
@@ -342,6 +347,11 @@ export function GalaxyCountDiagnosticsSection() {
     setScan((prev) => ({ ...prev, running: false }));
   }, []);
 
+  const handleRepairCancel = useCallback(() => {
+    repairCancelRef.current = true;
+    setRepairState((prev) => ({ ...prev, cancelRequested: true }));
+  }, []);
+
   const handleLoadMoreHistory = useCallback(() => {
     if (!historyNextCursor || historyLoadingMore) return;
     setHistoryLoadingMore(true);
@@ -398,7 +408,8 @@ export function GalaxyCountDiagnosticsSection() {
 
   const handleRepair = useCallback(
     async (type: RepairType): Promise<void> => {
-      setRepairState({ type, running: true, done: false, error: null, processed: 0 });
+      repairCancelRef.current = false;
+      setRepairState({ type, running: true, done: false, cancelled: false, cancelRequested: false, error: null, processed: 0 });
       const MAX_ITERATIONS = 10000;
       try {
         let processed = 0;
@@ -407,6 +418,7 @@ export function GalaxyCountDiagnosticsSection() {
           let cursor: string | undefined = undefined;
           let startNumericId = BigInt(1);
           for (let i = 0; i < MAX_ITERATIONS; i++) {
+            if (repairCancelRef.current) break;
             const r = await rebuildGalaxyIdsTableMutation({ cursor, startNumericId }) as {
               processed: number; isDone: boolean; cursor: string | null; nextStartNumericId: bigint;
             };
@@ -419,6 +431,7 @@ export function GalaxyCountDiagnosticsSection() {
         } else if (type === "galaxy_aggregates") {
           let cursor: string | undefined = undefined;
           for (let i = 0; i < MAX_ITERATIONS; i++) {
+            if (repairCancelRef.current) break;
             const r = await rebuildGalaxyAggregatesMutation({ cursor }) as {
               processed: number; isDone: boolean; continueCursor: string | null;
             };
@@ -430,6 +443,7 @@ export function GalaxyCountDiagnosticsSection() {
         } else if (type === "galaxyIds_aggregate") {
           let cursor: string | undefined = undefined;
           for (let i = 0; i < MAX_ITERATIONS; i++) {
+            if (repairCancelRef.current) break;
             const r = await rebuildGalaxyIdsAggregateMutation({ cursor }) as {
               processed: number; isDone: boolean; continueCursor: string | null;
             };
@@ -441,6 +455,7 @@ export function GalaxyCountDiagnosticsSection() {
         } else if (type === "classification_aggregates") {
           let cursor: string | undefined = undefined;
           for (let i = 0; i < MAX_ITERATIONS; i++) {
+            if (repairCancelRef.current) break;
             const r = await rebuildClassificationAggregatesMutation({ cursor }) as {
               processed: number; isDone: boolean; continueCursor: string | null;
             };
@@ -452,6 +467,7 @@ export function GalaxyCountDiagnosticsSection() {
         } else if (type === "numeric_id") {
           let cursor: string | undefined = undefined;
           for (let i = 0; i < MAX_ITERATIONS; i++) {
+            if (repairCancelRef.current) break;
             const r = await fillGalaxyNumericIdMutation({ cursor }) as {
               updated: number; isDone: boolean; cursor: string | null;
             };
@@ -462,10 +478,11 @@ export function GalaxyCountDiagnosticsSection() {
           }
         }
 
-        setRepairState({ type, running: false, done: true, error: null, processed });
+        const wasCancelled = repairCancelRef.current;
+        setRepairState({ type, running: false, done: !wasCancelled, cancelled: wasCancelled, cancelRequested: false, error: null, processed });
       } catch (err) {
         const msg = (err as Error)?.message ?? "Unknown error";
-        setRepairState((prev) => ({ ...prev, running: false, error: msg }));
+        setRepairState((prev) => ({ ...prev, running: false, cancelRequested: false, error: msg }));
       }
     },
     [
@@ -1063,12 +1080,17 @@ export function GalaxyCountDiagnosticsSection() {
         <div className="space-y-3">
           {repairState.running && (
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-700 dark:text-blue-300">
-              Repair running ({repairState.type?.replace(/_/g, " ")})… {repairState.processed.toLocaleString()} processed
+              Repair running ({repairState.type?.replace(/_/g, " ")})… {repairState.processed.toLocaleString()} processed{repairState.cancelRequested ? " — stopping after this batch…" : ""}
             </div>
           )}
           {repairState.done && !repairState.running && !repairState.error && (
             <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg text-sm text-green-700 dark:text-green-300">
               Repair complete ({repairState.type?.replace(/_/g, " ")}). {repairState.processed.toLocaleString()} records processed. Re-run the count scan to verify.
+            </div>
+          )}
+          {repairState.cancelled && !repairState.running && !repairState.error && (
+            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg text-sm text-amber-700 dark:text-amber-300">
+              Repair stopped ({repairState.type?.replace(/_/g, " ")}). {repairState.processed.toLocaleString()} records processed so far. Re-run the count scan to verify the current state.
             </div>
           )}
           {repairState.error && (
@@ -1087,16 +1109,31 @@ export function GalaxyCountDiagnosticsSection() {
                     Cause: the <code>galaxyIds</code> lookup table is out of sync with <code>galaxies</code>. This happens when galaxies are added or deleted without a corresponding <code>galaxyIds</code> update.
                   </p>
                   <p className="text-xs opacity-80 font-medium">Fix: Rebuild the <code>galaxyIds</code> table from <code>galaxies</code>.</p>
-                  <button
-                    type="button"
-                    disabled={repairState.running}
-                    onClick={() => void handleRepair("galaxyIds_table")}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
-                  >
-                    {repairState.running && repairState.type === "galaxyIds_table" ? (
-                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding…</>
-                    ) : "Rebuild galaxyIds table"}
-                  </button>
+                  <p className="text-xs font-semibold text-amber-800 dark:text-amber-300">
+                    ⚠️ Galaxy sequence assignment and ingest will be unavailable during rebuilding (the table is fully deleted before reconstruction). Classification submission is unaffected.
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={repairState.running}
+                      onClick={() => void handleRepair("galaxyIds_table")}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                    >
+                      {repairState.running && repairState.type === "galaxyIds_table" ? (
+                        <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding… ({repairState.processed.toLocaleString()} processed)</>
+                      ) : "Rebuild galaxyIds table"}
+                    </button>
+                    {repairState.running && repairState.type === "galaxyIds_table" && (
+                      <button
+                        type="button"
+                        onClick={handleRepairCancel}
+                        disabled={repairState.cancelRequested}
+                        className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-700 text-white disabled:opacity-50 transition-colors"
+                      >
+                        {repairState.cancelRequested ? "Stopping…" : "Stop"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1110,16 +1147,31 @@ export function GalaxyCountDiagnosticsSection() {
                     Cause: the <code>galaxiesById</code> TableAggregate has drifted from the actual <code>galaxies</code> table count (e.g., galaxy inserts or deletes occurred without updating the aggregate).
                   </p>
                   <p className="text-xs opacity-80 font-medium">Fix: Rebuild all galaxy aggregates.</p>
-                  <button
-                    type="button"
-                    disabled={repairState.running}
-                    onClick={() => void handleRepair("galaxy_aggregates")}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
-                  >
-                    {repairState.running && repairState.type === "galaxy_aggregates" ? (
-                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding…</>
-                    ) : "Rebuild galaxy aggregates"}
-                  </button>
+                  <p className="text-xs font-semibold text-red-700 dark:text-red-400">
+                    ⛔ Run only when no users are actively labeling — clears aggregates before rebuilding; a concurrent classification will stall the rebuild with a duplicate-key error.
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={repairState.running}
+                      onClick={() => void handleRepair("galaxy_aggregates")}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                    >
+                      {repairState.running && repairState.type === "galaxy_aggregates" ? (
+                        <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding… ({repairState.processed.toLocaleString()} processed)</>
+                      ) : "Rebuild galaxy aggregates"}
+                    </button>
+                    {repairState.running && repairState.type === "galaxy_aggregates" && (
+                      <button
+                        type="button"
+                        onClick={handleRepairCancel}
+                        disabled={repairState.cancelRequested}
+                        className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-700 text-white disabled:opacity-50 transition-colors"
+                      >
+                        {repairState.cancelRequested ? "Stopping…" : "Stop"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1133,16 +1185,28 @@ export function GalaxyCountDiagnosticsSection() {
                     Cause: the <code>galaxyIdsAggregate</code> is out of sync with the <code>galaxyIds</code> table. This happens if the aggregate was cleared but not rebuilt, or was not updated during ingest.
                   </p>
                   <p className="text-xs opacity-80 font-medium">Fix: Rebuild the galaxyIds aggregate.</p>
-                  <button
-                    type="button"
-                    disabled={repairState.running}
-                    onClick={() => void handleRepair("galaxyIds_aggregate")}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
-                  >
-                    {repairState.running && repairState.type === "galaxyIds_aggregate" ? (
-                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding…</>
-                    ) : "Rebuild galaxyIds aggregate"}
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={repairState.running}
+                      onClick={() => void handleRepair("galaxyIds_aggregate")}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                    >
+                      {repairState.running && repairState.type === "galaxyIds_aggregate" ? (
+                        <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding… ({repairState.processed.toLocaleString()} processed)</>
+                      ) : "Rebuild galaxyIds aggregate"}
+                    </button>
+                    {repairState.running && repairState.type === "galaxyIds_aggregate" && (
+                      <button
+                        type="button"
+                        onClick={handleRepairCancel}
+                        disabled={repairState.cancelRequested}
+                        className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-700 text-white disabled:opacity-50 transition-colors"
+                      >
+                        {repairState.cancelRequested ? "Stopping…" : "Stop"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1156,16 +1220,31 @@ export function GalaxyCountDiagnosticsSection() {
                     Cause: the <code>classificationsByCreated</code> aggregate is out of sync with the <code>classifications</code> table count. Classifications may have been inserted or deleted without updating the aggregate.
                   </p>
                   <p className="text-xs opacity-80 font-medium">Fix: Rebuild the classification aggregates.</p>
-                  <button
-                    type="button"
-                    disabled={repairState.running}
-                    onClick={() => void handleRepair("classification_aggregates")}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
-                  >
-                    {repairState.running && repairState.type === "classification_aggregates" ? (
-                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding…</>
-                    ) : "Rebuild classification aggregates"}
-                  </button>
+                  <p className="text-xs font-semibold text-red-700 dark:text-red-400">
+                    ⛔ Run only when no users are actively labeling — clears aggregates before rebuilding; a concurrent classification will stall the rebuild with a duplicate-key error.
+                  </p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={repairState.running}
+                      onClick={() => void handleRepair("classification_aggregates")}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                    >
+                      {repairState.running && repairState.type === "classification_aggregates" ? (
+                        <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding… ({repairState.processed.toLocaleString()} processed)</>
+                      ) : "Rebuild classification aggregates"}
+                    </button>
+                    {repairState.running && repairState.type === "classification_aggregates" && (
+                      <button
+                        type="button"
+                        onClick={handleRepairCancel}
+                        disabled={repairState.cancelRequested}
+                        className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-700 text-white disabled:opacity-50 transition-colors"
+                      >
+                        {repairState.cancelRequested ? "Stopping…" : "Stop"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -1203,16 +1282,28 @@ export function GalaxyCountDiagnosticsSection() {
                     Cause: galaxies were ingested before the <code>numericId</code> field was introduced, or <code>fillGalaxyNumericId</code> was not run after ingest.
                   </p>
                   <p className="text-xs opacity-80 font-medium">Fix: Fill missing numericId values for all galaxies.</p>
-                  <button
-                    type="button"
-                    disabled={repairState.running}
-                    onClick={() => void handleRepair("numeric_id")}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
-                  >
-                    {repairState.running && repairState.type === "numeric_id" ? (
-                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Filling…</>
-                    ) : "Fill missing numericIds"}
-                  </button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      disabled={repairState.running}
+                      onClick={() => void handleRepair("numeric_id")}
+                      className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                    >
+                      {repairState.running && repairState.type === "numeric_id" ? (
+                        <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Filling… ({repairState.processed.toLocaleString()} processed)</>
+                      ) : "Fill missing numericIds"}
+                    </button>
+                    {repairState.running && repairState.type === "numeric_id" && (
+                      <button
+                        type="button"
+                        onClick={handleRepairCancel}
+                        disabled={repairState.cancelRequested}
+                        className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1.5 rounded-md bg-gray-600 hover:bg-gray-700 text-white disabled:opacity-50 transition-colors"
+                      >
+                        {repairState.cancelRequested ? "Stopping…" : "Stop"}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
