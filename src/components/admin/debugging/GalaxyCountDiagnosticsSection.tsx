@@ -666,6 +666,36 @@ export function GalaxyCountDiagnosticsSection() {
       ? historyMetricsRows.filter((row) => row.important)
       : [];
 
+  const historyDeltaGalaxiesVsGalaxyIds = selectedHistory
+    ? (selectedHistory.tableScanCounts.galaxies ?? 0) - (selectedHistory.tableScanCounts.galaxyIds ?? 0)
+    : null;
+
+  const historyDeltaGalaxiesVsAggregateById = selectedHistory
+    ? (selectedHistory.tableScanCounts.galaxies ?? 0) - (selectedHistory.aggregateCounts.galaxiesById ?? 0)
+    : null;
+
+  const historyDeltaGalaxyIdsVsAggregate = selectedHistory
+    ? (selectedHistory.tableScanCounts.galaxyIds ?? 0) - (selectedHistory.aggregateCounts.galaxyIdsAggregate ?? 0)
+    : null;
+
+  const historyDeltaClassificationsVsAggregate = selectedHistory
+    ? (selectedHistory.tableScanCounts.classifications ?? 0) - (selectedHistory.aggregateCounts.classificationsByCreated ?? 0)
+    : null;
+
+  const historyDeltaClassificationMirror = selectedHistory
+    ? (selectedHistory.tableScanCounts.userGalaxyClassifications ?? 0) -
+      (selectedHistory.tableScanCounts.classifications ?? 0)
+    : null;
+
+  const historyEligibleFromScan = selectedHistory
+    ? (selectedHistory.tableScanCounts.galaxies ?? 0) - selectedHistory.blacklistDetails.presentInGalaxies
+    : null;
+
+  const historyDeltaEligibleScanVsAggregate = selectedHistory
+    ? (historyEligibleFromScan ?? 0) -
+      (selectedHistory.derivedCounts.eligibleGalaxiesFromAggregate ?? 0)
+    : null;
+
   if (summary === undefined) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -1053,6 +1083,30 @@ export function GalaxyCountDiagnosticsSection() {
                   </table>
                 </div>
               )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className={`rounded-md border p-3 text-sm ${historyDeltaGalaxiesVsGalaxyIds === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+                  galaxies table vs galaxyIds table: {signedDelta(historyDeltaGalaxiesVsGalaxyIds)}
+                </div>
+                <div className={`rounded-md border p-3 text-sm ${historyDeltaGalaxiesVsAggregateById === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+                  galaxies scan vs galaxiesById aggregate: {signedDelta(historyDeltaGalaxiesVsAggregateById)}
+                </div>
+                <div className={`rounded-md border p-3 text-sm ${historyDeltaGalaxyIdsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+                  galaxyIds scan vs aggregate: {signedDelta(historyDeltaGalaxyIdsVsAggregate)}
+                </div>
+                <div className={`rounded-md border p-3 text-sm ${historyDeltaClassificationsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+                  classifications scan vs aggregate: {signedDelta(historyDeltaClassificationsVsAggregate)}
+                </div>
+                <div className={`rounded-md border p-3 text-sm ${historyDeltaClassificationMirror === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+                  userGalaxyClassifications vs classifications: {signedDelta(historyDeltaClassificationMirror)}
+                </div>
+                <div className={`rounded-md border p-3 text-sm ${historyDeltaEligibleScanVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+                  eligible galaxies (scan minus blacklist-in-galaxies) vs derived aggregate: {signedDelta(historyDeltaEligibleScanVsAggregate)}
+                </div>
+                <div className={`rounded-md border p-3 text-sm ${selectedHistory.missingNumericIdInGalaxies === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+                  Missing numericId in galaxies: {fmt(selectedHistory.missingNumericIdInGalaxies)}
+                </div>
+              </div>
             </div>
           </div>
         </div>
