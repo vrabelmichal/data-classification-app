@@ -421,7 +421,7 @@ export function GalaxyCountDiagnosticsSection() {
   const eligibleFromScan =
     scan.done ? scannedGalaxies - blacklistedPresentInGalaxies : null;
   const deltaEligibleScanVsAggregate =
-    scan.done && summary?.derivedCounts?.eligibleGalaxiesFromAggregate !== null
+    scan.done && summary && summary.derivedCounts?.eligibleGalaxiesFromAggregate !== null
       ? (eligibleFromScan ?? 0) - summary.derivedCounts.eligibleGalaxiesFromAggregate
       : null;
 
