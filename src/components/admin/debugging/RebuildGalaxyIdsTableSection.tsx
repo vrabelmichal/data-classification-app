@@ -54,6 +54,21 @@ export function RebuildGalaxyIdsTableSection() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <h2 className="text-lg font-semibold text-orange-600 dark:text-orange-400 mb-4">🔨 Rebuild Galaxy IDs Table</h2>
+
+      <div className="flex items-start gap-2 p-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg">
+        <span className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">⚠️</span>
+        <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
+          <p className="font-semibold">Galaxy sequence assignment will be unavailable during this operation.</p>
+          <p>
+            The entire <code>galaxyIds</code> table is deleted on the first batch, then rebuilt
+            across multiple subsequent mutation calls. During that window, ingest existence checks
+            and galaxy sequence assignment will find no entries and fail. Individual classification
+            submission is unaffected (it queries <code>galaxies</code> directly).
+          </p>
+          <p>Run when no new galaxy sequences are being generated and no ingest is in progress.</p>
+        </div>
+      </div>
+
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
         Rebuild galaxyIds table from galaxies table. Clears the table first, then rebuilds with sequential numericIds. Processes in batches of 200 to avoid timeouts and will continue until all galaxies are processed.
       </p>

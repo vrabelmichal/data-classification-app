@@ -74,6 +74,22 @@ export function BackfillClassificationAggregatesSection() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <h2 className="text-lg font-semibold text-blue-700 dark:text-blue-400 mb-3">📚 Backfill Classification Aggregates (Full)</h2>
+
+      <div className="flex items-start gap-2 p-3 mb-3 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
+        <span className="text-red-600 dark:text-red-400 shrink-0 mt-0.5">⛔</span>
+        <div className="text-xs text-red-700 dark:text-red-300 space-y-1">
+          <p className="font-semibold">Do not run while users are actively labeling.</p>
+          <p>
+            This operation clears all classification aggregates (awesome, visible nucleus, failed
+            fitting, valid redshift, LSB, morphology, created-at) before rebuilding them. If a user
+            submits a classification during the clear → rebuild window, it is inserted into the
+            empty aggregate. When the rebuild batch reaches that same record it tries to insert
+            again — <strong>causing a duplicate-key error that fails the entire rebuild batch</strong>,
+            stalling the repair until you restart from scratch.
+          </p>
+        </div>
+      </div>
+
       <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
         Clears and rebuilds all classification aggregates, including the created-at timeline. Use this when data was bulk-imported
         or you suspect aggregate drift.

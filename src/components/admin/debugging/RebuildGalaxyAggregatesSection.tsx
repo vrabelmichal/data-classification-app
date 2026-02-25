@@ -75,6 +75,24 @@ export function RebuildGalaxyAggregatesSection() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <h2 className="text-lg font-semibold text-indigo-600 dark:text-indigo-400 mb-4">🔨 Rebuild Galaxy Aggregates</h2>
+
+      <div className="flex items-start gap-2 p-3 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
+        <span className="text-red-600 dark:text-red-400 shrink-0 mt-0.5">⛔</span>
+        <div className="text-xs text-red-700 dark:text-red-300 space-y-1">
+          <p className="font-semibold">Do not run while users are actively labeling.</p>
+          <p>
+            This operation wipes all galaxy aggregates (including{" "}
+            <code>galaxiesByTotalClassifications</code>,{" "}
+            <code>galaxiesByNumAwesomeFlag</code>, <code>galaxiesByNumVisibleNucleus</code>) before
+            rebuilding them across multiple batches. If a user submits a classification during that
+            gap, their entry is inserted into the now-empty aggregate. When the rebuild batch later
+            reaches that galaxy it attempts a second insert — causing a{" "}
+            <strong>duplicate-key error that fails and retries the entire batch indefinitely</strong>,
+            stalling the repair until you restart it from scratch.
+          </p>
+        </div>
+      </div>
+
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
         Rebuild galaxy aggregates from scratch. Clears existing aggregates first, then rebuilds in batches of 20 to avoid timeouts and will continue until all galaxies are processed.
       </p>

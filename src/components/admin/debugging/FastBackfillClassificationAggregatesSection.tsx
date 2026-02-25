@@ -74,6 +74,21 @@ export function FastBackfillClassificationAggregatesSection() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <h2 className="text-lg font-semibold text-green-700 dark:text-green-400 mb-3">⚡ Fast Backfill Classification Aggregates</h2>
+
+      <div className="flex items-start gap-2 p-3 mb-3 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
+        <span className="text-red-600 dark:text-red-400 shrink-0 mt-0.5">⛔</span>
+        <div className="text-xs text-red-700 dark:text-red-300 space-y-1">
+          <p className="font-semibold">Do not run while users are actively labeling.</p>
+          <p>
+            Despite the "fast" name, this still clears the boolean/enum classification aggregates
+            before rebuilding them. A classification submitted during the clear → rebuild window
+            will be inserted into the empty aggregate; the rebuild will then hit a{" "}
+            <strong>duplicate-key error on that record and fail the entire batch</strong>, stalling
+            indefinitely until you restart from scratch.
+          </p>
+        </div>
+      </div>
+
       <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
         Rebuilds boolean and enum classification aggregates without touching the created-at timeline. Best when you need quick recovery
         after small data fixes.

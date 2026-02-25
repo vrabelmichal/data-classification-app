@@ -62,6 +62,25 @@ export function LabelingAggregatesSection() {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
       <h2 className="text-lg font-semibold text-emerald-600 dark:text-emerald-400 mb-3">📊 Labeling Aggregates</h2>
+
+      <div className="flex items-start gap-2 p-3 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
+        <span className="text-red-600 dark:text-red-400 shrink-0 mt-0.5">⛔</span>
+        <div className="text-xs text-red-700 dark:text-red-300 space-y-1">
+          <p className="font-semibold">Do not clear or rebuild while users are actively labeling.</p>
+          <p>
+            <strong>Clear:</strong> Immediately wipes all classification and user-profile aggregate
+            entries. Any classification submitted after the clear inserts a fresh entry. If a rebuild
+            is then started, it will hit a <strong>duplicate-key error</strong> for every galaxy
+            touched since the clear, failing the entire rebuild batch and stalling indefinitely.
+          </p>
+          <p>
+            <strong>Rebuild classification aggregates:</strong> Also clears all classification
+            aggregates before rebuilding. Same duplicate-key risk if a classification arrives during
+            the clear → rebuild window.
+          </p>
+        </div>
+      </div>
+
       <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
         Manage aggregates used for the labeling overview (classification totals and active user activity). Use clear before a rebuild if data changed out-of-band.
       </p>
