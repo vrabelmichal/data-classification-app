@@ -1,19 +1,10 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, lazy, Suspense } from "react";
 import { useAction, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { usePageTitle } from "../../../hooks/usePageTitle";
 import { GalaxiesPerPaperWidget } from "./GalaxiesPerPaperWidget";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
-  ReferenceLine,
-} from "recharts";
+
+const AssignmentDistributionChart = lazy(() => import("./AssignmentDistributionChart.tsx"));
 
 // ---------------------------------------------------------------------------
 // Types
@@ -90,24 +81,6 @@ function calcStats(histogram: Histogram, targetN: number, seqSize: number, extra
     seqSizeNeeded,
     coveredPct,
   };
-}
-
-// ---------------------------------------------------------------------------
-// Custom tooltip for recharts
-// ---------------------------------------------------------------------------
-
-function CustomTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-3 shadow-lg text-sm">
-      <p className="font-semibold text-gray-900 dark:text-white mb-1">
-        Assigned {label} time{label !== 1 ? "s" : ""}
-      </p>
-      <p className="text-blue-600 dark:text-blue-400">
-        {fmt(payload[0].value)} galaxies
-      </p>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -656,53 +629,18 @@ export function AssignmentStatsPage() {
               <span className="inline-block w-3 h-3 rounded-sm bg-green-500 mr-1 align-middle" />
               At or above target
             </p>
-            <ResponsiveContainer width="100%" height={320}>
-              <BarChart
-                data={chartData}
-                margin={{ top: 8, right: 16, left: 8, bottom: 8 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="assignments"
-                  label={{
-                    value: "Times assigned",
-                    position: "insideBottom",
-                    offset: -2,
-                    style: { fontSize: 12, fill: "#6b7280" },
-                  }}
-                  tick={{ fontSize: 12 }}
-                />
-                <YAxis
-                  tickFormatter={(v: number) =>
-                    v >= 1_000_000
-                      ? `${(v / 1_000_000).toFixed(1)}M`
-                      : v >= 1_000
-                      ? `${(v / 1_000).toFixed(0)}k`
-                      : String(v)
-                  }
-                  tick={{ fontSize: 12 }}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <ReferenceLine
-                  x={targetN}
-                  stroke="#6366f1"
-                  strokeDasharray="6 3"
-                  label={{
-                    value: `Target: ${targetN}`,
-                    position: "insideTopRight",
-                    style: { fontSize: 11, fill: "#6366f1" },
-                  }}
-                />
-                <Bar dataKey="galaxies" radius={[3, 3, 0, 0]}>
-                  {chartData.map((entry) => (
-                    <Cell
-                      key={`cell-${entry.assignments}`}
-                      fill={barColor(entry.assignments)}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <Suspense
+              fallback={
+                <div className="w-full h-80 rounded-md bg-gray-100 dark:bg-gray-700/40 animate-pulse" />
+              }
+            >
+              <AssignmentDistributionChart
+                chartData={chartData}
+                targetN={targetN}
+                barColor={barColor}
+                fmt={fmt}
+              />
+            </Suspense>
           </div>
 
           {/* Interactive calculator */}
