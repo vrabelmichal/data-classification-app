@@ -1,6 +1,7 @@
-import { useAction, useQuery } from "convex/react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useAction, useMutation, useQuery } from "convex/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 type DiagnosticsTable =
   | "galaxies"
@@ -78,6 +79,26 @@ type DiagnosticsMetricRow = {
   important: boolean;
 };
 
+type SaveStatus = "idle" | "saving" | "saved" | "error";
+
+type DiagnosticsHistoryItem = {
+  _id: Id<"galaxyCountDiagnosticsHistory">;
+  createdAt: number;
+  runDate: string;
+  createdByName: string;
+  createdByEmail: string;
+  tableScanCounts: Record<string, number>;
+  missingNumericIdInGalaxies: number;
+  aggregateCounts: Record<string, number | null>;
+  blacklistDetails: {
+    totalRows: number;
+    uniqueExternalIds: number;
+    presentInGalaxies: number;
+    missingFromGalaxies: number;
+  };
+  derivedCounts: Record<string, number | null>;
+};
+
 function fmt(n: number | null | undefined): string {
   if (n === null || n === undefined) return "N/A";
   return n.toLocaleString();
@@ -89,9 +110,15 @@ function signedDelta(value: number | null): string {
   return value > 0 ? `+${value.toLocaleString()}` : value.toLocaleString();
 }
 
+function fmtDateTime(ts: number): string {
+  return new Date(ts).toLocaleString();
+}
+
 export function GalaxyCountDiagnosticsSection() {
   const summary = useQuery(api.galaxies.countDiagnostics.getGalaxyCountDiagnosticsSummary);
   const computeBatch = useAction(api.galaxies.countDiagnostics.computeCountDiagnosticsBatch);
+  const saveDiagnosticsResult = useMutation(api.galaxies.countDiagnostics.saveGalaxyCountDiagnosticsResult);
+  const deleteDiagnosticsRecord = useMutation(api.galaxies.countDiagnostics.deleteGalaxyCountDiagnosticsHistoryRecord);
   const cancelRef = useRef(false);
 
   const [scan, setScan] = useState<ScanState>({
@@ -104,8 +131,69 @@ export function GalaxyCountDiagnosticsSection() {
   });
   const [tableViewMode, setTableViewMode] = useState<TableViewMode>("important");
 
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [historyDateFilter, setHistoryDateFilter] = useState("");
+  const [historyCursor, setHistoryCursor] = useState<string | undefined>(undefined);
+  const [historyItems, setHistoryItems] = useState<DiagnosticsHistoryItem[]>([]);
+  const [historyNextCursor, setHistoryNextCursor] = useState<string | null>(null);
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false);
+
+  const [deleteTarget, setDeleteTarget] = useState<DiagnosticsHistoryItem | null>(null);
+  const [deleteInProgress, setDeleteInProgress] = useState(false);
+
+  const historyResult = useQuery(
+    api.galaxies.countDiagnostics.getGalaxyCountDiagnosticsHistory,
+    historyExpanded
+      ? {
+          runDate: historyDateFilter || undefined,
+          limit: 10,
+          cursor: historyCursor,
+        }
+      : "skip"
+  );
+
+  useEffect(() => {
+    if (!historyExpanded) {
+      setHistoryCursor(undefined);
+      setHistoryItems([]);
+      setHistoryNextCursor(null);
+      setHistoryLoadingMore(false);
+      return;
+    }
+
+    setHistoryCursor(undefined);
+    setHistoryItems([]);
+    setHistoryNextCursor(null);
+    setHistoryLoadingMore(false);
+  }, [historyExpanded, historyDateFilter]);
+
+  useEffect(() => {
+    if (!historyExpanded || !historyResult) return;
+
+    setHistoryNextCursor(historyResult.nextCursor ?? null);
+    setHistoryLoadingMore(false);
+
+    setHistoryItems((prev) => {
+      if (!historyCursor) {
+        return historyResult.items as DiagnosticsHistoryItem[];
+      }
+
+      const existingIds = new Set(prev.map((item) => item._id));
+      const nextItems = (historyResult.items as DiagnosticsHistoryItem[]).filter(
+        (item) => !existingIds.has(item._id)
+      );
+      if (nextItems.length === 0) return prev;
+      return [...prev, ...nextItems];
+    });
+  }, [historyCursor, historyExpanded, historyResult]);
+
   const handleRun = useCallback(async () => {
     cancelRef.current = false;
+    setSaveStatus("idle");
+    setSaveMessage(null);
     setScan({
       running: true,
       done: false,
@@ -147,6 +235,47 @@ export function GalaxyCountDiagnosticsSection() {
         }
       }
 
+      if (!cancelRef.current) {
+        setSaveStatus("saving");
+        setSaveMessage("Saving diagnostics snapshot…");
+
+        try {
+          await saveDiagnosticsResult({
+            tableScanCounts: scannedByTable,
+            missingNumericIdInGalaxies,
+            aggregateCounts: {
+              galaxyIdsAggregate: summary?.aggregateCounts?.galaxyIdsAggregate ?? null,
+              galaxiesById: summary?.aggregateCounts?.galaxiesById ?? null,
+              galaxiesByNumericId: summary?.aggregateCounts?.galaxiesByNumericId ?? null,
+              classificationsByCreated: summary?.aggregateCounts?.classificationsByCreated ?? null,
+            },
+            blacklistDetails: {
+              totalRows: summary?.blacklistedCount ?? 0,
+              uniqueExternalIds: summary?.blacklistDetails?.uniqueExternalIds ?? 0,
+              presentInGalaxies: summary?.blacklistDetails?.presentInGalaxies ?? 0,
+              missingFromGalaxies: summary?.blacklistDetails?.missingFromGalaxies ?? 0,
+            },
+            derivedCounts: {
+              eligibleGalaxiesFromAggregate:
+                summary?.derivedCounts?.eligibleGalaxiesFromAggregate ?? null,
+              eligibleGalaxyIdsFromAggregate:
+                summary?.derivedCounts?.eligibleGalaxyIdsFromAggregate ?? null,
+            },
+          });
+
+          setSaveStatus("saved");
+          setSaveMessage("Diagnostics snapshot saved.");
+
+          if (historyExpanded) {
+            setHistoryCursor(undefined);
+          }
+        } catch (saveErr) {
+          const msg = (saveErr as Error)?.message ?? "Failed to save diagnostics snapshot";
+          setSaveStatus("error");
+          setSaveMessage(msg);
+        }
+      }
+
       setScan((prev) => ({
         ...prev,
         running: false,
@@ -156,13 +285,36 @@ export function GalaxyCountDiagnosticsSection() {
     } catch (err) {
       const msg = (err as Error)?.message ?? "Unknown error";
       setScan((prev) => ({ ...prev, running: false, error: msg }));
+      setSaveStatus("error");
+      setSaveMessage("Scan failed; no snapshot saved.");
     }
-  }, [computeBatch]);
+  }, [computeBatch, historyExpanded, saveDiagnosticsResult, summary]);
 
   const handleCancel = useCallback(() => {
     cancelRef.current = true;
     setScan((prev) => ({ ...prev, running: false }));
   }, []);
+
+  const handleLoadMoreHistory = useCallback(() => {
+    if (!historyNextCursor || historyLoadingMore) return;
+    setHistoryLoadingMore(true);
+    setHistoryCursor(historyNextCursor);
+  }, [historyLoadingMore, historyNextCursor]);
+
+  const handleConfirmDeleteHistory = useCallback(async () => {
+    if (!deleteTarget || deleteInProgress) return;
+
+    setDeleteInProgress(true);
+    try {
+      await deleteDiagnosticsRecord({ historyId: deleteTarget._id });
+      setHistoryItems((prev) => prev.filter((item) => item._id !== deleteTarget._id));
+      setDeleteTarget(null);
+    } catch {
+      // Keep modal open so user can retry or cancel.
+    } finally {
+      setDeleteInProgress(false);
+    }
+  }, [deleteDiagnosticsRecord, deleteInProgress, deleteTarget]);
 
   const aggregateGalaxyIds = summary?.aggregateCounts?.galaxyIdsAggregate ?? null;
   const aggregateGalaxiesById = summary?.aggregateCounts?.galaxiesById ?? null;
@@ -456,6 +608,20 @@ export function GalaxyCountDiagnosticsSection() {
         </div>
       )}
 
+      {saveMessage && (
+        <div
+          className={`p-3 rounded-lg border text-sm ${
+            saveStatus === "saved"
+              ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300"
+              : saveStatus === "saving"
+              ? "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300"
+              : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"
+          }`}
+        >
+          {saveMessage}
+        </div>
+      )}
+
       {tableViewMode === "folded" ? (
         <div className="text-sm text-gray-600 dark:text-gray-300 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-4">
           Diagnostics table is folded.
@@ -486,6 +652,95 @@ export function GalaxyCountDiagnosticsSection() {
         </div>
       )}
 
+      <div className="border border-gray-200 dark:border-gray-700 rounded-lg">
+        <button
+          type="button"
+          onClick={() => setHistoryExpanded((prev) => !prev)}
+          className="w-full flex items-center justify-between px-4 py-2 text-left"
+        >
+          <span className="text-sm font-medium text-gray-900 dark:text-white">Older analysis results</span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">{historyExpanded ? "Hide" : "Show"}</span>
+        </button>
+
+        {historyExpanded && (
+          <div className="px-4 pb-4 pt-2 space-y-3 border-t border-gray-200 dark:border-gray-700">
+            <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-col">
+                <label className="text-xs text-gray-500 dark:text-gray-400 mb-1">Filter by date</label>
+                <input
+                  type="date"
+                  value={historyDateFilter}
+                  onChange={(e) => setHistoryDateFilter(e.target.value)}
+                  className="h-9 px-3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryDateFilter("")}
+                className="h-9 px-3 rounded-md border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-200"
+              >
+                Clear
+              </button>
+            </div>
+
+            {!historyResult && (
+              <div className="text-sm text-gray-500 dark:text-gray-400">Loading history…</div>
+            )}
+
+            {historyResult && historyItems.length === 0 && (
+              <div className="text-sm text-gray-500 dark:text-gray-400">No stored diagnostics runs for this filter.</div>
+            )}
+
+            {historyItems.length > 0 && (
+              <div className="space-y-2">
+                {historyItems.map((item) => (
+                  <div
+                    key={item._id}
+                    className="rounded-md border border-gray-200 dark:border-gray-700 p-3 text-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="font-medium text-gray-900 dark:text-white">{fmtDateTime(item.createdAt)}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                          by {item.createdByName} ({item.createdByEmail}) • run date {item.runDate}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(item)}
+                        className="text-xs px-2 py-1 rounded border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      >
+                        Delete
+                      </button>
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-xs text-gray-700 dark:text-gray-300">
+                      <div>galaxies: {fmt(item.tableScanCounts.galaxies)}</div>
+                      <div>galaxyIds: {fmt(item.tableScanCounts.galaxyIds)}</div>
+                      <div>classifications: {fmt(item.tableScanCounts.classifications)}</div>
+                      <div>missing numericId: {fmt(item.missingNumericIdInGalaxies)}</div>
+                      <div>blacklist unique: {fmt(item.blacklistDetails.uniqueExternalIds)}</div>
+                      <div>eligible galaxies: {fmt(item.derivedCounts.eligibleGalaxiesFromAggregate ?? null)}</div>
+                    </div>
+                  </div>
+                ))}
+
+                {historyNextCursor && (
+                  <button
+                    type="button"
+                    onClick={handleLoadMoreHistory}
+                    disabled={historyLoadingMore}
+                    className="inline-flex items-center justify-center bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-gray-100 text-sm font-medium py-2 px-3 rounded-md transition-colors disabled:opacity-50"
+                  >
+                    {historyLoadingMore ? "Loading…" : "Load older"}
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       {scan.done && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <div className={`rounded-md border p-3 text-sm ${deltaGalaxiesVsGalaxyIds === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
@@ -508,6 +763,37 @@ export function GalaxyCountDiagnosticsSection() {
           </div>
           <div className={`rounded-md border p-3 text-sm ${scan.missingNumericIdInGalaxies === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
             Missing numericId in galaxies: {fmt(scan.missingNumericIdInGalaxies)}
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="w-full max-w-md rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-xl">
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Delete stored result?</h3>
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                This will permanently remove the diagnostics record from {fmtDateTime(deleteTarget.createdAt)}.
+              </p>
+            </div>
+            <div className="p-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleteInProgress}
+                className="px-3 py-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleConfirmDeleteHistory()}
+                disabled={deleteInProgress}
+                className="px-3 py-2 text-sm rounded-md bg-red-600 hover:bg-red-700 text-white disabled:opacity-50"
+              >
+                {deleteInProgress ? "Deleting…" : "Delete"}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -372,6 +372,25 @@ const applicationTables = {
     .index("by_galaxy", ["galaxyExternalId"])
     .index("by_added_at", ["addedAt"]),
 
+  // Persisted results of admin galaxy count diagnostics scans
+  galaxyCountDiagnosticsHistory: defineTable({
+    createdAt: v.number(), // Timestamp when the diagnostics snapshot was stored
+    runDate: v.string(), // UTC date key YYYY-MM-DD for efficient date filtering
+    createdBy: v.id("users"), // Admin who triggered/saved the run
+    tableScanCounts: v.record(v.string(), v.number()),
+    missingNumericIdInGalaxies: v.number(),
+    aggregateCounts: v.record(v.string(), v.union(v.number(), v.null())),
+    blacklistDetails: v.object({
+      totalRows: v.number(),
+      uniqueExternalIds: v.number(),
+      presentInGalaxies: v.number(),
+      missingFromGalaxies: v.number(),
+    }),
+    derivedCounts: v.record(v.string(), v.union(v.number(), v.null())),
+  })
+    .index("by_created_at", ["createdAt"])
+    .index("by_run_date_created_at", ["runDate", "createdAt"]),
+
   // Notifications - messages sent from admins to users
   notifications: defineTable({
     title: v.string(),

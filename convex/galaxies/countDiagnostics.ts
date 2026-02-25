@@ -1,6 +1,7 @@
-import { action, internalQuery, query } from "../_generated/server";
+import { action, internalQuery, mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { api, internal } from "../_generated/api";
+import { requireAdmin } from "../lib/auth";
 import {
   classificationsByCreated,
   galaxiesById,
@@ -368,5 +369,93 @@ export const computeCountDiagnosticsBatch = action({
     );
 
     return result;
+  },
+});
+
+export const saveGalaxyCountDiagnosticsResult = mutation({
+  args: {
+    tableScanCounts: v.record(v.string(), v.number()),
+    missingNumericIdInGalaxies: v.number(),
+    aggregateCounts: v.record(v.string(), v.union(v.number(), v.null())),
+    blacklistDetails: v.object({
+      totalRows: v.number(),
+      uniqueExternalIds: v.number(),
+      presentInGalaxies: v.number(),
+      missingFromGalaxies: v.number(),
+    }),
+    derivedCounts: v.record(v.string(), v.union(v.number(), v.null())),
+  },
+  handler: async (ctx, args) => {
+    const { userId } = await requireAdmin(ctx);
+
+    const now = Date.now();
+    const runDate = new Date(now).toISOString().slice(0, 10);
+
+    const savedId = await ctx.db.insert("galaxyCountDiagnosticsHistory", {
+      createdAt: now,
+      runDate,
+      createdBy: userId,
+      tableScanCounts: args.tableScanCounts,
+      missingNumericIdInGalaxies: args.missingNumericIdInGalaxies,
+      aggregateCounts: args.aggregateCounts,
+      blacklistDetails: args.blacklistDetails,
+      derivedCounts: args.derivedCounts,
+    });
+
+    return { savedId };
+  },
+});
+
+export const getGalaxyCountDiagnosticsHistory = query({
+  args: {
+    runDate: v.optional(v.string()),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    const limit = Math.max(1, Math.min(args.limit ?? 10, 50));
+    const cursor = args.cursor ?? null;
+
+    const result = args.runDate
+      ? await ctx.db
+          .query("galaxyCountDiagnosticsHistory")
+          .withIndex("by_run_date_created_at", (q) => q.eq("runDate", args.runDate!))
+          .order("desc")
+          .paginate({ numItems: limit, cursor })
+      : await ctx.db
+          .query("galaxyCountDiagnosticsHistory")
+          .withIndex("by_created_at")
+          .order("desc")
+          .paginate({ numItems: limit, cursor });
+
+    const items = await Promise.all(
+      result.page.map(async (row) => {
+        const createdByUser = await ctx.db.get(row.createdBy);
+        return {
+          ...row,
+          createdByEmail: createdByUser?.email ?? "Unknown",
+          createdByName: createdByUser?.name ?? createdByUser?.email ?? "Unknown",
+        };
+      })
+    );
+
+    return {
+      items,
+      isDone: result.isDone,
+      nextCursor: result.isDone ? null : result.continueCursor,
+    };
+  },
+});
+
+export const deleteGalaxyCountDiagnosticsHistoryRecord = mutation({
+  args: {
+    historyId: v.id("galaxyCountDiagnosticsHistory"),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+    await ctx.db.delete(args.historyId);
+    return { success: true };
   },
 });
