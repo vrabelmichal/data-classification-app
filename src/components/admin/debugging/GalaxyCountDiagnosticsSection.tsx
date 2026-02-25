@@ -81,6 +81,21 @@ type DiagnosticsMetricRow = {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
+type RepairType =
+  | "galaxyIds_table"
+  | "galaxy_aggregates"
+  | "galaxyIds_aggregate"
+  | "classification_aggregates"
+  | "numeric_id";
+
+type RepairState = {
+  type: RepairType | null;
+  running: boolean;
+  done: boolean;
+  error: string | null;
+  processed: number;
+};
+
 type DiagnosticsHistoryItem = {
   _id: Id<"galaxyCountDiagnosticsHistory">;
   createdAt: number;
@@ -146,6 +161,21 @@ export function GalaxyCountDiagnosticsSection() {
 
   const [deleteTarget, setDeleteTarget] = useState<DiagnosticsHistoryItem | null>(null);
   const [deleteInProgress, setDeleteInProgress] = useState(false);
+
+  // Repair mutations
+  const rebuildGalaxyAggregatesMutation = useMutation(api.galaxies.aggregates.rebuildGalaxyAggregates);
+  const rebuildGalaxyIdsAggregateMutation = useMutation(api.galaxies.aggregates.rebuildGalaxyIdsAggregate);
+  const rebuildClassificationAggregatesMutation = useMutation(api.galaxies.aggregates.rebuildClassificationAggregates);
+  const rebuildGalaxyIdsTableMutation = useMutation(api.galaxies.maintenance.rebuildGalaxyIdsTable);
+  const fillGalaxyNumericIdMutation = useMutation(api.galaxies.maintenance.fillGalaxyNumericId);
+
+  const [repairState, setRepairState] = useState<RepairState>({
+    type: null,
+    running: false,
+    done: false,
+    error: null,
+    processed: 0,
+  });
 
   const historyResult = useQuery(
     api.galaxies.countDiagnostics.getGalaxyCountDiagnosticsHistory,
@@ -365,6 +395,87 @@ export function GalaxyCountDiagnosticsSection() {
       setDeleteInProgress(false);
     }
   }, [deleteDiagnosticsRecord, deleteInProgress, deleteTarget]);
+
+  const handleRepair = useCallback(
+    async (type: RepairType): Promise<void> => {
+      setRepairState({ type, running: true, done: false, error: null, processed: 0 });
+      const MAX_ITERATIONS = 10000;
+      try {
+        let processed = 0;
+
+        if (type === "galaxyIds_table") {
+          let cursor: string | undefined = undefined;
+          let startNumericId = BigInt(1);
+          for (let i = 0; i < MAX_ITERATIONS; i++) {
+            const r = await rebuildGalaxyIdsTableMutation({ cursor, startNumericId }) as {
+              processed: number; isDone: boolean; cursor: string | null; nextStartNumericId: bigint;
+            };
+            processed += r.processed;
+            setRepairState((prev) => ({ ...prev, processed }));
+            if (r.isDone) break;
+            cursor = r.cursor || undefined;
+            startNumericId = r.nextStartNumericId;
+          }
+        } else if (type === "galaxy_aggregates") {
+          let cursor: string | undefined = undefined;
+          for (let i = 0; i < MAX_ITERATIONS; i++) {
+            const r = await rebuildGalaxyAggregatesMutation({ cursor }) as {
+              processed: number; isDone: boolean; continueCursor: string | null;
+            };
+            processed += r.processed;
+            setRepairState((prev) => ({ ...prev, processed }));
+            if (r.isDone) break;
+            cursor = r.continueCursor || undefined;
+          }
+        } else if (type === "galaxyIds_aggregate") {
+          let cursor: string | undefined = undefined;
+          for (let i = 0; i < MAX_ITERATIONS; i++) {
+            const r = await rebuildGalaxyIdsAggregateMutation({ cursor }) as {
+              processed: number; isDone: boolean; continueCursor: string | null;
+            };
+            processed += r.processed;
+            setRepairState((prev) => ({ ...prev, processed }));
+            if (r.isDone) break;
+            cursor = r.continueCursor || undefined;
+          }
+        } else if (type === "classification_aggregates") {
+          let cursor: string | undefined = undefined;
+          for (let i = 0; i < MAX_ITERATIONS; i++) {
+            const r = await rebuildClassificationAggregatesMutation({ cursor }) as {
+              processed: number; isDone: boolean; continueCursor: string | null;
+            };
+            processed += r.processed;
+            setRepairState((prev) => ({ ...prev, processed }));
+            if (r.isDone) break;
+            cursor = r.continueCursor || undefined;
+          }
+        } else if (type === "numeric_id") {
+          let cursor: string | undefined = undefined;
+          for (let i = 0; i < MAX_ITERATIONS; i++) {
+            const r = await fillGalaxyNumericIdMutation({ cursor }) as {
+              updated: number; isDone: boolean; cursor: string | null;
+            };
+            processed += r.updated;
+            setRepairState((prev) => ({ ...prev, processed }));
+            if (r.isDone || r.updated === 0) break;
+            cursor = r.cursor || undefined;
+          }
+        }
+
+        setRepairState({ type, running: false, done: true, error: null, processed });
+      } catch (err) {
+        const msg = (err as Error)?.message ?? "Unknown error";
+        setRepairState((prev) => ({ ...prev, running: false, error: msg }));
+      }
+    },
+    [
+      fillGalaxyNumericIdMutation,
+      rebuildClassificationAggregatesMutation,
+      rebuildGalaxyAggregatesMutation,
+      rebuildGalaxyIdsAggregateMutation,
+      rebuildGalaxyIdsTableMutation,
+    ]
+  );
 
   const aggregateGalaxyIds = summary?.aggregateCounts?.galaxyIdsAggregate ?? null;
   const aggregateGalaxiesById = summary?.aggregateCounts?.galaxiesById ?? null;
@@ -949,27 +1060,162 @@ export function GalaxyCountDiagnosticsSection() {
       </div>
 
       {scan.done && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <div className={`rounded-md border p-3 text-sm ${deltaGalaxiesVsGalaxyIds === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-            galaxies table vs galaxyIds table: {signedDelta(deltaGalaxiesVsGalaxyIds)}
-          </div>
-          <div className={`rounded-md border p-3 text-sm ${deltaGalaxiesVsAggregateById === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-            galaxies scan vs galaxiesById aggregate: {signedDelta(deltaGalaxiesVsAggregateById)}
-          </div>
-          <div className={`rounded-md border p-3 text-sm ${deltaGalaxyIdsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-            galaxyIds scan vs aggregate: {signedDelta(deltaGalaxyIdsVsAggregate)}
-          </div>
-          <div className={`rounded-md border p-3 text-sm ${deltaClassificationsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-            classifications scan vs aggregate: {signedDelta(deltaClassificationsVsAggregate)}
-          </div>
-          <div className={`rounded-md border p-3 text-sm ${deltaClassificationMirror === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-            userGalaxyClassifications vs classifications: {signedDelta(deltaClassificationMirror)}
-          </div>
-          <div className={`rounded-md border p-3 text-sm ${deltaEligibleScanVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-            eligible galaxies (scan minus blacklist-in-galaxies) vs derived aggregate: {signedDelta(deltaEligibleScanVsAggregate)}
-          </div>
-          <div className={`rounded-md border p-3 text-sm ${scan.missingNumericIdInGalaxies === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-            Missing numericId in galaxies: {fmt(scan.missingNumericIdInGalaxies)}
+        <div className="space-y-3">
+          {repairState.running && (
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+              Repair running ({repairState.type?.replace(/_/g, " ")})… {repairState.processed.toLocaleString()} processed
+            </div>
+          )}
+          {repairState.done && !repairState.running && !repairState.error && (
+            <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg text-sm text-green-700 dark:text-green-300">
+              Repair complete ({repairState.type?.replace(/_/g, " ")}). {repairState.processed.toLocaleString()} records processed. Re-run the count scan to verify.
+            </div>
+          )}
+          {repairState.error && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg text-sm text-red-700 dark:text-red-300">
+              Repair error: {repairState.error}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {/* galaxies vs galaxyIds */}
+            <div className={`rounded-md border p-3 text-sm ${deltaGalaxiesVsGalaxyIds === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+              <div className="font-medium">galaxies table vs galaxyIds table: {signedDelta(deltaGalaxiesVsGalaxyIds)}</div>
+              {deltaGalaxiesVsGalaxyIds !== 0 && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs opacity-80">
+                    Cause: the <code>galaxyIds</code> lookup table is out of sync with <code>galaxies</code>. This happens when galaxies are added or deleted without a corresponding <code>galaxyIds</code> update.
+                  </p>
+                  <p className="text-xs opacity-80 font-medium">Fix: Rebuild the <code>galaxyIds</code> table from <code>galaxies</code>.</p>
+                  <button
+                    type="button"
+                    disabled={repairState.running}
+                    onClick={() => void handleRepair("galaxyIds_table")}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                  >
+                    {repairState.running && repairState.type === "galaxyIds_table" ? (
+                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding…</>
+                    ) : "Rebuild galaxyIds table"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* galaxies vs galaxiesById aggregate */}
+            <div className={`rounded-md border p-3 text-sm ${deltaGalaxiesVsAggregateById === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+              <div className="font-medium">galaxies scan vs galaxiesById aggregate: {signedDelta(deltaGalaxiesVsAggregateById)}</div>
+              {deltaGalaxiesVsAggregateById !== 0 && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs opacity-80">
+                    Cause: the <code>galaxiesById</code> TableAggregate has drifted from the actual <code>galaxies</code> table count (e.g., galaxy inserts or deletes occurred without updating the aggregate).
+                  </p>
+                  <p className="text-xs opacity-80 font-medium">Fix: Rebuild all galaxy aggregates.</p>
+                  <button
+                    type="button"
+                    disabled={repairState.running}
+                    onClick={() => void handleRepair("galaxy_aggregates")}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                  >
+                    {repairState.running && repairState.type === "galaxy_aggregates" ? (
+                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding…</>
+                    ) : "Rebuild galaxy aggregates"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* galaxyIds scan vs aggregate */}
+            <div className={`rounded-md border p-3 text-sm ${deltaGalaxyIdsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+              <div className="font-medium">galaxyIds scan vs aggregate: {signedDelta(deltaGalaxyIdsVsAggregate)}</div>
+              {deltaGalaxyIdsVsAggregate !== 0 && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs opacity-80">
+                    Cause: the <code>galaxyIdsAggregate</code> is out of sync with the <code>galaxyIds</code> table. This happens if the aggregate was cleared but not rebuilt, or was not updated during ingest.
+                  </p>
+                  <p className="text-xs opacity-80 font-medium">Fix: Rebuild the galaxyIds aggregate.</p>
+                  <button
+                    type="button"
+                    disabled={repairState.running}
+                    onClick={() => void handleRepair("galaxyIds_aggregate")}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                  >
+                    {repairState.running && repairState.type === "galaxyIds_aggregate" ? (
+                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding…</>
+                    ) : "Rebuild galaxyIds aggregate"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* classifications scan vs aggregate */}
+            <div className={`rounded-md border p-3 text-sm ${deltaClassificationsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+              <div className="font-medium">classifications scan vs aggregate: {signedDelta(deltaClassificationsVsAggregate)}</div>
+              {deltaClassificationsVsAggregate !== 0 && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs opacity-80">
+                    Cause: the <code>classificationsByCreated</code> aggregate is out of sync with the <code>classifications</code> table count. Classifications may have been inserted or deleted without updating the aggregate.
+                  </p>
+                  <p className="text-xs opacity-80 font-medium">Fix: Rebuild the classification aggregates.</p>
+                  <button
+                    type="button"
+                    disabled={repairState.running}
+                    onClick={() => void handleRepair("classification_aggregates")}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                  >
+                    {repairState.running && repairState.type === "classification_aggregates" ? (
+                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Rebuilding…</>
+                    ) : "Rebuild classification aggregates"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* userGalaxyClassifications vs classifications mirror */}
+            <div className={`rounded-md border p-3 text-sm ${deltaClassificationMirror === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+              <div className="font-medium">userGalaxyClassifications vs classifications: {signedDelta(deltaClassificationMirror)}</div>
+              {deltaClassificationMirror !== 0 && (
+                <div className="mt-2">
+                  <p className="text-xs opacity-80">
+                    Cause: <code>userGalaxyClassifications</code> and <code>classifications</code> should be mirror tables (one entry per classification). A discrepancy indicates orphaned records in one of the tables. There is no automated repair — manual investigation is required.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* eligible galaxies scan vs derived aggregate */}
+            <div className={`rounded-md border p-3 text-sm ${deltaEligibleScanVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+              <div className="font-medium">eligible galaxies (scan − blacklisted) vs derived aggregate: {signedDelta(deltaEligibleScanVsAggregate)}</div>
+              {deltaEligibleScanVsAggregate !== 0 && (
+                <div className="mt-2">
+                  <p className="text-xs opacity-80">
+                    Cause: the derived eligible count from the aggregate differs from the scan. This is typically a consequence of the <code>galaxiesById</code> aggregate being out of sync. Rebuilding galaxy aggregates (see above) should resolve this.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Missing numericId */}
+            <div className={`rounded-md border p-3 text-sm ${scan.missingNumericIdInGalaxies === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
+              <div className="font-medium">Missing numericId in galaxies: {fmt(scan.missingNumericIdInGalaxies)}</div>
+              {scan.missingNumericIdInGalaxies > 0 && (
+                <div className="mt-2 space-y-2">
+                  <p className="text-xs opacity-80">
+                    Cause: galaxies were ingested before the <code>numericId</code> field was introduced, or <code>fillGalaxyNumericId</code> was not run after ingest.
+                  </p>
+                  <p className="text-xs opacity-80 font-medium">Fix: Fill missing numericId values for all galaxies.</p>
+                  <button
+                    type="button"
+                    disabled={repairState.running}
+                    onClick={() => void handleRepair("numeric_id")}
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-amber-700 hover:bg-amber-800 text-white disabled:opacity-50 transition-colors"
+                  >
+                    {repairState.running && repairState.type === "numeric_id" ? (
+                      <><span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" /> Filling…</>
+                    ) : "Fill missing numericIds"}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -1085,26 +1331,74 @@ export function GalaxyCountDiagnosticsSection() {
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* galaxies vs galaxyIds */}
                 <div className={`rounded-md border p-3 text-sm ${historyDeltaGalaxiesVsGalaxyIds === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-                  galaxies table vs galaxyIds table: {signedDelta(historyDeltaGalaxiesVsGalaxyIds)}
+                  <div className="font-medium">galaxies table vs galaxyIds table: {signedDelta(historyDeltaGalaxiesVsGalaxyIds)}</div>
+                  {historyDeltaGalaxiesVsGalaxyIds !== 0 && (
+                    <p className="mt-1.5 text-xs opacity-80 italic">
+                      At the time of this record, the <code>galaxyIds</code> table was out of sync. The suggested fix would have been to rebuild the <code>galaxyIds</code> table from <code>galaxies</code>. <span className="font-medium">(Historical record — this issue may no longer exist.)</span>
+                    </p>
+                  )}
                 </div>
+
+                {/* galaxies vs galaxiesById aggregate */}
                 <div className={`rounded-md border p-3 text-sm ${historyDeltaGalaxiesVsAggregateById === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-                  galaxies scan vs galaxiesById aggregate: {signedDelta(historyDeltaGalaxiesVsAggregateById)}
+                  <div className="font-medium">galaxies scan vs galaxiesById aggregate: {signedDelta(historyDeltaGalaxiesVsAggregateById)}</div>
+                  {historyDeltaGalaxiesVsAggregateById !== 0 && (
+                    <p className="mt-1.5 text-xs opacity-80 italic">
+                      At the time of this record, the <code>galaxiesById</code> aggregate had drifted from the table. The suggested fix would have been to rebuild all galaxy aggregates. <span className="font-medium">(Historical record — this issue may no longer exist.)</span>
+                    </p>
+                  )}
                 </div>
+
+                {/* galaxyIds scan vs aggregate */}
                 <div className={`rounded-md border p-3 text-sm ${historyDeltaGalaxyIdsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-                  galaxyIds scan vs aggregate: {signedDelta(historyDeltaGalaxyIdsVsAggregate)}
+                  <div className="font-medium">galaxyIds scan vs aggregate: {signedDelta(historyDeltaGalaxyIdsVsAggregate)}</div>
+                  {historyDeltaGalaxyIdsVsAggregate !== 0 && (
+                    <p className="mt-1.5 text-xs opacity-80 italic">
+                      At the time of this record, the <code>galaxyIdsAggregate</code> was out of sync with the <code>galaxyIds</code> table. The suggested fix would have been to rebuild the galaxyIds aggregate. <span className="font-medium">(Historical record — this issue may no longer exist.)</span>
+                    </p>
+                  )}
                 </div>
+
+                {/* classifications scan vs aggregate */}
                 <div className={`rounded-md border p-3 text-sm ${historyDeltaClassificationsVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-                  classifications scan vs aggregate: {signedDelta(historyDeltaClassificationsVsAggregate)}
+                  <div className="font-medium">classifications scan vs aggregate: {signedDelta(historyDeltaClassificationsVsAggregate)}</div>
+                  {historyDeltaClassificationsVsAggregate !== 0 && (
+                    <p className="mt-1.5 text-xs opacity-80 italic">
+                      At the time of this record, the <code>classificationsByCreated</code> aggregate was out of sync. The suggested fix would have been to rebuild the classification aggregates. <span className="font-medium">(Historical record — this issue may no longer exist.)</span>
+                    </p>
+                  )}
                 </div>
+
+                {/* userGalaxyClassifications mirror */}
                 <div className={`rounded-md border p-3 text-sm ${historyDeltaClassificationMirror === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-                  userGalaxyClassifications vs classifications: {signedDelta(historyDeltaClassificationMirror)}
+                  <div className="font-medium">userGalaxyClassifications vs classifications: {signedDelta(historyDeltaClassificationMirror)}</div>
+                  {historyDeltaClassificationMirror !== 0 && (
+                    <p className="mt-1.5 text-xs opacity-80 italic">
+                      At the time of this record, these mirror tables were out of sync, indicating orphaned records. No automated fix was available — manual investigation would have been required. <span className="font-medium">(Historical record — this issue may no longer exist.)</span>
+                    </p>
+                  )}
                 </div>
+
+                {/* eligible galaxies vs derived aggregate */}
                 <div className={`rounded-md border p-3 text-sm ${historyDeltaEligibleScanVsAggregate === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-                  eligible galaxies (scan minus blacklist-in-galaxies) vs derived aggregate: {signedDelta(historyDeltaEligibleScanVsAggregate)}
+                  <div className="font-medium">eligible galaxies (scan − blacklisted) vs derived aggregate: {signedDelta(historyDeltaEligibleScanVsAggregate)}</div>
+                  {historyDeltaEligibleScanVsAggregate !== 0 && (
+                    <p className="mt-1.5 text-xs opacity-80 italic">
+                      At the time of this record, the derived eligible count from the aggregate differed from the scan. This is typically a consequence of the <code>galaxiesById</code> aggregate being out of sync. <span className="font-medium">(Historical record — this issue may no longer exist.)</span>
+                    </p>
+                  )}
                 </div>
+
+                {/* Missing numericId */}
                 <div className={`rounded-md border p-3 text-sm ${selectedHistory.missingNumericIdInGalaxies === 0 ? "bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700 text-green-700 dark:text-green-300" : "bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-300"}`}>
-                  Missing numericId in galaxies: {fmt(selectedHistory.missingNumericIdInGalaxies)}
+                  <div className="font-medium">Missing numericId in galaxies: {fmt(selectedHistory.missingNumericIdInGalaxies)}</div>
+                  {selectedHistory.missingNumericIdInGalaxies > 0 && (
+                    <p className="mt-1.5 text-xs opacity-80 italic">
+                      At the time of this record, some galaxies were missing <code>numericId</code> (ingested before the field was introduced). The suggested fix would have been to run <code>fillGalaxyNumericId</code>. <span className="font-medium">(Historical record — this issue may no longer exist.)</span>
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
