@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
@@ -40,6 +40,11 @@ type ColumnKey =
   | "failedFitting"
   | "skipped"
   | "remaining";
+
+type SortDirection = "asc" | "desc";
+
+const STORAGE_VISIBLE_COLUMNS_KEY = "usersStats.visibleColumns.v1";
+const STORAGE_SORT_KEY = "usersStats.sort.v1";
 
 const columns: Array<{ key: ColumnKey; label: string; defaultVisible: boolean }> = [
   { key: "user", label: "User", defaultVisible: true },
@@ -106,9 +111,95 @@ function getColumnValue(row: Row, key: ColumnKey): string {
   }
 }
 
+function getSortValue(row: Row, key: ColumnKey): number | string {
+  switch (key) {
+    case "user":
+      return (row.name || row.email || row.userId).toLowerCase();
+    case "labels":
+      return row.classificationsCount;
+    case "assigned":
+      return row.assignedGalaxies;
+    case "completed":
+      return row.completedInSequence;
+    case "completion":
+      return row.completionPercent;
+    case "lastActive":
+      return row.lastActiveAt ?? 0;
+    case "active":
+      return row.isActive ? 1 : 0;
+    case "role":
+      return row.role;
+    case "joined":
+      return row.joinedAt;
+    case "awesome":
+      return row.awesomeCount;
+    case "visibleNucleus":
+      return row.visibleNucleusCount;
+    case "validRedshift":
+      return row.validRedshiftCount;
+    case "failedFitting":
+      return row.failedFittingCount;
+    case "skipped":
+      return row.skippedInSequence;
+    case "remaining":
+      return row.remainingInSequence;
+    default:
+      return 0;
+  }
+}
+
 export function UsersStatisticsTab() {
   const rows = useQuery(api.users.getUsersStatisticsOverview) as Row[] | undefined;
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(defaultVisibility);
+  const [sortKey, setSortKey] = useState<ColumnKey>("labels");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [isSettingsHydrated, setIsSettingsHydrated] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const rawColumns = window.localStorage.getItem(STORAGE_VISIBLE_COLUMNS_KEY);
+      if (rawColumns) {
+        const parsed = JSON.parse(rawColumns) as Partial<Record<ColumnKey, boolean>>;
+        const safeVisibleColumns = { ...defaultVisibility };
+        for (const column of columns) {
+          if (typeof parsed[column.key] === "boolean") {
+            safeVisibleColumns[column.key] = parsed[column.key] as boolean;
+          }
+        }
+        setVisibleColumns(safeVisibleColumns);
+      }
+
+      const rawSort = window.localStorage.getItem(STORAGE_SORT_KEY);
+      if (rawSort) {
+        const parsed = JSON.parse(rawSort) as { key?: string; direction?: string };
+        if (parsed.key && columns.some((column) => column.key === parsed.key)) {
+          setSortKey(parsed.key as ColumnKey);
+        }
+        if (parsed.direction === "asc" || parsed.direction === "desc") {
+          setSortDirection(parsed.direction);
+        }
+      }
+    } catch {
+      // Ignore malformed saved view settings
+    }
+
+    setIsSettingsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !isSettingsHydrated) return;
+    window.localStorage.setItem(STORAGE_VISIBLE_COLUMNS_KEY, JSON.stringify(visibleColumns));
+  }, [isSettingsHydrated, visibleColumns]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !isSettingsHydrated) return;
+    window.localStorage.setItem(
+      STORAGE_SORT_KEY,
+      JSON.stringify({ key: sortKey, direction: sortDirection })
+    );
+  }, [isSettingsHydrated, sortDirection, sortKey]);
 
   const summary = useMemo(() => {
     if (!rows || rows.length === 0) {
@@ -140,6 +231,29 @@ export function UsersStatisticsTab() {
       avgCompletion,
     };
   }, [rows]);
+
+  const sortedRows = useMemo(() => {
+    if (!rows) return [];
+
+    const directionMultiplier = sortDirection === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const aValue = getSortValue(a, sortKey);
+      const bValue = getSortValue(b, sortKey);
+
+      if (typeof aValue === "string" && typeof bValue === "string") {
+        const primary = aValue.localeCompare(bValue) * directionMultiplier;
+        if (primary !== 0) return primary;
+      } else {
+        const primary = ((Number(aValue) - Number(bValue)) || 0) * directionMultiplier;
+        if (primary !== 0) return primary;
+      }
+
+      const labelsTieBreak = b.classificationsCount - a.classificationsCount;
+      if (labelsTieBreak !== 0) return labelsTieBreak;
+
+      return (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0);
+    });
+  }, [rows, sortDirection, sortKey]);
 
   if (rows === undefined) {
     return (
@@ -175,47 +289,93 @@ export function UsersStatisticsTab() {
       </div>
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="flex flex-col gap-3">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Per-user statistics</h2>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Toggle columns to focus on key metrics without losing access to detailed counters.
             </p>
           </div>
-          <details className="group">
-            <summary className="cursor-pointer select-none text-sm font-medium text-blue-600 dark:text-blue-400">
-              Choose visible columns
-            </summary>
-            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-2">
+          <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-2 py-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">View</span>
+
+            <details className="group relative">
+              <summary className="h-8 inline-flex items-center px-3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer select-none">
+                Columns
+              </summary>
+              <div className="absolute z-10 mt-2 w-72 sm:w-80 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                  {columns.map((column) => (
+                    <label key={column.key} className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns[column.key]}
+                        onChange={(event) =>
+                          setVisibleColumns((prev) => ({
+                            ...prev,
+                            [column.key]: event.target.checked,
+                          }))
+                        }
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      {column.label}
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setVisibleColumns(defaultVisibility)}
+                  className="mt-3 text-left text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Reset to defaults
+                </button>
+              </div>
+            </details>
+
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Sort</span>
+            <select
+              value={sortKey}
+              onChange={(event) => setSortKey(event.target.value as ColumnKey)}
+              className="h-8 min-w-36 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm text-gray-900 dark:text-white"
+            >
               {columns.map((column) => (
-                <label key={column.key} className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                  <input
-                    type="checkbox"
-                    checked={visibleColumns[column.key]}
-                    onChange={(event) =>
-                      setVisibleColumns((prev) => ({
-                        ...prev,
-                        [column.key]: event.target.checked,
-                      }))
-                    }
-                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                  />
+                <option key={column.key} value={column.key}>
                   {column.label}
-                </label>
+                </option>
               ))}
+            </select>
+
+            <div className="inline-flex h-8 rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden">
               <button
                 type="button"
-                onClick={() => setVisibleColumns(defaultVisibility)}
-                className="text-left text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                onClick={() => setSortDirection("asc")}
+                className={`px-2 text-xs font-medium transition-colors ${
+                  sortDirection === "asc"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                }`}
+                aria-pressed={sortDirection === "asc"}
               >
-                Reset to defaults
+                ↑ Asc
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortDirection("desc")}
+                className={`px-2 text-xs font-medium transition-colors border-l border-gray-300 dark:border-gray-600 ${
+                  sortDirection === "desc"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                }`}
+                aria-pressed={sortDirection === "desc"}
+              >
+                ↓ Desc
               </button>
             </div>
-          </details>
+          </div>
         </div>
 
         <div className="mt-4 space-y-3 md:hidden">
-          {rows.map((row) => {
+          {sortedRows.map((row) => {
             const displayName = row.name || row.email || row.userId;
             return (
               <div
@@ -243,7 +403,7 @@ export function UsersStatisticsTab() {
             );
           })}
 
-          {rows.length === 0 && (
+          {sortedRows.length === 0 && (
             <div className="py-8 text-center text-gray-500 dark:text-gray-400">No users found.</div>
           )}
         </div>
@@ -270,7 +430,7 @@ export function UsersStatisticsTab() {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => {
+              {sortedRows.map((row) => {
                 const displayName = row.name || row.email || row.userId;
                 return (
                   <tr
@@ -309,7 +469,7 @@ export function UsersStatisticsTab() {
             </tbody>
           </table>
 
-          {rows.length === 0 && (
+          {sortedRows.length === 0 && (
             <div className="py-8 text-center text-gray-500 dark:text-gray-400">No users found.</div>
           )}
         </div>
