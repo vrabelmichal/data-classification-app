@@ -575,19 +575,82 @@ export const getGalaxyAggregateStatus = query({
   handler: async (ctx) => {
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
+    // Fetch galaxyIds aggregate count as a reference total (separate table, independent aggregate)
+    let galaxyIdsCount: number | null = null;
+    try {
+      galaxyIdsCount = await galaxyIdsAggregate.count(ctx);
+    } catch {
+      // galaxyIdsAggregate may not be built yet
+    }
+
     const results = await Promise.all(
       GALAXY_AGGREGATE_NAMES_LIST.map(async (name) => {
         try {
           const agg = getGalaxyAggregateByName(name);
           const count = await agg.count(ctx);
-          return { name, count };
-        } catch {
-          return { name, count: 0 };
+          return { name, count, error: null };
+        } catch (e) {
+          return { name, count: 0, error: e instanceof Error ? e.message : String(e) };
         }
       })
     );
 
-    return results;
+    return { aggregates: results, galaxyIdsCount };
+  },
+});
+
+// --- Persist rebuild state across clients via systemSettings ---
+
+const REBUILD_STATE_KEY = "galaxyAggregateRebuildState";
+
+export const getGalaxyAggregateRebuildState = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    const row = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", REBUILD_STATE_KEY))
+      .unique();
+
+    if (!row) return null;
+
+    // value is stored as v.any()
+    return row.value as Record<
+      string,
+      { status: string; processed: number; completedAt?: number; error?: string }
+    >;
+  },
+});
+
+export const saveGalaxyAggregateRebuildState = mutation({
+  args: {
+    state: v.record(
+      v.string(),
+      v.object({
+        status: v.string(),
+        processed: v.number(),
+        completedAt: v.optional(v.number()),
+        error: v.optional(v.string()),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    const existing = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", REBUILD_STATE_KEY))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { value: args.state });
+    } else {
+      await ctx.db.insert("systemSettings", {
+        key: REBUILD_STATE_KEY,
+        value: args.state,
+      });
+    }
   },
 });
 
