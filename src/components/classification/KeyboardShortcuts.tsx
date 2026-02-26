@@ -54,11 +54,9 @@ export function KeyboardShortcuts({
     {
       category: "Navigation",
       items: [
-        { key: "P", description: "Previous galaxy in sequence" },
-        { key: "N", description: "Next galaxy in sequence" },
+        { key: "Shift+P", description: "Previous galaxy" },
+        { key: "Shift+N", description: "Next galaxy" },
         { key: "S", description: "Skip current galaxy" },
-        { key: "Shift+P", description: "Global Previous (works anywhere)" },
-        { key: "Shift+N", description: "Global Next (works anywhere)" },
         { key: "Shift+S", description: "Global Skip (works anywhere)" },
         { key: "Shift+A", description: "Open current galaxy in Aladin (new tab)" },
       ],
@@ -177,7 +175,7 @@ export function KeyboardShortcuts({
                 )}
               </ul>
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-2">
-                <strong>Global shortcuts:</strong> Shift+P/N/S work anywhere in the interface. <strong>Quick input:</strong> Only allowed characters can be typed - others are filtered out.
+                <strong>Navigation:</strong> Shift+P/N work anywhere in the interface. <strong>Quick input:</strong> Only allowed characters can be typed - others are filtered out.
               </p>
             </div>
           </div>

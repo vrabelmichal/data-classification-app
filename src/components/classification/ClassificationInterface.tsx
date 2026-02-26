@@ -560,6 +560,18 @@ export function ClassificationInterface() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Disable all shortcuts when the comment modal is open
+      if (showCommentsModal) return;
+
+      // Disable all shortcuts when focus is on any input, textarea, or a button
+      // marked with data-no-shortcuts (e.g. the Expand/Collapse button next to comments)
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (e.target instanceof HTMLElement && e.target.dataset.noShortcuts !== undefined) {
+        return;
+      }
+
       if (e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
         switch (e.key.toLowerCase()) {
           case 'p':
@@ -589,9 +601,6 @@ export function ClassificationInterface() {
         }
       }
 
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
       if (e.ctrlKey || e.altKey || e.metaKey) {
         return;
       }
@@ -606,14 +615,6 @@ export function ClassificationInterface() {
           e.preventDefault();
           handleContrastClick();
           break;
-        case 'p':
-          e.preventDefault();
-          if (isOnline) handlePrevious();
-          break;
-        case 'n':
-          e.preventDefault();
-          if (isOnline) handleNext();
-          break;
         case 's':
           e.preventDefault();
           if (isOnline) handleSkip();
@@ -627,7 +628,7 @@ export function ClassificationInterface() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handlePrevious, handleNext, handleSkip, currentContrastGroup, isOnline]);
+  }, [handlePrevious, handleNext, handleSkip, currentContrastGroup, isOnline, showCommentsModal]);
 
   // Helper for ellipse overlay
   const shouldShowEllipseFunc = (showEllipse: boolean | undefined) =>

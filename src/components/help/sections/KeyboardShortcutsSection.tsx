@@ -30,11 +30,11 @@ export function KeyboardShortcutsSection({ settings }: KeyboardShortcutsSectionP
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-300">Previous galaxy</span>
-              <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">P</kbd>
+              <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+P</kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-300">Next galaxy</span>
-              <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">N</kbd>
+              <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+N</kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-300">Submit</span>
@@ -43,14 +43,6 @@ export function KeyboardShortcutsSection({ settings }: KeyboardShortcutsSectionP
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-300">Skip</span>
               <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">S</kbd>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-300">Global Previous</span>
-              <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+P</kbd>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-300">Global Next</span>
-              <kbd className="px-2 py-1 bg-gray-100 dark:bg-gray-700 rounded text-xs">Shift+N</kbd>
             </div>
             <div className="flex justify-between">
               <span className="text-gray-600 dark:text-gray-300">Global Skip</span>

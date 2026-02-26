@@ -224,6 +224,7 @@ export function ClassificationForm({
             />
             <button
               type="button"
+              data-no-shortcuts
               onClick={() => {
                 setCommentExpanded((prev) => !prev);
               }}
