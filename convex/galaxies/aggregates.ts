@@ -328,7 +328,7 @@ export const rebuildGalaxyIdsAggregate = mutation({
 
 
 // galaxies table aggregates
-const REBUILD_GALAXIES_TABLE_AGGREGATE_BATCH_SIZE = 50;
+const REBUILD_GALAXIES_TABLE_AGGREGATE_BATCH_SIZE = 20;
 
 
 export const clearGalaxyAggregates = mutation({
@@ -480,6 +480,117 @@ export const rebuildGalaxyAggregates = mutation({
     };
   },
 });
+
+
+// --- Staged per-aggregate galaxy rebuild ---
+// Rebuilds one aggregate at a time instead of all 15 simultaneously.
+// This keeps each mutation well within Convex's byte-read limit and enables
+// per-stage recovery: if stage 8 fails, stages 1-7 remain fully usable.
+
+export const GALAXY_AGGREGATE_NAMES_LIST = [
+  "galaxiesById",
+  "galaxiesByRa",
+  "galaxiesByDec",
+  "galaxiesByReff",
+  "galaxiesByQ",
+  "galaxiesByPa",
+  "galaxiesByNucleus",
+  "galaxiesByMag",
+  "galaxiesByMeanMue",
+  "galaxiesByTotalClassifications",
+  "galaxiesByNumVisibleNucleus",
+  "galaxiesByNumAwesomeFlag",
+  "galaxiesByNumFailedFitting",
+  "galaxiesByTotalAssigned",
+  "galaxiesByNumericId",
+] as const;
+
+function getGalaxyAggregateByName(name: string) {
+  switch (name) {
+    case "galaxiesById": return galaxiesById;
+    case "galaxiesByRa": return galaxiesByRa;
+    case "galaxiesByDec": return galaxiesByDec;
+    case "galaxiesByReff": return galaxiesByReff;
+    case "galaxiesByQ": return galaxiesByQ;
+    case "galaxiesByPa": return galaxiesByPa;
+    case "galaxiesByNucleus": return galaxiesByNucleus;
+    case "galaxiesByMag": return galaxiesByMag;
+    case "galaxiesByMeanMue": return galaxiesByMeanMue;
+    case "galaxiesByTotalClassifications": return galaxiesByTotalClassifications;
+    case "galaxiesByNumVisibleNucleus": return galaxiesByNumVisibleNucleus;
+    case "galaxiesByNumAwesomeFlag": return galaxiesByNumAwesomeFlag;
+    case "galaxiesByNumFailedFitting": return galaxiesByNumFailedFitting;
+    case "galaxiesByTotalAssigned": return galaxiesByTotalAssigned;
+    case "galaxiesByNumericId": return galaxiesByNumericId;
+    default: throw new Error(`Unknown galaxy aggregate: ${name}`);
+  }
+}
+
+const STAGED_REBUILD_DEFAULT_BATCH_SIZE = 100;
+
+export const clearSingleGalaxyAggregate = mutation({
+  args: { aggregateName: v.string() },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+    const agg = getGalaxyAggregateByName(args.aggregateName);
+    await agg.clear(ctx);
+    console.log(`[clearSingleGalaxyAggregate] Cleared ${args.aggregateName}`);
+  },
+});
+
+export const rebuildSingleGalaxyAggregate = mutation({
+  args: {
+    aggregateName: v.string(),
+    cursor: v.optional(v.string()),
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    const batchSize = args.batchSize ?? STAGED_REBUILD_DEFAULT_BATCH_SIZE;
+    const agg = getGalaxyAggregateByName(args.aggregateName);
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("galaxies")
+      .paginate({ numItems: batchSize, cursor: args.cursor ?? null });
+
+    let processed = 0;
+    for (const galaxy of page) {
+      await agg.insert(ctx, galaxy);
+      processed++;
+    }
+
+    if (isDone) {
+      console.log(
+        `[rebuildSingleGalaxyAggregate] ${args.aggregateName} complete. Last batch: ${processed}`
+      );
+    }
+
+    return { processed, isDone, continueCursor };
+  },
+});
+
+export const getGalaxyAggregateStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    const results = await Promise.all(
+      GALAXY_AGGREGATE_NAMES_LIST.map(async (name) => {
+        try {
+          const agg = getGalaxyAggregateByName(name);
+          const count = await agg.count(ctx);
+          return { name, count };
+        } catch {
+          return { name, count: 0 };
+        }
+      })
+    );
+
+    return results;
+  },
+});
+
 
 // Labeling aggregates rebuild/clear
 const REBUILD_CLASSIFICATIONS_AGGREGATE_BATCH_SIZE = 200;
