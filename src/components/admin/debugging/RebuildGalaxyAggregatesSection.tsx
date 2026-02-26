@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { toast } from "sonner";
 
@@ -80,7 +80,6 @@ export function RebuildGalaxyAggregatesSection() {
 
   const clearSingle = useMutation(api.galaxies.aggregates.clearSingleGalaxyAggregate);
   const rebuildSingle = useMutation(api.galaxies.aggregates.rebuildSingleGalaxyAggregate);
-  const aggregateStatus = useQuery(api.galaxies.aggregates.getGalaxyAggregateStatus);
 
   const updateStage = useCallback((index: number, updates: Partial<StageState>) => {
     setStages((prev) => prev.map((s, i) => (i === index ? { ...s, ...updates } : s)));
@@ -292,7 +291,6 @@ export function RebuildGalaxyAggregatesSection() {
       {/* Stages list */}
       <div className="space-y-1 max-h-[420px] overflow-y-auto">
         {stages.map((stage, index) => {
-          const serverCount = aggregateStatus?.find((a) => a.name === stage.name)?.count;
           return (
             <div
               key={stage.name}
@@ -334,13 +332,6 @@ export function RebuildGalaxyAggregatesSection() {
                   <span className="text-red-600 dark:text-red-400">{stage.error}</span>
                 )}
               </span>
-
-              {/* Live server count */}
-              {serverCount !== undefined && (
-                <span className="text-xs tabular-nums text-gray-400 dark:text-gray-500 shrink-0">
-                  {serverCount.toLocaleString()} in DB
-                </span>
-              )}
 
               {/* Per-stage retry */}
               {stage.status === "failed" && !isRunning && (
