@@ -275,12 +275,8 @@ export const rebuildGalaxyIdsAggregate = mutation({
     // make sure only admin can call this
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
     
-    // Calculate total batches on first run
-    let totalBatches = 0;
     if (!args.cursor) {
-      const totalGalaxyIds = await ctx.db.query("galaxyIds").collect().then(galaxyIds => galaxyIds.length);
-      totalBatches = Math.ceil(totalGalaxyIds / REBUILD_GALAXY_IDS_AGGREGATE_BATCH_SIZE);
-      console.log(`[rebuildGalaxyIdsAggregate] Starting rebuild operation. Total galaxyIds: ${totalGalaxyIds}, Total batches: ${totalBatches}, Batch size: ${REBUILD_GALAXY_IDS_AGGREGATE_BATCH_SIZE}`);
+      console.log(`[rebuildGalaxyIdsAggregate] Starting rebuild operation. Batch size: ${REBUILD_GALAXY_IDS_AGGREGATE_BATCH_SIZE}`);
     }
     else {
       console.log(`[rebuildGalaxyIdsAggregate] Resuming rebuild operation. Cursor: ${args.cursor}, clearOnly: ${args.clearOnly || false}`);
