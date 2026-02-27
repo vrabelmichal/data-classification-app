@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
 import { PasswordReset } from "./PasswordReset";
+import { ReportIssueModalProvider, useReportIssueModal } from "./lib/reportIssueModalContext";
+import { ReportIssueModal } from "./components/ReportIssueModal";
 import { AccountPendingConfirmation } from "./components/AccountPendingConfirmation";
 import { Toaster } from "sonner";
 import { Navigation } from "./components/layout/Navigation";
@@ -18,6 +20,11 @@ import { NotificationsPage } from "./components/notifications/NotificationsPage"
 import { NotFound } from "./components/NotFound";
 import { useState, useEffect } from "react";
 import { DEFAULT_ALLOW_PUBLIC_OVERVIEW } from "./lib/defaults";
+
+function GlobalReportIssueModal() {
+  const { isOpen, close } = useReportIssueModal();
+  return <ReportIssueModal isOpen={isOpen} onClose={close} />;
+}
 
 function LoadingScreen() {
   return (
@@ -166,6 +173,8 @@ function App() {
           ) : !userProfile?.isConfirmed ? (
             <AccountPendingConfirmation />
           ) : (
+            <ReportIssueModalProvider>
+              <GlobalReportIssueModal />
             <div className={`flex flex-col custom-lg:flex-row min-h-screen overflow-x-hidden ${showVersionUpdate ? 'pt-10' : ''}`}>
               <Navigation navigationItems={navigationItems} appName={appName} />
               <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64 min-w-0">
@@ -187,6 +196,7 @@ function App() {
                 </div>
               </div>
             </div>
+            </ReportIssueModalProvider>
           )}
         </Authenticated>
         <Toaster position="top-center" />

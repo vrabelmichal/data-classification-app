@@ -6,7 +6,7 @@ import { cn } from "../../lib/utils";
 import { SignOutButton } from "../../SignOutButton";
 import { DebugAdminButton } from "../admin/DebugAdminButton";
 import { DarkModeToggle } from "../navigation/DarkModeToggle";
-import { ReportIssueModal } from "../ReportIssueModal";
+import { useReportIssueModal } from "../../lib/reportIssueModalContext";
 import { useTheme } from "../../hooks/useTheme";
 
 interface NavigationItem {
@@ -39,7 +39,7 @@ function NotificationBadge({ count, className }: { count?: number; className?: s
 
 export function Navigation({ navigationItems, appName }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const { open: openReportModal } = useReportIssueModal();
   const userProfile = useQuery(api.users.getUserProfile);
   const progress = useQuery(api.classification.getProgress);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -53,7 +53,6 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
 
   return (
     <>
-      <ReportIssueModal isOpen={isReportModalOpen} onClose={() => setIsReportModalOpen(false)} />
       {/* Mobile Navigation */}
       <div className="custom-lg:hidden">
         {/* Mobile Header */}
@@ -134,7 +133,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                   <button
                     onClick={() => {
                       // Open report modal but keep the mobile menu visible underneath
-                      setIsReportModalOpen(true);
+                      openReportModal();
                     }}
                     title="Report Issue"
                     className="w-full rounded-lg px-3 py-2 text-left text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -262,7 +261,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
           <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="w-full space-y-1">
               <button
-                onClick={() => setIsReportModalOpen(true)}
+                onClick={() => openReportModal()}
                 title="Report Issue"
                 className="w-full rounded-lg px-3 py-2 text-left text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >

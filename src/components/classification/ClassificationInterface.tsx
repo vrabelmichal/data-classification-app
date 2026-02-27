@@ -32,6 +32,7 @@ import { CommentsModal } from "./CommentsModal";
 // Hooks
 import { useClassificationForm } from "./useClassificationForm";
 import { useClassificationNavigation } from "./useClassificationNavigation";
+import { useReportIssueModal } from "../../lib/reportIssueModalContext";
 
 // Helpers
 import { getImagePriority, processImageLabel, shouldShowEllipse as shouldShowEllipseHelper, buildQuickInputString } from "./helpers";
@@ -108,8 +109,9 @@ export function ClassificationInterface() {
   const [mobileSliderIndex, setMobileSliderIndex] = useState(0);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
 
-  // Report issue modal state
-  const [showReportIssueModal, setShowReportIssueModal] = useState(false);
+  // Report issue modal state (shared via context so ClassificationInterface can observe
+  // when the modal is opened from the Navigation as well)
+  const { isOpen: showReportIssueModal, open: openReportIssueModal } = useReportIssueModal();
 
   // Quick-tap / 4-tap issue reporting state
   const quickTapCountRef = useRef(0);
@@ -560,12 +562,18 @@ export function ClassificationInterface() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Disable all shortcuts when the comment modal is open
-      if (showCommentsModal) return;
+      // Disable all shortcuts when the comment modal or report issue modal is open
+      if (showCommentsModal || showReportIssueModal) return;
 
-      // Disable all shortcuts when focus is on any input, textarea, or a button
-      // marked with data-no-shortcuts (e.g. the Expand/Collapse button next to comments)
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      // Disable all shortcuts when focus is on any text-like input or textarea, or a button
+      // marked with data-no-shortcuts (e.g. the Expand/Collapse button next to comments).
+      // Radio buttons and checkboxes are explicitly allowed so classification form controls
+      // do not block shortcuts.
+      if (e.target instanceof HTMLInputElement) {
+        const type = e.target.type.toLowerCase();
+        if (type !== 'radio' && type !== 'checkbox') return;
+      }
+      if (e.target instanceof HTMLTextAreaElement) {
         return;
       }
       if (e.target instanceof HTMLElement && e.target.dataset.noShortcuts !== undefined) {
@@ -628,7 +636,7 @@ export function ClassificationInterface() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handlePrevious, handleNext, handleSkip, currentContrastGroup, isOnline, showCommentsModal]);
+  }, [handlePrevious, handleNext, handleSkip, currentContrastGroup, isOnline, showCommentsModal, showReportIssueModal]);
 
   // Helper for ellipse overlay
   const shouldShowEllipseFunc = (showEllipse: boolean | undefined) =>
@@ -804,7 +812,7 @@ export function ClassificationInterface() {
   // Handle report button click with 4-tap quick-report logic
   const handleReportButtonClick = () => {
     if (!currentGalaxy) {
-      setShowReportIssueModal(true);
+      openReportIssueModal();
       return;
     }
 
@@ -834,7 +842,7 @@ export function ClassificationInterface() {
     quickTapTimeoutRef.current = setTimeout(() => {
       quickTapCountRef.current = 0;
       quickTapTimeoutRef.current = null;
-      setShowReportIssueModal(true);
+      openReportIssueModal();
     }, 500);
   };
 
@@ -1233,12 +1241,6 @@ export function ClassificationInterface() {
           showAwesomeFlag={showAwesomeFlag}
           showValidRedshift={showValidRedshift}
           showVisibleNucleus={showVisibleNucleus}
-        />
-
-        {/* Report Issue Modal */}
-        <ReportIssueModal
-          isOpen={showReportIssueModal}
-          onClose={() => setShowReportIssueModal(false)}
         />
 
         {/* Comments Modal - works on both mobile and desktop */}

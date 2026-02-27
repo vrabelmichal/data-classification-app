@@ -24,6 +24,30 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
     }
   }, [isOpen]);
 
+  // Guarded close: prompt the user if they've typed something and haven't submitted
+  const handleAttemptClose = () => {
+    if (description.trim()) {
+      if (!window.confirm("You have unsaved text. Discard and close?")) return;
+      setDescription("");
+    }
+    onClose();
+  };
+
+  // Close on Escape, with the same guard
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        handleAttemptClose();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => document.removeEventListener("keydown", handleKeyDown, { capture: true });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, description]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -55,7 +79,7 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black bg-opacity-50"
-        onClick={onClose}
+        onClick={handleAttemptClose}
       />
 
       {/* Modal */}
@@ -65,7 +89,7 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
             Report an Issue
           </h2>
           <button
-            onClick={onClose}
+            onClick={handleAttemptClose}
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
           >
             <svg
@@ -113,7 +137,7 @@ export function ReportIssueModal({ isOpen, onClose }: ReportIssueModalProps) {
           <div className="flex gap-3 justify-end mt-auto">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleAttemptClose}
               disabled={isSubmitting}
               className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors disabled:opacity-50"
             >
