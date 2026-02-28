@@ -61,7 +61,19 @@ export function CommentsModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+    /*
+      Centering the modal works well on desktop but with the soft keyboard
+      on mobile the popup ends up too far down.  Switch to `items-start` for
+      small screens so the dialog sits near the top, and add extra top padding
+      which is removed on larger viewports.
+    */
+    /*
+      Adjust vertical positioning at various breakpoints:
+      - base (<640px): pt-10 keeps the dialog low but above the keyboard.
+      - sm/md (640–1023px): increase to pt-16 so tablets get a larger top gap.
+      - lg (>=1024px): revert to centered (no extra padding).
+    */
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-start lg:items-center justify-center z-50 p-4 pt-10 sm:pt-16 lg:pt-0">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg flex flex-col overflow-hidden max-h-[80vh]">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 flex-shrink-0">
