@@ -1,0 +1,153 @@
+import { useMemo } from "react";
+import { useSearchParams } from "react-router";
+import { useQuery } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import {
+  ClassificationBreakdownsSection,
+  PaperCatalogSection,
+  ProgressSection,
+  SummaryCardsSection,
+  ThroughputSection,
+  TopClassifiersSection,
+} from "./OverviewSections";
+import {
+  ClassificationStatsPayload,
+  RecencyPayload,
+  TopClassifiersPayload,
+  TotalsAndPapersPayload,
+} from "./types";
+
+export function OverviewTab() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+
+  const defaultOverviewPaper: string | null =
+    systemSettings !== undefined
+      ? ((systemSettings as any)?.overviewDefaultPaper ?? null)
+      : null;
+
+  const hasParamInUrl = searchParams.has("paper");
+  const rawParam = searchParams.get("paper");
+  const selectedPaper: string | undefined = !hasParamInUrl
+    ? (defaultOverviewPaper !== null ? defaultOverviewPaper : undefined)
+    : rawParam === "__all__" ? undefined
+    : rawParam!;
+
+  const handleSelectPaper = (p: string | undefined) => {
+    if (p === undefined) {
+      if (defaultOverviewPaper !== null) {
+        setSearchParams((prev) => { prev.set("paper", "__all__"); return prev; }, { replace: true });
+      } else {
+        setSearchParams((prev) => { prev.delete("paper"); return prev; }, { replace: true });
+      }
+    } else {
+      setSearchParams((prev) => { prev.set("paper", p); return prev; }, { replace: true });
+    }
+  };
+
+  const totalsAndPapers = useQuery(api.statistics.labelingOverview.totalsAndPapers.get, { paper: selectedPaper }) as TotalsAndPapersPayload | undefined;
+  const recencyData = useQuery(api.statistics.labelingOverview.recency.get) as RecencyPayload | undefined;
+  const topClassifiersData = useQuery(api.statistics.labelingOverview.topClassifiers.get) as TopClassifiersPayload | undefined;
+  const classificationStatsData = useQuery(api.statistics.labelingOverview.classificationStats.get) as ClassificationStatsPayload | undefined;
+
+  const dailySeries = useMemo(() => {
+    if (!recencyData?.recency.dailyCounts) return [];
+    return recencyData.recency.dailyCounts.map((entry) => ({
+      label: new Date(entry.start).toLocaleDateString(),
+      count: entry.count,
+    }));
+  }, [recencyData]);
+
+  if (
+    systemSettings === undefined &&
+    totalsAndPapers === undefined &&
+    recencyData === undefined &&
+    topClassifiersData === undefined &&
+    classificationStatsData === undefined
+  ) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="h-10 w-10 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  const totals = totalsAndPapers?.totals;
+  const recency = recencyData?.recency;
+  const classificationStats = classificationStatsData?.classificationStats;
+  const topClassifiers = topClassifiersData?.topClassifiers;
+
+  const availablePapers = totalsAndPapers?.availablePapers ?? [];
+  const paperCounts = totalsAndPapers?.paperCounts ?? {};
+  const paperFilter = totalsAndPapers?.paperFilter ?? null;
+
+  const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? true;
+  const showValidRedshift = systemSettings?.showValidRedshift ?? true;
+  const showVisibleNucleus = systemSettings?.showVisibleNucleus ?? true;
+  const failedFittingMode = systemSettings?.failedFittingMode ?? "checkbox";
+  const showFailedFitting = failedFittingMode === "checkbox";
+
+  const flagItems: Array<{ label: string; value: number; color: string; icon: string }> = [];
+  if (showAwesomeFlag && classificationStats?.flags) {
+    flagItems.push({ label: "Awesome", value: classificationStats.flags.awesome || 0, color: "bg-yellow-500", icon: "⭐" });
+  }
+  if (showVisibleNucleus && classificationStats?.flags) {
+    flagItems.push({ label: "Visible Nucleus", value: classificationStats.flags.visibleNucleus || 0, color: "bg-orange-500", icon: "🎯" });
+  }
+  if (showValidRedshift && classificationStats?.flags) {
+    flagItems.push({ label: "Valid Redshift", value: classificationStats.flags.validRedshift || 0, color: "bg-red-500", icon: "🔴" });
+  }
+  if (showFailedFitting && classificationStats?.flags) {
+    flagItems.push({ label: "Failed Fitting", value: classificationStats.flags.failedFitting || 0, color: "bg-rose-500", icon: "❌" });
+  }
+
+  const lsbItems = classificationStats?.lsbClass ? [
+    { label: "Non-LSB", value: classificationStats.lsbClass.nonLSB || 0, color: "bg-gray-500", icon: "⚪" },
+    { label: "LSB", value: classificationStats.lsbClass.LSB || 0, color: "bg-green-500", icon: "🟢" },
+  ] : [];
+
+  const morphologyItems = classificationStats?.morphology ? [
+    { label: "Featureless", value: classificationStats.morphology.featureless || 0, color: "bg-gray-500", icon: "⚫" },
+    { label: "Irregular", value: classificationStats.morphology.irregular || 0, color: "bg-yellow-500", icon: "⚡" },
+    { label: "Spiral", value: classificationStats.morphology.spiral || 0, color: "bg-blue-500", icon: "🌀" },
+    { label: "Elliptical", value: classificationStats.morphology.elliptical || 0, color: "bg-purple-500", icon: "⭕" },
+  ] : [];
+
+  const totalClassifications = totals?.totalClassifications || 0;
+
+  return (
+    <div className="space-y-8">
+      <PaperCatalogSection
+        availablePapers={availablePapers}
+        paperCounts={paperCounts}
+        paperFilter={paperFilter}
+        selectedPaper={selectedPaper}
+        totals={totals}
+        onSelectPaper={handleSelectPaper}
+      />
+
+      <SummaryCardsSection totals={totals} />
+
+      <ProgressSection totals={totals} activeClassifiers={recency?.activeClassifiers} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ThroughputSection
+          recency={recency ? {
+            classificationsLast24h: recency.classificationsLast24h,
+            classificationsLast7d: recency.classificationsLast7d,
+          } : undefined}
+          dailySeries={dailySeries}
+        />
+        <TopClassifiersSection topClassifiers={topClassifiers} />
+      </div>
+
+      <ClassificationBreakdownsSection
+        lsbItems={lsbItems}
+        morphologyItems={morphologyItems}
+        flagItems={flagItems}
+        totalClassifications={totalClassifications}
+        loading={classificationStats === undefined}
+      />
+    </div>
+  );
+}

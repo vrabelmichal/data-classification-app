@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { Routes, Route, Link, useLocation, Navigate } from "react-router";
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
-import { OverviewTab } from "./OverviewTab";
+import { OverviewTab } from "./overview/OverviewTab";
 import { cn } from "../../lib/utils";
 import { StatisticsTab } from "./StatisticsTab";
 import { UsersStatisticsTab } from "./UsersStatisticsTab";
