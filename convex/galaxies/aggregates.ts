@@ -222,6 +222,16 @@ export const galaxiesByNumericId = new TableAggregate<{
   sortKey: (doc) => doc.numericId ?? BigInt(Number.MAX_SAFE_INTEGER),
 });
 
+// Aggregate for galaxies sorted by paper value (string)
+// Allows O(log n) count per paper value without a full table scan.
+export const galaxiesByPaper = new TableAggregate<{
+  Key: string;
+  DataModel: DataModel;
+  TableName: "galaxies";
+}>(components.galaxiesByPaper, {
+  sortKey: (doc) => doc.misc?.paper ?? "",
+});
+
 // Helper function to get the appropriate aggregate based on sort field
 export function getGalaxiesAggregate(sortBy: string) {
   switch (sortBy) {
@@ -352,6 +362,7 @@ export const clearGalaxyAggregates = mutation({
     await galaxiesByNumFailedFitting.clear(ctx);
     await galaxiesByTotalAssigned.clear(ctx);
     await galaxiesByNumericId.clear(ctx);
+    await galaxiesByPaper.clear(ctx);
     // await galaxyIdsAggregate.clear(ctx);
   },
 });
@@ -405,6 +416,7 @@ export const rebuildGalaxyAggregates = mutation({
       await galaxiesByNumFailedFitting.clear(ctx);
       await galaxiesByTotalAssigned.clear(ctx);
       await galaxiesByNumericId.clear(ctx);
+      await galaxiesByPaper.clear(ctx);
       console.log('[rebuildGalaxyAggregates] Aggregates cleared successfully. Ready to start processing.');
       
       return {
@@ -455,6 +467,7 @@ export const rebuildGalaxyAggregates = mutation({
       await galaxiesByNumFailedFitting.insert(ctx, galaxy);
       await galaxiesByTotalAssigned.insert(ctx, galaxy);
       await galaxiesByNumericId.insert(ctx, galaxy);
+      await galaxiesByPaper.insert(ctx, galaxy);
       processed += 1;
     }
 
@@ -503,6 +516,7 @@ export const GALAXY_AGGREGATE_NAMES_LIST = [
   "galaxiesByNumFailedFitting",
   "galaxiesByTotalAssigned",
   "galaxiesByNumericId",
+  "galaxiesByPaper",
 ] as const;
 
 function getGalaxyAggregateByName(name: string) {
@@ -522,6 +536,7 @@ function getGalaxyAggregateByName(name: string) {
     case "galaxiesByNumFailedFitting": return galaxiesByNumFailedFitting;
     case "galaxiesByTotalAssigned": return galaxiesByTotalAssigned;
     case "galaxiesByNumericId": return galaxiesByNumericId;
+    case "galaxiesByPaper": return galaxiesByPaper;
     default: throw new Error(`Unknown galaxy aggregate: ${name}`);
   }
 }

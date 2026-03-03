@@ -34,8 +34,9 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   defaultImageQuality: "high" as const,
   galaxyBrowserImageQuality: "low" as const,
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
+  overviewDefaultPaper: null as string | null,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
   userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
-  // Maintenance mode flags
+  // Maintenance mode flag
   maintenanceDisableClassifications: false,
 };

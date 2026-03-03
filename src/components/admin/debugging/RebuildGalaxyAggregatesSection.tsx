@@ -19,6 +19,7 @@ const GALAXY_AGGREGATE_NAMES = [
   "galaxiesByNumFailedFitting",
   "galaxiesByTotalAssigned",
   "galaxiesByNumericId",
+  "galaxiesByPaper",
 ] as const;
 
 const AGGREGATE_LABELS: Record<string, string> = {
@@ -37,6 +38,7 @@ const AGGREGATE_LABELS: Record<string, string> = {
   galaxiesByNumFailedFitting: "Failed Fitting Count",
   galaxiesByTotalAssigned: "Total Assigned",
   galaxiesByNumericId: "Numeric ID",
+  galaxiesByPaper: "Paper (misc.paper)",
 };
 
 const PARALLELISM_OPTIONS = [1, 2, 3, 5, 8, 15] as const;

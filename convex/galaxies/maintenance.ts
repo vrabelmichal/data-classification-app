@@ -12,6 +12,7 @@ import {
   galaxiesByNucleus,
   galaxiesByMag,
   galaxiesByMeanMue,
+  galaxiesByPaper,
   galaxyIdsAggregate,
   galaxiesByNumericId
 } from "./aggregates";
@@ -101,6 +102,7 @@ export const deleteAllGalaxies = mutation({
     await galaxiesByNucleus.clear(ctx);
     await galaxiesByMag.clear(ctx);
     await galaxiesByMeanMue.clear(ctx);
+    await galaxiesByPaper.clear(ctx);
     await galaxiesByNumericId.clear(ctx);
     
     // Clear the aggregate

@@ -2,9 +2,12 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAdmin } from "./lib/auth";
 import { Id } from "./_generated/dataModel";
+import { api } from "./_generated/api";
+import { DEFAULT_AVAILABLE_PAPERS } from "./lib/defaults";
 import {
   galaxiesById,
   galaxiesByTotalClassifications,
+  galaxiesByPaper,
   classificationsByCreated,
   classificationsByAwesomeFlag,
   classificationsByVisibleNucleus,
@@ -49,8 +52,10 @@ async function getTopClassifiers(ctx: any, limit: number) {
 }
 
 export const getLabelingOverview = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    paper: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
     const now = Date.now();
@@ -145,6 +150,67 @@ export const getLabelingOverview = query({
     const avgClassificationsPerGalaxy = totalGalaxies > 0 ? totalClassifications / totalGalaxies : 0;
     const avgClassificationsPerActiveUser = activeClassifiers > 0 ? totalClassifications / activeClassifiers : 0;
 
+    // Always compute per-paper galaxy counts using the aggregate (O(log n) each).
+    // We also count blacklisted galaxies per paper once — blacklist is small.
+    const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
+    const availablePapers: string[] = (settings as any)?.availablePapers ?? DEFAULT_AVAILABLE_PAPERS;
+    // Ensure "" (unassigned) is always included so every galaxy is accounted for.
+    const allPapers = availablePapers.includes("") ? availablePapers : ["", ...availablePapers];
+
+    // Load blacklist once and resolve each galaxy's paper value.
+    const blacklistRows = await ctx.db.query("galaxyBlacklist").collect();
+    const blacklistedPerPaper: Record<string, number> = {};
+    for (const row of blacklistRows) {
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q) => q.eq("id", row.galaxyExternalId))
+        .unique();
+      const paper = galaxy ? (galaxy.misc?.paper ?? "") : "";
+      blacklistedPerPaper[paper] = (blacklistedPerPaper[paper] ?? 0) + 1;
+    }
+
+    // Count galaxies per paper via aggregate.
+    const paperCountsRaw = await Promise.all(
+      allPapers.map(async (paper) => {
+        const total = await galaxiesByPaper.count(ctx, {
+          bounds: {
+            lower: { key: paper, inclusive: true },
+            upper: { key: paper, inclusive: true },
+          },
+        });
+        const blacklisted = blacklistedPerPaper[paper] ?? 0;
+        return { paper, total, blacklisted, adjusted: Math.max(total - blacklisted, 0) };
+      })
+    );
+    const paperCounts: Record<string, { total: number; blacklisted: number; adjusted: number }> = {};
+    for (const entry of paperCountsRaw) {
+      paperCounts[entry.paper] = { total: entry.total, blacklisted: entry.blacklisted, adjusted: entry.adjusted };
+    }
+
+    // Paper-specific filter (when a paper is actively selected in the UI).
+    let paperFilter: {
+      paper: string;
+      galaxies: number;
+      blacklisted: number;
+      adjusted: number;
+    } | null = null;
+
+    if (args.paper !== undefined) {
+      const paperStr = args.paper;
+      // Reuse the counts we already computed if this paper is in allPapers,
+      // otherwise do a fresh aggregate lookup.
+      const cached = paperCounts[paperStr];
+      if (cached) {
+        paperFilter = { paper: paperStr, galaxies: cached.total, blacklisted: cached.blacklisted, adjusted: cached.adjusted };
+      } else {
+        const count = await galaxiesByPaper.count(ctx, {
+          bounds: { lower: { key: paperStr, inclusive: true }, upper: { key: paperStr, inclusive: true } },
+        });
+        const bl = blacklistedPerPaper[paperStr] ?? 0;
+        paperFilter = { paper: paperStr, galaxies: count, blacklisted: bl, adjusted: Math.max(count - bl, 0) };
+      }
+    }
+
     const dailyCounts = await Promise.all(
       Array.from({ length: 7 }, (_, idx) => {
         const start = now - (idx + 1) * DAY_MS;
@@ -197,6 +263,9 @@ export const getLabelingOverview = query({
       },
       topClassifiers,
       timestamp: now,
+      paperCounts,
+      availablePapers: allPapers,
+      paperFilter,
     };
   },
 });

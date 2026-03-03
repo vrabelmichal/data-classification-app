@@ -77,6 +77,11 @@ export const DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY = "low" as const;
 export const DEFAULT_AVAILABLE_PAPERS = ["", "new", "old"];
 
 /**
+ * Default paper pre-selected in the Overview tab (null = no default, show all papers)
+ */
+export const DEFAULT_OVERVIEW_DEFAULT_PAPER = null as string | null;
+
+/**
  * Maintenance mode: disable new classifications
  */
 export const DEFAULT_MAINTENANCE_DISABLE_NEW_CLASSIFICATIONS = false;
@@ -107,6 +112,7 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   defaultImageQuality: DEFAULT_IMAGE_QUALITY,
   galaxyBrowserImageQuality: DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
+  overviewDefaultPaper: DEFAULT_OVERVIEW_DEFAULT_PAPER,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
   userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
 };

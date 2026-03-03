@@ -18,6 +18,7 @@ import {
   DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
   DEFAULT_ALLOW_PUBLIC_OVERVIEW,
   DEFAULT_USER_EXPORT_LIMIT,
+  DEFAULT_OVERVIEW_DEFAULT_PAPER,
 } from "../../lib/defaults";
 
 interface SettingsTabProps {
@@ -43,6 +44,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     galaxyBrowserImageQuality: string;
     availablePapers: string[];
     userExportLimit: number;
+    overviewDefaultPaper: string | null;
   }>({
     allowAnonymous: systemSettings.allowAnonymous ?? DEFAULT_ALLOW_ANONYMOUS,
     emailFrom: systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM,
@@ -59,6 +61,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality ?? DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
     availablePapers: systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS,
     userExportLimit: systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT,
+    overviewDefaultPaper: systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -82,6 +85,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality ?? DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
       availablePapers: systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS,
       userExportLimit: systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT,
+      overviewDefaultPaper: systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER,
     });
     setHasChanges(false);
   }, [systemSettings]);
@@ -103,6 +107,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     const originalGalaxyBrowserImageQuality = systemSettings.galaxyBrowserImageQuality ?? DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY;
     const originalAvailablePapers = systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS;
     const originalUserExportLimit = systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT;
+    const originalOverviewDefaultPaper = systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER;
     const papersChanged = JSON.stringify(localSettings.availablePapers) !== JSON.stringify(originalAvailablePapers);
     setHasChanges(
       localSettings.allowAnonymous !== originalAllowAnonymous ||
@@ -119,6 +124,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       localSettings.defaultImageQuality !== originalDefaultImageQuality ||
       localSettings.galaxyBrowserImageQuality !== originalGalaxyBrowserImageQuality ||
       localSettings.userExportLimit !== originalUserExportLimit ||
+      localSettings.overviewDefaultPaper !== originalOverviewDefaultPaper ||
       papersChanged
     );
   }, [localSettings, systemSettings]);
@@ -149,6 +155,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         galaxyBrowserImageQuality: localSettings.galaxyBrowserImageQuality as "high" | "low",
         availablePapers: localSettings.availablePapers,
         userExportLimit: localSettings.userExportLimit,
+        overviewDefaultPaper: localSettings.overviewDefaultPaper,
       });
       toast.success("Settings updated successfully");
       setHasChanges(false);
@@ -546,6 +553,37 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Press Enter to add. Use "Add Empty" to add an empty string value for galaxies without a paper assigned.
             </p>
+          </div>
+
+          {/* Default paper pre-selected in the Overview tab */}
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+            <label className="block">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Default Paper Filter for Overview Tab
+              </span>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                Pre-select a paper in the Overview statistics tab when the page is opened without a URL parameter.
+                Users can always switch to a different paper or "All" using the filter buttons on that page.
+              </p>
+              <select
+                value={localSettings.overviewDefaultPaper === null ? "__none__" : localSettings.overviewDefaultPaper}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setLocalSettings(prev => ({
+                    ...prev,
+                    overviewDefaultPaper: val === "__none__" ? null : val,
+                  }));
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="__none__">None — show all papers by default</option>
+                {localSettings.availablePapers.map((paper, i) => (
+                  <option key={i} value={paper}>
+                    {paper === "" ? "(empty — unassigned galaxies)" : paper}
+                  </option>
+                ))}
+              </select>
+            </label>
           </div>
         </div>
       </div>

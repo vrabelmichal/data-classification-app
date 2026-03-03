@@ -13,6 +13,7 @@ import {
   galaxiesByNucleus,
   galaxiesByMag,
   galaxiesByMeanMue,
+  galaxiesByPaper,
   galaxyIdsAggregate,
   galaxiesByNumericId
 } from "./aggregates";
@@ -104,6 +105,7 @@ export async function insertGalaxy(
   await galaxiesByNucleus.insert(ctx, insertedGalaxy);
   await galaxiesByMag.insert(ctx, insertedGalaxy);
   await galaxiesByMeanMue.insert(ctx, insertedGalaxy);
+  await galaxiesByPaper.insert(ctx, insertedGalaxy);
   await galaxiesByNumericId.insert(ctx, insertedGalaxy);
   
   // GalaxyIds aggregate
@@ -219,9 +221,11 @@ export async function updateGalaxy(
 
   // Check if any aggregate-affecting fields changed
   const aggregateFields = ['id', 'ra', 'dec', 'reff', 'q', 'pa', 'nucleus', 'mag', 'mean_mue', 'numericId'] as const;
+  const miscPaperChanged = filteredUpdates.misc !== undefined &&
+    (filteredUpdates.misc as any).paper !== existingGalaxy.misc?.paper;
   const aggregateFieldsChanged = aggregateFields.some(
     field => filteredUpdates[field] !== undefined && filteredUpdates[field] !== existingGalaxy[field]
-  );
+  ) || miscPaperChanged;
 
   // If aggregate fields changed, we need to update aggregates
   if (aggregateFieldsChanged) {
@@ -235,6 +239,7 @@ export async function updateGalaxy(
     await galaxiesByNucleus.delete(ctx, existingGalaxy);
     await galaxiesByMag.delete(ctx, existingGalaxy);
     await galaxiesByMeanMue.delete(ctx, existingGalaxy);
+    await galaxiesByPaper.delete(ctx, existingGalaxy);
     await galaxiesByNumericId.delete(ctx, existingGalaxy);
   }
 
@@ -258,6 +263,7 @@ export async function updateGalaxy(
     await galaxiesByNucleus.insert(ctx, updatedGalaxy);
     await galaxiesByMag.insert(ctx, updatedGalaxy);
     await galaxiesByMeanMue.insert(ctx, updatedGalaxy);
+    await galaxiesByPaper.insert(ctx, updatedGalaxy);
     await galaxiesByNumericId.insert(ctx, updatedGalaxy);
   }
 

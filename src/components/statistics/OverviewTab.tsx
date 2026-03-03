@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { useSearchParams } from "react-router";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 
@@ -65,8 +66,42 @@ function BreakdownBar({
 }
 
 export function OverviewTab() {
-  const overview = useQuery(api.labeling.getLabelingOverview);
+  const [searchParams, setSearchParams] = useSearchParams();
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+
+  // Default paper from system settings (null = show all papers by default)
+  const defaultOverviewPaper: string | null =
+    systemSettings !== undefined
+      ? ((systemSettings as any)?.overviewDefaultPaper ?? null)
+      : null;
+
+  // Derive selectedPaper from URL, falling back to the system default.
+  // ?paper=__all__  → explicit "all" (overrides a non-null system default)
+  // ?paper=old      → filter to paper "old"
+  // ?paper=         → filter to unassigned paper (empty string)
+  // (no param)      → use defaultOverviewPaper, or undefined if none
+  const hasParamInUrl = searchParams.has("paper");
+  const rawParam = searchParams.get("paper");
+  const selectedPaper: string | undefined = !hasParamInUrl
+    ? (defaultOverviewPaper !== null ? defaultOverviewPaper : undefined)
+    : rawParam === "__all__" ? undefined
+    : rawParam!;
+
+  // Update URL when a paper is selected or deselected.
+  const handleSelectPaper = (p: string | undefined) => {
+    if (p === undefined) {
+      // "All" — if there is a system default we need an explicit override marker.
+      if (defaultOverviewPaper !== null) {
+        setSearchParams((prev) => { prev.set("paper", "__all__"); return prev; }, { replace: true });
+      } else {
+        setSearchParams((prev) => { prev.delete("paper"); return prev; }, { replace: true });
+      }
+    } else {
+      setSearchParams((prev) => { prev.set("paper", p); return prev; }, { replace: true });
+    }
+  };
+
+  const overview = useQuery(api.labeling.getLabelingOverview, { paper: selectedPaper });
 
   const dailySeries = useMemo(() => {
     if (!overview?.recency.dailyCounts) return [];
@@ -93,6 +128,11 @@ export function OverviewTab() {
   }
 
   const { totals, recency, classificationStats, topClassifiers } = overview as any;
+
+  // Paper data now comes from the overview response (computed server-side).
+  const availablePapers: string[] = (overview as any).availablePapers ?? [];
+  const paperCounts: Record<string, { total: number; blacklisted: number; adjusted: number }> =
+    (overview as any).paperCounts ?? {};
 
   // System settings for showing/hiding flags
   const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? true;
@@ -152,8 +192,124 @@ export function OverviewTab() {
 
   const totalClassifications = totals.totalClassifications || 0;
 
+  // Paper-specific filter data returned from the backend (only when a paper is selected).
+  const paperFilter = (overview as any).paperFilter as {
+    paper: string;
+    galaxies: number;
+    blacklisted: number;
+    adjusted: number;
+  } | null;
+
+  // Human-readable label for a paper value.
+  function paperLabel(p: string) {
+    return p === "" ? "Unassigned" : p;
+  }
+
+  // Whether there are multiple distinct non-empty papers (so filter buttons are useful).
+  const hasPaperFilter = availablePapers.some((p: string) => p !== "");
+
   return (
     <div className="space-y-8">
+      {/* Galaxy catalog by paper — always visible */}
+      {availablePapers.length > 0 && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+            <div>
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Galaxy catalog by paper</h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Total / effective (excl. blacklisted) galaxies per dataset</p>
+            </div>
+            {/* Filter toggle — only shown when there are named papers */}
+            {hasPaperFilter && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  onClick={() => handleSelectPaper(undefined)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    selectedPaper === undefined
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400"
+                  }`}
+                >
+                  All
+                </button>
+                {availablePapers.map((p: string) => (
+                  <button
+                    key={p === "" ? "__empty__" : p}
+                    onClick={() => handleSelectPaper(p === selectedPaper ? undefined : p)}
+                    className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      selectedPaper === p
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400"
+                    }`}
+                  >
+                    {paperLabel(p)}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Paper rows */}
+          <div className="divide-y divide-gray-100 dark:divide-gray-700">
+            {availablePapers.map((p: string) => {
+              const counts = paperCounts[p] ?? { total: 0, blacklisted: 0, adjusted: 0 };
+              const pct = totals.galaxies > 0 ? (counts.total / totals.galaxies) * 100 : 0;
+              const isSelected = selectedPaper === p;
+              return (
+                <div
+                  key={p === "" ? "__empty__" : p}
+                  className={`py-3 flex items-center gap-4 ${hasPaperFilter ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 rounded-lg px-2 -mx-2 transition-colors" : ""} ${isSelected ? "bg-blue-50 dark:bg-blue-900/20 rounded-lg px-2 -mx-2" : ""}`}
+                  onClick={hasPaperFilter ? () => handleSelectPaper(isSelected ? undefined : p) : undefined}
+                >
+                  <div className="w-28 shrink-0">
+                    <span className={`text-sm font-medium ${isSelected ? "text-blue-700 dark:text-blue-300" : "text-gray-900 dark:text-white"}`}>
+                      {paperLabel(p)}
+                    </span>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="w-full bg-gray-100 dark:bg-gray-700 rounded-full h-1.5">
+                      <div
+                        className={`h-1.5 rounded-full transition-all duration-300 ${isSelected ? "bg-blue-500" : "bg-indigo-400 dark:bg-indigo-500"}`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white">{counts.total.toLocaleString()}</span>
+                    {counts.blacklisted > 0 && (
+                      <span className="ml-2 text-xs text-amber-600 dark:text-amber-400">−{counts.blacklisted.toLocaleString()} blacklisted</span>
+                    )}
+                    <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">({pct.toFixed(1)}%)</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Active paper filter detail */}
+          {paperFilter && (
+            <div className="mt-4 pt-4 border-t border-blue-100 dark:border-blue-800 grid grid-cols-3 gap-3 text-center">
+              <div>
+                <div className="text-lg font-semibold text-gray-900 dark:text-white">{paperFilter.galaxies.toLocaleString()}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Total</div>
+              </div>
+              <div>
+                <div className="text-lg font-semibold text-rose-600 dark:text-rose-400">{paperFilter.blacklisted.toLocaleString()}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Blacklisted</div>
+              </div>
+              <div>
+                <div className="text-lg font-semibold text-emerald-700 dark:text-emerald-400">{paperFilter.adjusted.toLocaleString()}</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Effective</div>
+              </div>
+            </div>
+          )}
+          {hasPaperFilter && !paperFilter && (
+            <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+              Click a paper row or button above to see effectivecounts excluding blacklisted galaxies.
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Galaxies" value={totals.galaxies.toLocaleString()} helper="Total in catalog" />
         <StatCard label="Classified" value={totals.classifiedGalaxies.toLocaleString()} helper="Have at least one label" />

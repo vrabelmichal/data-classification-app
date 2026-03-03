@@ -28,6 +28,23 @@ export const getSystemSettings = query({
 // Public: Get public system settings (for non-admin users)
 export const getPublicSystemSettings = query({
   args: {},
+  returns: v.object({
+    allowAnonymous: v.boolean(),
+    appName: v.string(),
+    debugAdminMode: v.boolean(),
+    appVersion: v.string(),
+    failedFittingMode: v.union(v.literal("checkbox"), v.literal("legacy")),
+    failedFittingFallbackLsbClass: v.number(),
+    showAwesomeFlag: v.boolean(),
+    showValidRedshift: v.boolean(),
+    showVisibleNucleus: v.boolean(),
+    defaultImageQuality: v.union(v.literal("high"), v.literal("low")),
+    galaxyBrowserImageQuality: v.union(v.literal("high"), v.literal("low")),
+    allowPublicOverview: v.boolean(),
+    userExportLimit: v.number(),
+    maintenanceDisableClassifications: v.boolean(),
+    overviewDefaultPaper: v.union(v.string(), v.null()),
+  }),
   handler: async (ctx) => {
     const settings = await ctx.db.query("systemSettings").collect();
 
@@ -41,42 +58,32 @@ export const getPublicSystemSettings = query({
       ...settingsMap,
     };
 
-    // Whitelist of settings that are safe to expose to non-admin users
-    const publicSettingsWhitelist = [
-      "allowAnonymous",
-      "appName",
-      "debugAdminMode",
-      "appVersion",
-      "failedFittingMode",
-      "failedFittingFallbackLsbClass",
-      "showAwesomeFlag",
-      "showValidRedshift",
-      "showVisibleNucleus",
-      "defaultImageQuality",
-      "galaxyBrowserImageQuality",
-      "allowPublicOverview",
-      "userExportLimit",
-      "maintenanceDisableClassifications",
-    ] as const;
-
-    type PublicSettingKey = (typeof publicSettingsWhitelist)[number];
-
-    // Only return whitelisted settings
-    const publicSettings = publicSettingsWhitelist.reduce(
-      (acc, key) => {
-        acc[key] = mergedSettings[key];
-        return acc;
-      },
-      {} as Record<PublicSettingKey, (typeof DEFAULT_SYSTEM_SETTINGS)[PublicSettingKey]>,
-    );
-
-    return publicSettings;
+    // Return only the whitelisted subset with explicit fields so TypeScript
+    // preserves the narrow per-key types required by the `returns` validator.
+    return {
+      allowAnonymous: mergedSettings.allowAnonymous,
+      appName: mergedSettings.appName,
+      debugAdminMode: mergedSettings.debugAdminMode,
+      appVersion: mergedSettings.appVersion,
+      failedFittingMode: mergedSettings.failedFittingMode,
+      failedFittingFallbackLsbClass: mergedSettings.failedFittingFallbackLsbClass,
+      showAwesomeFlag: mergedSettings.showAwesomeFlag,
+      showValidRedshift: mergedSettings.showValidRedshift,
+      showVisibleNucleus: mergedSettings.showVisibleNucleus,
+      defaultImageQuality: mergedSettings.defaultImageQuality,
+      galaxyBrowserImageQuality: mergedSettings.galaxyBrowserImageQuality,
+      allowPublicOverview: mergedSettings.allowPublicOverview,
+      userExportLimit: mergedSettings.userExportLimit,
+      maintenanceDisableClassifications: mergedSettings.maintenanceDisableClassifications,
+      overviewDefaultPaper: mergedSettings.overviewDefaultPaper,
+    };
   },
 });
 
 // Admin: Update system settings
 
 export const updateSystemSettings = mutation({
+  returns: v.object({ success: v.boolean() }),
   args: {
     allowAnonymous: v.optional(v.boolean()),
     emailFrom: v.optional(v.string()),
@@ -92,6 +99,7 @@ export const updateSystemSettings = mutation({
     defaultImageQuality: v.optional(v.union(v.literal("high"), v.literal("low"))),
     galaxyBrowserImageQuality: v.optional(v.union(v.literal("high"), v.literal("low"))),
     availablePapers: v.optional(v.array(v.string())),
+    overviewDefaultPaper: v.optional(v.union(v.string(), v.null())),
     userExportLimit: v.optional(v.number()),
     // Maintenance mode flags
     maintenanceDisableClassifications: v.optional(v.boolean()),
@@ -351,6 +359,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "maintenanceDisableClassifications",
           value: args.maintenanceDisableClassifications,
+        });
+      }
+    }
+
+    if (args.overviewDefaultPaper !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "overviewDefaultPaper"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.overviewDefaultPaper });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "overviewDefaultPaper",
+          value: args.overviewDefaultPaper,
         });
       }
     }
