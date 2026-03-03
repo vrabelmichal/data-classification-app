@@ -43,6 +43,13 @@ const AGGREGATE_LABELS: Record<string, string> = {
 
 const PARALLELISM_OPTIONS = [1, 2, 3, 5, 8, 15] as const;
 
+const LIVE_LABELING_RISK_AGGREGATES = new Set<string>([
+  "galaxiesByTotalClassifications",
+  "galaxiesByNumVisibleNucleus",
+  "galaxiesByNumAwesomeFlag",
+  "galaxiesByNumFailedFitting",
+]);
+
 type StageStatus = "pending" | "clearing" | "rebuilding" | "done" | "failed";
 
 interface StageState {
@@ -440,6 +447,9 @@ export function RebuildGalaxyAggregatesSection() {
   ).length;
   const totalProcessed = stages.reduce((sum, s) => sum + s.processed, 0);
   const selectedCount = selected.size;
+  const selectedLiveRiskCount = GALAXY_AGGREGATE_NAMES.filter(
+    (name) => selected.has(name) && LIVE_LABELING_RISK_AGGREGATES.has(name)
+  ).length;
 
   // --- ETA / rate calculations (uses `tick` so they refresh every second) ---
   const nowMs = Date.now() + tick * 0; // referencing `tick` keeps this live
@@ -477,14 +487,15 @@ export function RebuildGalaxyAggregatesSection() {
         🔨 Rebuild Galaxy Aggregates
       </h2>
 
-      <div className="flex items-start gap-2 p-3 mb-4 bg-red-50 dark:bg-red-900/20 border border-red-300 dark:border-red-700 rounded-lg">
-        <span className="text-red-600 dark:text-red-400 shrink-0 mt-0.5">⛔</span>
-        <div className="text-xs text-red-700 dark:text-red-300 space-y-1">
-          <p className="font-semibold">Do not run while users are actively labeling.</p>
+      <div className="flex items-start gap-2 p-3 mb-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-300 dark:border-amber-700 rounded-lg">
+        <span className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5">⚠</span>
+        <div className="text-xs text-amber-700 dark:text-amber-300 space-y-1">
+          <p className="font-semibold">Live-labeling conflict risk only applies to specific aggregates.</p>
           <p>
-            Each aggregate is cleared then rebuilt independently. If a user submits a classification
-            while an aggregate is being rebuilt, it may cause duplicate-key conflicts for that
-            aggregate.
+            Rebuilding <strong>Total Classifications</strong>, <strong>Awesome Flag Count</strong>, <strong>Visible Nucleus Count</strong>, or <strong>Failed Fitting Count</strong> while users submit classifications can cause duplicate-key conflicts for those specific aggregates.
+          </p>
+          <p>
+            The other galaxy aggregates are not updated by classification submissions and do not have this specific conflict risk.
           </p>
         </div>
       </div>
@@ -559,6 +570,14 @@ export function RebuildGalaxyAggregatesSection() {
         <span className="text-xs text-gray-400 dark:text-gray-500 ml-1">
           ({selectedCount} selected)
         </span>
+        {selectedLiveRiskCount > 0 && (
+          <span
+            className="text-xs text-amber-600 dark:text-amber-400 ml-2"
+            title="These selected aggregates are updated by live classification submissions."
+          >
+            ⚠ {selectedLiveRiskCount} live-labeling sensitive
+          </span>
+        )}
       </div>
 
       {/* Buttons */}
@@ -647,6 +666,7 @@ export function RebuildGalaxyAggregatesSection() {
       {/* Stages list */}
       <div className="space-y-1 max-h-[420px] overflow-y-auto">
         {stages.map((stage, index) => {
+          const hasLiveLabelingRisk = LIVE_LABELING_RISK_AGGREGATES.has(stage.name);
           const count = countMap[stage.name];
           const hasCount = count !== undefined;
           const isMismatch =
@@ -701,6 +721,14 @@ export function RebuildGalaxyAggregatesSection() {
                 }`}
               >
                 {AGGREGATE_LABELS[stage.name] ?? stage.name}
+                {hasLiveLabelingRisk && (
+                  <span
+                    className="ml-1 text-amber-600 dark:text-amber-400"
+                    title="Updated by live classification submissions; avoid rebuilding this while users are actively labeling."
+                  >
+                    ⚠
+                  </span>
+                )}
               </span>
 
               {/* Status info + inline ETA */}
