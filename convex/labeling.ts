@@ -2,7 +2,6 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireAdmin } from "./lib/auth";
 import { Id } from "./_generated/dataModel";
-import { api } from "./_generated/api";
 import { DEFAULT_AVAILABLE_PAPERS } from "./lib/defaults";
 import {
   galaxiesById,
@@ -20,10 +19,58 @@ import {
 } from "./galaxies/aggregates";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const BLACKLIST_LOOKUP_BATCH_SIZE = 200;
+
+async function mapBlacklistedIdsToPaper(
+  ctx: any,
+  externalIds: string[]
+): Promise<Record<string, string>> {
+  const paperByExternalId: Record<string, string> = {};
+
+  for (let i = 0; i < externalIds.length; i += BLACKLIST_LOOKUP_BATCH_SIZE) {
+    const batch = externalIds.slice(i, i + BLACKLIST_LOOKUP_BATCH_SIZE);
+    const resolved = await Promise.all(
+      batch.map(async (externalId) => {
+        const galaxy = await ctx.db
+          .query("galaxies")
+          .withIndex("by_external_id", (q: any) => q.eq("id", externalId))
+          .unique();
+        return {
+          externalId,
+          paper: galaxy ? (galaxy.misc?.paper ?? "") : "",
+        };
+      })
+    );
+
+    for (const entry of resolved) {
+      paperByExternalId[entry.externalId] = entry.paper;
+    }
+  }
+
+  return paperByExternalId;
+}
 
 async function getTopClassifiers(ctx: any, limit: number) {
   const totalProfiles = await userProfilesByClassificationsCount.count(ctx);
   const take = Math.min(limit, totalProfiles);
+  if (take <= 0) {
+    return [];
+  }
+
+  const profileSlots = await Promise.all(
+    Array.from({ length: take }, (_, idx) =>
+      userProfilesByClassificationsCount.at(ctx, totalProfiles - 1 - idx)
+    )
+  );
+
+  const profiles = await Promise.all(
+    profileSlots.map((item) => ctx.db.get(item.id as Id<"userProfiles">))
+  );
+
+  const users = await Promise.all(
+    profiles.map((profile) => (profile ? ctx.db.get(profile.userId) : null))
+  );
+
   const results: Array<{
     userId: Id<"users">;
     profileId: Id<"userProfiles">;
@@ -34,10 +81,9 @@ async function getTopClassifiers(ctx: any, limit: number) {
   }> = [];
 
   for (let i = 0; i < take; i++) {
-    const item = await userProfilesByClassificationsCount.at(ctx, totalProfiles - 1 - i);
-    const profile = await ctx.db.get(item.id as Id<"userProfiles">);
+    const profile = profiles[i];
     if (!profile) continue;
-    const user = await ctx.db.get(profile.userId);
+    const user = users[i];
     results.push({
       userId: profile.userId,
       profileId: profile._id,
@@ -123,28 +169,7 @@ export const getLabelingOverview = query({
     const sevenDaysAgo = now - 7 * DAY_MS;
     const oneDayAgo = now - DAY_MS;
 
-    const [
-      totalGalaxies,
-      classifiedGalaxies,
-      totalClassifications,
-      classificationsLast7d,
-      classificationsLast24h,
-      activeClassifiers,
-      activePast7d,
-      // Classification flag counts
-      awesomeFlagCount,
-      visibleNucleusCount,
-      failedFittingCount,
-      validRedshiftCount,
-      // LSB class counts (binary: 0 = nonLSB, 1 = LSB)
-      lsbClassNonLSB,
-      lsbClassLSB,
-      // Morphology counts
-      morphologyFeatureless,
-      morphologyIrregular,
-      morphologySpiral,
-      morphologyElliptical,
-    ] = await Promise.all([
+    const coreCountsPromise = Promise.all([
       galaxiesById.count(ctx),
       galaxiesByTotalClassifications.count(ctx, {
         bounds: {
@@ -206,6 +231,63 @@ export const getLabelingOverview = query({
       }),
     ]);
 
+    const availablePapersSettingPromise = ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", "availablePapers"))
+      .unique();
+
+    const blacklistRowsPromise = ctx.db.query("galaxyBlacklist").collect();
+
+    const dailyCountsPromise = Promise.all(
+      Array.from({ length: 7 }, (_, idx) => {
+        const start = now - (idx + 1) * DAY_MS;
+        const end = now - idx * DAY_MS;
+        return classificationsByCreated.count(ctx, {
+          bounds: {
+            lower: { key: start, inclusive: true },
+            upper: { key: end, inclusive: false },
+          },
+        }).then((count) => ({ start, end, count }));
+      })
+    );
+
+    const topClassifiersPromise = getTopClassifiers(ctx, 5);
+
+    const [
+      [
+        totalGalaxies,
+        classifiedGalaxies,
+        totalClassifications,
+        classificationsLast7d,
+        classificationsLast24h,
+        activeClassifiers,
+        activePast7d,
+        // Classification flag counts
+        awesomeFlagCount,
+        visibleNucleusCount,
+        failedFittingCount,
+        validRedshiftCount,
+        // LSB class counts (binary: 0 = nonLSB, 1 = LSB)
+        lsbClassNonLSB,
+        lsbClassLSB,
+        // Morphology counts
+        morphologyFeatureless,
+        morphologyIrregular,
+        morphologySpiral,
+        morphologyElliptical,
+      ],
+      availablePapersSetting,
+      blacklistRows,
+      dailyCounts,
+      topClassifiers,
+    ] = await Promise.all([
+      coreCountsPromise,
+      availablePapersSettingPromise,
+      blacklistRowsPromise,
+      dailyCountsPromise,
+      topClassifiersPromise,
+    ]);
+
     const unclassifiedGalaxies = Math.max(totalGalaxies - classifiedGalaxies, 0);
     const progress = totalGalaxies > 0 ? (classifiedGalaxies / totalGalaxies) * 100 : 0;
     const avgClassificationsPerGalaxy = totalGalaxies > 0 ? totalClassifications / totalGalaxies : 0;
@@ -213,20 +295,24 @@ export const getLabelingOverview = query({
 
     // Always compute per-paper galaxy counts using the aggregate (O(log n) each).
     // We also count blacklisted galaxies per paper once — blacklist is small.
-    const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
-    const availablePapers: string[] = (settings as any)?.availablePapers ?? DEFAULT_AVAILABLE_PAPERS;
+    const availablePapers: string[] = Array.isArray((availablePapersSetting as any)?.value)
+      ? (((availablePapersSetting as any).value as unknown[]).filter((p): p is string => typeof p === "string"))
+      : DEFAULT_AVAILABLE_PAPERS;
     // Ensure "" (unassigned) is always included so every galaxy is accounted for.
     const allPapers = availablePapers.includes("") ? availablePapers : ["", ...availablePapers];
 
-    // Load blacklist once and resolve each galaxy's paper value.
-    const blacklistRows = await ctx.db.query("galaxyBlacklist").collect();
+    // Load blacklist once, then resolve paper values in deduped batched lookups.
+    const uniqueBlacklistedExternalIds = Array.from(
+      new Set(blacklistRows.map((row) => row.galaxyExternalId))
+    );
+    const paperByBlacklistedExternalId = await mapBlacklistedIdsToPaper(
+      ctx,
+      uniqueBlacklistedExternalIds
+    );
+
     const blacklistedPerPaper: Record<string, number> = {};
     for (const row of blacklistRows) {
-      const galaxy = await ctx.db
-        .query("galaxies")
-        .withIndex("by_external_id", (q) => q.eq("id", row.galaxyExternalId))
-        .unique();
-      const paper = galaxy ? (galaxy.misc?.paper ?? "") : "";
+      const paper = paperByBlacklistedExternalId[row.galaxyExternalId] ?? "";
       blacklistedPerPaper[paper] = (blacklistedPerPaper[paper] ?? 0) + 1;
     }
 
@@ -271,21 +357,6 @@ export const getLabelingOverview = query({
         paperFilter = { paper: paperStr, galaxies: count, blacklisted: bl, adjusted: Math.max(count - bl, 0) };
       }
     }
-
-    const dailyCounts = await Promise.all(
-      Array.from({ length: 7 }, (_, idx) => {
-        const start = now - (idx + 1) * DAY_MS;
-        const end = now - idx * DAY_MS;
-        return classificationsByCreated.count(ctx, {
-          bounds: {
-            lower: { key: start, inclusive: true },
-            upper: { key: end, inclusive: false },
-          },
-        }).then((count) => ({ start, end, count }));
-      })
-    );
-
-    const topClassifiers = await getTopClassifiers(ctx, 5);
 
     return {
       totals: {
