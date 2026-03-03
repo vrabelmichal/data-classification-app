@@ -304,7 +304,7 @@ export function OverviewTab() {
           )}
           {hasPaperFilter && !paperFilter && (
             <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-              Click a paper row or button above to see effectivecounts excluding blacklisted galaxies.
+              Click a paper row or button above to see effective counts excluding blacklisted galaxies.
             </p>
           )}
         </div>

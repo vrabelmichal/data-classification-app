@@ -55,6 +55,67 @@ export const getLabelingOverview = query({
   args: {
     paper: v.optional(v.string()),
   },
+  returns: v.object({
+    totals: v.object({
+      galaxies: v.number(),
+      classifiedGalaxies: v.number(),
+      unclassifiedGalaxies: v.number(),
+      totalClassifications: v.number(),
+      progress: v.number(),
+      avgClassificationsPerGalaxy: v.number(),
+    }),
+    recency: v.object({
+      classificationsLast7d: v.number(),
+      classificationsLast24h: v.number(),
+      activeClassifiers: v.number(),
+      activePast7d: v.number(),
+      avgClassificationsPerActiveUser: v.number(),
+      dailyCounts: v.array(v.object({
+        start: v.number(),
+        end: v.number(),
+        count: v.number(),
+      })),
+    }),
+    classificationStats: v.object({
+      flags: v.object({
+        awesome: v.number(),
+        visibleNucleus: v.number(),
+        failedFitting: v.number(),
+        validRedshift: v.number(),
+      }),
+      lsbClass: v.object({
+        nonLSB: v.number(),
+        LSB: v.number(),
+      }),
+      morphology: v.object({
+        featureless: v.number(),
+        irregular: v.number(),
+        spiral: v.number(),
+        elliptical: v.number(),
+      }),
+    }),
+    topClassifiers: v.array(v.object({
+      userId: v.string(),
+      profileId: v.string(),
+      name: v.optional(v.union(v.string(), v.null())),
+      email: v.optional(v.union(v.string(), v.null())),
+      classifications: v.number(),
+      lastActiveAt: v.optional(v.number()),
+    })),
+    timestamp: v.number(),
+    paperCounts: v.record(v.string(), v.object({
+      total: v.number(),
+      blacklisted: v.number(),
+      adjusted: v.number(),
+    })),
+    availablePapers: v.array(v.string()),
+    paperFilter: v.union(v.object({
+      paper: v.string(),
+      galaxies: v.number(),
+      blacklisted: v.number(),
+      adjusted: v.number(),
+    }), v.null()),
+  }),
   handler: async (ctx, args) => {
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
