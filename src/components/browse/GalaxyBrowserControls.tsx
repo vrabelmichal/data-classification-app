@@ -143,12 +143,13 @@ export function GalaxyBrowserControls({
       </div>
 
       {/* Cursor Pagination */}
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center space-x-2">
+      <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
+        {/* Pagination buttons — icon-auto + equal Prev/Next on mobile, compact row on desktop */}
+        <div className="grid grid-cols-[auto_1fr_1fr] gap-2 sm:flex sm:items-center sm:gap-0 sm:space-x-2">
           <button
             onClick={goFirst}
             disabled={!hasPrevious}
-            className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center py-2.5 sm:py-1 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
             title="First page"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -158,68 +159,74 @@ export function GalaxyBrowserControls({
           <button
             onClick={goPrev}
             disabled={!hasPrevious}
-            className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center py-2.5 sm:py-1 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Previous
           </button>
           <button
             onClick={goNext}
             disabled={!hasNext}
-            className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center py-2.5 sm:py-1 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Next
           </button>
+        </div>
+
+        {/* Compute Total and Quick Review buttons */}
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           {onComputeTotal && (
-            <button
-              onClick={onComputeTotal}
-              disabled={isComputingTotal}
-              className="px-3 py-1 text-xs border border-blue-300 dark:border-blue-600 rounded-md bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
-              title="Count all galaxies matching current filters"
-            >
-              {isComputingTotal ? (
-                <>
-                  <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none">
+            <div className="flex sm:inline-flex items-center rounded-md border border-blue-300 dark:border-blue-600 overflow-hidden text-sm">
+              <button
+                onClick={onComputeTotal}
+                disabled={isComputingTotal}
+                className="flex items-center gap-2 flex-1 sm:flex-none px-3 py-2.5 sm:py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                title="Count all galaxies matching current filters"
+              >
+                {isComputingTotal ? (
+                  <svg className="animate-spin h-3.5 w-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                    <span>{accumulatedCount > 0 ? `Counted ${accumulatedCount}...` : 'Counting...'}</span>
-                </>
-              ) : (
-                <>
-                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                ) : (
+                  <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
                   </svg>
-                  <span>Compute Total</span>
-                </>
+                )}
+                Count All
+              </button>
+              {(isComputingTotal || computedTotal !== null) && (
+                <span className="border-l border-blue-300 dark:border-blue-600 px-3 py-2.5 sm:py-1 bg-blue-100/60 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 tabular-nums whitespace-nowrap font-medium">
+                  {isComputingTotal
+                    ? accumulatedCount > 0 ? `${accumulatedCount.toLocaleString()}…` : '…'
+                    : computedTotal!.toLocaleString()}
+                </span>
               )}
-            </button>
+            </div>
           )}
-          {onComputeTotal && (isComputingTotal || computedTotal !== null) && (
-            <span className="text-xs text-gray-700 dark:text-gray-300 whitespace-nowrap">
-              {isComputingTotal
-                ? accumulatedCount > 0
-                  ? `Counted ${accumulatedCount}...`
-                  : 'Counting...'
-                : `Total ${computedTotal}`}
-            </span>
-          )}
+
           {onEnterReviewMode && (
             <button
               onClick={onEnterReviewMode}
-              className="px-3 py-1 text-xs border border-purple-300 dark:border-purple-600 rounded-md bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 flex items-center justify-center gap-1.5"
+              className="flex sm:inline-flex items-center gap-2 px-3 py-2.5 sm:py-1 text-sm border border-purple-300 dark:border-purple-600 rounded-md bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
               title="Review galaxies one by one in full-screen mode"
             >
-              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="h-3.5 w-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.9L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
               </svg>
-              <span>Quick Review</span>
+              Quick Review
             </button>
           )}
         </div>
-        <div className="text-sm text-gray-700 dark:text-gray-300 text-left sm:text-right">
-          <div>Page {page}</div>
-          <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-            {statusText}
+
+        {/* Page info */}
+        <div className="sm:ml-auto">
+          {/* Mobile: bordered info row to match button style */}
+          <div className="flex items-center gap-3 px-3 py-2.5 sm:py-0 sm:px-0 rounded-md sm:rounded-none border border-gray-200 dark:border-gray-700 sm:border-0 bg-gray-50 dark:bg-gray-800 sm:bg-transparent dark:sm:bg-transparent text-sm text-gray-700 dark:text-gray-300">
+            <span className="font-medium whitespace-nowrap">Page {page}</span>
+            <span className="text-gray-400 dark:text-gray-600 hidden sm:inline">·</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 sm:text-right">
+              {statusText}
+            </span>
           </div>
         </div>
       </div>
