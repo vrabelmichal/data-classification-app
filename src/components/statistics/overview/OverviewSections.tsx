@@ -265,7 +265,7 @@ export function ClassificationBreakdownsSection({
   return (
     <>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {loading && (
+        {loading && lsbItems.length === 0 && morphologyItems.length === 0 && flagItems.length === 0 && (
           <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm text-sm text-gray-500 dark:text-gray-400 lg:col-span-2">
             Loading classification breakdowns…
           </div>
