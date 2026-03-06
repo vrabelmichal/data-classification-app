@@ -36,13 +36,32 @@ export function SignInForm() {
           try {
             await signIn("password", formData);
           } catch (error) {
+            // Log the full error so the real cause is always recorded for debugging.
+            console.error("[SignInForm] signIn error:", error);
+
             const message = (error as Error)?.message?.toLowerCase() ?? "";
-            const passwordInvalid = message.includes("invalid password");
+            // Prefer an explicit error code/type over text-matching when available.
+            const errorCode =
+              (error as { code?: string })?.code ??
+              (error as { type?: string })?.type ??
+              "";
+
+            // NOTE: The "too short" / "minimum" text match is a best-effort
+            // heuristic because the auth provider does not always expose a
+            // structured error code for password-length violations.  This
+            // intentionally avoids the generic "invalid password" phrase so we
+            // don't misclassify a wrong-password error as a length error.
+            const passwordTooShort =
+              errorCode === "password_too_short" ||
+              message.includes("too short") ||
+              message.includes("minimum") ||
+              (message.includes("password") && message.includes(`${PASSWORD_MIN_LENGTH}`));
+
             const credentialsInvalid = message.includes("invalid credentials");
             const invalidSecret =
               message.includes("invalidsecret") || message.includes("invalid secret");
 
-            if (passwordInvalid) {
+            if (passwordTooShort) {
               toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`);
             } else if (credentialsInvalid && flow === "signIn") {
               toast.error("Email or password is incorrect.");
