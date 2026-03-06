@@ -58,21 +58,6 @@ export function OverviewTab() {
     }));
   }, [recencyData]);
 
-  // show spinner while any required query is still loading
-  if (
-    systemSettings === undefined ||
-    totalsAndPapers === undefined ||
-    recencyData === undefined ||
-    topClassifiersData === undefined ||
-    classificationStatsData === undefined
-  ) {
-    return (
-      <div className="flex justify-center items-center py-12">
-        <div className="h-10 w-10 border-2 border-gray-300 border-t-blue-600 rounded-full animate-spin" />
-      </div>
-    );
-  }
-
   const totals = totalsAndPapers?.totals;
   const recency = recencyData?.recency;
   const classificationStats = classificationStatsData?.classificationStats;
