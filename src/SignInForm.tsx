@@ -19,37 +19,47 @@ export function SignInForm() {
       <form
         className="flex flex-col gap-form-field"
         method="post"
-        onSubmit={(e) => {
+        onSubmit={async (e) => {
           e.preventDefault();
           const formData = new FormData(e.target as HTMLFormElement);
           formData.set("flow", flow);
 
           const password = (formData.get("password") as string) ?? "";
-          if (password.length < PASSWORD_MIN_LENGTH) {
+          // Only enforce minimum length on sign-up; existing users may have
+          // shorter passwords and must not be blocked from signing in.
+          if (flow === "signUp" && password.length < PASSWORD_MIN_LENGTH) {
             toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`);
             return;
           }
 
           setSubmitting(true);
-          void signIn("password", formData)
-            .catch((error) => {
-              const message = error?.message?.toLowerCase() ?? "";
-              const passwordInvalid = message.includes("invalid password");
-              const credentialsInvalid = message.includes("invalid credentials");
+          try {
+            await signIn("password", formData);
+          } catch (error) {
+            const message = (error as Error)?.message?.toLowerCase() ?? "";
+            const passwordInvalid = message.includes("invalid password");
+            const credentialsInvalid = message.includes("invalid credentials");
+            const invalidSecret =
+              message.includes("invalidsecret") || message.includes("invalid secret");
 
-              if (passwordInvalid) {
-                toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`);
-              } else if (credentialsInvalid && flow === "signIn") {
-                toast.error("Email or password is incorrect.");
-              } else {
-                toast.error(
-                  flow === "signIn"
-                    ? "Could not sign in, did you mean to sign up?"
-                    : "Could not sign up, did you mean to sign in?",
-                );
-              }
-            })
-            .finally(() => setSubmitting(false));
+            if (passwordInvalid) {
+              toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`);
+            } else if (credentialsInvalid && flow === "signIn") {
+              toast.error("Email or password is incorrect.");
+            } else if (invalidSecret) {
+              toast.error(
+                "Sign-in failed due to an account issue. Please try again or reset your password.",
+              );
+            } else {
+              toast.error(
+                flow === "signIn"
+                  ? "Could not sign in, did you mean to sign up?"
+                  : "Could not sign up, did you mean to sign in?",
+              );
+            }
+          } finally {
+            setSubmitting(false);
+          }
         }}
       >
         <input
