@@ -21,6 +21,11 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
             ? (params.name as string | undefined)?.trim()
             : undefined;
 
+        // Log every sign-in/sign-up attempt with the email so that backend
+        // errors like InvalidSecret (which carry no user context) can be
+        // correlated to a specific account in the Convex dashboard logs.
+        console.log(`[auth:profile] flow=${params.flow} email=${email}`);
+
         if (name && name.length > 120) {
           throw new Error("Name must be 120 characters or fewer");
         }

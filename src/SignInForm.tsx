@@ -33,17 +33,28 @@ export function SignInForm() {
           }
 
           setSubmitting(true);
+          // Short reference ID so users can quote it in issue reports and we
+          // can match it to the backend log line (same wall-clock second).
+          const refId = Date.now().toString(36).toUpperCase();
           try {
             await signIn("password", formData);
           } catch (error) {
-            // Log the full error so the real cause is always recorded for debugging.
-            console.error("[SignInForm] signIn error:", error);
+            const err = error as Error & { code?: string; type?: string; status?: number };
+            const message = err?.message?.toLowerCase() ?? "";
+            const errorCode = err?.code ?? err?.type ?? "";
 
-            const message = (error as Error)?.message?.toLowerCase() ?? "";
-            const errorCode =
-              (error as { code?: string })?.code ??
-              (error as { type?: string })?.type ??
-              "";
+            // Structured log — every field captured automatically by Sentry /
+            // LogRocket / browser DevTools.  refId ties this to the toast the
+            // user sees, making it easy to correlate a report to a log line.
+            console.error("[SignInForm] sign-in failure", {
+              refId,
+              flow,
+              errorCode,
+              message: err?.message,
+              status: err?.status,
+              stack: err?.stack,
+              raw: error,
+            });
 
             const passwordTooShort =
               errorCode === "password_too_short" ||
@@ -65,25 +76,29 @@ export function SignInForm() {
               message.includes("invalidaccountid") ||
               message.includes("could not find");
 
+            // Append the reference ID to every toast so users can paste it
+            // verbatim when submitting an issue report.
+            const ref = `(ref\u00a0${refId})`;
+
             if (rateLimited) {
               toast.error(
-                "Too many failed attempts. Please wait a few minutes before trying again.",
+                `Too many failed attempts. Please wait a few minutes before trying again. ${ref}`,
               );
             } else if (passwordTooShort && flow === "signUp") {
-              toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`);
+              toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long. ${ref}`);
             } else if (accountNotFound && flow === "signIn") {
               toast.error(
-                "No account found for this email. Check your email address or sign up instead.",
+                `No account found for this email. Check your email address or sign up instead. ${ref}`,
               );
             } else if (credentialsInvalid && flow === "signIn") {
               toast.error(
-                "Email or password is incorrect. If you've forgotten your password, use the reset link below.",
+                `Email or password is incorrect. If you've forgotten your password, use the reset link below. ${ref}`,
               );
             } else {
               const hint =
                 flow === "signIn"
-                  ? "Could not sign in. Please check your credentials or try resetting your password."
-                  : "Could not sign up. An account with this email may already exist — try signing in instead.";
+                  ? `Could not sign in. Please check your credentials or try resetting your password. ${ref}`
+                  : `Could not sign up. An account with this email may already exist — try signing in instead. ${ref}`;
               toast.error(hint);
             }
           } finally {
