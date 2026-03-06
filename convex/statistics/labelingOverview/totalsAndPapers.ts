@@ -52,7 +52,7 @@ export const get = query({
       // undercount of classified/total vs the aggregate-based galaxy total.
       const galaxiesInPaper = await ctx.db
         .query("galaxies")
-        .withIndex("by_misc_paper", (q: any) => q.eq("misc.paper", args.paper))
+        .withIndex("by_misc_paper", (q) => q.eq("misc.paper", args.paper))
         .collect();
 
       classifiedGalaxies = 0;

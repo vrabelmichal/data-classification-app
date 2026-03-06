@@ -102,7 +102,7 @@ export function OverviewTab() {
   // Use the sum of lsbClass counts from classificationStats as the breakdown bar
   // denominator so it stays aligned with the (always-global) classification stats data,
   // even when totals.totalClassifications is scoped to the selected paper.
-  const totalClassificationsForBreakdowns = classificationStats
+  const totalClassificationsForBreakdowns = classificationStats?.lsbClass
     ? (classificationStats.lsbClass.nonLSB + classificationStats.lsbClass.LSB)
     : (totals?.totalClassifications || 0);
 
