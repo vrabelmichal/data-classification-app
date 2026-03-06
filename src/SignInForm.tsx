@@ -40,41 +40,51 @@ export function SignInForm() {
             console.error("[SignInForm] signIn error:", error);
 
             const message = (error as Error)?.message?.toLowerCase() ?? "";
-            // Prefer an explicit error code/type over text-matching when available.
             const errorCode =
               (error as { code?: string })?.code ??
               (error as { type?: string })?.type ??
               "";
 
-            // NOTE: The "too short" / "minimum" text match is a best-effort
-            // heuristic because the auth provider does not always expose a
-            // structured error code for password-length violations.  This
-            // intentionally avoids the generic "invalid password" phrase so we
-            // don't misclassify a wrong-password error as a length error.
             const passwordTooShort =
               errorCode === "password_too_short" ||
               message.includes("too short") ||
               message.includes("minimum") ||
-              (message.includes("password") && message.includes(`${PASSWORD_MIN_LENGTH}`));
+              message.includes("invalid password");
 
-            const credentialsInvalid = message.includes("invalid credentials");
-            const invalidSecret =
-              message.includes("invalidsecret") || message.includes("invalid secret");
+            const credentialsInvalid =
+              message.includes("invalid credentials") ||
+              message.includes("invalidsecret") ||
+              message.includes("invalid secret");
 
-            if (passwordTooShort) {
-              toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`);
-            } else if (credentialsInvalid && flow === "signIn") {
-              toast.error("Email or password is incorrect.");
-            } else if (invalidSecret) {
+            const rateLimited =
+              message.includes("rate limit") ||
+              message.includes("too many") ||
+              message.includes("toomanyfailedattempts");
+
+            const accountNotFound =
+              message.includes("invalidaccountid") ||
+              message.includes("could not find");
+
+            if (rateLimited) {
               toast.error(
-                "Sign-in failed due to an account issue. Please try again or reset your password.",
+                "Too many failed attempts. Please wait a few minutes before trying again.",
+              );
+            } else if (passwordTooShort && flow === "signUp") {
+              toast.error(`Password must be at least ${PASSWORD_MIN_LENGTH} characters long.`);
+            } else if (accountNotFound && flow === "signIn") {
+              toast.error(
+                "No account found for this email. Check your email address or sign up instead.",
+              );
+            } else if (credentialsInvalid && flow === "signIn") {
+              toast.error(
+                "Email or password is incorrect. If you've forgotten your password, use the reset link below.",
               );
             } else {
-              toast.error(
+              const hint =
                 flow === "signIn"
-                  ? "Could not sign in, did you mean to sign up?"
-                  : "Could not sign up, did you mean to sign in?",
-              );
+                  ? "Could not sign in. Please check your credentials or try resetting your password."
+                  : "Could not sign up. An account with this email may already exist — try signing in instead.";
+              toast.error(hint);
             }
           } finally {
             setSubmitting(false);
