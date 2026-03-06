@@ -73,6 +73,14 @@ export function usePaperClassificationStats(
       setIsDone(true);
     } else if (pageResult.continueCursor !== null) {
       setCursor(pageResult.continueCursor);
+    } else {
+      // Defensive: server reported isDone=false but gave no cursor to advance with.
+      // Treat this as terminal to avoid the hook remaining stuck in isLoading=true.
+      console.warn(
+        "[usePaperClassificationStats] Received isDone=false with null continueCursor " +
+          `for paper "${paper}". Treating stream as finished.`
+      );
+      setIsDone(true);
     }
     // We intentionally omit `cursor` from deps: we only want to run this
     // effect when `pageResult` itself changes (i.e. new data arrived), not
