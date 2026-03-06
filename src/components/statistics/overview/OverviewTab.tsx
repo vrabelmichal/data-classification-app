@@ -99,7 +99,12 @@ export function OverviewTab() {
     { label: "Elliptical", value: classificationStats.morphology.elliptical || 0, color: "bg-purple-500", icon: "⭕" },
   ] : [];
 
-  const totalClassifications = totals?.totalClassifications || 0;
+  // Use the sum of lsbClass counts from classificationStats as the breakdown bar
+  // denominator so it stays aligned with the (always-global) classification stats data,
+  // even when totals.totalClassifications is scoped to the selected paper.
+  const totalClassificationsForBreakdowns = classificationStats
+    ? (classificationStats.lsbClass.nonLSB + classificationStats.lsbClass.LSB)
+    : (totals?.totalClassifications || 0);
 
   return (
     <div className="space-y-8">
@@ -112,9 +117,9 @@ export function OverviewTab() {
         onSelectPaper={handleSelectPaper}
       />
 
-      <SummaryCardsSection totals={totals} />
+      <SummaryCardsSection totals={totals} selectedPaper={selectedPaper} />
 
-      <ProgressSection totals={totals} activeClassifiers={recency?.activeClassifiers} />
+      <ProgressSection totals={totals} activeClassifiers={recency?.activeClassifiers} selectedPaper={selectedPaper} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ThroughputSection
@@ -123,16 +128,18 @@ export function OverviewTab() {
             classificationsLast7d: recency.classificationsLast7d,
           } : undefined}
           dailySeries={dailySeries}
+          selectedPaper={selectedPaper}
         />
-        <TopClassifiersSection topClassifiers={topClassifiers} />
+        <TopClassifiersSection topClassifiers={topClassifiers} selectedPaper={selectedPaper} />
       </div>
 
       <ClassificationBreakdownsSection
         lsbItems={lsbItems}
         morphologyItems={morphologyItems}
         flagItems={flagItems}
-        totalClassifications={totalClassifications}
+        totalClassifications={totalClassificationsForBreakdowns}
         loading={classificationStats === undefined}
+        selectedPaper={selectedPaper}
       />
     </div>
   );

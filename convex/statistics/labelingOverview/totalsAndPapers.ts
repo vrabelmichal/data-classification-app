@@ -34,22 +34,47 @@ export const get = query({
   handler: async (ctx, args) => {
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
-    const [
-      totalGalaxies,
-      classifiedGalaxies,
-      totalClassifications,
-      paperPayload,
-    ] = await Promise.all([
-      galaxiesById.count(ctx),
-      galaxiesByTotalClassifications.count(ctx, {
-        bounds: {
-          lower: { key: 1, inclusive: true },
-          upper: { key: Number.MAX_SAFE_INTEGER - 1, inclusive: true },
-        },
-      }),
-      classificationsByCreated.count(ctx),
-      getPaperCountsPayload(ctx, args.paper),
-    ]);
+    let totalGalaxies: number;
+    let classifiedGalaxies: number;
+    let totalClassifications: number;
+
+    const paperPayload = await getPaperCountsPayload(ctx, args.paper);
+
+    if (args.paper !== undefined) {
+      // Paper-specific totals: use the aggregate count for total galaxies (normalises
+      // undefined paper as "") and scan the by_misc_paper index for classification stats.
+      totalGalaxies = paperPayload.paperFilter?.galaxies ?? 0;
+
+      // Scan galaxies belonging to this paper to derive classification counts.
+      // Note: the by_misc_paper index stores the literal misc.paper value, so galaxies
+      // where misc.paper is undefined are NOT matched by q.eq("misc.paper", "").
+      // For named (non-empty) papers this is correct; for paper=="" there may be a slight
+      // undercount of classified/total vs the aggregate-based galaxy total.
+      const galaxiesInPaper = await ctx.db
+        .query("galaxies")
+        .withIndex("by_misc_paper", (q: any) => q.eq("misc.paper", args.paper))
+        .collect();
+
+      classifiedGalaxies = 0;
+      totalClassifications = 0;
+      for (const g of galaxiesInPaper) {
+        const tc = Number(g.totalClassifications ?? 0);
+        if (tc > 0) classifiedGalaxies++;
+        totalClassifications += tc;
+      }
+    } else {
+      // Global totals from fast aggregates.
+      [totalGalaxies, classifiedGalaxies, totalClassifications] = await Promise.all([
+        galaxiesById.count(ctx),
+        galaxiesByTotalClassifications.count(ctx, {
+          bounds: {
+            lower: { key: 1, inclusive: true },
+            upper: { key: Number.MAX_SAFE_INTEGER - 1, inclusive: true },
+          },
+        }),
+        classificationsByCreated.count(ctx),
+      ]);
+    }
 
     const unclassifiedGalaxies = Math.max(totalGalaxies - classifiedGalaxies, 0);
     const progress = totalGalaxies > 0 ? (classifiedGalaxies / totalGalaxies) * 100 : 0;
