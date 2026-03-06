@@ -13,9 +13,11 @@ import {
 import {
   ClassificationStatsPayload,
   RecencyPayload,
+  Totals,
   TopClassifiersPayload,
   TotalsAndPapersPayload,
 } from "./types";
+import { usePaperClassificationStats } from "../../../hooks/usePaperClassificationStats";
 
 export function OverviewTab() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -50,6 +52,35 @@ export function OverviewTab() {
   const topClassifiersData = useQuery(api.statistics.labelingOverview.topClassifiers.get) as TopClassifiersPayload | undefined;
   const classificationStatsData = useQuery(api.statistics.labelingOverview.classificationStats.get) as ClassificationStatsPayload | undefined;
 
+  // When a paper is selected the `get` query returns 0 for classification stats
+  // (to avoid a full-table scan that would time out).  The hook below paginates
+  // through the paper's galaxies incrementally and accumulates the real values.
+  const paperClassStats = usePaperClassificationStats(selectedPaper);
+
+  // Merge base totals (galaxies count is correct) with accumulated paper stats.
+  const totals: Totals | undefined = useMemo(() => {
+    const base = totalsAndPapers?.totals;
+    if (!base) return undefined;
+    if (selectedPaper === undefined) return base;
+
+    // For paper-scoped view, replace the classification stats with the
+    // incrementally-accumulated values from the paginated hook.
+    const classifiedGalaxies = paperClassStats.classifiedGalaxies;
+    const totalClassifications = paperClassStats.totalClassifications;
+    const unclassifiedGalaxies = Math.max(base.galaxies - classifiedGalaxies, 0);
+    const progress = base.galaxies > 0 ? (classifiedGalaxies / base.galaxies) * 100 : 0;
+    const avgClassificationsPerGalaxy =
+      base.galaxies > 0 ? totalClassifications / base.galaxies : 0;
+    return {
+      galaxies: base.galaxies,
+      classifiedGalaxies,
+      unclassifiedGalaxies,
+      totalClassifications,
+      progress,
+      avgClassificationsPerGalaxy,
+    };
+  }, [totalsAndPapers?.totals, selectedPaper, paperClassStats]);
+
   const dailySeries = useMemo(() => {
     if (!recencyData?.recency.dailyCounts) return [];
     return recencyData.recency.dailyCounts.map((entry) => ({
@@ -58,7 +89,6 @@ export function OverviewTab() {
     }));
   }, [recencyData]);
 
-  const totals = totalsAndPapers?.totals;
   const recency = recencyData?.recency;
   const classificationStats = classificationStatsData?.classificationStats;
   const topClassifiers = topClassifiersData?.topClassifiers;
