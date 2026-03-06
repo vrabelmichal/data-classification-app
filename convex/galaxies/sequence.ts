@@ -25,6 +25,97 @@ import { galaxyIdsAggregate } from "./aggregates";
 import { requireAdmin, requireUserId } from "../lib/auth";
 
 
+const hasSequenceProgress = (sequence: {
+    currentIndex: number;
+    numClassified: number;
+    numSkipped: number;
+}) => {
+    return (
+        (sequence.currentIndex ?? 0) > 0 ||
+        (sequence.numClassified ?? 0) > 0 ||
+        (sequence.numSkipped ?? 0) > 0
+    );
+};
+
+const getSequenceProcessedDetails = async (
+    ctx: any,
+    userId: string,
+    sequenceGalaxyExternalIds: string[],
+    fallbackCurrentIndex: number
+) => {
+    if (sequenceGalaxyExternalIds.length === 0) {
+        return {
+            processedGalaxyExternalIds: [] as string[],
+            remainingGalaxyExternalIds: [] as string[],
+            classifiedCount: 0,
+            skippedCount: 0,
+            processedCount: 0,
+        };
+    }
+
+    const sequenceIdSet = new Set(sequenceGalaxyExternalIds);
+
+    const [classifiedRecords, skippedRecords] = await Promise.all([
+        ctx.db
+            .query("classifications")
+            .withIndex("by_user", (q: any) => q.eq("userId", userId))
+            .collect(),
+        ctx.db
+            .query("skippedGalaxies")
+            .withIndex("by_user", (q: any) => q.eq("userId", userId))
+            .collect(),
+    ]);
+
+    const processedSet = new Set<string>();
+
+    let classifiedCount = 0;
+    for (const record of classifiedRecords) {
+        if (!sequenceIdSet.has(record.galaxyExternalId)) continue;
+        classifiedCount++;
+        processedSet.add(record.galaxyExternalId);
+    }
+
+    let skippedCount = 0;
+    for (const record of skippedRecords) {
+        if (!sequenceIdSet.has(record.galaxyExternalId)) continue;
+        skippedCount++;
+        processedSet.add(record.galaxyExternalId);
+    }
+
+    if (processedSet.size === 0 && fallbackCurrentIndex > 0) {
+        const fallbackProcessedCount = Math.min(
+            Math.max(0, Math.floor(fallbackCurrentIndex)),
+            sequenceGalaxyExternalIds.length
+        );
+
+        for (let index = 0; index < fallbackProcessedCount; index++) {
+            processedSet.add(sequenceGalaxyExternalIds[index]);
+        }
+    }
+
+    const remainingGalaxyExternalIds = sequenceGalaxyExternalIds.filter(
+        (galaxyExternalId) => !processedSet.has(galaxyExternalId)
+    );
+
+    return {
+        processedGalaxyExternalIds: Array.from(processedSet),
+        remainingGalaxyExternalIds,
+        classifiedCount,
+        skippedCount,
+        processedCount: processedSet.size,
+    };
+};
+
+const applyClampedDelta = (current: bigint, delta: number) => {
+    const candidate = current + BigInt(delta);
+    const next = candidate > BigInt(0) ? candidate : BigInt(0);
+    return {
+        next,
+        appliedDelta: next - current,
+    };
+};
+
+
 
 export const generateRandomUserSequence = mutation({
     args: {
@@ -255,6 +346,461 @@ export const removeUserSequence = mutation({
             totalGalaxies,
             isLastBatch,
             galaxiesRemoved: isLastBatch ? totalGalaxies : undefined,
+        };
+    },
+});
+
+
+export const getSequenceMigrationPreflight = query({
+    args: {
+        sourceUserId: v.id("users"),
+        targetUserId: v.id("users"),
+    },
+    handler: async (ctx, args) => {
+        await requireAdmin(ctx);
+
+        const sourceUser = await ctx.db.get(args.sourceUserId);
+        const targetUser = await ctx.db.get(args.targetUserId);
+
+        const sourceSequence = await ctx.db
+            .query("galaxySequences")
+            .withIndex("by_user", (q) => q.eq("userId", args.sourceUserId))
+            .unique();
+
+        const targetSequence = await ctx.db
+            .query("galaxySequences")
+            .withIndex("by_user", (q) => q.eq("userId", args.targetUserId))
+            .unique();
+
+        const sourceHasSequence = !!sourceSequence;
+        const targetHasSequence = !!targetSequence;
+
+        const sourceGalaxyIds = sourceSequence?.galaxyExternalIds ?? [];
+        const targetGalaxyIds = targetSequence?.galaxyExternalIds ?? [];
+
+        const sourceProgressDetails = sourceSequence
+            ? await getSequenceProcessedDetails(
+                ctx,
+                args.sourceUserId,
+                sourceGalaxyIds,
+                sourceSequence.currentIndex ?? 0
+            )
+            : null;
+
+        const targetProgressDetails = targetSequence
+            ? await getSequenceProcessedDetails(
+                ctx,
+                args.targetUserId,
+                targetGalaxyIds,
+                targetSequence.currentIndex ?? 0
+            )
+            : null;
+
+        const sourceHasProgress = sourceSequence
+            ? sourceProgressDetails!.processedCount > 0 || hasSequenceProgress(sourceSequence)
+            : false;
+        const targetHasProgress = targetSequence
+            ? targetProgressDetails!.processedCount > 0 || hasSequenceProgress(targetSequence)
+            : false;
+
+        const sourceRemainingGalaxyCount = sourceProgressDetails?.remainingGalaxyExternalIds.length ?? 0;
+        const sourceProcessedGalaxyCount = sourceProgressDetails?.processedCount ?? 0;
+
+        const baseBlockingReasons: string[] = [];
+
+        if (args.sourceUserId === args.targetUserId) {
+            baseBlockingReasons.push("Source and target users must be different.");
+        }
+
+        if (!sourceHasSequence) {
+            baseBlockingReasons.push("Source user does not have a sequence.");
+        }
+
+        if (sourceHasSequence && sourceRemainingGalaxyCount === 0) {
+            baseBlockingReasons.push(
+                "Source sequence has no remaining galaxies to migrate."
+            );
+        }
+
+        const noReplaceBlockingReasons = [...baseBlockingReasons];
+        if (targetHasSequence) {
+            noReplaceBlockingReasons.push("Target user already has a sequence.");
+        }
+
+        const replaceBlockingReasons = [...baseBlockingReasons];
+
+        return {
+            source: {
+                userId: args.sourceUserId,
+                name: sourceUser?.name ?? null,
+                email: sourceUser?.email ?? null,
+                hasSequence: sourceHasSequence,
+                sequenceId: sourceSequence?._id ?? null,
+                galaxyCount: sourceSequence?.galaxyExternalIds?.length ?? 0,
+                currentIndex: sourceSequence?.currentIndex ?? 0,
+                numClassified: sourceSequence?.numClassified ?? 0,
+                numSkipped: sourceSequence?.numSkipped ?? 0,
+                hasProgress: sourceHasProgress,
+                processedGalaxyCount: sourceProcessedGalaxyCount,
+                remainingGalaxyCount: sourceRemainingGalaxyCount,
+            },
+            target: {
+                userId: args.targetUserId,
+                name: targetUser?.name ?? null,
+                email: targetUser?.email ?? null,
+                hasSequence: targetHasSequence,
+                sequenceId: targetSequence?._id ?? null,
+                galaxyCount: targetSequence?.galaxyExternalIds?.length ?? 0,
+                currentIndex: targetSequence?.currentIndex ?? 0,
+                numClassified: targetSequence?.numClassified ?? 0,
+                numSkipped: targetSequence?.numSkipped ?? 0,
+                hasProgress: targetHasProgress,
+                processedGalaxyCount: targetProgressDetails?.processedCount ?? 0,
+                remainingGalaxyCount: targetProgressDetails?.remainingGalaxyExternalIds.length ?? 0,
+            },
+            canMigrateWithoutReplace: noReplaceBlockingReasons.length === 0,
+            canMigrateWithReplace: replaceBlockingReasons.length === 0,
+            noReplaceBlockingReasons,
+            replaceBlockingReasons,
+        };
+    },
+});
+
+
+export const migrateUserSequenceBatch = mutation({
+    args: {
+        sourceUserId: v.id("users"),
+        targetUserId: v.id("users"),
+        replaceTargetSequence: v.optional(v.boolean()),
+        batchIndex: v.number(),
+        batchSize: v.optional(v.number()),
+        sourceSequenceId: v.optional(v.id("galaxySequences")),
+        targetSequenceId: v.optional(v.id("galaxySequences")),
+    },
+    handler: async (ctx, args) => {
+        await requireAdmin(ctx);
+
+        const sourceUserId = args.sourceUserId;
+        const targetUserId = args.targetUserId;
+        const replaceTargetSequence = !!args.replaceTargetSequence;
+        const requestedBatchIndex = Math.max(0, Math.floor(args.batchIndex));
+        const batchSize = Math.max(1, Math.min(500, Math.floor(args.batchSize ?? 250)));
+
+        const migrationStateKey = `sequence_migration:${sourceUserId}:${targetUserId}`;
+
+        if (sourceUserId === targetUserId) {
+            throw new Error("Source and target users must be different");
+        }
+
+        const sourceSequence = await ctx.db
+            .query("galaxySequences")
+            .withIndex("by_user", (q) => q.eq("userId", sourceUserId))
+            .unique();
+
+        if (!sourceSequence) {
+            throw new Error("Source user does not have a sequence");
+        }
+
+        if (args.sourceSequenceId && sourceSequence._id !== args.sourceSequenceId) {
+            throw new Error("Source sequence changed. Refresh and retry migration.");
+        }
+
+        const sourceGalaxyIds = sourceSequence.galaxyExternalIds ?? [];
+        const sourceProgressDetails = await getSequenceProcessedDetails(
+            ctx,
+            sourceUserId,
+            sourceGalaxyIds,
+            sourceSequence.currentIndex ?? 0
+        );
+
+        const remainingSourceGalaxyIds = sourceProgressDetails.remainingGalaxyExternalIds;
+        const sourceProgressToken = [
+            sourceSequence.currentIndex ?? 0,
+            sourceSequence.numClassified ?? 0,
+            sourceSequence.numSkipped ?? 0,
+            sourceProgressDetails.processedCount,
+        ].join(":");
+
+        if (remainingSourceGalaxyIds.length === 0) {
+            throw new Error("Source sequence has no remaining galaxies to migrate.");
+        }
+
+        let existingMigrationStateDoc = await ctx.db
+            .query("systemSettings")
+            .withIndex("by_key", (q) => q.eq("key", migrationStateKey))
+            .unique();
+
+        let existingMigrationState = existingMigrationStateDoc?.value as {
+            sourceSequenceId?: string;
+            targetSequenceId?: string | null;
+            replaceTargetSequence?: boolean;
+            batchSize?: number;
+            nextBatchIndex?: number;
+            totalOperations?: number;
+            totalBatches?: number;
+            sourceGalaxyCount?: number;
+            sourceRemainingGalaxyCount?: number;
+            removedTargetGalaxyCount?: number;
+            sourceProgressToken?: string;
+            startedAt?: number;
+            updatedAt?: number;
+        } | undefined;
+
+        let effectiveBatchIndex = requestedBatchIndex;
+
+        if (existingMigrationStateDoc && existingMigrationState) {
+            const stateSourceSequenceId = existingMigrationState.sourceSequenceId ?? null;
+            const stateTargetSequenceId = existingMigrationState.targetSequenceId ?? null;
+            const stateNextBatchIndex = Math.max(
+                0,
+                Math.floor(existingMigrationState.nextBatchIndex ?? 0)
+            );
+
+            const matchesCurrentRequest =
+                stateSourceSequenceId === String(sourceSequence._id) &&
+                stateTargetSequenceId === (args.targetSequenceId ? String(args.targetSequenceId) : null) &&
+                !!existingMigrationState.replaceTargetSequence === replaceTargetSequence &&
+                (existingMigrationState.sourceProgressToken ?? sourceProgressToken) === sourceProgressToken &&
+                (existingMigrationState.sourceRemainingGalaxyCount ?? remainingSourceGalaxyIds.length) ===
+                    remainingSourceGalaxyIds.length;
+
+            if (!matchesCurrentRequest) {
+                if (requestedBatchIndex === 0 && stateNextBatchIndex === 0) {
+                    await ctx.db.delete(existingMigrationStateDoc._id);
+                    existingMigrationStateDoc = null;
+                    existingMigrationState = undefined;
+                } else {
+                    throw new Error(
+                        "Stored migration state does not match current request. Complete or cancel the in-progress migration first."
+                    );
+                }
+            }
+        }
+
+        if (existingMigrationStateDoc && existingMigrationState) {
+            effectiveBatchIndex = Math.max(0, Math.floor(existingMigrationState.nextBatchIndex ?? 0));
+        } else if (requestedBatchIndex > 0) {
+            throw new Error("No migration state found. Start migration from batch 0.");
+        }
+
+        const targetSequence = await ctx.db
+            .query("galaxySequences")
+            .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+            .unique();
+
+        const expectedTargetSequenceId = args.targetSequenceId ?? null;
+        const actualTargetSequenceId = targetSequence?._id ?? null;
+
+        if (effectiveBatchIndex > 0 && expectedTargetSequenceId !== actualTargetSequenceId) {
+            throw new Error("Target sequence changed during migration. Refresh and retry.");
+        }
+
+        if (targetSequence) {
+            if (!replaceTargetSequence) {
+                throw new Error("Target user already has a sequence. Enable replace mode to continue.");
+            }
+
+            if (args.targetSequenceId && targetSequence._id !== args.targetSequenceId) {
+                throw new Error("Target sequence changed. Refresh and retry migration.");
+            }
+        } else if (args.targetSequenceId) {
+            throw new Error("Target sequence changed. Refresh and retry migration.");
+        }
+
+        const targetGalaxyIdsToRemove =
+            replaceTargetSequence && targetSequence
+                ? (targetSequence.galaxyExternalIds ?? [])
+                : [];
+
+        const deltasByGalaxy = new Map<string, { sourceDelta: number; targetDelta: number }>();
+
+        for (const galaxyExternalId of sourceGalaxyIds) {
+            const existing = deltasByGalaxy.get(galaxyExternalId) ?? { sourceDelta: 0, targetDelta: 0 };
+            existing.sourceDelta -= 1;
+            deltasByGalaxy.set(galaxyExternalId, existing);
+        }
+
+        for (const galaxyExternalId of remainingSourceGalaxyIds) {
+            const existing = deltasByGalaxy.get(galaxyExternalId) ?? { sourceDelta: 0, targetDelta: 0 };
+            existing.targetDelta += 1;
+            deltasByGalaxy.set(galaxyExternalId, existing);
+        }
+
+        for (const galaxyExternalId of targetGalaxyIdsToRemove) {
+            const existing = deltasByGalaxy.get(galaxyExternalId) ?? { sourceDelta: 0, targetDelta: 0 };
+            existing.targetDelta -= 1;
+            deltasByGalaxy.set(galaxyExternalId, existing);
+        }
+
+        const operations = Array.from(deltasByGalaxy.entries()).map(([galaxyExternalId, delta]) => ({
+            galaxyExternalId,
+            ...delta,
+        }));
+
+        const totalOperations = operations.length;
+        const totalBatches = Math.max(1, Math.ceil(totalOperations / batchSize));
+        const startIndex = effectiveBatchIndex * batchSize;
+        const endIndex = Math.min(startIndex + batchSize, totalOperations);
+
+        if (totalOperations > 0 && startIndex >= totalOperations) {
+            throw new Error("Batch index is out of range for this migration.");
+        }
+
+        const batchOperations = operations.slice(startIndex, endIndex);
+        const isLastBatch = totalOperations === 0 ? true : endIndex >= totalOperations;
+
+        let processedInBatch = 0;
+        let patchedGalaxies = 0;
+
+        if (!existingMigrationStateDoc) {
+            await ctx.db.insert("systemSettings", {
+                key: migrationStateKey,
+                value: {
+                    sourceSequenceId: String(sourceSequence._id),
+                    targetSequenceId: args.targetSequenceId ? String(args.targetSequenceId) : null,
+                    replaceTargetSequence,
+                    batchSize,
+                    nextBatchIndex: effectiveBatchIndex,
+                    totalOperations,
+                    totalBatches,
+                    sourceGalaxyCount: sourceGalaxyIds.length,
+                    sourceRemainingGalaxyCount: remainingSourceGalaxyIds.length,
+                    removedTargetGalaxyCount: targetGalaxyIdsToRemove.length,
+                    sourceProgressToken,
+                    startedAt: Date.now(),
+                    updatedAt: Date.now(),
+                },
+            });
+        }
+
+        for (const operation of batchOperations) {
+            const galaxy = await ctx.db
+                .query("galaxies")
+                .withIndex("by_external_id", (q) => q.eq("id", operation.galaxyExternalId))
+                .unique();
+
+            if (!galaxy) {
+                processedInBatch++;
+                continue;
+            }
+
+            const perUser = { ...(galaxy.perUser ?? {}) };
+            const currentSource = perUser[sourceUserId] ?? BigInt(0);
+            const currentTarget = perUser[targetUserId] ?? BigInt(0);
+
+            const nextSourceResult = applyClampedDelta(currentSource, operation.sourceDelta);
+            const nextTargetResult = applyClampedDelta(currentTarget, operation.targetDelta);
+
+            if (nextSourceResult.next > BigInt(0)) {
+                perUser[sourceUserId] = nextSourceResult.next;
+            } else {
+                delete perUser[sourceUserId];
+            }
+
+            if (nextTargetResult.next > BigInt(0)) {
+                perUser[targetUserId] = nextTargetResult.next;
+            } else {
+                delete perUser[targetUserId];
+            }
+
+            const totalAssigned = galaxy.totalAssigned ?? BigInt(0);
+            const appliedNetDelta = nextSourceResult.appliedDelta + nextTargetResult.appliedDelta;
+            const candidateTotalAssigned = totalAssigned + appliedNetDelta;
+            const nextTotalAssigned = candidateTotalAssigned > BigInt(0) ? candidateTotalAssigned : BigInt(0);
+
+            await ctx.db.patch(galaxy._id, {
+                totalAssigned: nextTotalAssigned,
+                perUser: Object.keys(perUser).length > 0 ? perUser : undefined,
+            });
+
+            patchedGalaxies++;
+            processedInBatch++;
+        }
+
+        let newSequenceId: string | null = null;
+
+        if (isLastBatch) {
+            if (replaceTargetSequence && targetSequence) {
+                await ctx.db.delete(targetSequence._id);
+            }
+
+            await ctx.db.delete(sourceSequence._id);
+
+            const insertedSequenceId = await ctx.db.insert("galaxySequences", {
+                userId: targetUserId,
+                galaxyExternalIds: remainingSourceGalaxyIds,
+                currentIndex: 0,
+                numClassified: 0,
+                numSkipped: 0,
+            });
+            newSequenceId = insertedSequenceId;
+
+            const sourceProfile = await ctx.db
+                .query("userProfiles")
+                .withIndex("by_user", (q) => q.eq("userId", sourceUserId))
+                .unique();
+
+            if (sourceProfile) {
+                await ctx.db.patch(sourceProfile._id, { sequenceGenerated: false });
+            }
+
+            const targetProfile = await ctx.db
+                .query("userProfiles")
+                .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+                .unique();
+
+            if (targetProfile) {
+                await ctx.db.patch(targetProfile._id, { sequenceGenerated: true });
+            }
+
+            const migrationStateToDelete = await ctx.db
+                .query("systemSettings")
+                .withIndex("by_key", (q) => q.eq("key", migrationStateKey))
+                .unique();
+
+            if (migrationStateToDelete) {
+                await ctx.db.delete(migrationStateToDelete._id);
+            }
+        } else {
+            const migrationStateToUpdate = await ctx.db
+                .query("systemSettings")
+                .withIndex("by_key", (q) => q.eq("key", migrationStateKey))
+                .unique();
+
+            if (migrationStateToUpdate) {
+                const existingValue = (migrationStateToUpdate.value ?? {}) as Record<string, any>;
+                await ctx.db.patch(migrationStateToUpdate._id, {
+                    value: {
+                        ...existingValue,
+                        nextBatchIndex: effectiveBatchIndex + 1,
+                        totalOperations,
+                        totalBatches,
+                        updatedAt: Date.now(),
+                    },
+                });
+            }
+        }
+
+        return {
+            success: true,
+            message: isLastBatch
+                ? `Migration completed (${remainingSourceGalaxyIds.length} remaining galaxies moved).`
+                : `Processed migration batch ${effectiveBatchIndex + 1}/${totalBatches}.`,
+            batchIndex: effectiveBatchIndex,
+            batchSize,
+            totalBatches,
+            processedInBatch,
+            patchedGalaxies,
+            totalProcessed: endIndex,
+            totalOperations,
+            sourceGalaxyCount: sourceGalaxyIds.length,
+            sourceRemainingGalaxyCount: remainingSourceGalaxyIds.length,
+            sourceProcessedGalaxyCount: sourceProgressDetails.processedCount,
+            removedTargetGalaxyCount: targetGalaxyIdsToRemove.length,
+            isComplete: isLastBatch,
+            currentBatch: effectiveBatchIndex + 1,
+            migratedGalaxyCount: isLastBatch ? remainingSourceGalaxyIds.length : undefined,
+            newSequenceId,
         };
     },
 });

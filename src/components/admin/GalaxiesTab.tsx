@@ -4,6 +4,7 @@ import { GenerateSequencesPage } from "./galaxies/GenerateSequencesPage";
 import { ManageSequencesPage } from "./galaxies/ManageSequencesPage";
 import { BlacklistPage } from "./galaxies/BlacklistPage";
 import { AssignmentStatsPage } from "./galaxies/AssignmentStatsPage";
+import { MigrateSequencesPage } from "./galaxies/MigrateSequencesPage";
 
 interface GalaxiesTabProps {
   users: any[];
@@ -15,6 +16,7 @@ export function GalaxiesTab({ users, systemSettings }: GalaxiesTabProps) {
 
   const subTabs = [
     { id: "generate", label: "Generate Sequences", icon: "➕", path: "/admin/galaxies/generate" },
+    { id: "migrate", label: "Migrate Sequences", icon: "🔁", path: "/admin/galaxies/migrate" },
     { id: "manage", label: "Manage Sequences", icon: "✏️", path: "/admin/galaxies/manage" },
     { id: "blacklist", label: "Blacklist", icon: "🚫", path: "/admin/galaxies/blacklist" },
     { id: "stats", label: "Assignment Stats", icon: "📊", path: "/admin/galaxies/stats" },
@@ -47,6 +49,7 @@ export function GalaxiesTab({ users, systemSettings }: GalaxiesTabProps) {
       <Routes>
         <Route index element={<Navigate to="generate" replace />} />
         <Route path="generate" element={<GenerateSequencesPage users={users} systemSettings={systemSettings} />} />
+        <Route path="migrate" element={<MigrateSequencesPage users={users} />} />
         <Route path="manage" element={<ManageSequencesPage users={users} systemSettings={systemSettings} />} />
         <Route path="blacklist" element={<BlacklistPage />} />
         <Route path="stats" element={<AssignmentStatsPage />} />
