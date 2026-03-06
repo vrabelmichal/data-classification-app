@@ -1,5 +1,5 @@
 import { usePageTitle } from "../hooks/usePageTitle";
-import { OverviewTab } from "./statistics/OverviewTab";
+import { OverviewTab } from "./statistics/overview/OverviewTab";
 
 export function OverviewPage() {
   usePageTitle("Overview");
