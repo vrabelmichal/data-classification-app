@@ -59,8 +59,7 @@ export function SignInForm() {
             const passwordTooShort =
               errorCode === "password_too_short" ||
               message.includes("too short") ||
-              message.includes("minimum") ||
-              message.includes("invalid password");
+              message.includes("minimum");
 
             const credentialsInvalid =
               message.includes("invalid credentials") ||
