@@ -321,6 +321,7 @@ export function GalaxyQuickReview({
               onClick={onClose}
               className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-1 sm:px-2.5 rounded-md bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold transition-colors shadow"
               title="Click to classify this galaxy in detail"
+              aria-label={`Classify galaxy ${currentGalaxy.id}`}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
