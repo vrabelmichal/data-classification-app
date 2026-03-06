@@ -32,7 +32,7 @@ export function BreakdownBar({
   return (
     <div className="space-y-3">
       {items.map((item) => {
-        const percentage = total > 0 ? (item.value / total) * 100 : 0;
+        const percentage = total > 0 ? Math.min((item.value / total) * 100, 100) : 0;
         return (
           <div key={item.label} className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
