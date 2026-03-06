@@ -59,7 +59,6 @@ export async function getTopClassifiers(ctx: any, limit: number) {
     userId: Id<"users">;
     profileId: Id<"userProfiles">;
     name?: string | null;
-    email?: string | null;
     classifications: number;
     lastActiveAt?: number;
   }> = [];
@@ -72,7 +71,6 @@ export async function getTopClassifiers(ctx: any, limit: number) {
       userId: profile.userId,
       profileId: profile._id,
       name: (user as any)?.name ?? null,
-      email: (user as any)?.email ?? null,
       classifications: profile.classificationsCount,
       lastActiveAt: profile.lastActiveAt,
     });

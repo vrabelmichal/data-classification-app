@@ -44,7 +44,6 @@ export type TopClassifiersPayload = {
     userId: string;
     profileId: string;
     name?: string | null;
-    email?: string | null;
     classifications: number;
     lastActiveAt?: number;
   }>;

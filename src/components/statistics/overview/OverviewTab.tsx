@@ -58,11 +58,12 @@ export function OverviewTab() {
     }));
   }, [recencyData]);
 
+  // show spinner while any required query is still loading
   if (
-    systemSettings === undefined &&
-    totalsAndPapers === undefined &&
-    recencyData === undefined &&
-    topClassifiersData === undefined &&
+    systemSettings === undefined ||
+    totalsAndPapers === undefined ||
+    recencyData === undefined ||
+    topClassifiersData === undefined ||
     classificationStatsData === undefined
   ) {
     return (

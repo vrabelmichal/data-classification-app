@@ -67,8 +67,12 @@ export function PaperCatalogSection({
           return (
             <div
               key={p === "" ? "__empty__" : p}
+              role={hasPaperFilter ? "button" : undefined}
+              tabIndex={hasPaperFilter ? 0 : undefined}
+              aria-pressed={hasPaperFilter ? isSelected : undefined}
               className={`py-3 flex items-center gap-4 ${hasPaperFilter ? "cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40 rounded-lg px-2 -mx-2 transition-colors" : ""} ${isSelected ? "bg-blue-50 dark:bg-blue-900/20 rounded-lg px-2 -mx-2" : ""}`}
               onClick={hasPaperFilter ? () => onSelectPaper(isSelected ? undefined : p) : undefined}
+              onKeyDown={hasPaperFilter ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelectPaper(isSelected ? undefined : p); } } : undefined}
             >
               <div className="w-28 shrink-0">
                 <span className={`text-sm font-medium ${isSelected ? "text-blue-700 dark:text-blue-300" : "text-gray-900 dark:text-white"}`}>
@@ -211,7 +215,7 @@ export function ThroughputSection({
 export function TopClassifiersSection({
   topClassifiers,
 }: {
-  topClassifiers: Array<{ profileId: string; name?: string | null; email?: string | null; userId: string; lastActiveAt?: number; classifications: number }> | undefined;
+  topClassifiers: Array<{ profileId: string; name?: string | null; userId: string; lastActiveAt?: number; classifications: number }> | undefined;
 }) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm">
@@ -228,7 +232,7 @@ export function TopClassifiersSection({
           {topClassifiers.map((entry) => (
             <div key={entry.profileId} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-200">
               <div>
-                <div className="font-medium text-gray-900 dark:text-white">{entry.name || entry.email || entry.userId}</div>
+                <div className="font-medium text-gray-900 dark:text-white">{entry.name || entry.userId}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">Last active: {entry.lastActiveAt ? new Date(entry.lastActiveAt).toLocaleString() : "n/a"}</div>
               </div>
               <div className="text-right">

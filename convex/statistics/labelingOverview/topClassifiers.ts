@@ -10,7 +10,6 @@ export const get = query({
       userId: v.string(),
       profileId: v.string(),
       name: v.optional(v.union(v.string(), v.null())),
-      email: v.optional(v.union(v.string(), v.null())),
       classifications: v.number(),
       lastActiveAt: v.optional(v.number()),
     })),
