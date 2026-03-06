@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -52,34 +52,84 @@ export function OverviewTab() {
   const topClassifiersData = useQuery(api.statistics.labelingOverview.topClassifiers.get) as TopClassifiersPayload | undefined;
   const classificationStatsData = useQuery(api.statistics.labelingOverview.classificationStats.get) as ClassificationStatsPayload | undefined;
 
+  const latestCatalogRef = useRef<Pick<TotalsAndPapersPayload, "availablePapers" | "paperCounts"> | undefined>(undefined);
+  const latestGlobalTotalsRef = useRef<Totals | undefined>(undefined);
+
+  if (totalsAndPapers !== undefined) {
+    latestCatalogRef.current = {
+      availablePapers: totalsAndPapers.availablePapers,
+      paperCounts: totalsAndPapers.paperCounts,
+    };
+
+    if (selectedPaper === undefined) {
+      latestGlobalTotalsRef.current = totalsAndPapers.totals;
+    }
+  }
+
+  const catalogData =
+    totalsAndPapers !== undefined
+      ? {
+          availablePapers: totalsAndPapers.availablePapers,
+          paperCounts: totalsAndPapers.paperCounts,
+        }
+      : latestCatalogRef.current;
+
   // When a paper is selected the `get` query returns 0 for classification stats
   // (to avoid a full-table scan that would time out).  The hook below paginates
   // through the paper's galaxies incrementally and accumulates the real values.
   const paperClassStats = usePaperClassificationStats(selectedPaper);
+  const isPaperStatsLoading = selectedPaper !== undefined && paperClassStats.isLoading;
+  const globalTotals = selectedPaper === undefined
+    ? (totalsAndPapers?.totals ?? latestGlobalTotalsRef.current)
+    : latestGlobalTotalsRef.current;
+
+  const availablePapers = catalogData?.availablePapers ?? [];
+  const paperCounts = catalogData?.paperCounts ?? {};
+  const paperFilter = useMemo(() => {
+    if (selectedPaper === undefined) return null;
+
+    const livePaperFilter = totalsAndPapers?.paperFilter;
+    if (livePaperFilter && livePaperFilter.paper === selectedPaper) {
+      return livePaperFilter;
+    }
+
+    const counts = paperCounts[selectedPaper];
+    if (!counts) return null;
+
+    return {
+      paper: selectedPaper,
+      galaxies: counts.total,
+      blacklisted: counts.blacklisted,
+      adjusted: counts.adjusted,
+    };
+  }, [paperCounts, selectedPaper, totalsAndPapers?.paperFilter]);
 
   // Merge base totals (galaxies count is correct) with accumulated paper stats.
   const totals: Totals | undefined = useMemo(() => {
-    const base = totalsAndPapers?.totals;
-    if (!base) return undefined;
-    if (selectedPaper === undefined) return base;
+    if (selectedPaper === undefined) {
+      return globalTotals;
+    }
+
+    const baseCounts = paperFilter;
+    if (!baseCounts) return undefined;
 
     // For paper-scoped view, replace the classification stats with the
     // incrementally-accumulated values from the paginated hook.
     const classifiedGalaxies = paperClassStats.classifiedGalaxies;
     const totalClassifications = paperClassStats.totalClassifications;
-    const unclassifiedGalaxies = Math.max(base.galaxies - classifiedGalaxies, 0);
-    const progress = base.galaxies > 0 ? (classifiedGalaxies / base.galaxies) * 100 : 0;
+    const unclassifiedGalaxies = Math.max(baseCounts.galaxies - classifiedGalaxies, 0);
+    const progress = baseCounts.galaxies > 0 ? (classifiedGalaxies / baseCounts.galaxies) * 100 : 0;
     const avgClassificationsPerGalaxy =
-      base.galaxies > 0 ? totalClassifications / base.galaxies : 0;
+      baseCounts.galaxies > 0 ? totalClassifications / baseCounts.galaxies : 0;
     return {
-      galaxies: base.galaxies,
+      galaxies: baseCounts.galaxies,
       classifiedGalaxies,
       unclassifiedGalaxies,
       totalClassifications,
       progress,
       avgClassificationsPerGalaxy,
     };
-  }, [totalsAndPapers?.totals, selectedPaper, paperClassStats]);
+  }, [globalTotals, paperClassStats, paperFilter, selectedPaper]);
 
   const dailySeries = useMemo(() => {
     if (!recencyData?.recency.dailyCounts) return [];
@@ -92,10 +142,6 @@ export function OverviewTab() {
   const recency = recencyData?.recency;
   const classificationStats = classificationStatsData?.classificationStats;
   const topClassifiers = topClassifiersData?.topClassifiers;
-
-  const availablePapers = totalsAndPapers?.availablePapers ?? [];
-  const paperCounts = totalsAndPapers?.paperCounts ?? {};
-  const paperFilter = totalsAndPapers?.paperFilter ?? null;
 
   const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? true;
   const showValidRedshift = systemSettings?.showValidRedshift ?? true;
@@ -143,13 +189,23 @@ export function OverviewTab() {
         paperCounts={paperCounts}
         paperFilter={paperFilter}
         selectedPaper={selectedPaper}
-        totals={totals}
         onSelectPaper={handleSelectPaper}
+        isLoading={catalogData === undefined}
+        isPaperStatsLoading={isPaperStatsLoading}
       />
 
-      <SummaryCardsSection totals={totals} selectedPaper={selectedPaper} />
+      <SummaryCardsSection
+        totals={totals}
+        selectedPaper={selectedPaper}
+        isPaperStatsLoading={isPaperStatsLoading}
+      />
 
-      <ProgressSection totals={totals} activeClassifiers={recency?.activeClassifiers} selectedPaper={selectedPaper} />
+      <ProgressSection
+        totals={totals}
+        activeClassifiers={recency?.activeClassifiers}
+        selectedPaper={selectedPaper}
+        isPaperStatsLoading={isPaperStatsLoading}
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <ThroughputSection
