@@ -1,14 +1,24 @@
 import { useQuery } from "convex/react";
 import { Routes, Route, Link, Navigate, useLocation } from "react-router";
+import { lazy, Suspense } from "react";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
 import { usePageTitle } from "../../hooks/usePageTitle";
-import { UsersTab } from "./UsersTab";
-import { GalaxiesTab } from "./GalaxiesTab";
-import { SettingsTab } from "./SettingsTab";
-import { MaintenanceTab } from "./MaintentanceTab";
-import { SystemTab } from "./SystemTab";
-import { NotificationsTab } from "./NotificationsTab";
+
+const UsersTab = lazy(() => import("./UsersTab").then((module) => ({ default: module.UsersTab })));
+const GalaxiesTab = lazy(() => import("./GalaxiesTab").then((module) => ({ default: module.GalaxiesTab })));
+const SettingsTab = lazy(() => import("./SettingsTab").then((module) => ({ default: module.SettingsTab })));
+const MaintenanceTab = lazy(() => import("./MaintentanceTab").then((module) => ({ default: module.MaintenanceTab })));
+const SystemTab = lazy(() => import("./SystemTab").then((module) => ({ default: module.SystemTab })));
+const NotificationsTab = lazy(() => import("./NotificationsTab").then((module) => ({ default: module.NotificationsTab })));
+
+function AdminTabLoading() {
+  return (
+    <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+  );
+}
 
 export function AdminPanel() {
   // Dynamic page title is now managed by individual subpages for galaxies tab
@@ -36,11 +46,7 @@ export function AdminPanel() {
   const systemSettings = useQuery(api.system_settings.getSystemSettings, isAdmin ? {} : "skip");
 
   if (userProfile === undefined) {
-    return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <AdminTabLoading />;
   }
 
   if (!isAdmin) {
@@ -58,11 +64,7 @@ export function AdminPanel() {
   }
 
   if (users === undefined || systemSettings === undefined) {
-    return (
-      <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <AdminTabLoading />;
   }
 
   return (
@@ -101,12 +103,54 @@ export function AdminPanel() {
 
       <Routes>
         <Route index element={<Navigate to="users" replace />} />
-        <Route path="users" element={<UsersTab users={users} />} />
-        <Route path="galaxies/*" element={<GalaxiesTab users={users} systemSettings={systemSettings} />} />
-        <Route path="notifications" element={<NotificationsTab />} />
-        <Route path="settings" element={<SettingsTab systemSettings={systemSettings} />} />
-        <Route path="maintenance" element={<MaintenanceTab />} />
-        <Route path="system" element={<SystemTab />} />
+        <Route
+          path="users"
+          element={
+            <Suspense fallback={<AdminTabLoading />}>
+              <UsersTab users={users} />
+            </Suspense>
+          }
+        />
+        <Route
+          path="galaxies/*"
+          element={
+            <Suspense fallback={<AdminTabLoading />}>
+              <GalaxiesTab users={users} systemSettings={systemSettings} />
+            </Suspense>
+          }
+        />
+        <Route
+          path="notifications"
+          element={
+            <Suspense fallback={<AdminTabLoading />}>
+              <NotificationsTab />
+            </Suspense>
+          }
+        />
+        <Route
+          path="settings"
+          element={
+            <Suspense fallback={<AdminTabLoading />}>
+              <SettingsTab systemSettings={systemSettings} />
+            </Suspense>
+          }
+        />
+        <Route
+          path="maintenance"
+          element={
+            <Suspense fallback={<AdminTabLoading />}>
+              <MaintenanceTab />
+            </Suspense>
+          }
+        />
+        <Route
+          path="system"
+          element={
+            <Suspense fallback={<AdminTabLoading />}>
+              <SystemTab />
+            </Suspense>
+          }
+        />
       </Routes>
     </div>
   );

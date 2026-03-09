@@ -2,24 +2,45 @@ import { Authenticated, Unauthenticated, useQuery } from "convex/react";
 import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
-import { PasswordReset } from "./PasswordReset";
 import { ReportIssueModalProvider, useReportIssueModal } from "./lib/reportIssueModalContext";
 import { ReportIssueModal } from "./components/ReportIssueModal";
 import { AccountPendingConfirmation } from "./components/AccountPendingConfirmation";
 import { Toaster } from "sonner";
 import { Navigation } from "./components/layout/Navigation";
 import { ClassificationInterface } from "./components/classification/ClassificationInterface";
-import { GalaxyBrowser } from "./components/browse/GalaxyBrowser";
-import { SkippedGalaxies } from "./components/browse/SkippedGalaxies";
-import { Statistics } from "./components/statistics/Statistics";
-import { UserSettings } from "./components/settings/UserSettings";
-import { Help } from "./components/help/Help";
-import { AdminPanel } from "./components/admin/AdminPanel";
-import { IssueReportsPage } from "@/components/admin/IssueReportsPage";
-import { NotificationsPage } from "./components/notifications/NotificationsPage";
-import { NotFound } from "./components/NotFound";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense, type ReactNode } from "react";
 import { DEFAULT_ALLOW_PUBLIC_OVERVIEW } from "./lib/defaults";
+
+const LazyPasswordReset = lazy(() =>
+  import("./PasswordReset").then((module) => ({ default: module.PasswordReset }))
+);
+const LazyGalaxyBrowser = lazy(() =>
+  import("./components/browse/GalaxyBrowser").then((module) => ({ default: module.GalaxyBrowser }))
+);
+const LazySkippedGalaxies = lazy(() =>
+  import("./components/browse/SkippedGalaxies").then((module) => ({ default: module.SkippedGalaxies }))
+);
+const LazyStatistics = lazy(() =>
+  import("./components/statistics/Statistics").then((module) => ({ default: module.Statistics }))
+);
+const LazyUserSettings = lazy(() =>
+  import("./components/settings/UserSettings").then((module) => ({ default: module.UserSettings }))
+);
+const LazyHelp = lazy(() =>
+  import("./components/help/Help").then((module) => ({ default: module.Help }))
+);
+const LazyAdminPanel = lazy(() =>
+  import("./components/admin/AdminPanel").then((module) => ({ default: module.AdminPanel }))
+);
+const LazyIssueReportsPage = lazy(() =>
+  import("@/components/admin/IssueReportsPage").then((module) => ({ default: module.IssueReportsPage }))
+);
+const LazyNotificationsPage = lazy(() =>
+  import("./components/notifications/NotificationsPage").then((module) => ({ default: module.NotificationsPage }))
+);
+const LazyNotFound = lazy(() =>
+  import("./components/NotFound").then((module) => ({ default: module.NotFound }))
+);
 
 function GlobalReportIssueModal() {
   const { isOpen, close } = useReportIssueModal();
@@ -35,6 +56,10 @@ function LoadingScreen() {
       </div>
     </div>
   );
+}
+
+function LazyPage({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<LoadingScreen />}>{children}</Suspense>;
 }
 
 function AccessDenied({ message }: { message?: string }) {
@@ -88,16 +113,76 @@ function App() {
     setCurrentVersion(appVersionRaw !== undefined && appVersionRaw !== null ? String(appVersionRaw) : null);
   };
 
+  const browseRoute = (
+    <LazyPage>
+      <LazyGalaxyBrowser />
+    </LazyPage>
+  );
+
+  const skippedRoute = (
+    <LazyPage>
+      <LazySkippedGalaxies />
+    </LazyPage>
+  );
+
+  const statisticsRoute = (
+    <LazyPage>
+      <LazyStatistics />
+    </LazyPage>
+  );
+
+  const settingsRoute = (
+    <LazyPage>
+      <LazyUserSettings />
+    </LazyPage>
+  );
+
+  const notificationsRoute = (
+    <LazyPage>
+      <LazyNotificationsPage />
+    </LazyPage>
+  );
+
+  const helpRoute = (
+    <LazyPage>
+      <LazyHelp />
+    </LazyPage>
+  );
+
+  const adminPanelRoute = (
+    <LazyPage>
+      <LazyAdminPanel />
+    </LazyPage>
+  );
+
+  const issueReportsRoute = (
+    <LazyPage>
+      <LazyIssueReportsPage />
+    </LazyPage>
+  );
+
+  const passwordResetRoute = (
+    <LazyPage>
+      <LazyPasswordReset />
+    </LazyPage>
+  );
+
+  const notFoundRoute = (
+    <LazyPage>
+      <LazyNotFound />
+    </LazyPage>
+  );
+
   const navigationItems = [
     { id: "classify", label: "Classify", icon: "🔬", path: "/classify", element: <ClassificationInterface /> },
-    { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: <GalaxyBrowser /> },
-    { id: "skipped", label: "Skipped", icon: "⏭️", path: "/skipped", element: <SkippedGalaxies /> },
-    { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: <Statistics /> },
-    { id: "notifications", label: "Notifications", icon: "🔔", path: "/notifications", element: <NotificationsPage /> },
-    { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: <UserSettings /> },
-    { id: "help", label: "Help", icon: "❓", path: "/help", element: <Help /> },
-    { id: "reports", label: "Issue Reports", icon: "📋", path: "/reports", element: <IssueReportsPage />, adminOnly: true },
-    { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: <AdminPanel />, adminOnly: true },
+    { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: browseRoute },
+    { id: "skipped", label: "Skipped", icon: "⏭️", path: "/skipped", element: skippedRoute },
+    { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: statisticsRoute },
+    { id: "notifications", label: "Notifications", icon: "🔔", path: "/notifications", element: notificationsRoute },
+    { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: settingsRoute },
+    { id: "help", label: "Help", icon: "❓", path: "/help", element: helpRoute },
+    { id: "reports", label: "Issue Reports", icon: "📋", path: "/reports", element: issueReportsRoute, adminOnly: true },
+    { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: adminPanelRoute, adminOnly: true },
   ];
 
   return (
@@ -141,7 +226,7 @@ function App() {
                   </p>
                 </div>
                 <Routes>
-                  <Route path="/reset" element={<PasswordReset />} />
+                  <Route path="/reset" element={passwordResetRoute} />
                   <Route
                     path="*"
                     element={
@@ -190,8 +275,8 @@ function App() {
                         element={item.element}
                       />
                     ))}
-                    <Route path="/admin/*" element={<AdminPanel />} />
-                    <Route path="*" element={<NotFound />} />
+                    <Route path="/admin/*" element={adminPanelRoute} />
+                    <Route path="*" element={notFoundRoute} />
                   </Routes>
                 </div>
               </div>
