@@ -79,9 +79,12 @@ export function OverviewTab() {
   // through the paper's galaxies incrementally and accumulates the real values.
   const paperClassStats = usePaperClassificationStats(selectedPaper);
   const isPaperStatsLoading = selectedPaper !== undefined && paperClassStats.isLoading;
-  const globalTotals = selectedPaper === undefined
-    ? (totalsAndPapers?.totals ?? latestGlobalTotalsRef.current)
-    : latestGlobalTotalsRef.current;
+  const globalTotals = useMemo(
+    () => selectedPaper === undefined
+      ? (totalsAndPapers?.totals ?? latestGlobalTotalsRef.current)
+      : latestGlobalTotalsRef.current,
+    [selectedPaper, totalsAndPapers, latestGlobalTotalsRef.current],
+  );
 
   const availablePapers = catalogData?.availablePapers ?? [];
   const paperCounts = catalogData?.paperCounts ?? {};

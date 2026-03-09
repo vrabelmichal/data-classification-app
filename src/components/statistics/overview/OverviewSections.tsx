@@ -461,7 +461,7 @@ export function PaperCatalogSection({
         </div>
       </div>
 
-        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
         <PaperCard
           label="All papers"
           share={100}
@@ -781,6 +781,9 @@ export function ClassificationBreakdownsSection({
               {selectedPaper !== undefined && <GlobalBadge />}
             </div>
             <BreakdownBar items={morphologyItems} total={totalClassifications} />
+            {totalClassifications === 0 && (
+              <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+            )}
           </div>
         )}
       </div>
@@ -795,6 +798,9 @@ export function ClassificationBreakdownsSection({
             Count of classifications where each flag was marked true
           </p>
           <BreakdownBar items={flagItems} total={totalClassifications} />
+          {totalClassifications === 0 && (
+            <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+          )}
         </div>
       )}
     </>

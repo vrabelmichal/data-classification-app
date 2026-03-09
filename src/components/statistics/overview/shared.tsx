@@ -14,6 +14,9 @@ export function LoadingBadge({
         "inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-800/70 dark:bg-blue-950/30 dark:text-blue-200",
         className
       )}
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
     >
       <span
         className="inline-block h-3 w-3 animate-spin rounded-full border-[1.5px] border-current border-r-transparent"
@@ -48,7 +51,7 @@ export function StatCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
-        {isLoading && <LoadingBadge label={loadingLabel ?? "Counting"} className="shrink-0" />}
+        {isLoading && <LoadingBadge {...(loadingLabel != null ? { label: loadingLabel } : {})} className="shrink-0" />}
       </div>
       <div
         className={cn(
