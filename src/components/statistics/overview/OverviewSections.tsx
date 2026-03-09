@@ -174,51 +174,62 @@ function PaperCard({
       onClick={onClick}
       aria-pressed={isSelected}
       className={cn(
-        "rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-all hover:border-gray-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600 dark:focus-visible:ring-offset-gray-900",
+        "h-full rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-all hover:border-gray-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600 dark:focus-visible:ring-offset-gray-900",
         isSelected && "-translate-y-0.5"
       )}
       style={selectedStyle}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex min-w-0 items-center gap-2">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-start gap-2">
             <span
               className="h-3 w-3 shrink-0 rounded-full"
               style={{ backgroundColor: accentColor }}
               aria-hidden="true"
             />
-            <span className="truncate text-sm font-semibold text-gray-900 dark:text-white">{label}</span>
+            <span className="break-words text-sm font-semibold leading-5 text-gray-900 dark:text-white">{label}</span>
           </div>
-          <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">{helper}</div>
-        </div>
-
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          <span
+          <div
+            aria-hidden={!helper || undefined}
             className={cn(
-              "rounded-full border px-2 py-1 text-[11px] font-medium",
-              isSelected
-                ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-700/70 dark:bg-blue-950/30 dark:text-blue-200"
-                : "border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400"
+              "mt-1 min-h-[2rem] text-xs text-gray-500 dark:text-gray-400",
+              !helper && "invisible"
             )}
           >
-            {isSelected ? "Selected" : "Filter"}
-          </span>
-          {isSelected ? (
-            <StatusPill label={isLoading ? "Counting" : "Ready"} tone={isLoading ? "loading" : "ready"} />
-          ) : (
-            <StatusPill label="Ready" tone="ready" hidden />
-          )}
+            {helper ?? "\u00A0"}
+          </div>
         </div>
+
+        <span
+          className={cn(
+            "shrink-0 rounded-full border px-2 py-1 text-[11px] font-medium",
+            isSelected
+              ? "border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-700/70 dark:bg-blue-950/30 dark:text-blue-200"
+              : "border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400"
+          )}
+        >
+          {isSelected ? "Selected" : "Filter"}
+        </span>
       </div>
 
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <PaperMetric label="Total" value={counts.total.toLocaleString()} />
+      <div className="mt-3 flex items-center justify-between gap-2">
+        {isSelected ? (
+          <StatusPill label={isLoading ? "Counting" : "Ready"} tone={isLoading ? "loading" : "ready"} />
+        ) : (
+          <StatusPill label="Ready" tone="ready" hidden />
+        )}
+        <span className="text-xs text-gray-500 dark:text-gray-400">{formatPercentLabel(share)} of catalog</span>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-2">
+        <div className="col-span-2">
+          <PaperMetric label="Total" value={counts.total.toLocaleString()} />
+        </div>
         <PaperMetric label="Effective" value={counts.adjusted.toLocaleString()} tone="positive" />
         <PaperMetric label="Blacklisted" value={counts.blacklisted.toLocaleString()} tone="negative" />
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-3 text-xs">
-        <span className="text-gray-500 dark:text-gray-400">{formatPercentLabel(share)} of catalog</span>
+      <div className="mt-4 flex min-h-[1.25rem] items-start text-xs">
         <span
           className={cn(
             "font-medium",
@@ -450,7 +461,7 @@ export function PaperCatalogSection({
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
         <PaperCard
           label="All papers"
           share={100}
