@@ -199,7 +199,6 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
       const shouldSkipFitZoom = shouldRespectDefaultZoomRef.current && !defaultZoomAppliedRef.current;
       if (!shouldSkipFitZoom) {
         setZoom(clampZoomValue(scale));
-      } else {
       }
     }
   }, [imageWidth, imageHeight]);
