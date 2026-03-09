@@ -194,7 +194,7 @@ export function MobileImageSlider({
     if (!isDragging) return;
     setIsDragging(false);
 
-    const threshold = containerWidth * 0.2; // 20% of slide width to trigger change
+    const threshold = containerWidth > 0 ? containerWidth * 0.2 : Number.POSITIVE_INFINITY; // 20% of slide width to trigger change
     const dragDistance = Math.abs(translateX);
 
     if (hasMultipleImages && translateX > threshold) {
