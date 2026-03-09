@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, useLayoutEffect, type ReactNode } from "react";
 import { ImageViewer } from "./ImageViewer";
 import { SMALL_IMAGE_DEFAULT_ZOOM } from "./GalaxyImages";
 import type { ImageType, GalaxyData, UserPreferences } from "./types";
@@ -34,6 +34,7 @@ export function MobileImageSlider({
   renderControls,
 }: MobileImageSliderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerWidth, setContainerWidth] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [translateX, setTranslateX] = useState(0);
@@ -41,10 +42,42 @@ export function MobileImageSlider({
   const [trackIndex, setTrackIndex] = useState(() => (imageTypes.length > 1 ? currentIndex + 1 : 0));
   const [loopResetTrackIndex, setLoopResetTrackIndex] = useState<number | null>(null);
 
-  const slideWidth = containerRef.current?.offsetWidth ?? 0;
   const hasMultipleImages = imageTypes.length > 1;
   const pendingInternalIndexRef = useRef<number | null>(null);
   const previousImageCountRef = useRef(imageTypes.length);
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+
+    if (!container) {
+      return;
+    }
+
+    const updateContainerWidth = () => {
+      const nextWidth = container.offsetWidth;
+      setContainerWidth((previousWidth) => (previousWidth === nextWidth ? previousWidth : nextWidth));
+    };
+
+    updateContainerWidth();
+
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", updateContainerWidth);
+
+      return () => {
+        window.removeEventListener("resize", updateContainerWidth);
+      };
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateContainerWidth();
+    });
+
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   const renderedSlides = useMemo(() => {
     if (!hasMultipleImages) {
@@ -161,7 +194,7 @@ export function MobileImageSlider({
     if (!isDragging) return;
     setIsDragging(false);
 
-    const threshold = slideWidth * 0.2; // 20% of slide width to trigger change
+    const threshold = containerWidth * 0.2; // 20% of slide width to trigger change
     const dragDistance = Math.abs(translateX);
 
     if (hasMultipleImages && translateX > threshold) {
@@ -177,7 +210,7 @@ export function MobileImageSlider({
       setIsAnimating(false);
       setTranslateX(0);
     }
-  }, [isDragging, translateX, slideWidth, hasMultipleImages, goToPreviousImage, goToNextImage]);
+  }, [isDragging, translateX, containerWidth, hasMultipleImages, goToPreviousImage, goToNextImage]);
 
   // Handle mouse events for desktop testing
   const handleMouseDown = useCallback((e: React.MouseEvent) => {

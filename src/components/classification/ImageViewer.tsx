@@ -120,6 +120,23 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     }
   }, [imageUrl]);
 
+  useEffect(() => {
+    if (!isZoomed) {
+      return;
+    }
+
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousBodyOverscrollBehavior = document.body.style.overscrollBehavior;
+
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "contain";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+      document.body.style.overscrollBehavior = previousBodyOverscrollBehavior;
+    };
+  }, [isZoomed]);
+
   const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     setImageWidth(img.naturalWidth);
@@ -133,7 +150,11 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     setHasError(true);
   };
 
-  const handleCloseZoom = () => {
+  const stopModalEventPropagation = useCallback((e: React.SyntheticEvent) => {
+    e.stopPropagation();
+  }, []);
+
+  const handleCloseZoom = useCallback(() => {
     setIsZoomed(false);
     setZoom(1);
     pointerStateRef.current = null;
@@ -141,7 +162,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     shouldCenterRef.current = false;
     defaultZoomAppliedRef.current = false;
     shouldRespectDefaultZoomRef.current = false;
-  };
+  }, []);
 
   const handleImageClick = () => {
     if (isZoomed) {
@@ -261,7 +282,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
   const canPan = zoom > fitScale + 0.01;
 
-  const handleZoomIn = () => {
+  const handleZoomIn = useCallback(() => {
     const container = panContainerRef.current;
     if (!container || !imageWidth || !imageHeight) {
       shouldCenterRef.current = false;
@@ -269,27 +290,36 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
       return;
     }
 
-    // Calculate current center point in image coordinates
     const currentScrollLeft = container.scrollLeft;
     const currentScrollTop = container.scrollTop;
-    const centerX = (currentScrollLeft + container.clientWidth / 2) / scaledWidth;
-    const centerY = (currentScrollTop + container.clientHeight / 2) / scaledHeight;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
 
     shouldCenterRef.current = false;
-    const newZoom = clampZoomValue(zoom * ZOOM_STEP);
-    setZoom(newZoom);
+    setZoom((prevZoom) => {
+      const currentScaledWidth = imageWidth * prevZoom;
+      const currentScaledHeight = imageHeight * prevZoom;
+      const centerX = (currentScrollLeft + containerWidth / 2) / currentScaledWidth;
+      const centerY = (currentScrollTop + containerHeight / 2) / currentScaledHeight;
+      const nextZoom = clampZoomValue(prevZoom * ZOOM_STEP);
 
-    // Schedule adjustment for after zoom is applied
-    requestAnimationFrame(() => {
-      if (!container) return;
-      const newScaledWidth = imageWidth * newZoom;
-      const newScaledHeight = imageHeight * newZoom;
-      container.scrollLeft = centerX * newScaledWidth - container.clientWidth / 2;
-      container.scrollTop = centerY * newScaledHeight - container.clientHeight / 2;
+      requestAnimationFrame(() => {
+        const activeContainer = panContainerRef.current;
+        if (!activeContainer) {
+          return;
+        }
+
+        const newScaledWidth = imageWidth * nextZoom;
+        const newScaledHeight = imageHeight * nextZoom;
+        activeContainer.scrollLeft = centerX * newScaledWidth - activeContainer.clientWidth / 2;
+        activeContainer.scrollTop = centerY * newScaledHeight - activeContainer.clientHeight / 2;
+      });
+
+      return nextZoom;
     });
-  };
+  }, [imageWidth, imageHeight]);
 
-  const handleZoomOut = () => {
+  const handleZoomOut = useCallback(() => {
     const container = panContainerRef.current;
     if (!container || !imageWidth || !imageHeight) {
       shouldCenterRef.current = false;
@@ -297,35 +327,44 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
       return;
     }
 
-    // Calculate current center point in image coordinates
     const currentScrollLeft = container.scrollLeft;
     const currentScrollTop = container.scrollTop;
-    const centerX = (currentScrollLeft + container.clientWidth / 2) / scaledWidth;
-    const centerY = (currentScrollTop + container.clientHeight / 2) / scaledHeight;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
 
     shouldCenterRef.current = false;
-    const newZoom = clampZoomValue(zoom / ZOOM_STEP);
-    setZoom(newZoom);
+    setZoom((prevZoom) => {
+      const currentScaledWidth = imageWidth * prevZoom;
+      const currentScaledHeight = imageHeight * prevZoom;
+      const centerX = (currentScrollLeft + containerWidth / 2) / currentScaledWidth;
+      const centerY = (currentScrollTop + containerHeight / 2) / currentScaledHeight;
+      const nextZoom = clampZoomValue(prevZoom / ZOOM_STEP);
 
-    // Schedule adjustment for after zoom is applied
-    requestAnimationFrame(() => {
-      if (!container) return;
-      const newScaledWidth = imageWidth * newZoom;
-      const newScaledHeight = imageHeight * newZoom;
-      container.scrollLeft = centerX * newScaledWidth - container.clientWidth / 2;
-      container.scrollTop = centerY * newScaledHeight - container.clientHeight / 2;
+      requestAnimationFrame(() => {
+        const activeContainer = panContainerRef.current;
+        if (!activeContainer) {
+          return;
+        }
+
+        const newScaledWidth = imageWidth * nextZoom;
+        const newScaledHeight = imageHeight * nextZoom;
+        activeContainer.scrollLeft = centerX * newScaledWidth - activeContainer.clientWidth / 2;
+        activeContainer.scrollTop = centerY * newScaledHeight - activeContainer.clientHeight / 2;
+      });
+
+      return nextZoom;
     });
-  };
+  }, [imageWidth, imageHeight]);
 
   const handleResetToFit = () => {
     shouldCenterRef.current = true;
     setZoom(clampZoomValue(fitScale));
   };
 
-  const handleOneToOne = () => {
+  const handleOneToOne = useCallback(() => {
     shouldCenterRef.current = true;
     setZoom(clampZoomValue(1));
-  };
+  }, []);
 
   useEffect(() => {
     if (!isZoomed) return;
@@ -632,7 +671,20 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
       {/* Modal + backdrop rendered when zoomed using Portal to escape any container constraints */}
       {isZoomed && createPortal(
-        <div className="fixed inset-0 z-50 flex items-center justify-center px-0 py-2 sm:px-4 sm:py-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center px-0 py-2 sm:px-4 sm:py-4"
+          onClick={stopModalEventPropagation}
+          onMouseDown={stopModalEventPropagation}
+          onMouseMove={stopModalEventPropagation}
+          onMouseUp={stopModalEventPropagation}
+          onPointerDown={stopModalEventPropagation}
+          onPointerMove={stopModalEventPropagation}
+          onPointerUp={stopModalEventPropagation}
+          onTouchStart={stopModalEventPropagation}
+          onTouchMove={stopModalEventPropagation}
+          onTouchEnd={stopModalEventPropagation}
+          onWheel={stopModalEventPropagation}
+        >
           {/* backdrop */}
           <div
             className="absolute inset-0 bg-black bg-opacity-50"
