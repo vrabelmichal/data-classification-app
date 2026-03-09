@@ -138,6 +138,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     setZoom(1);
     pointerStateRef.current = null;
     setIsDragging(false);
+    shouldCenterRef.current = false;
     defaultZoomAppliedRef.current = false;
     shouldRespectDefaultZoomRef.current = false;
   };
@@ -149,6 +150,10 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     }
     defaultZoomAppliedRef.current = false;
     shouldRespectDefaultZoomRef.current = !!defaultZoomOptions;
+    // Always re-center on open. `fitScale` is cached between openings, so relying on
+    // the current `zoom <= fitScale` heuristic can skip centering for large images
+    // that reopen at 1:1 after a previous session.
+    shouldCenterRef.current = true;
     setIsZoomed(true);
   };
 
