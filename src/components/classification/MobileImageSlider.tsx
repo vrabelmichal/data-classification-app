@@ -6,7 +6,7 @@ import type { ImageType, GalaxyData, UserPreferences } from "./types";
 const SLIDE_ANIMATION_DURATION_MS = 300;
 const DRAG_RESET_THRESHOLD_PX = 3;
 
-interface MobileImageSliderControlsRenderProps {
+export interface MobileImageSliderControlsRenderProps {
   goPrev: () => void;
   goNext: () => void;
 }

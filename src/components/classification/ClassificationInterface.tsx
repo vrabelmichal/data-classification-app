@@ -22,7 +22,7 @@ import { MaintenanceBanner } from "./MaintenanceBanner";
 import { CommentsField } from "./CommentsField";
 
 // Mobile-specific components
-import { MobileImageSlider } from "./MobileImageSlider";
+import { MobileImageSlider, type MobileImageSliderControlsRenderProps } from "./MobileImageSlider";
 import { MobileSliderControls } from "./MobileSliderControls";
 import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon, MaskIcon, BugIcon } from "./icons";
 import { ReportIssueModal } from "../ReportIssueModal";
@@ -1018,7 +1018,7 @@ export function ClassificationInterface() {
         shouldShowEllipse={shouldShowEllipseFunc}
         currentIndex={mobileSliderIndex}
         onIndexChange={setMobileSliderIndex}
-        renderControls={(controls) => (
+        renderControls={(controls: MobileImageSliderControlsRenderProps) => (
           <MobileSliderControls
             totalImages={mobileImageTypes.length}
             currentContrastGroup={currentContrastGroup}

@@ -51,7 +51,7 @@ export function StatCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
-        {isLoading && <LoadingBadge {...(loadingLabel != null ? { label: loadingLabel } : {})} className="shrink-0" />}
+        {isLoading && <LoadingBadge label={loadingLabel ?? undefined} className="shrink-0" />}
       </div>
       <div
         className={cn(
@@ -78,9 +78,11 @@ export function StatCard({
 export function ProgressBar({
   percent,
   isLoading = false,
+  ariaLabel = "Progress",
 }: {
   percent: number;
   isLoading?: boolean;
+  ariaLabel?: string;
 }) {
   const clamped = Math.min(Math.max(percent, 0), 100);
   return (
@@ -91,6 +93,12 @@ export function ProgressBar({
           isLoading && "animate-pulse"
         )}
         style={{ width: `${clamped}%` }}
+        role="progressbar"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={clamped}
+        aria-busy={isLoading}
+        aria-label={ariaLabel}
       ></div>
     </div>
   );
