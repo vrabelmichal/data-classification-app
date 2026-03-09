@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useSearchParams } from "react-router";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
@@ -55,16 +55,18 @@ export function OverviewTab() {
   const latestCatalogRef = useRef<Pick<TotalsAndPapersPayload, "availablePapers" | "paperCounts"> | undefined>(undefined);
   const latestGlobalTotalsRef = useRef<Totals | undefined>(undefined);
 
-  if (totalsAndPapers !== undefined) {
-    latestCatalogRef.current = {
-      availablePapers: totalsAndPapers.availablePapers,
-      paperCounts: totalsAndPapers.paperCounts,
-    };
+  useEffect(() => {
+    if (totalsAndPapers !== undefined) {
+      latestCatalogRef.current = {
+        availablePapers: totalsAndPapers.availablePapers,
+        paperCounts: totalsAndPapers.paperCounts,
+      };
 
-    if (selectedPaper === undefined) {
-      latestGlobalTotalsRef.current = totalsAndPapers.totals;
+      if (selectedPaper === undefined) {
+        latestGlobalTotalsRef.current = totalsAndPapers.totals;
+      }
     }
-  }
+  }, [selectedPaper, totalsAndPapers]);
 
   const catalogData =
     totalsAndPapers !== undefined
@@ -83,7 +85,7 @@ export function OverviewTab() {
     () => selectedPaper === undefined
       ? (totalsAndPapers?.totals ?? latestGlobalTotalsRef.current)
       : latestGlobalTotalsRef.current,
-    [selectedPaper, totalsAndPapers, latestGlobalTotalsRef.current],
+    [selectedPaper, totalsAndPapers],
   );
 
   const availablePapers = catalogData?.availablePapers ?? [];
