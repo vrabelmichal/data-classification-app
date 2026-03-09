@@ -109,6 +109,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
   const defaultZoomAppliedRef = useRef(false);
   const shouldRespectDefaultZoomRef = useRef(false);
   const previousImageUrlRef = useRef<string>(imageUrl);
+  const pendingScrollRef = useRef<{ centerX: number; centerY: number } | null>(null);
 
   // Reset loading/error state when imageUrl changes (e.g., when contrast group changes)
   // Skip the initial render to avoid resetting state before the first image loads
@@ -158,6 +159,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     setIsZoomed(false);
     setZoom(1);
     pointerStateRef.current = null;
+    pendingScrollRef.current = null;
     setIsDragging(false);
     shouldCenterRef.current = false;
     defaultZoomAppliedRef.current = false;
@@ -280,11 +282,32 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     }
   }, [zoom, fitScale, isZoomed, centerContent]);
 
+  useEffect(() => {
+    const pendingScroll = pendingScrollRef.current;
+    if (!pendingScroll || !imageWidth || !imageHeight) {
+      return;
+    }
+
+    const container = panContainerRef.current;
+    if (!container) {
+      pendingScrollRef.current = null;
+      return;
+    }
+
+    const newScaledWidth = imageWidth * zoom;
+    const newScaledHeight = imageHeight * zoom;
+
+    container.scrollLeft = pendingScroll.centerX * newScaledWidth - container.clientWidth / 2;
+    container.scrollTop = pendingScroll.centerY * newScaledHeight - container.clientHeight / 2;
+    pendingScrollRef.current = null;
+  }, [zoom, imageWidth, imageHeight]);
+
   const canPan = zoom > fitScale + 0.01;
 
   const handleZoomIn = useCallback(() => {
     const container = panContainerRef.current;
     if (!container || !imageWidth || !imageHeight) {
+      pendingScrollRef.current = null;
       shouldCenterRef.current = false;
       setZoom((prev) => clampZoomValue(prev * ZOOM_STEP));
       return;
@@ -294,34 +317,26 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     const currentScrollTop = container.scrollTop;
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
+    const currentScaledWidth = imageWidth * zoom;
+    const currentScaledHeight = imageHeight * zoom;
+    const centerX = (currentScrollLeft + containerWidth / 2) / currentScaledWidth;
+    const centerY = (currentScrollTop + containerHeight / 2) / currentScaledHeight;
+    const nextZoom = clampZoomValue(zoom * ZOOM_STEP);
 
     shouldCenterRef.current = false;
-    setZoom((prevZoom) => {
-      const currentScaledWidth = imageWidth * prevZoom;
-      const currentScaledHeight = imageHeight * prevZoom;
-      const centerX = (currentScrollLeft + containerWidth / 2) / currentScaledWidth;
-      const centerY = (currentScrollTop + containerHeight / 2) / currentScaledHeight;
-      const nextZoom = clampZoomValue(prevZoom * ZOOM_STEP);
+    if (nextZoom === zoom) {
+      pendingScrollRef.current = null;
+      return;
+    }
 
-      requestAnimationFrame(() => {
-        const activeContainer = panContainerRef.current;
-        if (!activeContainer) {
-          return;
-        }
-
-        const newScaledWidth = imageWidth * nextZoom;
-        const newScaledHeight = imageHeight * nextZoom;
-        activeContainer.scrollLeft = centerX * newScaledWidth - activeContainer.clientWidth / 2;
-        activeContainer.scrollTop = centerY * newScaledHeight - activeContainer.clientHeight / 2;
-      });
-
-      return nextZoom;
-    });
-  }, [imageWidth, imageHeight]);
+    pendingScrollRef.current = { centerX, centerY };
+    setZoom((prev) => clampZoomValue(prev * ZOOM_STEP));
+  }, [imageWidth, imageHeight, zoom]);
 
   const handleZoomOut = useCallback(() => {
     const container = panContainerRef.current;
     if (!container || !imageWidth || !imageHeight) {
+      pendingScrollRef.current = null;
       shouldCenterRef.current = false;
       setZoom((prev) => clampZoomValue(prev / ZOOM_STEP));
       return;
@@ -331,37 +346,30 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     const currentScrollTop = container.scrollTop;
     const containerWidth = container.clientWidth;
     const containerHeight = container.clientHeight;
+    const currentScaledWidth = imageWidth * zoom;
+    const currentScaledHeight = imageHeight * zoom;
+    const centerX = (currentScrollLeft + containerWidth / 2) / currentScaledWidth;
+    const centerY = (currentScrollTop + containerHeight / 2) / currentScaledHeight;
+    const nextZoom = clampZoomValue(zoom / ZOOM_STEP);
 
     shouldCenterRef.current = false;
-    setZoom((prevZoom) => {
-      const currentScaledWidth = imageWidth * prevZoom;
-      const currentScaledHeight = imageHeight * prevZoom;
-      const centerX = (currentScrollLeft + containerWidth / 2) / currentScaledWidth;
-      const centerY = (currentScrollTop + containerHeight / 2) / currentScaledHeight;
-      const nextZoom = clampZoomValue(prevZoom / ZOOM_STEP);
+    if (nextZoom === zoom) {
+      pendingScrollRef.current = null;
+      return;
+    }
 
-      requestAnimationFrame(() => {
-        const activeContainer = panContainerRef.current;
-        if (!activeContainer) {
-          return;
-        }
-
-        const newScaledWidth = imageWidth * nextZoom;
-        const newScaledHeight = imageHeight * nextZoom;
-        activeContainer.scrollLeft = centerX * newScaledWidth - activeContainer.clientWidth / 2;
-        activeContainer.scrollTop = centerY * newScaledHeight - activeContainer.clientHeight / 2;
-      });
-
-      return nextZoom;
-    });
-  }, [imageWidth, imageHeight]);
+    pendingScrollRef.current = { centerX, centerY };
+    setZoom((prev) => clampZoomValue(prev / ZOOM_STEP));
+  }, [imageWidth, imageHeight, zoom]);
 
   const handleResetToFit = () => {
+    pendingScrollRef.current = null;
     shouldCenterRef.current = true;
     setZoom(clampZoomValue(fitScale));
   };
 
   const handleOneToOne = useCallback(() => {
+    pendingScrollRef.current = null;
     shouldCenterRef.current = true;
     setZoom(clampZoomValue(1));
   }, []);
