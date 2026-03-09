@@ -303,12 +303,12 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
 
   const canPan = zoom > fitScale + 0.01;
 
-  const handleZoomIn = useCallback(() => {
+  const applyZoomChange = useCallback((factor: number) => {
     const container = panContainerRef.current;
     if (!container || !imageWidth || !imageHeight) {
       pendingScrollRef.current = null;
       shouldCenterRef.current = false;
-      setZoom((prev) => clampZoomValue(prev * ZOOM_STEP));
+      setZoom((prev) => clampZoomValue(prev * factor));
       return;
     }
 
@@ -320,7 +320,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     const currentScaledHeight = imageHeight * zoom;
     const centerX = (currentScrollLeft + containerWidth / 2) / currentScaledWidth;
     const centerY = (currentScrollTop + containerHeight / 2) / currentScaledHeight;
-    const nextZoom = clampZoomValue(zoom * ZOOM_STEP);
+    const nextZoom = clampZoomValue(zoom * factor);
 
     shouldCenterRef.current = false;
     if (nextZoom === zoom) {
@@ -329,37 +329,16 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
     }
 
     pendingScrollRef.current = { centerX, centerY };
-    setZoom((prev) => clampZoomValue(prev * ZOOM_STEP));
+    setZoom((prev) => clampZoomValue(prev * factor));
   }, [imageWidth, imageHeight, zoom]);
+
+  const handleZoomIn = useCallback(() => {
+    applyZoomChange(ZOOM_STEP);
+  }, [applyZoomChange]);
 
   const handleZoomOut = useCallback(() => {
-    const container = panContainerRef.current;
-    if (!container || !imageWidth || !imageHeight) {
-      pendingScrollRef.current = null;
-      shouldCenterRef.current = false;
-      setZoom((prev) => clampZoomValue(prev / ZOOM_STEP));
-      return;
-    }
-
-    const currentScrollLeft = container.scrollLeft;
-    const currentScrollTop = container.scrollTop;
-    const containerWidth = container.clientWidth;
-    const containerHeight = container.clientHeight;
-    const currentScaledWidth = imageWidth * zoom;
-    const currentScaledHeight = imageHeight * zoom;
-    const centerX = (currentScrollLeft + containerWidth / 2) / currentScaledWidth;
-    const centerY = (currentScrollTop + containerHeight / 2) / currentScaledHeight;
-    const nextZoom = clampZoomValue(zoom / ZOOM_STEP);
-
-    shouldCenterRef.current = false;
-    if (nextZoom === zoom) {
-      pendingScrollRef.current = null;
-      return;
-    }
-
-    pendingScrollRef.current = { centerX, centerY };
-    setZoom((prev) => clampZoomValue(prev / ZOOM_STEP));
-  }, [imageWidth, imageHeight, zoom]);
+    applyZoomChange(1 / ZOOM_STEP);
+  }, [applyZoomChange]);
 
   const handleResetToFit = () => {
     pendingScrollRef.current = null;
