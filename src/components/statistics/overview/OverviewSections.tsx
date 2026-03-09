@@ -33,7 +33,7 @@ function hexToRgba(hex: string, alpha: number) {
           .join("")
       : normalized;
 
-  if (expanded.length !== 6) {
+  if (expanded.length !== 6 || !/^[0-9a-fA-F]{6}$/.test(expanded)) {
     return `rgba(37, 99, 235, ${alpha})`;
   }
 
