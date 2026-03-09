@@ -709,7 +709,7 @@ export function TopClassifiersSection({
               <div>
                 <div className="font-medium text-gray-900 dark:text-white">{entry.name || entry.userId}</div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Last active: {entry.lastActiveAt ? new Date(entry.lastActiveAt).toLocaleString() : "n/a"}
+                  Last active: {entry.lastActiveAt !== undefined ? new Date(entry.lastActiveAt).toLocaleString() : "n/a"}
                 </div>
               </div>
               <div className="text-right">
