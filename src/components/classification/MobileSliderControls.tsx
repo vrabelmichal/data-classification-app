@@ -2,7 +2,6 @@ import { cn } from "../../lib/utils";
 import { ChevronLeftIcon, ChevronRightIcon, EyeIcon, AladinLogo } from "./icons";
 
 interface MobileSliderControlsProps {
-  currentIndex: number;
   totalImages: number;
   currentContrastGroup: number;
   totalContrastGroups: number;
@@ -17,7 +16,6 @@ interface MobileSliderControlsProps {
 
 
 export function MobileSliderControls({
-  currentIndex,
   totalImages,
   currentContrastGroup,
   totalContrastGroups,
@@ -26,18 +24,17 @@ export function MobileSliderControls({
   onContrastClick,
   onAladinClick,
 }: MobileSliderControlsProps) {
-  const canGoPrev = currentIndex > 0;
-  const canGoNext = currentIndex < totalImages - 1;
+  const canNavigateImages = totalImages > 1;
 
   return (
     <div className="flex items-center justify-center gap-2">
       {/* Previous Image Button */}
       <button
         onClick={onPrevImage}
-        disabled={!canGoPrev}
+        disabled={!canNavigateImages}
         className={cn(
           "p-2.5 rounded-lg transition-colors backdrop-blur-sm",
-          canGoPrev
+          canNavigateImages
             ? "bg-white/80 hover:bg-white/90 text-gray-700"
             : "bg-white/40 text-gray-400 cursor-not-allowed"
         )}
@@ -68,10 +65,10 @@ export function MobileSliderControls({
       {/* Next Image Button */}
       <button
         onClick={onNextImage}
-        disabled={!canGoNext}
+        disabled={!canNavigateImages}
         className={cn(
           "p-2.5 rounded-lg transition-colors backdrop-blur-sm",
-          canGoNext
+          canNavigateImages
             ? "bg-white/80 hover:bg-white/90 text-gray-700"
             : "bg-white/40 text-gray-400 cursor-not-allowed"
         )}

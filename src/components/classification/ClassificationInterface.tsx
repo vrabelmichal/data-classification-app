@@ -1018,18 +1018,17 @@ export function ClassificationInterface() {
         shouldShowEllipse={shouldShowEllipseFunc}
         currentIndex={mobileSliderIndex}
         onIndexChange={setMobileSliderIndex}
-        renderControls={
+        renderControls={(controls) => (
           <MobileSliderControls
-            currentIndex={mobileSliderIndex}
             totalImages={mobileImageTypes.length}
             currentContrastGroup={currentContrastGroup}
             totalContrastGroups={imageContrastGroups.length}
-            onPrevImage={() => setMobileSliderIndex(Math.max(0, mobileSliderIndex - 1))}
-            onNextImage={() => setMobileSliderIndex(Math.min(mobileImageTypes.length - 1, mobileSliderIndex + 1))}
+            onPrevImage={controls.goPrev}
+            onNextImage={controls.goNext}
             onContrastClick={handleContrastClick}
             onAladinClick={handleAladinClick}
           />
-        }
+        )}
       />
 
       {/* 3. Classification Form with embedded comments button */}

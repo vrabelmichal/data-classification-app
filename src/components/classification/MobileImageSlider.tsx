@@ -1,7 +1,15 @@
-import { useState, useRef, useCallback, useEffect, type ReactNode } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo, type ReactNode } from "react";
 import { ImageViewer } from "./ImageViewer";
 import { SMALL_IMAGE_DEFAULT_ZOOM } from "./GalaxyImages";
 import type { ImageType, GalaxyData, UserPreferences } from "./types";
+
+const SLIDE_ANIMATION_DURATION_MS = 300;
+const DRAG_RESET_THRESHOLD_PX = 3;
+
+interface MobileImageSliderControlsRenderProps {
+  goPrev: () => void;
+  goNext: () => void;
+}
 
 interface MobileImageSliderProps {
   imageTypes: ImageType[];
@@ -12,7 +20,7 @@ interface MobileImageSliderProps {
   currentIndex: number;
   onIndexChange: (index: number) => void;
   /** Optional controls to render as an overlay at the bottom of the image */
-  renderControls?: ReactNode;
+  renderControls?: (controls: MobileImageSliderControlsRenderProps) => ReactNode;
 }
 
 export function MobileImageSlider({
@@ -30,15 +38,115 @@ export function MobileImageSlider({
   const [startX, setStartX] = useState(0);
   const [translateX, setTranslateX] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [trackIndex, setTrackIndex] = useState(() => (imageTypes.length > 1 ? currentIndex + 1 : 0));
+  const [loopResetTrackIndex, setLoopResetTrackIndex] = useState<number | null>(null);
 
   const slideWidth = containerRef.current?.offsetWidth ?? 0;
+  const hasMultipleImages = imageTypes.length > 1;
+  const pendingInternalIndexRef = useRef<number | null>(null);
+  const previousImageCountRef = useRef(imageTypes.length);
+
+  const renderedSlides = useMemo(() => {
+    if (!hasMultipleImages) {
+      return imageTypes.map((imageType, index) => ({
+        imageType,
+        originalIndex: index,
+        key: `slide-${index}-${imageType.url ?? `slot-${index}`}`,
+      }));
+    }
+
+    const lastIndex = imageTypes.length - 1;
+    return [
+      {
+        imageType: imageTypes[lastIndex],
+        originalIndex: lastIndex,
+        key: `clone-last-${imageTypes[lastIndex]?.url ?? `slot-${lastIndex}`}`,
+      },
+      ...imageTypes.map((imageType, index) => ({
+        imageType,
+        originalIndex: index,
+        key: `slide-${index}-${imageType.url ?? `slot-${index}`}`,
+      })),
+      {
+        imageType: imageTypes[0],
+        originalIndex: 0,
+        key: `clone-first-${imageTypes[0]?.url ?? "slot-0"}`,
+      },
+    ];
+  }, [imageTypes, hasMultipleImages]);
+
+  const syncTrackToCurrentIndex = useCallback(() => {
+    setIsAnimating(false);
+    setLoopResetTrackIndex(null);
+    setTranslateX(0);
+    setTrackIndex(hasMultipleImages ? currentIndex + 1 : 0);
+  }, [currentIndex, hasMultipleImages]);
+
+  const navigateTo = useCallback((nextIndex: number) => {
+    if (isAnimating || nextIndex === currentIndex) {
+      return;
+    }
+
+    if (!hasMultipleImages) {
+      onIndexChange(nextIndex);
+      return;
+    }
+
+    const lastIndex = imageTypes.length - 1;
+    const isWrapToLast = currentIndex === 0 && nextIndex === lastIndex;
+    const isWrapToFirst = currentIndex === lastIndex && nextIndex === 0;
+    const isAdjacentMove = Math.abs(nextIndex - currentIndex) === 1;
+    const shouldAnimate = isAdjacentMove || isWrapToLast || isWrapToFirst;
+
+    pendingInternalIndexRef.current = nextIndex;
+    setTranslateX(0);
+
+    if (!shouldAnimate) {
+      setIsAnimating(false);
+      setLoopResetTrackIndex(null);
+      setTrackIndex(nextIndex + 1);
+      onIndexChange(nextIndex);
+      return;
+    }
+
+    setIsAnimating(true);
+
+    if (isWrapToLast) {
+      setLoopResetTrackIndex(imageTypes.length);
+      setTrackIndex(0);
+    } else if (isWrapToFirst) {
+      setLoopResetTrackIndex(1);
+      setTrackIndex(imageTypes.length + 1);
+    } else {
+      setLoopResetTrackIndex(null);
+      setTrackIndex(nextIndex + 1);
+    }
+
+    onIndexChange(nextIndex);
+  }, [isAnimating, currentIndex, hasMultipleImages, imageTypes.length, onIndexChange]);
+
+  const goToPreviousImage = useCallback(() => {
+    if (!imageTypes.length) {
+      return;
+    }
+
+    navigateTo((currentIndex - 1 + imageTypes.length) % imageTypes.length);
+  }, [navigateTo, currentIndex, imageTypes.length]);
+
+  const goToNextImage = useCallback(() => {
+    if (!imageTypes.length) {
+      return;
+    }
+
+    navigateTo((currentIndex + 1) % imageTypes.length);
+  }, [navigateTo, currentIndex, imageTypes.length]);
 
   // Handle touch start
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (isAnimating) return;
+    if (isAnimating || !hasMultipleImages) return;
     setIsDragging(true);
     setStartX(e.touches[0].clientX);
-  }, [isAnimating]);
+  }, [isAnimating, hasMultipleImages]);
 
   // Handle touch move
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -54,28 +162,30 @@ export function MobileImageSlider({
     setIsDragging(false);
 
     const threshold = slideWidth * 0.2; // 20% of slide width to trigger change
+    const dragDistance = Math.abs(translateX);
 
-    if (translateX > threshold && currentIndex > 0) {
-      // Swipe right - go to previous
-      onIndexChange(currentIndex - 1);
-    } else if (translateX < -threshold && currentIndex < imageTypes.length - 1) {
-      // Swipe left - go to next
-      onIndexChange(currentIndex + 1);
+    if (hasMultipleImages && translateX > threshold) {
+      // Swipe right - go to previous, wrapping from first to last
+      goToPreviousImage();
+    } else if (hasMultipleImages && translateX < -threshold) {
+      // Swipe left - go to next, wrapping from last to first
+      goToNextImage();
+    } else if (dragDistance > DRAG_RESET_THRESHOLD_PX) {
+      setIsAnimating(true);
+      setTranslateX(0);
+    } else {
+      setIsAnimating(false);
+      setTranslateX(0);
     }
-
-    // Animate back to position
-    setIsAnimating(true);
-    setTranslateX(0);
-    setTimeout(() => setIsAnimating(false), 300);
-  }, [isDragging, translateX, slideWidth, currentIndex, imageTypes.length, onIndexChange]);
+  }, [isDragging, translateX, slideWidth, hasMultipleImages, goToPreviousImage, goToNextImage]);
 
   // Handle mouse events for desktop testing
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if (isAnimating) return;
+    if (isAnimating || !hasMultipleImages) return;
     setIsDragging(true);
     setStartX(e.clientX);
     e.preventDefault();
-  }, [isAnimating]);
+  }, [isAnimating, hasMultipleImages]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDragging) return;
@@ -94,10 +204,39 @@ export function MobileImageSlider({
     }
   }, [isDragging, handleTouchEnd]);
 
-  // Reset translate when index changes externally
+  // Sync the track when the parent changes index outside this component
   useEffect(() => {
-    setTranslateX(0);
-  }, [currentIndex]);
+    const imageCountChanged = previousImageCountRef.current !== imageTypes.length;
+    previousImageCountRef.current = imageTypes.length;
+
+    if (imageCountChanged) {
+      pendingInternalIndexRef.current = null;
+      syncTrackToCurrentIndex();
+      return;
+    }
+
+    if (pendingInternalIndexRef.current === currentIndex) {
+      pendingInternalIndexRef.current = null;
+      return;
+    }
+
+    syncTrackToCurrentIndex();
+  }, [currentIndex, imageTypes.length, syncTrackToCurrentIndex]);
+
+  const handleTrackTransitionEnd = useCallback((e: React.TransitionEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || e.propertyName !== "transform") {
+      return;
+    }
+
+    if (loopResetTrackIndex !== null) {
+      setIsAnimating(false);
+      setTrackIndex(loopResetTrackIndex);
+      setLoopResetTrackIndex(null);
+      return;
+    }
+
+    setIsAnimating(false);
+  }, [loopResetTrackIndex]);
 
   const currentImage = imageTypes[currentIndex];
   
@@ -122,7 +261,7 @@ export function MobileImageSlider({
           {imageTypes.map((_, idx) => (
             <button
               key={idx}
-              onClick={() => onIndexChange(idx)}
+              onClick={() => navigateTo(idx)}
               className={`w-1.5 h-1.5 rounded-full transition-all ${
                 idx === currentIndex
                   ? "bg-blue-600 dark:bg-blue-400 w-2 h-2"
@@ -147,14 +286,16 @@ export function MobileImageSlider({
         onMouseLeave={handleMouseLeave}
       >
         <div
-          className={`flex ${isAnimating ? "transition-transform duration-300 ease-out" : ""}`}
+          className={`flex ${isAnimating ? "transition-transform ease-out" : ""}`}
           style={{
-            transform: `translateX(calc(-${currentIndex * 100}% + ${translateX}px))`,
+            transform: `translateX(calc(-${trackIndex * 100}% + ${translateX}px))`,
+            transitionDuration: isAnimating ? `${SLIDE_ANIMATION_DURATION_MS}ms` : undefined,
           }}
+          onTransitionEnd={handleTrackTransitionEnd}
         >
-          {imageTypes.map((imageType, index) => (
+          {renderedSlides.map(({ imageType, key }) => (
             <div
-              key={imageType.url ?? `slot-${index}`}
+              key={key}
               className="w-full flex-shrink-0 p-2"
               style={{ minWidth: "100%" }}
             >
@@ -190,8 +331,20 @@ export function MobileImageSlider({
 
         {/* Fixed overlay controls at the bottom - stays in place while images slide */}
         {renderControls && (
-          <div className="absolute bottom-4 left-2 right-2 pointer-events-auto">
-            {renderControls}
+          <div
+            className="absolute bottom-4 left-2 right-2 pointer-events-auto"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+            onMouseMove={(e) => e.stopPropagation()}
+            onMouseUp={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onTouchEnd={(e) => e.stopPropagation()}
+          >
+            {renderControls({
+              goPrev: goToPreviousImage,
+              goNext: goToNextImage,
+            })}
           </div>
         )}
       </div>
