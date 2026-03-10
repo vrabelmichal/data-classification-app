@@ -8,7 +8,7 @@ import { usePageTitle } from "../../hooks/usePageTitle";
 const UsersTab = lazy(() => import("./UsersTab").then((module) => ({ default: module.UsersTab })));
 const GalaxiesTab = lazy(() => import("./GalaxiesTab").then((module) => ({ default: module.GalaxiesTab })));
 const SettingsTab = lazy(() => import("./SettingsTab").then((module) => ({ default: module.SettingsTab })));
-const MaintenanceTab = lazy(() => import("./MaintentanceTab").then((module) => ({ default: module.MaintenanceTab })));
+const MaintenanceTab = lazy(() => import("./MaintenanceTab").then((module) => ({ default: module.MaintenanceTab })));
 const SystemTab = lazy(() => import("./SystemTab").then((module) => ({ default: module.SystemTab })));
 const NotificationsTab = lazy(() => import("./NotificationsTab").then((module) => ({ default: module.NotificationsTab })));
 
@@ -31,7 +31,7 @@ export function AdminPanel() {
       if (path.startsWith("/admin/galaxies")) return ""; // Managed by subpages
       if (path.startsWith("/admin/notifications")) return "Notifications";
       if (path.startsWith("/admin/settings")) return "Settings";
-      if (path.startsWith("/admin/maintenance")) return "Maintenance";
+      if (path.startsWith("/admin/maintenance")) return ""; // Managed by subpages
       if (path.startsWith("/admin/system")) return "System";
       return "Admin";
     })();
@@ -136,7 +136,7 @@ export function AdminPanel() {
           }
         />
         <Route
-          path="maintenance"
+          path="maintenance/*"
           element={
             <Suspense fallback={<AdminTabLoading />}>
               <MaintenanceTab />
