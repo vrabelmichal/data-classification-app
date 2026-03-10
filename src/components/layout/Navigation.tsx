@@ -41,7 +41,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const { open: openReportModal } = useReportIssueModal();
   const userProfile = useQuery(api.users.getUserProfile);
-  const progress = useQuery(api.classification.getProgress);
+  const progress = useQuery(api.classification.getProgress, {});
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const unreadNotificationCount = useQuery(api.notifications.getUnreadNotificationCount);
   const navigate = useNavigate();
