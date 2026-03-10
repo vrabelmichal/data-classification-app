@@ -6,6 +6,29 @@ import { loadImageDisplaySettings } from "./displaySettings";
 
 let provider: ImageProvider | null = null;
 
+function resolveFinalImageOptions(
+  name: ImageName,
+  opts?: GetImageUrlOptions
+): GetImageUrlOptions {
+  const settings = loadImageDisplaySettings();
+  let forcedQuality: ImageQuality | undefined;
+
+  for (const group of settings.classification.contrastGroups) {
+    const entry = group.find((e) => e.key === name || e.key_masked === name);
+    if (entry?.forcedQuality) {
+      forcedQuality = entry.forcedQuality;
+      break;
+    }
+  }
+
+  const finalOpts = { ...opts };
+  if (forcedQuality) {
+    finalOpts.quality = forcedQuality;
+  }
+
+  return finalOpts;
+}
+
 function init(): ImageProvider {
   const cfg = loadImagesConfig();
   if (cfg.provider === "local") return new LocalImageProvider(cfg);
@@ -22,24 +45,26 @@ export function getImageUrl(
   name: ImageName,
   opts?: GetImageUrlOptions
 ): string {
-  const settings = loadImageDisplaySettings();
-  let forcedQuality: ImageQuality | undefined;
-
-  // Check if any group has this image with a forced quality
-  for (const group of settings.classification.contrastGroups) {
-    const entry = group.find((e) => e.key === name || e.key_masked === name);
-    if (entry?.forcedQuality) {
-      forcedQuality = entry.forcedQuality;
-      break;
-    }
-  }
-
-  const finalOpts = { ...opts };
-  if (forcedQuality) {
-    finalOpts.quality = forcedQuality;
-  }
+  const finalOpts = resolveFinalImageOptions(name, opts);
 
   return ensureProvider().getImageUrl(id, name, finalOpts);
+}
+
+export function getImageObjectKey(
+  id: string,
+  name: ImageName,
+  opts?: GetImageUrlOptions
+): string {
+  const cfg = loadImagesConfig();
+  const finalOpts = resolveFinalImageOptions(name, opts);
+
+  if (cfg.provider === "r2") {
+    return new R2ImageProvider(cfg).getObjectKey(id, name, finalOpts.quality);
+  }
+
+  const baseName = name.replace(/\.[^/.]+$/, "");
+  const ext = finalOpts.quality === "low" ? "avif" : "png";
+  return `${id}/${baseName}.${ext}`;
 }
 
 // Re-export types for convenience

@@ -35,6 +35,7 @@ import type * as galaxies_skipped from "../galaxies/skipped.js";
 import type * as galaxyBlacklist from "../galaxyBlacklist.js";
 import type * as generateBalancedUserSequence from "../generateBalancedUserSequence.js";
 import type * as http from "../http.js";
+import type * as imageAudit from "../imageAudit.js";
 import type * as images from "../images.js";
 import type * as issueReports from "../issueReports.js";
 import type * as lib_assignmentCore from "../lib/assignmentCore.js";
@@ -89,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   galaxyBlacklist: typeof galaxyBlacklist;
   generateBalancedUserSequence: typeof generateBalancedUserSequence;
   http: typeof http;
+  imageAudit: typeof imageAudit;
   images: typeof images;
   issueReports: typeof issueReports;
   "lib/assignmentCore": typeof lib_assignmentCore;
