@@ -277,6 +277,8 @@ export function NotificationsPage() {
         {notifications.map((notification) => (
           <div
             key={notification._id}
+            role={!notification.isRead ? "button" : undefined}
+            tabIndex={!notification.isRead ? 0 : undefined}
             className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border transition-all ${
               notification.isRead
                 ? "border-gray-200 dark:border-gray-700"
@@ -284,6 +286,18 @@ export function NotificationsPage() {
             }`}
             onClick={() => {
               if (!notification.isRead) {
+                handleMarkAsRead(notification._id);
+              }
+            }}
+            onKeyDown={(e) => {
+              if (notification.isRead) {
+                return;
+              }
+
+              if (e.key === " ") {
+                e.preventDefault();
+                handleMarkAsRead(notification._id);
+              } else if (e.key === "Enter") {
                 handleMarkAsRead(notification._id);
               }
             }}
