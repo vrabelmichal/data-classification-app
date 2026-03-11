@@ -7,6 +7,22 @@ import { getPaperCountsPayload } from "./shared";
 // Batch size for getPaperClassificationStats pagination.
 // Kept small enough to stay well under the 1 s query deadline per page.
 const PAPER_CLASSIFICATION_PAGE_SIZE = 1000;
+const MAX_TARGET_CLASSIFICATIONS = 25;
+
+function clampTargetClassifications(targetClassifications: number) {
+  if (!Number.isFinite(targetClassifications)) {
+    return 1;
+  }
+
+  return Math.min(MAX_TARGET_CLASSIFICATIONS, Math.max(1, Math.floor(targetClassifications)));
+}
+
+function exactClassificationCountBounds(classificationCount: number) {
+  return {
+    lower: { key: classificationCount, inclusive: true },
+    upper: { key: classificationCount, inclusive: true },
+  } as const;
+}
 
 export const get = query({
   args: {
@@ -111,6 +127,8 @@ export const getPaperClassificationStats = query({
   returns: v.object({
     classifiedGalaxies: v.number(),
     totalClassifications: v.number(),
+    processedGalaxies: v.number(),
+    classificationHistogram: v.record(v.string(), v.number()),
     isDone: v.boolean(),
     continueCursor: v.union(v.string(), v.null()),
   }),
@@ -124,17 +142,107 @@ export const getPaperClassificationStats = query({
 
     let classifiedGalaxies = 0;
     let totalClassifications = 0;
+    const classificationHistogram: Record<string, number> = {};
     for (const g of page) {
       const tc = Number(g.totalClassifications ?? 0);
       if (tc > 0) classifiedGalaxies++;
       totalClassifications += tc;
+      const histogramKey = String(tc);
+      classificationHistogram[histogramKey] = (classificationHistogram[histogramKey] ?? 0) + 1;
     }
 
     return {
       classifiedGalaxies,
       totalClassifications,
+      processedGalaxies: page.length,
+      classificationHistogram,
       isDone,
       continueCursor: isDone ? null : continueCursor,
+    };
+  },
+});
+
+export const getTargetProgress = query({
+  args: {
+    targetClassifications: v.number(),
+  },
+  returns: v.object({
+    targetProgress: v.object({
+      targetClassifications: v.number(),
+      targetClassificationsTotal: v.number(),
+      targetCompletionPercent: v.number(),
+      galaxiesAtTarget: v.number(),
+      galaxiesBelowTarget: v.number(),
+      galaxiesWithMultipleClassifications: v.number(),
+      repeatClassifications: v.number(),
+      remainingClassificationsToTarget: v.number(),
+    }),
+    timestamp: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    const targetClassifications = clampTargetClassifications(args.targetClassifications);
+
+    const [
+      totalGalaxies,
+      classifiedGalaxies,
+      totalClassifications,
+      galaxiesWithMultipleClassifications,
+      galaxiesAtTarget,
+      exactCountsBelowTarget,
+    ] = await Promise.all([
+      galaxiesById.count(ctx),
+      galaxiesByTotalClassifications.count(ctx, {
+        bounds: {
+          lower: { key: 1, inclusive: true },
+          upper: { key: Number.MAX_SAFE_INTEGER - 1, inclusive: true },
+        },
+      }),
+      classificationsByCreated.count(ctx),
+      galaxiesByTotalClassifications.count(ctx, {
+        bounds: {
+          lower: { key: 2, inclusive: true },
+          upper: { key: Number.MAX_SAFE_INTEGER - 1, inclusive: true },
+        },
+      }),
+      galaxiesByTotalClassifications.count(ctx, {
+        bounds: {
+          lower: { key: targetClassifications, inclusive: true },
+          upper: { key: Number.MAX_SAFE_INTEGER - 1, inclusive: true },
+        },
+      }),
+      Promise.all(
+        Array.from({ length: targetClassifications }, (_, classificationCount) =>
+          galaxiesByTotalClassifications
+            .count(ctx, { bounds: exactClassificationCountBounds(classificationCount) })
+            .then((count) => ({ classificationCount, count }))
+        )
+      ),
+    ]);
+
+    const targetClassificationsTotal = totalGalaxies * targetClassifications;
+    const targetCompletionPercent =
+      targetClassificationsTotal > 0
+        ? (totalClassifications / targetClassificationsTotal) * 100
+        : 0;
+    const remainingClassificationsToTarget = exactCountsBelowTarget.reduce(
+      (sum, entry) => sum + (targetClassifications - entry.classificationCount) * entry.count,
+      0
+    );
+
+    return {
+      targetProgress: {
+        targetClassifications,
+        targetClassificationsTotal,
+        targetCompletionPercent,
+        galaxiesAtTarget,
+        galaxiesBelowTarget: Math.max(totalGalaxies - galaxiesAtTarget, 0),
+        galaxiesWithMultipleClassifications,
+        repeatClassifications: Math.max(totalClassifications - classifiedGalaxies, 0),
+        remainingClassificationsToTarget,
+      },
+      timestamp: Date.now(),
     };
   },
 });

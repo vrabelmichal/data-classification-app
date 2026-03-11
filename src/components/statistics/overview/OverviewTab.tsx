@@ -13,11 +13,83 @@ import {
 import {
   ClassificationStatsPayload,
   RecencyPayload,
+  TargetProgressMetrics,
+  TargetProgressPayload,
   Totals,
   TopClassifiersPayload,
   TotalsAndPapersPayload,
 } from "./types";
 import { usePaperClassificationStats } from "../../../hooks/usePaperClassificationStats";
+
+const DEFAULT_TARGET_CLASSIFICATIONS = 3;
+const MAX_TARGET_CLASSIFICATIONS = 25;
+
+function sanitizeTargetClassifications(value: number | string | null | undefined) {
+  const parsed = typeof value === "number" ? value : Number(value);
+
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_TARGET_CLASSIFICATIONS;
+  }
+
+  return Math.min(MAX_TARGET_CLASSIFICATIONS, Math.max(1, Math.floor(parsed)));
+}
+
+function derivePaperTargetProgress({
+  targetClassifications,
+  totalGalaxies,
+  processedGalaxies,
+  classifiedGalaxies,
+  totalClassifications,
+  classificationHistogram,
+}: {
+  targetClassifications: number;
+  totalGalaxies: number;
+  processedGalaxies: number;
+  classifiedGalaxies: number;
+  totalClassifications: number;
+  classificationHistogram: Record<string, number>;
+}): TargetProgressMetrics {
+  let galaxiesAtTarget = 0;
+  let galaxiesWithMultipleClassifications = 0;
+  let remainingClassificationsToTarget = 0;
+
+  for (const [classificationCountKey, galaxyCount] of Object.entries(classificationHistogram)) {
+    const classificationCount = Number(classificationCountKey);
+    if (!Number.isFinite(classificationCount) || galaxyCount <= 0) {
+      continue;
+    }
+
+    if (classificationCount >= 2) {
+      galaxiesWithMultipleClassifications += galaxyCount;
+    }
+
+    if (classificationCount >= targetClassifications) {
+      galaxiesAtTarget += galaxyCount;
+      continue;
+    }
+
+    remainingClassificationsToTarget += (targetClassifications - classificationCount) * galaxyCount;
+  }
+
+  const safeProcessedGalaxies = Math.min(processedGalaxies, totalGalaxies);
+  const unprocessedGalaxies = Math.max(totalGalaxies - safeProcessedGalaxies, 0);
+  const targetClassificationsTotal = totalGalaxies * targetClassifications;
+
+  return {
+    targetClassifications,
+    targetClassificationsTotal,
+    targetCompletionPercent:
+      targetClassificationsTotal > 0
+        ? (totalClassifications / targetClassificationsTotal) * 100
+        : 0,
+    galaxiesAtTarget,
+    galaxiesBelowTarget: Math.max(totalGalaxies - galaxiesAtTarget, 0),
+    galaxiesWithMultipleClassifications,
+    repeatClassifications: Math.max(totalClassifications - classifiedGalaxies, 0),
+    remainingClassificationsToTarget:
+      remainingClassificationsToTarget + unprocessedGalaxies * targetClassifications,
+  };
+}
 
 export function OverviewTab() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,23 +106,45 @@ export function OverviewTab() {
     ? (defaultOverviewPaper !== null ? defaultOverviewPaper : undefined)
     : rawParam === "__all__" ? undefined
     : rawParam!;
+  const targetClassifications = sanitizeTargetClassifications(searchParams.get("target"));
+
+  const updateOverviewSearchParams = (updateFn: (next: URLSearchParams) => void) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      updateFn(next);
+      return next;
+    }, { replace: true });
+  };
 
   const handleSelectPaper = (p: string | undefined) => {
-    if (p === undefined) {
-      if (defaultOverviewPaper !== null) {
-        setSearchParams((prev) => { prev.set("paper", "__all__"); return prev; }, { replace: true });
-      } else {
-        setSearchParams((prev) => { prev.delete("paper"); return prev; }, { replace: true });
+    updateOverviewSearchParams((next) => {
+      if (p === undefined) {
+        if (defaultOverviewPaper !== null) {
+          next.set("paper", "__all__");
+        } else {
+          next.delete("paper");
+        }
+        return;
       }
-    } else {
-      setSearchParams((prev) => { prev.set("paper", p); return prev; }, { replace: true });
-    }
+
+      next.set("paper", p);
+    });
+  };
+
+  const handleTargetClassificationsChange = (nextValue: number) => {
+    updateOverviewSearchParams((next) => {
+      next.set("target", String(sanitizeTargetClassifications(nextValue)));
+    });
   };
 
   const totalsAndPapers = useQuery(api.statistics.labelingOverview.totalsAndPapers.get, { paper: selectedPaper }) as TotalsAndPapersPayload | undefined;
   const recencyData = useQuery(api.statistics.labelingOverview.recency.get) as RecencyPayload | undefined;
   const topClassifiersData = useQuery(api.statistics.labelingOverview.topClassifiers.get) as TopClassifiersPayload | undefined;
   const classificationStatsData = useQuery(api.statistics.labelingOverview.classificationStats.get) as ClassificationStatsPayload | undefined;
+  const globalTargetProgressData = useQuery(
+    api.statistics.labelingOverview.totalsAndPapers.getTargetProgress,
+    selectedPaper === undefined ? { targetClassifications } : "skip"
+  ) as TargetProgressPayload | undefined;
 
   const latestCatalogRef = useRef<Pick<TotalsAndPapersPayload, "availablePapers" | "paperCounts"> | undefined>(undefined);
   const latestGlobalTotalsRef = useRef<Totals | undefined>(undefined);
@@ -147,6 +241,24 @@ export function OverviewTab() {
   const recency = recencyData?.recency;
   const classificationStats = classificationStatsData?.classificationStats;
   const topClassifiers = topClassifiersData?.topClassifiers;
+  const targetProgress = useMemo(() => {
+    if (!totals) {
+      return undefined;
+    }
+
+    if (selectedPaper === undefined) {
+      return globalTargetProgressData?.targetProgress;
+    }
+
+    return derivePaperTargetProgress({
+      targetClassifications,
+      totalGalaxies: totals.galaxies,
+      processedGalaxies: paperClassStats.processedGalaxies,
+      classifiedGalaxies: paperClassStats.classifiedGalaxies,
+      totalClassifications: paperClassStats.totalClassifications,
+      classificationHistogram: paperClassStats.classificationHistogram,
+    });
+  }, [globalTargetProgressData?.targetProgress, paperClassStats, selectedPaper, targetClassifications, totals]);
 
   const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? true;
   const showValidRedshift = systemSettings?.showValidRedshift ?? true;
@@ -207,6 +319,9 @@ export function OverviewTab() {
 
       <ProgressSection
         totals={totals}
+        targetProgress={targetProgress}
+        targetClassifications={targetClassifications}
+        onTargetClassificationsChange={handleTargetClassificationsChange}
         activeClassifiers={recency?.activeClassifiers}
         selectedPaper={selectedPaper}
         isPaperStatsLoading={isPaperStatsLoading}

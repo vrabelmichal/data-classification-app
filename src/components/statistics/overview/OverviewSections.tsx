@@ -1,7 +1,7 @@
-import { CSSProperties } from "react";
+import { CSSProperties, useEffect, useState } from "react";
 import { cn } from "../../../lib/utils";
 import { BreakdownBar, LoadingBadge, LoadingPanel, ProgressBar, StatCard } from "./shared";
-import { PaperCount, PaperFilter, Totals } from "./types";
+import { PaperCount, PaperFilter, TargetProgressMetrics, Totals } from "./types";
 
 const PAPER_COLORS = [
   "#2563eb",
@@ -280,6 +280,94 @@ function ProgressDetail({
   );
 }
 
+const MAX_TARGET_CLASSIFICATIONS = 25;
+
+function clampTargetClassifications(targetClassifications: number) {
+  if (!Number.isFinite(targetClassifications)) {
+    return 1;
+  }
+
+  return Math.min(MAX_TARGET_CLASSIFICATIONS, Math.max(1, Math.floor(targetClassifications)));
+}
+
+function TargetCountControl({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (nextValue: number) => void;
+}) {
+  const [draftValue, setDraftValue] = useState(String(value));
+
+  useEffect(() => {
+    setDraftValue(String(value));
+  }, [value]);
+
+  const commitDraftValue = () => {
+    const parsed = Number(draftValue);
+    const nextValue = Number.isFinite(parsed)
+      ? clampTargetClassifications(parsed)
+      : value;
+
+    setDraftValue(String(nextValue));
+    if (nextValue !== value) {
+      onChange(nextValue);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={() => onChange(clampTargetClassifications(value - 1))}
+        disabled={value <= 1}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-500 dark:hover:text-blue-200"
+        aria-label="Decrease target classifications per galaxy"
+      >
+        -
+      </button>
+
+      <label className="rounded-2xl border border-gray-200 bg-white px-3 py-2 text-left shadow-sm dark:border-gray-600 dark:bg-gray-800">
+        <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Target per galaxy
+        </div>
+        <input
+          type="number"
+          min={1}
+          max={MAX_TARGET_CLASSIFICATIONS}
+          step={1}
+          inputMode="numeric"
+          value={draftValue}
+          onChange={(event) => setDraftValue(event.target.value)}
+          onBlur={commitDraftValue}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.currentTarget.blur();
+            }
+
+            if (event.key === "Escape") {
+              setDraftValue(String(value));
+              event.currentTarget.blur();
+            }
+          }}
+          className="mt-1 w-24 border-none bg-transparent p-0 text-lg font-semibold text-gray-900 outline-none focus:ring-0 dark:text-white"
+          aria-label="Target classifications per galaxy"
+        />
+      </label>
+
+      <button
+        type="button"
+        onClick={() => onChange(clampTargetClassifications(value + 1))}
+        disabled={value >= MAX_TARGET_CLASSIFICATIONS}
+        className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 bg-white text-lg font-semibold text-gray-700 transition-colors hover:border-blue-300 hover:text-blue-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-blue-500 dark:hover:text-blue-200"
+        aria-label="Increase target classifications per galaxy"
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
 /** Blue pill shown on sections whose data is scoped to the selected paper. */
 function FilteredBadge({ paper }: { paper: string }) {
   return (
@@ -543,11 +631,17 @@ export function SummaryCardsSection({
 
 export function ProgressSection({
   totals,
+  targetProgress,
+  targetClassifications,
+  onTargetClassificationsChange,
   activeClassifiers,
   selectedPaper,
   isPaperStatsLoading = false,
 }: {
   totals?: Totals;
+  targetProgress?: TargetProgressMetrics;
+  targetClassifications: number;
+  onTargetClassificationsChange: (nextValue: number) => void;
   activeClassifiers?: number;
   selectedPaper: string | undefined;
   isPaperStatsLoading?: boolean;
@@ -556,44 +650,100 @@ export function ProgressSection({
     ? totals.totalClassifications / activeClassifiers
     : 0;
   const isCountingSelectedPaper = selectedPaper !== undefined && isPaperStatsLoading;
+  const isGlobalTargetLoading = selectedPaper === undefined && targetProgress === undefined;
+  const isTargetProgressLoading = isCountingSelectedPaper || isGlobalTargetLoading;
+  const loadingAccent = isCountingSelectedPaper || isGlobalTargetLoading;
+  const targetGoal = targetProgress?.targetClassificationsTotal
+    ?? (totals ? totals.galaxies * targetClassifications : 0);
+  const galaxiesAtTargetPercent = totals && targetProgress && totals.galaxies > 0
+    ? (targetProgress.galaxiesAtTarget / totals.galaxies) * 100
+    : 0;
   const progressStatusText = selectedPaper === undefined
-    ? "Showing overall catalog progress."
+    ? isGlobalTargetLoading
+      ? "Loading catalog progress against the repeat-classification target."
+      : `Showing catalog progress against ${targetClassifications} classifications per galaxy.`
     : isCountingSelectedPaper
-      ? "Paper-specific progress totals are updating live."
-      : "Paper-specific progress totals are up to date.";
+      ? `Paper-specific progress against ${targetClassifications} classifications per galaxy is updating live.`
+      : `Paper-specific progress against ${targetClassifications} classifications per galaxy is up to date.`;
 
   return (
     <div
       className={cn(
         "rounded-xl border p-6 shadow-sm transition-colors",
-        isCountingSelectedPaper
+        loadingAccent
           ? "border-blue-200 bg-blue-50/40 dark:border-blue-800/70 dark:bg-blue-950/10"
           : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
       )}
     >
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="space-y-1">
           <div className="flex flex-wrap items-center gap-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">Overall progress</div>
+            <div className="text-sm text-gray-500 dark:text-gray-400">Target progress</div>
             {selectedPaper !== undefined ? <FilteredBadge paper={selectedPaper} /> : <GlobalBadge />}
           </div>
           <div
             className={cn(
               "text-3xl font-semibold text-gray-900 dark:text-white",
-              isCountingSelectedPaper && "text-blue-700 dark:text-blue-100"
+              loadingAccent && "text-blue-700 dark:text-blue-100"
             )}
           >
-            {totals ? `${totals.progress.toFixed(1)}%` : "—"}
+            {targetProgress ? `${targetProgress.targetCompletionPercent.toFixed(1)}%` : "—"}
+          </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            {targetProgress && totals
+              ? `${totals.totalClassifications.toLocaleString()} / ${targetGoal.toLocaleString()} classifications toward ${targetProgress.targetClassifications}x coverage`
+              : "Loading target-aware counts…"}
           </div>
         </div>
-        <div className="text-right text-sm text-gray-500 dark:text-gray-400">
-          {totals ? `${totals.totalClassifications.toLocaleString()} classifications` : "Loading overall counts…"}
+
+        <div className="flex flex-col items-end gap-3">
+          <TargetCountControl
+            value={targetClassifications}
+            onChange={onTargetClassificationsChange}
+          />
+          <div className="text-right text-sm text-gray-500 dark:text-gray-400">
+            {totals
+              ? `${totals.classifiedGalaxies.toLocaleString()} / ${totals.galaxies.toLocaleString()} galaxies have at least one classification`
+              : "Loading overall counts…"}
+          </div>
         </div>
       </div>
 
-      <ProgressBar percent={totals?.progress ?? 0} isLoading={isCountingSelectedPaper} />
+      <div className="space-y-3">
+        <div>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>Target coverage</span>
+            <span>
+              {targetProgress && totals
+                ? `${totals.totalClassifications.toLocaleString()} / ${targetGoal.toLocaleString()} classifications`
+                : "Loading target coverage…"}
+            </span>
+          </div>
+          <ProgressBar
+            percent={targetProgress?.targetCompletionPercent ?? 0}
+            isLoading={isTargetProgressLoading}
+            ariaLabel="Target coverage"
+          />
+        </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 text-sm text-gray-600 dark:text-gray-300 sm:grid-cols-3">
+        <div>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>Unique coverage</span>
+            <span>
+              {totals
+                ? `${totals.classifiedGalaxies.toLocaleString()} / ${totals.galaxies.toLocaleString()} galaxies`
+                : "Loading unique coverage…"}
+            </span>
+          </div>
+          <ProgressBar
+            percent={totals?.progress ?? 0}
+            isLoading={isCountingSelectedPaper}
+            ariaLabel="Unique coverage"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 text-sm text-gray-600 dark:text-gray-300 sm:grid-cols-2 xl:grid-cols-3">
         <ProgressDetail
           title="Per galaxy"
           value={totals ? `${totals.avgClassificationsPerGalaxy.toFixed(2)} avg classifications/galaxy` : "Loading…"}
@@ -601,8 +751,32 @@ export function ProgressSection({
           helper={isCountingSelectedPaper ? "This ratio updates as the paper scan completes." : undefined}
         />
         <ProgressDetail
+          title="Repeat labels"
+          value={targetProgress ? `${targetProgress.repeatClassifications.toLocaleString()} extra classifications` : "Loading…"}
+          loading={isTargetProgressLoading}
+          helper={targetProgress
+            ? `${targetProgress.galaxiesWithMultipleClassifications.toLocaleString()} galaxies have 2+ classifications`
+            : undefined}
+        />
+        <ProgressDetail
+          title="Reached target"
+          value={targetProgress
+            ? `${formatPercentLabel(galaxiesAtTargetPercent)} (${targetProgress.galaxiesAtTarget.toLocaleString()})`
+            : "Loading…"}
+          loading={isTargetProgressLoading}
+          helper={`Galaxies with at least ${targetClassifications} classifications`}
+        />
+        <ProgressDetail
+          title="Remaining to target"
+          value={targetProgress ? `${targetProgress.remainingClassificationsToTarget.toLocaleString()} classifications` : "Loading…"}
+          loading={isTargetProgressLoading}
+          helper={targetProgress
+            ? `${targetProgress.galaxiesBelowTarget.toLocaleString()} galaxies are still below ${targetClassifications}x`
+            : undefined}
+        />
+        <ProgressDetail
           title="Active users"
-          value={activeClassifiers !== undefined ? `${activeClassifiers.toLocaleString()} with ≥1 classification` : "Loading…"}
+          value={activeClassifiers !== undefined ? `${activeClassifiers.toLocaleString()} with >=1 classification` : "Loading…"}
           helper={selectedPaper !== undefined ? "Global activity metric" : "Catalog-wide activity metric"}
         />
         <ProgressDetail
@@ -619,7 +793,9 @@ export function ProgressSection({
             className={cn(
               "h-2 w-2 shrink-0 rounded-full",
               selectedPaper === undefined
-                ? "bg-gray-300 dark:bg-gray-600"
+                ? isGlobalTargetLoading
+                  ? "bg-blue-500 animate-pulse"
+                  : "bg-gray-300 dark:bg-gray-600"
                 : isCountingSelectedPaper
                   ? "bg-blue-500 animate-pulse"
                   : "bg-emerald-500"
@@ -637,8 +813,8 @@ export function ProgressSection({
           </span>
         </div>
         <StatusPill
-          label={selectedPaper === undefined ? "Catalog" : isCountingSelectedPaper ? "Live count" : "Ready"}
-          tone={selectedPaper === undefined ? "info" : isCountingSelectedPaper ? "loading" : "ready"}
+          label={selectedPaper === undefined ? isGlobalTargetLoading ? "Calculating" : "Catalog" : isCountingSelectedPaper ? "Live count" : "Ready"}
+          tone={selectedPaper === undefined ? isGlobalTargetLoading ? "loading" : "info" : isCountingSelectedPaper ? "loading" : "ready"}
         />
       </div>
     </div>

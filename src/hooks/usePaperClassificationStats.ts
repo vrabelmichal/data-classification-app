@@ -18,8 +18,23 @@ import { api } from "../../convex/_generated/api";
 export interface PaperClassificationStats {
   classifiedGalaxies: number;
   totalClassifications: number;
+  processedGalaxies: number;
+  classificationHistogram: Record<string, number>;
   /** True while not all pages have been fetched / processed yet. */
   isLoading: boolean;
+}
+
+function mergeClassificationHistograms(
+  current: Record<string, number>,
+  incoming: Record<string, number>
+) {
+  const next = { ...current };
+
+  for (const [classificationCount, galaxyCount] of Object.entries(incoming)) {
+    next[classificationCount] = (next[classificationCount] ?? 0) + galaxyCount;
+  }
+
+  return next;
 }
 
 export function usePaperClassificationStats(
@@ -30,6 +45,8 @@ export function usePaperClassificationStats(
   // Accumulated totals.
   const [classifiedGalaxies, setClassifiedGalaxies] = useState(0);
   const [totalClassifications, setTotalClassifications] = useState(0);
+  const [processedGalaxies, setProcessedGalaxies] = useState(0);
+  const [classificationHistogram, setClassificationHistogram] = useState<Record<string, number>>({});
   const [isDone, setIsDone] = useState(false);
 
   // Track which (paper, cursor) pairs we have already incorporated so that
@@ -46,6 +63,8 @@ export function usePaperClassificationStats(
     setCursor(undefined);
     setClassifiedGalaxies(0);
     setTotalClassifications(0);
+    setProcessedGalaxies(0);
+    setClassificationHistogram({});
     setIsDone(false);
     // Keep the processedKeys set alive but clear it for the new paper.
     processedKeys.current = new Set<string>();
@@ -68,6 +87,10 @@ export function usePaperClassificationStats(
 
     setClassifiedGalaxies((prev) => prev + pageResult.classifiedGalaxies);
     setTotalClassifications((prev) => prev + pageResult.totalClassifications);
+    setProcessedGalaxies((prev) => prev + pageResult.processedGalaxies);
+    setClassificationHistogram((prev) =>
+      mergeClassificationHistograms(prev, pageResult.classificationHistogram)
+    );
 
     if (pageResult.isDone) {
       setIsDone(true);
@@ -89,12 +112,20 @@ export function usePaperClassificationStats(
   }, [pageResult, paper]);
 
   if (paper === undefined) {
-    return { classifiedGalaxies: 0, totalClassifications: 0, isLoading: false };
+    return {
+      classifiedGalaxies: 0,
+      totalClassifications: 0,
+      processedGalaxies: 0,
+      classificationHistogram: {},
+      isLoading: false,
+    };
   }
 
   return {
     classifiedGalaxies,
     totalClassifications,
+    processedGalaxies,
+    classificationHistogram,
     isLoading: !isDone,
   };
 }

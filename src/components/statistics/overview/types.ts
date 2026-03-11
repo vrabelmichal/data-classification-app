@@ -71,3 +71,19 @@ export type ClassificationStatsPayload = {
   };
   timestamp: number;
 };
+
+export type TargetProgressMetrics = {
+  targetClassifications: number;
+  targetClassificationsTotal: number;
+  targetCompletionPercent: number;
+  galaxiesAtTarget: number;
+  galaxiesBelowTarget: number;
+  galaxiesWithMultipleClassifications: number;
+  repeatClassifications: number;
+  remainingClassificationsToTarget: number;
+};
+
+export type TargetProgressPayload = {
+  targetProgress: TargetProgressMetrics;
+  timestamp: number;
+};
