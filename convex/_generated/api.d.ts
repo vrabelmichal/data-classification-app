@@ -12,6 +12,7 @@ import type * as ResendOTPPasswordReset from "../ResendOTPPasswordReset.js";
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
 import type * as classification from "../classification.js";
+import type * as classifications_export from "../classifications/export.js";
 import type * as classifications_maintenance from "../classifications/maintenance.js";
 import type * as emailSettings from "../emailSettings.js";
 import type * as export_database from "../export_database.js";
@@ -66,6 +67,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auth: typeof auth;
   classification: typeof classification;
+  "classifications/export": typeof classifications_export;
   "classifications/maintenance": typeof classifications_maintenance;
   emailSettings: typeof emailSettings;
   export_database: typeof export_database;

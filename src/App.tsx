@@ -29,6 +29,9 @@ const LazyUserSettings = lazy(() =>
 const LazyHelp = lazy(() =>
   import("./components/help/Help").then((module) => ({ default: module.Help }))
 );
+const LazyDataPage = lazy(() =>
+  import("./components/data/DataPage").then((module) => ({ default: module.DataPage }))
+);
 const LazyAdminPanel = lazy(() =>
   import("./components/admin/AdminPanel").then((module) => ({ default: module.AdminPanel }))
 );
@@ -149,6 +152,14 @@ function App() {
     </LazyPage>
   );
 
+  const dataRoute = isAdmin ? (
+    <LazyPage>
+      <LazyDataPage />
+    </LazyPage>
+  ) : (
+    <AccessDenied message="You need administrator privileges to access the data section." />
+  );
+
   const adminPanelRoute = (
     <LazyPage>
       <LazyAdminPanel />
@@ -178,6 +189,15 @@ function App() {
     { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: browseRoute },
     { id: "skipped", label: "Skipped", icon: "⏭️", path: "/skipped", element: skippedRoute },
     { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: statisticsRoute },
+    {
+      id: "data",
+      label: "Data",
+      icon: "🗂️",
+      path: "/data",
+      element: dataRoute,
+      adminOnly: true,
+      activeWhenPathStartsWith: ["/data"],
+    },
     { id: "notifications", label: "Notifications", icon: "🔔", path: "/notifications", element: notificationsRoute },
     { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: settingsRoute },
     { id: "help", label: "Help", icon: "❓", path: "/help", element: helpRoute },
@@ -271,7 +291,7 @@ function App() {
                     {navigationItems.filter((item) => item.id !== "admin").map((item) => (
                       <Route
                         key={item.id}
-                        path={item.id === "statistics" || item.id === "help" || item.id === "notifications" ? `${item.path}/*` : item.path}
+                        path={item.id === "statistics" || item.id === "help" || item.id === "notifications" || item.id === "data" ? `${item.path}/*` : item.path}
                         element={item.element}
                       />
                     ))}

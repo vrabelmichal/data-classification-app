@@ -1,0 +1,491 @@
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+
+export type UserStatisticsRow = {
+  userId: string;
+  name: string | null;
+  email: string | null;
+  role: "user" | "admin";
+  isActive: boolean;
+  isConfirmed: boolean | null;
+  joinedAt: number;
+  lastActiveAt: number | null;
+  classificationsCount: number;
+  awesomeCount: number;
+  visibleNucleusCount: number;
+  validRedshiftCount: number;
+  failedFittingCount: number;
+  assignedGalaxies: number;
+  classifiedInSequence: number;
+  skippedInSequence: number;
+  completedInSequence: number;
+  remainingInSequence: number;
+  completionPercent: number;
+};
+
+type ColumnKey =
+  | "user"
+  | "labels"
+  | "assigned"
+  | "completed"
+  | "completion"
+  | "lastActive"
+  | "active"
+  | "role"
+  | "joined"
+  | "awesome"
+  | "visibleNucleus"
+  | "validRedshift"
+  | "failedFitting"
+  | "skipped"
+  | "remaining";
+
+type SortDirection = "asc" | "desc";
+
+const columns: Array<{ key: ColumnKey; label: string; defaultVisible: boolean }> = [
+  { key: "user", label: "User", defaultVisible: true },
+  { key: "labels", label: "Labels", defaultVisible: true },
+  { key: "assigned", label: "Assigned", defaultVisible: true },
+  { key: "completed", label: "Completed", defaultVisible: true },
+  { key: "completion", label: "Completion %", defaultVisible: true },
+  { key: "lastActive", label: "Last Active", defaultVisible: true },
+  { key: "active", label: "Active", defaultVisible: true },
+  { key: "role", label: "Role", defaultVisible: false },
+  { key: "joined", label: "Joined", defaultVisible: false },
+  { key: "awesome", label: "Awesome", defaultVisible: false },
+  { key: "visibleNucleus", label: "Visible Nucleus", defaultVisible: false },
+  { key: "validRedshift", label: "Valid Redshift", defaultVisible: false },
+  { key: "failedFitting", label: "Failed Fitting", defaultVisible: false },
+  { key: "skipped", label: "Skipped", defaultVisible: false },
+  { key: "remaining", label: "Remaining", defaultVisible: false },
+];
+
+const defaultVisibility: Record<ColumnKey, boolean> = columns.reduce((accumulator, column) => {
+  accumulator[column.key] = column.defaultVisible;
+  return accumulator;
+}, {} as Record<ColumnKey, boolean>);
+
+function formatDate(value: number | null) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString();
+}
+
+function getColumnValue(row: UserStatisticsRow, key: ColumnKey): string {
+  switch (key) {
+    case "user":
+      return getUserStatisticsDisplayName(row);
+    case "labels":
+      return row.classificationsCount.toLocaleString();
+    case "assigned":
+      return row.assignedGalaxies.toLocaleString();
+    case "completed":
+      return row.completedInSequence.toLocaleString();
+    case "completion":
+      return `${row.completionPercent.toFixed(1)}%`;
+    case "lastActive":
+      return formatDate(row.lastActiveAt);
+    case "active":
+      return row.isActive ? "Yes" : "No";
+    case "role":
+      return row.role;
+    case "joined":
+      return formatDate(row.joinedAt);
+    case "awesome":
+      return row.awesomeCount.toLocaleString();
+    case "visibleNucleus":
+      return row.visibleNucleusCount.toLocaleString();
+    case "validRedshift":
+      return row.validRedshiftCount.toLocaleString();
+    case "failedFitting":
+      return row.failedFittingCount.toLocaleString();
+    case "skipped":
+      return row.skippedInSequence.toLocaleString();
+    case "remaining":
+      return row.remainingInSequence.toLocaleString();
+    default:
+      return "—";
+  }
+}
+
+function getSortValue(row: UserStatisticsRow, key: ColumnKey): number | string {
+  switch (key) {
+    case "user":
+      return getUserStatisticsDisplayName(row).toLowerCase();
+    case "labels":
+      return row.classificationsCount;
+    case "assigned":
+      return row.assignedGalaxies;
+    case "completed":
+      return row.completedInSequence;
+    case "completion":
+      return row.completionPercent;
+    case "lastActive":
+      return row.lastActiveAt ?? 0;
+    case "active":
+      return row.isActive ? 1 : 0;
+    case "role":
+      return row.role;
+    case "joined":
+      return row.joinedAt;
+    case "awesome":
+      return row.awesomeCount;
+    case "visibleNucleus":
+      return row.visibleNucleusCount;
+    case "validRedshift":
+      return row.validRedshiftCount;
+    case "failedFitting":
+      return row.failedFittingCount;
+    case "skipped":
+      return row.skippedInSequence;
+    case "remaining":
+      return row.remainingInSequence;
+    default:
+      return 0;
+  }
+}
+
+export function getUserStatisticsDisplayName(row: UserStatisticsRow) {
+  return row.name || row.email || row.userId;
+}
+
+type UserStatisticsTableProps = {
+  rows: UserStatisticsRow[];
+  title: string;
+  description: string;
+  storageKeyPrefix: string;
+  toolbar?: ReactNode;
+  renderActions?: (row: UserStatisticsRow) => ReactNode;
+  emptyMessage?: string;
+};
+
+export function UserStatisticsTable({
+  rows,
+  title,
+  description,
+  storageKeyPrefix,
+  toolbar,
+  renderActions,
+  emptyMessage = "No users found.",
+}: UserStatisticsTableProps) {
+  const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(defaultVisibility);
+  const [sortKey, setSortKey] = useState<ColumnKey>("labels");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [isSettingsHydrated, setIsSettingsHydrated] = useState(false);
+
+  const storageVisibleColumnsKey = `${storageKeyPrefix}.visibleColumns.v1`;
+  const storageSortKey = `${storageKeyPrefix}.sort.v1`;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    try {
+      const rawColumns = window.localStorage.getItem(storageVisibleColumnsKey);
+      if (rawColumns) {
+        const parsed = JSON.parse(rawColumns) as Partial<Record<ColumnKey, boolean>>;
+        const safeVisibleColumns = { ...defaultVisibility };
+        for (const column of columns) {
+          if (typeof parsed[column.key] === "boolean") {
+            safeVisibleColumns[column.key] = parsed[column.key] as boolean;
+          }
+        }
+        setVisibleColumns(safeVisibleColumns);
+      }
+
+      const rawSort = window.localStorage.getItem(storageSortKey);
+      if (rawSort) {
+        const parsed = JSON.parse(rawSort) as { key?: string; direction?: string };
+        if (parsed.key && columns.some((column) => column.key === parsed.key)) {
+          setSortKey(parsed.key as ColumnKey);
+        }
+        if (parsed.direction === "asc" || parsed.direction === "desc") {
+          setSortDirection(parsed.direction);
+        }
+      }
+    } catch {
+      // Ignore malformed saved view settings
+    }
+
+    setIsSettingsHydrated(true);
+  }, [storageSortKey, storageVisibleColumnsKey]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !isSettingsHydrated) return;
+    window.localStorage.setItem(storageVisibleColumnsKey, JSON.stringify(visibleColumns));
+  }, [isSettingsHydrated, storageVisibleColumnsKey, visibleColumns]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !isSettingsHydrated) return;
+    window.localStorage.setItem(
+      storageSortKey,
+      JSON.stringify({ key: sortKey, direction: sortDirection })
+    );
+  }, [isSettingsHydrated, sortDirection, sortKey, storageSortKey]);
+
+  const summary = useMemo(() => {
+    if (rows.length === 0) {
+      return {
+        totalUsers: 0,
+        activeUsers: 0,
+        usersWithAssignments: 0,
+        totalLabels: 0,
+        avgCompletion: 0,
+      };
+    }
+
+    const totalUsers = rows.length;
+    const activeUsers = rows.filter((row) => row.isActive).length;
+    const usersWithAssignments = rows.filter((row) => row.assignedGalaxies > 0).length;
+    const totalLabels = rows.reduce((sum, row) => sum + row.classificationsCount, 0);
+    const avgCompletion =
+      usersWithAssignments > 0
+        ? rows
+            .filter((row) => row.assignedGalaxies > 0)
+            .reduce((sum, row) => sum + row.completionPercent, 0) / usersWithAssignments
+        : 0;
+
+    return {
+      totalUsers,
+      activeUsers,
+      usersWithAssignments,
+      totalLabels,
+      avgCompletion,
+    };
+  }, [rows]);
+
+  const sortedRows = useMemo(() => {
+    const directionMultiplier = sortDirection === "asc" ? 1 : -1;
+    return [...rows].sort((a, b) => {
+      const aValue = getSortValue(a, sortKey);
+      const bValue = getSortValue(b, sortKey);
+
+      if (typeof aValue === "string" && typeof bValue === "string") {
+        const primary = aValue.localeCompare(bValue) * directionMultiplier;
+        if (primary !== 0) return primary;
+      } else {
+        const primary = ((Number(aValue) - Number(bValue)) || 0) * directionMultiplier;
+        if (primary !== 0) return primary;
+      }
+
+      const labelsTieBreak = b.classificationsCount - a.classificationsCount;
+      if (labelsTieBreak !== 0) return labelsTieBreak;
+
+      return (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0);
+    });
+  }, [rows, sortDirection, sortKey]);
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          <div className="text-sm text-gray-500 dark:text-gray-400">Users</div>
+          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.totalUsers.toLocaleString()}</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          <div className="text-sm text-gray-500 dark:text-gray-400">Active</div>
+          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.activeUsers.toLocaleString()}</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          <div className="text-sm text-gray-500 dark:text-gray-400">With Assignments</div>
+          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.usersWithAssignments.toLocaleString()}</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          <div className="text-sm text-gray-500 dark:text-gray-400">Total Labels</div>
+          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.totalLabels.toLocaleString()}</div>
+        </div>
+        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+          <div className="text-sm text-gray-500 dark:text-gray-400">Avg Completion</div>
+          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.avgCompletion.toFixed(1)}%</div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+            </div>
+            {toolbar && <div className="flex flex-wrap items-center gap-2">{toolbar}</div>}
+          </div>
+          <div className="inline-flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-2 py-2">
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">View</span>
+
+            <details className="group relative">
+              <summary className="h-8 inline-flex items-center px-3 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 cursor-pointer select-none">
+                Columns
+              </summary>
+              <div className="absolute z-10 mt-2 w-72 sm:w-80 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-64 overflow-y-auto pr-1">
+                  {columns.map((column) => (
+                    <label key={column.key} className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        checked={visibleColumns[column.key]}
+                        onChange={(event) =>
+                          setVisibleColumns((prev) => ({
+                            ...prev,
+                            [column.key]: event.target.checked,
+                          }))
+                        }
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      {column.label}
+                    </label>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setVisibleColumns(defaultVisibility)}
+                  className="mt-3 text-left text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Reset to defaults
+                </button>
+              </div>
+            </details>
+
+            <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">Sort</span>
+            <select
+              value={sortKey}
+              onChange={(event) => setSortKey(event.target.value as ColumnKey)}
+              className="h-8 min-w-36 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-2 text-sm text-gray-900 dark:text-white"
+            >
+              {columns.map((column) => (
+                <option key={column.key} value={column.key}>
+                  {column.label}
+                </option>
+              ))}
+            </select>
+
+            <div className="inline-flex h-8 rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setSortDirection("asc")}
+                className={`px-2 text-xs font-medium transition-colors ${
+                  sortDirection === "asc"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                }`}
+                aria-pressed={sortDirection === "asc"}
+              >
+                ↑ Asc
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortDirection("desc")}
+                className={`px-2 text-xs font-medium transition-colors border-l border-gray-300 dark:border-gray-600 ${
+                  sortDirection === "desc"
+                    ? "bg-blue-600 text-white"
+                    : "bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                }`}
+                aria-pressed={sortDirection === "desc"}
+              >
+                ↓ Desc
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3 md:hidden">
+          {sortedRows.map((row) => (
+            <div
+              key={row.userId}
+              className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30"
+            >
+              <div className="mb-3">
+                <div className="font-semibold text-gray-900 dark:text-white">{getUserStatisticsDisplayName(row)}</div>
+                {row.email && <div className="text-xs text-gray-500 dark:text-gray-400">{row.email}</div>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                {columns
+                  .filter((column) => column.key !== "user" && visibleColumns[column.key])
+                  .map((column) => (
+                    <div key={column.key} className="min-w-0">
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{column.label}</div>
+                      <div className="font-medium text-gray-900 dark:text-white truncate">
+                        {getColumnValue(row, column.key)}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+
+              {renderActions && (
+                <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-3">
+                  {renderActions(row)}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {sortedRows.length === 0 && (
+            <div className="py-8 text-center text-gray-500 dark:text-gray-400">{emptyMessage}</div>
+          )}
+        </div>
+
+        <div className="mt-4 hidden md:block overflow-x-auto">
+          <table className="min-w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 dark:border-gray-700 text-left text-gray-600 dark:text-gray-300">
+                {visibleColumns.user && <th className="py-2 pr-4 font-semibold">User</th>}
+                {visibleColumns.labels && <th className="py-2 pr-4 font-semibold">Labels</th>}
+                {visibleColumns.assigned && <th className="py-2 pr-4 font-semibold">Assigned</th>}
+                {visibleColumns.completed && <th className="py-2 pr-4 font-semibold">Completed</th>}
+                {visibleColumns.completion && <th className="py-2 pr-4 font-semibold">Completion %</th>}
+                {visibleColumns.lastActive && <th className="py-2 pr-4 font-semibold">Last Active</th>}
+                {visibleColumns.active && <th className="py-2 pr-4 font-semibold">Active</th>}
+                {visibleColumns.role && <th className="py-2 pr-4 font-semibold">Role</th>}
+                {visibleColumns.joined && <th className="py-2 pr-4 font-semibold">Joined</th>}
+                {visibleColumns.awesome && <th className="py-2 pr-4 font-semibold">Awesome</th>}
+                {visibleColumns.visibleNucleus && <th className="py-2 pr-4 font-semibold">Visible Nucleus</th>}
+                {visibleColumns.validRedshift && <th className="py-2 pr-4 font-semibold">Valid Redshift</th>}
+                {visibleColumns.failedFitting && <th className="py-2 pr-4 font-semibold">Failed Fitting</th>}
+                {visibleColumns.skipped && <th className="py-2 pr-4 font-semibold">Skipped</th>}
+                {visibleColumns.remaining && <th className="py-2 pr-4 font-semibold">Remaining</th>}
+                {renderActions && <th className="py-2 pr-4 font-semibold">Actions</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {sortedRows.map((row) => (
+                <tr
+                  key={row.userId}
+                  className="border-b border-gray-100 dark:border-gray-700/60 text-gray-700 dark:text-gray-200"
+                >
+                  {visibleColumns.user && (
+                    <td className="py-3 pr-4">
+                      <div className="font-medium text-gray-900 dark:text-white">{getUserStatisticsDisplayName(row)}</div>
+                      {row.email && <div className="text-xs text-gray-500 dark:text-gray-400">{row.email}</div>}
+                    </td>
+                  )}
+                  {visibleColumns.labels && <td className="py-3 pr-4">{row.classificationsCount.toLocaleString()}</td>}
+                  {visibleColumns.assigned && <td className="py-3 pr-4">{row.assignedGalaxies.toLocaleString()}</td>}
+                  {visibleColumns.completed && <td className="py-3 pr-4">{row.completedInSequence.toLocaleString()}</td>}
+                  {visibleColumns.completion && <td className="py-3 pr-4">{row.completionPercent.toFixed(1)}%</td>}
+                  {visibleColumns.lastActive && <td className="py-3 pr-4">{formatDate(row.lastActiveAt)}</td>}
+                  {visibleColumns.active && <td className="py-3 pr-4">{row.isActive ? "Yes" : "No"}</td>}
+                  {visibleColumns.role && <td className="py-3 pr-4">{row.role}</td>}
+                  {visibleColumns.joined && <td className="py-3 pr-4">{formatDate(row.joinedAt)}</td>}
+                  {visibleColumns.awesome && <td className="py-3 pr-4">{row.awesomeCount.toLocaleString()}</td>}
+                  {visibleColumns.visibleNucleus && (
+                    <td className="py-3 pr-4">{row.visibleNucleusCount.toLocaleString()}</td>
+                  )}
+                  {visibleColumns.validRedshift && (
+                    <td className="py-3 pr-4">{row.validRedshiftCount.toLocaleString()}</td>
+                  )}
+                  {visibleColumns.failedFitting && (
+                    <td className="py-3 pr-4">{row.failedFittingCount.toLocaleString()}</td>
+                  )}
+                  {visibleColumns.skipped && <td className="py-3 pr-4">{row.skippedInSequence.toLocaleString()}</td>}
+                  {visibleColumns.remaining && <td className="py-3 pr-4">{row.remainingInSequence.toLocaleString()}</td>}
+                  {renderActions && <td className="py-3 pr-4">{renderActions(row)}</td>}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {sortedRows.length === 0 && (
+            <div className="py-8 text-center text-gray-500 dark:text-gray-400">{emptyMessage}</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

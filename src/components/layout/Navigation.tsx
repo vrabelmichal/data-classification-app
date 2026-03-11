@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "convex/react";
-import { NavLink, useNavigate } from "react-router";
+import { NavLink, useLocation, useNavigate } from "react-router";
 import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
 import { SignOutButton } from "../../SignOutButton";
@@ -15,6 +15,8 @@ interface NavigationItem {
   icon: string;
   path: string;
   adminOnly?: boolean;
+  activeWhenPathStartsWith?: string[];
+  inactiveWhenPathStartsWith?: string[];
 }
 
 interface NavigationProps {
@@ -45,11 +47,26 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const unreadNotificationCount = useQuery(api.notifications.getUnreadNotificationCount);
   const navigate = useNavigate();
+  const location = useLocation();
   const userDisplayName = userProfile?.user?.name ?? userProfile?.user?.email;
   const { theme, effectiveTheme, toggleTheme } = useTheme();
 
   // Filter items based on permissions (e.g., admin only)
   const visibleItems = navigationItems.filter((it) => !it.adminOnly || userProfile?.role === "admin");
+
+  const getItemIsActive = (item: NavigationItem, defaultIsActive: boolean) => {
+    const pathname = location.pathname;
+
+    if (item.inactiveWhenPathStartsWith?.some((prefix) => pathname.startsWith(prefix))) {
+      return false;
+    }
+
+    if (item.activeWhenPathStartsWith?.some((prefix) => pathname.startsWith(prefix))) {
+      return true;
+    }
+
+    return defaultIsActive;
+  };
 
   return (
     <>
@@ -112,7 +129,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                         className={({ isActive }) =>
                           cn(
                             "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
-                            isActive
+                            getItemIsActive(item, isActive)
                               ? "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
                               : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                           )
@@ -238,7 +255,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                     className={({ isActive }) =>
                       cn(
                         "w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors",
-                        isActive
+                        getItemIsActive(item, isActive)
                           ? "bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
                           : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
                       )
