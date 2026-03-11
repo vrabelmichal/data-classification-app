@@ -74,6 +74,113 @@ type DeleteImageAuditRunResult = {
   deletedChunkCount: number;
 };
 
+const scanPageItemValidator = v.object({
+  externalId: v.string(),
+  paper: v.string(),
+});
+
+const scanPageResultValidator = v.object({
+  items: v.array(scanPageItemValidator),
+  nextCursor: v.union(v.string(), v.null()),
+  isDone: v.boolean(),
+  scannedCount: v.number(),
+});
+
+const imageAuditImageStatValidator = v.object({
+  imageKey: v.string(),
+  label: v.string(),
+  availableCount: v.number(),
+  missingCount: v.number(),
+  errorCount: v.number(),
+});
+
+const imageAuditRunRecordFields = {
+  _id: v.id("imageAuditRuns"),
+  _creationTime: v.number(),
+  createdBy: v.id("users"),
+  status: imageAuditStatusValidator,
+  checkMode: checkModeValidator,
+  paperFilter: v.array(v.string()),
+  includeBlacklisted: v.boolean(),
+  batchSize: v.number(),
+  totalGalaxies: v.number(),
+  processedGalaxies: v.number(),
+  nextCursor: v.optional(v.string()),
+  selectedImageKeys: v.array(v.string()),
+  tokenHash: v.string(),
+  requestMethod: requestMethodValidator,
+  requestAuthMode: requestAuthModeValidator,
+  provider: providerValidator,
+  imageBaseUrl: v.string(),
+  r2Endpoint: v.optional(v.string()),
+  r2Bucket: v.optional(v.string()),
+  r2Prefix: v.optional(v.string()),
+  r2Region: v.optional(v.string()),
+  imageStats: v.array(imageAuditImageStatValidator),
+  startedAt: v.number(),
+  updatedAt: v.number(),
+  completedAt: v.optional(v.number()),
+  lastError: v.optional(v.string()),
+  lastProcessedGalaxyId: v.optional(v.string()),
+  processedBatchCount: v.number(),
+};
+
+const imageAuditRunRecordValidator = v.object(imageAuditRunRecordFields);
+
+const imageAuditRunWithCreatorValidator = v.object({
+  ...imageAuditRunRecordFields,
+  creatorName: v.string(),
+  creatorEmail: v.string(),
+});
+
+const imageAuditOverviewValidator = v.object({
+  availablePapers: v.array(v.string()),
+  totalGalaxies: v.union(v.number(), v.null()),
+  blacklistedCount: v.number(),
+  recentRuns: v.array(imageAuditRunWithCreatorValidator),
+});
+
+const createImageAuditRunResultValidator = v.object({
+  runId: v.id("imageAuditRuns"),
+  totalGalaxies: v.number(),
+  status: v.union(v.literal("completed"), v.literal("paused")),
+});
+
+const fetchImageAuditBatchResultValidator = v.object({
+  previousCursor: v.union(v.string(), v.null()),
+  nextCursor: v.union(v.string(), v.null()),
+  isDone: v.boolean(),
+  candidates: v.array(v.string()),
+  totalGalaxies: v.number(),
+  processedGalaxies: v.number(),
+  batchSize: v.number(),
+});
+
+const appendImageAuditBatchResultValidator = v.object({
+  success: v.boolean(),
+  processedGalaxies: v.number(),
+  status: v.union(v.literal("completed"), v.literal("running")),
+});
+
+const deletedCountResultValidator = v.object({
+  deletedCount: v.number(),
+});
+
+const successResultValidator = v.object({
+  success: v.boolean(),
+});
+
+const missingIdsPageResultValidator = v.object({
+  externalIds: v.array(v.string()),
+  continueCursor: v.union(v.string(), v.null()),
+  isDone: v.boolean(),
+});
+
+const deleteImageAuditRunResultValidator = v.object({
+  deleted: v.boolean(),
+  deletedChunkCount: v.number(),
+});
+
 function normalizePaperFilter(paperFilter?: string[]) {
   return Array.from(
     new Set(
@@ -171,6 +278,7 @@ export const scanAuditGalaxiesPage = internalQuery({
     batchSize: v.number(),
     paperFilter: v.optional(v.array(v.string())),
   },
+  returns: scanPageResultValidator,
   handler: async (ctx, args): Promise<ScanPageResult> => {
     const normalizedPaperFilter = normalizePaperFilter(args.paperFilter);
     const batchSize = Math.min(Math.max(args.batchSize, 1), 5000);
@@ -205,6 +313,7 @@ export const getImageAuditRunRecord = internalQuery({
   args: {
     runId: v.id("imageAuditRuns"),
   },
+  returns: v.union(imageAuditRunRecordValidator, v.null()),
   handler: async (ctx, args) => {
     return await ctx.db.get(args.runId);
   },
@@ -217,6 +326,7 @@ export const getImageAuditMissingIdsPageInternal = internalQuery({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: missingIdsPageResultValidator,
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 100, 1), 500);
     const page = await ctx.db
@@ -237,6 +347,7 @@ export const getImageAuditMissingChunkIdsBatchInternal = internalQuery({
     runId: v.id("imageAuditRuns"),
     limit: v.optional(v.number()),
   },
+  returns: v.array(v.id("imageAuditMissingChunks")),
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 200, 1), 500);
     const chunks = await ctx.db
@@ -273,6 +384,7 @@ export const createImageAuditRunInternal = internalMutation({
     updatedAt: v.number(),
     completedAt: v.optional(v.number()),
   },
+  returns: v.id("imageAuditRuns"),
   handler: async (ctx, args): Promise<Id<"imageAuditRuns">> => {
     return await ctx.db.insert("imageAuditRuns", {
       createdBy: args.createdBy,
@@ -307,6 +419,7 @@ export const deleteImageAuditMissingChunksInternal = internalMutation({
   args: {
     chunkIds: v.array(v.id("imageAuditMissingChunks")),
   },
+  returns: deletedCountResultValidator,
   handler: async (ctx, args) => {
     for (const chunkId of args.chunkIds) {
       await ctx.db.delete(chunkId);
@@ -320,6 +433,7 @@ export const deleteImageAuditRunInternal = internalMutation({
   args: {
     runId: v.id("imageAuditRuns"),
   },
+  returns: successResultValidator,
   handler: async (ctx, args) => {
     await ctx.db.delete(args.runId);
     return { success: true };
@@ -330,6 +444,7 @@ export const getImageAuditOverview = query({
   args: {
     limit: v.optional(v.number()),
   },
+  returns: imageAuditOverviewValidator,
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
 
@@ -361,6 +476,7 @@ export const getImageAuditRun = query({
   args: {
     runId: v.id("imageAuditRuns"),
   },
+  returns: v.union(imageAuditRunWithCreatorValidator, v.null()),
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
 
@@ -393,6 +509,7 @@ export const createImageAuditRun = action({
     r2Prefix: v.optional(v.string()),
     r2Region: v.optional(v.string()),
   },
+  returns: createImageAuditRunResultValidator,
   handler: async (
     ctx,
     args
@@ -472,6 +589,7 @@ export const fetchImageAuditBatch = action({
   args: {
     runId: v.id("imageAuditRuns"),
   },
+  returns: fetchImageAuditBatchResultValidator,
   handler: async (ctx, args): Promise<FetchImageAuditBatchResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
     if (!callerProfile || callerProfile.role !== "admin") {
@@ -551,7 +669,11 @@ export const appendImageAuditBatch = mutation({
     missingIdsByImage: v.array(missingIdsChunkValidator),
     lastErrorSample: v.optional(v.string()),
   },
-  handler: async (ctx, args) => {
+  returns: appendImageAuditBatchResultValidator,
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ success: boolean; processedGalaxies: number; status: "completed" | "running" }> => {
     await requireAdmin(ctx);
 
     const run = await ctx.db.get(args.runId);
@@ -634,6 +756,7 @@ export const setImageAuditRunStatus = mutation({
     lastError: v.optional(v.string()),
     clearLastError: v.optional(v.boolean()),
   },
+  returns: successResultValidator,
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
 
@@ -663,6 +786,7 @@ export const getImageAuditMissingIdsPage = action({
     cursor: v.optional(v.string()),
     limit: v.optional(v.number()),
   },
+  returns: missingIdsPageResultValidator,
   handler: async (ctx, args): Promise<MissingIdsPageResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
     if (!callerProfile || callerProfile.role !== "admin") {
@@ -678,6 +802,7 @@ export const deleteImageAuditRun = action({
     runId: v.id("imageAuditRuns"),
     forceRunning: v.optional(v.boolean()),
   },
+  returns: deleteImageAuditRunResultValidator,
   handler: async (ctx, args): Promise<DeleteImageAuditRunResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
     if (!callerProfile || callerProfile.role !== "admin") {
