@@ -152,6 +152,7 @@ type UserStatisticsTableProps = {
   title: string;
   description: string;
   storageKeyPrefix: string;
+  showSummaryCards?: boolean;
   toolbar?: ReactNode;
   renderActions?: (row: UserStatisticsRow) => ReactNode;
   emptyMessage?: string;
@@ -162,6 +163,7 @@ export function UserStatisticsTable({
   title,
   description,
   storageKeyPrefix,
+  showSummaryCards = true,
   toolbar,
   renderActions,
   emptyMessage = "No users found.",
@@ -274,28 +276,30 @@ export function UserStatisticsTable({
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 dark:text-gray-400">Users</div>
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.totalUsers.toLocaleString()}</div>
+      {showSummaryCards && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+            <div className="text-sm text-gray-500 dark:text-gray-400">Users</div>
+            <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.totalUsers.toLocaleString()}</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+            <div className="text-sm text-gray-500 dark:text-gray-400">Active</div>
+            <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.activeUsers.toLocaleString()}</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+            <div className="text-sm text-gray-500 dark:text-gray-400">With Assignments</div>
+            <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.usersWithAssignments.toLocaleString()}</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+            <div className="text-sm text-gray-500 dark:text-gray-400">Total Labels</div>
+            <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.totalLabels.toLocaleString()}</div>
+          </div>
+          <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
+            <div className="text-sm text-gray-500 dark:text-gray-400">Avg Completion</div>
+            <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.avgCompletion.toFixed(1)}%</div>
+          </div>
         </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 dark:text-gray-400">Active</div>
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.activeUsers.toLocaleString()}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 dark:text-gray-400">With Assignments</div>
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.usersWithAssignments.toLocaleString()}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 dark:text-gray-400">Total Labels</div>
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.totalLabels.toLocaleString()}</div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-          <div className="text-sm text-gray-500 dark:text-gray-400">Avg Completion</div>
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{summary.avgCompletion.toFixed(1)}%</div>
-        </div>
-      </div>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
         <div className="flex flex-col gap-3">

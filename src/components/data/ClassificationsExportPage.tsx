@@ -253,6 +253,7 @@ export function ClassificationsExportPage() {
         title="Classifications by user"
         description="Download a CSV for one user or build a single CSV containing every classification. Data is fetched in batches and assembled in the browser to avoid pulling everything in one request."
         storageKeyPrefix="data.classifications"
+        showSummaryCards={false}
         renderActions={(row) => {
           const isRowRunning = isRunning && state.contextKey === `user:${row.userId}`;
           const displayName = getUserStatisticsDisplayName(row);
