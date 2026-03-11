@@ -47,10 +47,14 @@ export function ImageUrlsModal({
     <div
       className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 p-3 pt-8 sm:p-4 sm:pt-12 lg:items-center lg:pt-4"
       onClick={onClose}
+      role="presentation"
     >
       <div
         className="flex max-h-[85vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800"
         onClick={(event) => event.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="image-urls-modal-title"
       >
         <div className="flex items-start justify-between gap-4 border-b border-gray-200 px-4 py-3 dark:border-gray-700">
           <div>
