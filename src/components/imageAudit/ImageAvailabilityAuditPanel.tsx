@@ -1,4 +1,11 @@
-import { HeadObjectCommand, ListObjectsV2Command, S3Client } from "@aws-sdk/client-s3";
+import {
+  HeadObjectCommand,
+  ListObjectsV2Command,
+  S3Client,
+  type ServiceInputTypes,
+  type ServiceOutputTypes,
+} from "@aws-sdk/client-s3";
+import type { FinalizeRequestMiddleware } from "@smithy/types";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -105,6 +112,11 @@ const DEFAULT_AUDIT_MODE: AuditMode = "class_b";
 const DEFAULT_R2_REGION = "auto";
 const CLASS_A_PRICE_PER_MILLION = 4.5;
 const CLASS_B_PRICE_PER_MILLION = 0.36;
+const STRIPPED_R2_BROWSER_HEADERS = [
+  "amz-sdk-invocation-id",
+  "amz-sdk-request",
+  "x-amz-user-agent",
+] as const;
 
 function formatCurrency(value: number) {
   return `$${value.toFixed(value < 0.1 ? 4 : 2)}`;
@@ -179,7 +191,7 @@ function buildGalaxyPrefix(galaxyId: string, prefix: string) {
 
 function createR2S3Client(inputs: R2ClientInputs) {
   const normalized = normalizeR2ClientInputs(inputs);
-  return new S3Client({
+  const client = new S3Client({
     region: normalized.region,
     endpoint: normalized.endpoint,
     credentials: {
@@ -187,6 +199,32 @@ function createR2S3Client(inputs: R2ClientInputs) {
       secretAccessKey: normalized.secretAccessKey,
     },
   });
+
+  const omitR2BrowserTelemetryHeaders: FinalizeRequestMiddleware<
+    ServiceInputTypes,
+    ServiceOutputTypes
+  > = (next) => async (args) => {
+    const request = args.request as { headers?: Record<string, string | undefined> };
+
+    if (request.headers) {
+      for (const headerName of STRIPPED_R2_BROWSER_HEADERS) {
+        delete request.headers[headerName];
+      }
+    }
+
+    return next(args);
+  };
+
+  client.middlewareStack.addRelativeTo(
+    omitR2BrowserTelemetryHeaders,
+    {
+      name: "omitR2BrowserTelemetryHeaders",
+      relation: "before",
+      toMiddleware: "awsAuthMiddleware",
+    }
+  );
+
+  return client;
 }
 
 function isNotFoundError(error: unknown) {
@@ -226,7 +264,7 @@ function formatAuditRequestError(mode: AuditMode, error: unknown, endpoint: stri
     }
 
     const origin = typeof window !== "undefined" ? window.location.origin : "this app origin";
-    return `${baseMessage}. Browser-side R2 API access usually fails like this when bucket CORS does not allow ${origin}, the required GET/HEAD methods or AWS SDK headers are blocked, or the endpoint ${endpoint} is incorrect.`;
+    return `${baseMessage}. Browser-side R2 API access usually fails like this when bucket CORS does not allow ${origin}, the required GET and HEAD methods, or the signed request headers Authorization, x-amz-date, x-amz-content-sha256, and x-amz-security-token for temporary credentials. This client strips AWS SDK telemetry headers before signing, so if the error persists, re-check those minimum headers or confirm the endpoint ${endpoint} is correct.`;
   }
 
   return baseMessage;
@@ -1270,7 +1308,7 @@ export function ImageAvailabilityAuditPanel() {
                     Required for Class A and Class B. The raw keys stay in the browser; Convex stores only a hash of the normalized connection details for resume verification.
                   </p>
                   <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                    Browser-side R2 API checks also need bucket CORS for this app origin, the required GET and HEAD methods, and AWS SDK request headers. If the browser reports "Failed to fetch", check the bucket CORS policy first.
+                    Browser-side R2 API checks need bucket CORS for this app origin, the GET and HEAD methods, and the signed request headers Authorization, x-amz-date, x-amz-content-sha256, and x-amz-security-token when temporary credentials are used. This client strips AWS SDK telemetry headers such as x-amz-user-agent and amz-sdk-* to avoid unnecessary preflight failures.
                   </p>
                 </div>
 
