@@ -658,13 +658,22 @@ export function ProgressSection({
   const galaxiesAtTargetPercent = totals && targetProgress && totals.galaxies > 0
     ? (targetProgress.galaxiesAtTarget / totals.galaxies) * 100
     : 0;
+  const reachedTargetSummary = targetProgress && totals
+    ? `${targetProgress.galaxiesAtTarget.toLocaleString()} / ${totals.galaxies.toLocaleString()} galaxies`
+    : "Loading target attainment…";
+  const anyCoverageSummary = totals
+    ? `${totals.classifiedGalaxies.toLocaleString()} / ${totals.galaxies.toLocaleString()} galaxies`
+    : "Loading overall counts…";
+  const labelVolumeSummary = targetProgress && totals
+    ? `${totals.totalClassifications.toLocaleString()} / ${targetGoal.toLocaleString()} classifications`
+    : "Loading label volume…";
   const progressStatusText = selectedPaper === undefined
     ? isGlobalTargetLoading
       ? "Loading catalog progress against the repeat-classification target."
-      : `Showing catalog progress against ${targetClassifications} classifications per galaxy.`
+      : `Showing how many galaxies have reached ${targetClassifications} classifications, plus the raw label volume collected.`
     : isCountingSelectedPaper
-      ? `Paper-specific progress against ${targetClassifications} classifications per galaxy is updating live.`
-      : `Paper-specific progress against ${targetClassifications} classifications per galaxy is up to date.`;
+      ? `Paper-specific target attainment and label volume are updating live.`
+      : `Paper-specific target attainment and label volume are up to date.`;
 
   return (
     <div
@@ -687,11 +696,11 @@ export function ProgressSection({
               loadingAccent && "text-blue-700 dark:text-blue-100"
             )}
           >
-            {targetProgress ? `${targetProgress.targetCompletionPercent.toFixed(1)}%` : "—"}
+            {targetProgress ? formatPercentLabel(galaxiesAtTargetPercent) : "—"}
           </div>
           <div className="text-sm text-gray-500 dark:text-gray-400">
             {targetProgress && totals
-              ? `${totals.totalClassifications.toLocaleString()} / ${targetGoal.toLocaleString()} classifications toward ${targetProgress.targetClassifications}x coverage`
+              ? `${targetProgress.galaxiesAtTarget.toLocaleString()} / ${totals.galaxies.toLocaleString()} galaxies reached ${targetProgress.targetClassifications}x coverage`
               : "Loading target-aware counts…"}
           </div>
         </div>
@@ -712,38 +721,38 @@ export function ProgressSection({
       <div className="space-y-3">
         <div>
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span>Target coverage</span>
-            <span>
-              {targetProgress && totals
-                ? `${totals.totalClassifications.toLocaleString()} / ${targetGoal.toLocaleString()} classifications`
-                : "Loading target coverage…"}
-            </span>
+            <span>Reached target</span>
+            <span>{reachedTargetSummary}</span>
           </div>
           <ProgressBar
-            percent={targetProgress?.targetCompletionPercent ?? 0}
+            percent={galaxiesAtTargetPercent}
             isLoading={isTargetProgressLoading}
-            ariaLabel="Target coverage"
+            ariaLabel="Reached target"
           />
         </div>
 
         <div>
           <div className="mb-1 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
-            <span>Unique coverage</span>
-            <span>
-              {totals
-                ? `${totals.classifiedGalaxies.toLocaleString()} / ${totals.galaxies.toLocaleString()} galaxies`
-                : "Loading unique coverage…"}
-            </span>
+            <span>At least one classification</span>
+            <span>{anyCoverageSummary}</span>
           </div>
           <ProgressBar
             percent={totals?.progress ?? 0}
             isLoading={isCountingSelectedPaper}
-            ariaLabel="Unique coverage"
+            ariaLabel="At least one classification"
           />
         </div>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 text-sm text-gray-600 dark:text-gray-300 sm:grid-cols-2 xl:grid-cols-3">
+        <ProgressDetail
+          title="Label volume"
+          value={labelVolumeSummary}
+          loading={isTargetProgressLoading}
+          helper={targetProgress
+            ? "Counts every classification, so repeats on already-covered galaxies also contribute."
+            : undefined}
+        />
         <ProgressDetail
           title="Per galaxy"
           value={totals ? `${totals.avgClassificationsPerGalaxy.toFixed(2)} avg classifications/galaxy` : "Loading…"}
@@ -757,14 +766,6 @@ export function ProgressSection({
           helper={targetProgress
             ? `${targetProgress.galaxiesWithMultipleClassifications.toLocaleString()} galaxies have 2+ classifications`
             : undefined}
-        />
-        <ProgressDetail
-          title="Reached target"
-          value={targetProgress
-            ? `${formatPercentLabel(galaxiesAtTargetPercent)} (${targetProgress.galaxiesAtTarget.toLocaleString()})`
-            : "Loading…"}
-          loading={isTargetProgressLoading}
-          helper={`Galaxies with at least ${targetClassifications} classifications`}
         />
         <ProgressDetail
           title="Remaining to target"
