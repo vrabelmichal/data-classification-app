@@ -4,13 +4,19 @@ import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { Id } from "../../../convex/_generated/dataModel";
 
-export function NotificationsTab() {
+interface AdminNotificationsPanelProps {
+  defaultIsCreating?: boolean;
+}
+
+export function AdminNotificationsPanel({
+  defaultIsCreating = false,
+}: AdminNotificationsPanelProps) {
   const notifications = useQuery(api.notifications.getAllNotifications);
   const users = useQuery(api.notifications.getUsersForSelection);
   const createNotification = useAction(api.notifications.createNotification);
   const deleteNotification = useMutation(api.notifications.deleteNotification);
 
-  const [isCreating, setIsCreating] = useState(false);
+  const [isCreating, setIsCreating] = useState(defaultIsCreating);
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [sendEmail, setSendEmail] = useState(false);
@@ -91,7 +97,6 @@ export function NotificationsTab() {
 
   return (
     <div className="space-y-6">
-      {/* Create New Notification Section */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
@@ -111,7 +116,6 @@ export function NotificationsTab() {
 
         {isCreating && (
           <form onSubmit={handleSubmit} className="p-4 space-y-4">
-            {/* Title */}
             <div>
               <label
                 htmlFor="title"
@@ -129,7 +133,6 @@ export function NotificationsTab() {
               />
             </div>
 
-            {/* Content */}
             <div>
               <label
                 htmlFor="content"
@@ -150,7 +153,6 @@ export function NotificationsTab() {
               </p>
             </div>
 
-            {/* Recipients */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Recipients
@@ -191,7 +193,7 @@ export function NotificationsTab() {
                     </p>
                   ) : (
                     <div className="space-y-1">
-                      {users.map((user: { id: Id<"users">; name: string; email: string }) => (
+                      {users.map((user) => (
                         <label
                           key={user.id}
                           className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
@@ -218,7 +220,6 @@ export function NotificationsTab() {
               )}
             </div>
 
-            {/* Send Email Option */}
             <div>
               <label className="flex items-center gap-2">
                 <input
@@ -233,7 +234,6 @@ export function NotificationsTab() {
               </label>
             </div>
 
-            {/* Actions */}
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
@@ -254,7 +254,6 @@ export function NotificationsTab() {
         )}
       </div>
 
-      {/* Existing Notifications List */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
         <div className="p-4 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -271,7 +270,7 @@ export function NotificationsTab() {
           </div>
         ) : (
           <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {notifications.map((notification: any) => (
+            {notifications.map((notification) => (
               <div key={notification._id} className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">

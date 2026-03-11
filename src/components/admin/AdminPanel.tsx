@@ -10,7 +10,6 @@ const GalaxiesTab = lazy(() => import("./GalaxiesTab").then((module) => ({ defau
 const SettingsTab = lazy(() => import("./SettingsTab").then((module) => ({ default: module.SettingsTab })));
 const MaintenanceTab = lazy(() => import("./MaintenanceTab").then((module) => ({ default: module.MaintenanceTab })));
 const SystemTab = lazy(() => import("./SystemTab").then((module) => ({ default: module.SystemTab })));
-const NotificationsTab = lazy(() => import("./NotificationsTab").then((module) => ({ default: module.NotificationsTab })));
 
 function AdminTabLoading() {
   return (
@@ -29,7 +28,6 @@ export function AdminPanel() {
       if (path === "/admin" || path === "/admin/") return "Admin";
       if (path.startsWith("/admin/users")) return "Users";
       if (path.startsWith("/admin/galaxies")) return ""; // Managed by subpages
-      if (path.startsWith("/admin/notifications")) return "Notifications";
       if (path.startsWith("/admin/settings")) return "Settings";
       if (path.startsWith("/admin/maintenance")) return ""; // Managed by subpages
       if (path.startsWith("/admin/system")) return "System";
@@ -79,7 +77,6 @@ export function AdminPanel() {
           {[
             { id: "users", label: "Users", icon: "👥", path: "/admin/users" },
             { id: "galaxies", label: "Galaxies", icon: "🌌", path: "/admin/galaxies" },
-            { id: "notifications", label: "Notifications", icon: "🔔", path: "/admin/notifications" },
             { id: "settings", label: "Settings", icon: "⚙️", path: "/admin/settings" },
             { id: "maintenance", label: "Maintenance", icon: "🛠️", path: "/admin/maintenance" },
             { id: "system", label: "System", icon: "🖥️", path: "/admin/system" },
@@ -119,14 +116,7 @@ export function AdminPanel() {
             </Suspense>
           }
         />
-        <Route
-          path="notifications"
-          element={
-            <Suspense fallback={<AdminTabLoading />}>
-              <NotificationsTab />
-            </Suspense>
-          }
-        />
+        <Route path="notifications/*" element={<Navigate to="/notifications/create" replace />} />
         <Route
           path="settings"
           element={
@@ -151,6 +141,7 @@ export function AdminPanel() {
             </Suspense>
           }
         />
+        <Route path="*" element={<Navigate to="users" replace />} />
       </Routes>
     </div>
   );

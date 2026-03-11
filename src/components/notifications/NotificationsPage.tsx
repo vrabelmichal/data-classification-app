@@ -1,8 +1,20 @@
 import { useQuery, useMutation } from "convex/react";
+import { lazy, Suspense } from "react";
+import { NavLink, Navigate, useLocation } from "react-router";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { Id } from "../../../convex/_generated/dataModel";
+import { cn } from "../../lib/utils";
+
+const NOTIFICATIONS_INBOX_PATH = "/notifications";
+const NOTIFICATIONS_CREATE_PATH = "/notifications/create";
+
+const LazyAdminNotificationsPanel = lazy(() =>
+  import("./AdminNotificationsPanel").then((module) => ({
+    default: module.AdminNotificationsPanel,
+  }))
+);
 
 // Simple markdown renderer (no HTML allowed for security)
 function renderMarkdown(text: string): React.ReactNode[] {
@@ -178,12 +190,24 @@ function renderMarkdown(text: string): React.ReactNode[] {
 }
 
 export function NotificationsPage() {
-  usePageTitle("Notifications");
+  const location = useLocation();
+  const normalizedPath =
+    location.pathname !== "/"
+      ? location.pathname.replace(/\/+$/, "")
+      : location.pathname;
+  const isCreateRoute = normalizedPath === NOTIFICATIONS_CREATE_PATH;
+  const isInboxRoute = normalizedPath === NOTIFICATIONS_INBOX_PATH;
+  const isKnownRoute = isCreateRoute || isInboxRoute;
+
+  usePageTitle(isCreateRoute ? "Create Notifications" : "Notifications");
 
   const notifications = useQuery(api.notifications.getUserNotifications);
+  const userProfile = useQuery(api.users.getUserProfile);
   const markAsRead = useMutation(api.notifications.markAsRead);
   const markAsUnread = useMutation(api.notifications.markAsUnread);
   const markAllAsRead = useMutation(api.notifications.markAllAsRead);
+
+  const isAdmin = userProfile?.role === "admin";
 
   const handleMarkAsRead = async (notificationId: Id<"notifications">) => {
     try {
@@ -211,7 +235,11 @@ export function NotificationsPage() {
     }
   };
 
-  if (notifications === undefined) {
+  if (!isKnownRoute) {
+    return <Navigate to={NOTIFICATIONS_INBOX_PATH} replace />;
+  }
+
+  if (notifications === undefined || (isCreateRoute && userProfile === undefined)) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -219,7 +247,98 @@ export function NotificationsPage() {
     );
   }
 
+  if (isCreateRoute && !isAdmin) {
+    return <Navigate to={NOTIFICATIONS_INBOX_PATH} replace />;
+  }
+
   const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const description =
+    isCreateRoute
+      ? "Create notifications, choose recipients, and review sent messages."
+      : notifications.length === 0
+        ? "No notifications"
+        : unreadCount > 0
+          ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
+          : "All caught up!";
+
+  const renderInbox = () => (
+    notifications.length === 0 ? (
+      <div className="text-center py-12">
+        <div className="text-6xl mb-4">📭</div>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+          No notifications yet
+        </h2>
+        <p className="text-gray-600 dark:text-gray-400">
+          You'll see notifications from the team here when they're sent.
+        </p>
+      </div>
+    ) : (
+      <div className="space-y-4">
+        {notifications.map((notification) => (
+          <div
+            key={notification._id}
+            className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border transition-all ${
+              notification.isRead
+                ? "border-gray-200 dark:border-gray-700"
+                : "border-blue-300 dark:border-blue-600 ring-2 ring-blue-100 dark:ring-blue-900/30"
+            }`}
+            onClick={() => {
+              if (!notification.isRead) {
+                handleMarkAsRead(notification._id);
+              }
+            }}
+          >
+            <div className="p-4 sm:p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    {!notification.isRead && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                        New
+                      </span>
+                    )}
+                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+                      {notification.title}
+                    </h2>
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                    From {notification.creatorName} •{" "}
+                    {new Date(notification.createdAt).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </div>
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
+                    {renderMarkdown(notification.content)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {!notification.isRead ? (
+                    <button
+                      onClick={() => handleMarkAsRead(notification._id)}
+                      className="px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
+                    >
+                      Mark as read
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleMarkAsUnread(notification._id)}
+                      className="px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+                    >
+                      Mark as unread
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  );
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
@@ -229,14 +348,10 @@ export function NotificationsPage() {
             Notifications
           </h1>
           <p className="mt-2 text-gray-600 dark:text-gray-300">
-            {notifications.length === 0
-              ? "No notifications"
-              : unreadCount > 0
-                ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
-                : "All caught up!"}
+            {description}
           </p>
         </div>
-        {unreadCount > 0 && (
+        {!isCreateRoute && unreadCount > 0 && (
           <button
             onClick={handleMarkAllAsRead}
             className="px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
@@ -246,81 +361,46 @@ export function NotificationsPage() {
         )}
       </div>
 
-      {notifications.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-6xl mb-4">📭</div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-            No notifications yet
-          </h2>
-          <p className="text-gray-600 dark:text-gray-400">
-            You'll see notifications from the team here when they're sent.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {notifications.map((notification) => (
-            <div
-              key={notification._id}
-              className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border transition-all ${
-                notification.isRead
-                  ? "border-gray-200 dark:border-gray-700"
-                  : "border-blue-300 dark:border-blue-600 ring-2 ring-blue-100 dark:ring-blue-900/30"
-              }`}
-              onClick={() => {
-                if (!notification.isRead) {
-                  handleMarkAsRead(notification._id);
+      {isAdmin && (
+        <div className="mb-6 border-b border-gray-200 dark:border-gray-700">
+          <nav className="-mb-px flex space-x-6 overflow-x-auto" aria-label="Notification sections">
+            {[
+              { id: "inbox", label: "Inbox", icon: "🔔", path: NOTIFICATIONS_INBOX_PATH, end: true },
+              { id: "manage", label: "Create Notifications", icon: "✉️", path: NOTIFICATIONS_CREATE_PATH },
+            ].map((tab) => (
+              <NavLink
+                key={tab.id}
+                to={tab.path}
+                end={tab.end}
+                className={({ isActive }) =>
+                  cn(
+                    "flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap",
+                    isActive
+                      ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                      : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
+                  )
                 }
-              }}
-            >
-              <div className="p-4 sm:p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      {!notification.isRead && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                          New
-                        </span>
-                      )}
-                      <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                        {notification.title}
-                      </h2>
-                    </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                      From {notification.creatorName} •{" "}
-                      {new Date(notification.createdAt).toLocaleDateString(undefined, {
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </div>
-                    <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
-                      {renderMarkdown(notification.content)}
-                    </div>
-                  </div>
-                    <div className="flex items-center gap-2">
-                      {!notification.isRead ? (
-                        <button
-                          onClick={() => handleMarkAsRead(notification._id)}
-                          className="px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
-                        >
-                          Mark as read
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleMarkAsUnread(notification._id)}
-                          className="px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                        >
-                          Mark as unread
-                        </button>
-                      )}
-                    </div>
-                </div>
-              </div>
-            </div>
-          ))}
+              >
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </NavLink>
+            ))}
+          </nav>
         </div>
+      )}
+
+      {isCreateRoute ? (
+        <Suspense
+          fallback={
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            </div>
+          }
+        >
+          <LazyAdminNotificationsPanel defaultIsCreating />
+        </Suspense>
+      ) : (
+        renderInbox()
       )}
     </div>
   );

@@ -271,7 +271,7 @@ function App() {
                     {navigationItems.filter((item) => item.id !== "admin").map((item) => (
                       <Route
                         key={item.id}
-                        path={item.id === "statistics" || item.id === "help" ? `${item.path}/*` : item.path}
+                        path={item.id === "statistics" || item.id === "help" || item.id === "notifications" ? `${item.path}/*` : item.path}
                         element={item.element}
                       />
                     ))}
