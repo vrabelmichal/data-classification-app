@@ -28,6 +28,7 @@ import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon, MaskIcon, BugIcon } fro
 import { ReportIssueModal } from "../ReportIssueModal";
 import { MobileClassificationForm } from "./MobileClassificationForm";
 import { CommentsModal } from "./CommentsModal";
+import { ImageUrlsModal } from "./ImageUrlsModal";
 
 // Hooks
 import { useClassificationForm } from "./useClassificationForm";
@@ -81,6 +82,10 @@ function resolveContrastGroupEntry(
   };
 }
 
+function flattenImageLabel(label: string): string {
+  return label.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim();
+}
+
 export function ClassificationInterface() {
   // Route and navigation
   const { galaxyId: routeGalaxyId } = useParams<{ galaxyId: string }>();
@@ -108,6 +113,7 @@ export function ClassificationInterface() {
   // Mobile-specific state
   const [mobileSliderIndex, setMobileSliderIndex] = useState(0);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
+  const [showImageUrlsModal, setShowImageUrlsModal] = useState(false);
 
   // Report issue modal state (shared via context so ClassificationInterface can observe
   // when the modal is opened from the Navigation as well)
@@ -235,6 +241,23 @@ export function ClassificationInterface() {
       .map((idx) => imageTypes[idx])
     : imageTypes;
 
+  const allContrastGroupImageUrls = displayGalaxy?.id
+    ? imageContrastGroups.map((group, groupIndex) => ({
+      label: classificationImageSettings.groupLabels?.[groupIndex] || `Contrast Group ${groupIndex + 1}`,
+      entries: group.map((entry) => {
+        const resolvedEntry = resolveContrastGroupEntry(entry, showMasks);
+
+        return {
+          key: resolvedEntry.key,
+          label: flattenImageLabel(resolvedEntry.label),
+          url: getImageUrl(displayGalaxy.id, resolvedEntry.key, {
+            quality: effectiveImageQuality,
+          }),
+        };
+      }),
+    }))
+    : [];
+
   // Track screen size changes
   useEffect(() => {
     const checkScreenSize = () => {
@@ -339,6 +362,7 @@ export function ClassificationInterface() {
     setShowAdditionalDetails(false);
     setAdditionalDetails(null);
     setLoadingDetails(false);
+    setShowImageUrlsModal(false);
   }, [displayGalaxy?.id]);
 
   // Handlers
@@ -562,8 +586,8 @@ export function ClassificationInterface() {
   // Global keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Disable all shortcuts when the comment modal or report issue modal is open
-      if (showCommentsModal || showReportIssueModal) return;
+      // Disable all shortcuts when a modal is open
+      if (showCommentsModal || showReportIssueModal || showImageUrlsModal) return;
 
       // Disable all shortcuts when focus is on any text-like input or textarea, or a button
       // marked with data-no-shortcuts (e.g. the Expand/Collapse button next to comments).
@@ -636,7 +660,7 @@ export function ClassificationInterface() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [handlePrevious, handleNext, handleSkip, currentContrastGroup, isOnline, showCommentsModal, showReportIssueModal]);
+  }, [handlePrevious, handleNext, handleSkip, currentContrastGroup, isOnline, showCommentsModal, showReportIssueModal, showImageUrlsModal]);
 
   // Helper for ellipse overlay
   const shouldShowEllipseFunc = (showEllipse: boolean | undefined) =>
@@ -1084,6 +1108,7 @@ export function ClassificationInterface() {
         additionalDetails={additionalDetails}
         loadingDetails={loadingDetails}
         onToggleDetails={handleToggleDetails}
+          onOpenImageUrls={() => setShowImageUrlsModal(true)}
         showGalaxyHeader={true}
         navigation={navigation}
       />
@@ -1124,6 +1149,7 @@ export function ClassificationInterface() {
           additionalDetails={additionalDetails}
           loadingDetails={loadingDetails}
           onToggleDetails={handleToggleDetails}
+          onOpenImageUrls={() => setShowImageUrlsModal(true)}
         />
       </div>
 
@@ -1250,6 +1276,16 @@ export function ClassificationInterface() {
           onChange={formState.setComments}
           disabled={formLocked}
         />
+
+        {displayGalaxy?.id && (
+          <ImageUrlsModal
+            isOpen={showImageUrlsModal}
+            onClose={() => setShowImageUrlsModal(false)}
+            galaxyId={displayGalaxy.id}
+            groups={allContrastGroupImageUrls}
+            maskSummary={showMasks ? "Masked variants when available" : "Default image variants"}
+          />
+        )}
       </div>
     </>
   );

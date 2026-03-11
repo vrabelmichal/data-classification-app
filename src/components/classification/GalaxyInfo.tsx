@@ -7,6 +7,7 @@ interface GalaxyInfoProps {
   additionalDetails: any;
   loadingDetails: boolean;
   onToggleDetails: () => void;
+  onOpenImageUrls?: () => void;
   showGalaxyHeader?: boolean;
   navigation?: { currentIndex: number; totalGalaxies: number } | null;
 }
@@ -17,6 +18,7 @@ export function GalaxyInfo({
   additionalDetails,
   loadingDetails,
   onToggleDetails,
+  onOpenImageUrls,
   showGalaxyHeader = false,
   navigation,
 }: GalaxyInfoProps) {
@@ -63,7 +65,15 @@ export function GalaxyInfo({
           <span className="font-medium">Nucleus:</span> {displayGalaxy.nucleus ? "Yes" : "No"}
         </div>
       </div>
-      <div className="mt-4 flex justify-end">
+      <div className="mt-4 flex flex-wrap justify-end gap-2">
+        {onOpenImageUrls && (
+          <button
+            className="px-3 py-1 text-xs rounded bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 transition-colors"
+            onClick={onOpenImageUrls}
+          >
+            Image URLs
+          </button>
+        )}
         <button
           className="px-3 py-1 text-xs rounded bg-blue-500 text-white hover:bg-blue-600 transition-colors disabled:opacity-60"
           onClick={onToggleDetails}
