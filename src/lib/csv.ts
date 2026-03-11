@@ -14,7 +14,7 @@ export function escapeCsvCell(value: unknown): string {
       ? value.toString()
       : String(value);
 
-  if (/[",\n]/.test(normalizedValue)) {
+  if (/[",\r\n]/.test(normalizedValue)) {
     return `"${normalizedValue.replace(/"/g, '""')}"`;
   }
 

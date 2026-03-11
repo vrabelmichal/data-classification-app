@@ -278,6 +278,7 @@ export function NotificationsPage() {
           <div
             key={notification._id}
             role={!notification.isRead ? "button" : undefined}
+            aria-label={!notification.isRead ? `Mark as read: ${notification.title}` : undefined}
             tabIndex={!notification.isRead ? 0 : undefined}
             className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border transition-all ${
               notification.isRead

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useConvex, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../convex/_generated/api";
+import type { Id } from "../../../convex/_generated/dataModel";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import {
   buildAllClassificationsFileName,
@@ -114,7 +115,7 @@ export function ClassificationsExportPage() {
     label: string;
     fileName: string;
     totalRows: number;
-    userId?: string;
+    userId?: Id<"users">;
     successMessage: (rowCount: number) => string;
   }) => {
     if (selectedColumns.length === 0) {
@@ -130,7 +131,7 @@ export function ClassificationsExportPage() {
       contextKey: options.contextKey,
       fetchPage: async (cursor) => {
         const result = await convex.query(api.classifications.export.getAdminExportBatch, {
-          userId: options.userId as never,
+          userId: options.userId,
           paginationOpts: {
             cursor,
             numItems: CLASSIFICATION_EXPORT_BATCH_SIZE,
@@ -268,7 +269,7 @@ export function ClassificationsExportPage() {
                   label: `${displayName} classifications`,
                   fileName: buildUserClassificationsFileName(displayName),
                   totalRows: row.classificationsCount,
-                  userId: row.userId,
+                  userId: row.userId as Id<"users">,
                   successMessage: (rowCount) =>
                     `Downloaded ${rowCount.toLocaleString()} classifications for ${displayName}`,
                 })
