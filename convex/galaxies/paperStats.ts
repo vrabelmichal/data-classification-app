@@ -103,7 +103,10 @@ export const getPaperStatsSummary = query({
     const availablePapers: string[] =
       (settings as any)?.availablePapers ?? DEFAULT_AVAILABLE_PAPERS;
 
-    const blacklistedCount = (await ctx.db.query("galaxyBlacklist").collect()).length;
+    const blacklistedCount: number = await ctx.runQuery(
+      internal.galaxyBlacklist.getReliableBlacklistCount,
+      {}
+    );
 
     return {
       authorized: true,

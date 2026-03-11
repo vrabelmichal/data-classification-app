@@ -7,6 +7,7 @@ export { ClearGalaxyIdsAggregateSection } from './ClearGalaxyIdsAggregateSection
 export { RebuildGalaxyIdsAggregateSection } from './RebuildGalaxyIdsAggregateSection';
 export { ClearGalaxyAggregatesSection } from './ClearGalaxyAggregatesSection';
 export { RebuildGalaxyAggregatesSection } from './RebuildGalaxyAggregatesSection';
+export { RebuildGalaxyBlacklistAggregateSection } from './RebuildGalaxyBlacklistAggregateSection';
 export { DeleteAllGalaxyDataSection } from './DeleteAllGalaxyDataSection';
 export { AggregateInformationSection } from './AggregateInformationSection';
 export { DeleteConfirmationModal } from './DeleteConfirmationModal';

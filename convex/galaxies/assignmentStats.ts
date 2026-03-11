@@ -133,7 +133,10 @@ export const getAssignmentStatsSummary = query({
     const availablePapers: string[] =
       (settings as any)?.availablePapers ?? DEFAULT_AVAILABLE_PAPERS;
 
-    const blacklistedCount = (await ctx.db.query("galaxyBlacklist").collect()).length;
+    const blacklistedCount: number = await ctx.runQuery(
+      internal.galaxyBlacklist.getReliableBlacklistCount,
+      {}
+    );
 
     // Sequence statistics: count users with a non-empty sequence and compute
     // the median sequence size (used to pre-populate the calculator inputs).

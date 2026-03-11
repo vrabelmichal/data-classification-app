@@ -97,6 +97,21 @@ export function AggregateInformationSection() {
       rows: [{ label: "Count", value: formatValue(aggregateInfo.galaxiesById.count) }],
     },
     {
+      title: "Galaxy Blacklist",
+      description: "Aggregate-backed blacklist row count used by admin summaries such as image audit, assignment stats, and blacklist management.",
+      rows: [
+        { label: "Count", value: formatValue(aggregateInfo.galaxyBlacklistByExternalId?.count) },
+        { label: "Min ID", value: formatValue(aggregateInfo.galaxyBlacklistByExternalId?.min) },
+        { label: "Max ID", value: formatValue(aggregateInfo.galaxyBlacklistByExternalId?.max) },
+        {
+          label: "Status",
+          value: formatValue(
+            aggregateInfo.galaxyBlacklistByExternalId?.ready ? "Ready" : "Needs backfill"
+          ),
+        },
+      ],
+    },
+    {
       title: "Galaxies by Numeric ID",
       description: "Numeric ID ordering kept in sync on create/update (convex/galaxies/core.ts) and during maintenance jobs.",
       rows: [

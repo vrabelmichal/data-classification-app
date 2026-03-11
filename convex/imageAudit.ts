@@ -4,7 +4,7 @@ import { api, internal } from "./_generated/api";
 import { requireAdmin } from "./lib/auth";
 import { DEFAULT_AVAILABLE_PAPERS } from "./lib/defaults";
 import { Doc, Id } from "./_generated/dataModel";
-import { galaxyIdsAggregate } from "./galaxies/aggregates";
+import { galaxiesByPaper, galaxyIdsAggregate } from "./galaxies/aggregates";
 
 const imageAuditStatusValidator = v.union(
   v.literal("paused"),
@@ -73,6 +73,21 @@ type DeleteImageAuditRunResult = {
   deleted: boolean;
   deletedChunkCount: number;
 };
+
+type ImageAuditRunWithCreator = Doc<"imageAuditRuns"> & {
+  creatorName: string;
+  creatorEmail: string;
+};
+
+type ImageAuditOverviewResult = {
+  availablePapers: string[];
+  totalGalaxies: number | null;
+  blacklistedCount: number;
+  recentRuns: ImageAuditRunWithCreator[];
+};
+
+const IMAGE_AUDIT_COUNT_SCAN_BATCH_SIZE = 5000;
+const IMAGE_AUDIT_MAX_COUNT_SCAN_PAGES = 200;
 
 const scanPageItemValidator = v.object({
   externalId: v.string(),
@@ -272,6 +287,36 @@ async function getTotalGalaxyCount(ctx: any): Promise<number | null> {
   }
 }
 
+function exactStringBounds(key: string) {
+  return {
+    lower: { key, inclusive: true },
+    upper: { key, inclusive: true },
+  } as const;
+}
+
+async function getAuditGalaxyCountFromAggregates(
+  ctx: any,
+  paperFilter: string[]
+): Promise<number | null> {
+  try {
+    if (paperFilter.length === 0) {
+      return await galaxyIdsAggregate.count(ctx);
+    }
+
+    const counts = await Promise.all(
+      paperFilter.map((paper) =>
+        galaxiesByPaper.count(ctx, {
+          bounds: exactStringBounds(paper),
+        })
+      )
+    );
+
+    return counts.reduce((total, count) => total + count, 0);
+  } catch {
+    return null;
+  }
+}
+
 export const scanAuditGalaxiesPage = internalQuery({
   args: {
     cursor: v.optional(v.string()),
@@ -445,19 +490,24 @@ export const getImageAuditOverview = query({
     limit: v.optional(v.number()),
   },
   returns: imageAuditOverviewValidator,
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<ImageAuditOverviewResult> => {
     await requireAdmin(ctx);
 
     const limit = Math.min(Math.max(args.limit ?? 25, 1), 100);
-    const [availablePapers, totalGalaxies, blacklistedRows, recentRuns] = await Promise.all([
+    const [availablePapers, totalGalaxies, blacklistedCount, recentRuns]: [
+      string[],
+      number | null,
+      number,
+      Doc<"imageAuditRuns">[]
+    ] = await Promise.all([
       getAvailablePapers(ctx),
       getTotalGalaxyCount(ctx),
-      ctx.db.query("galaxyBlacklist").collect(),
+      ctx.runQuery(internal.galaxyBlacklist.getReliableBlacklistCount, {}),
       ctx.db.query("imageAuditRuns").withIndex("by_updated_at").order("desc").take(limit),
     ]);
 
-    const enrichedRuns = await Promise.all(
-      recentRuns.map(async (run) => ({
+    const enrichedRuns: ImageAuditRunWithCreator[] = await Promise.all(
+      recentRuns.map(async (run: Doc<"imageAuditRuns">) => ({
         ...run,
         ...(await getCreatorInfo(ctx, run.createdBy)),
       }))
@@ -466,7 +516,7 @@ export const getImageAuditOverview = query({
     return {
       availablePapers,
       totalGalaxies,
-      blacklistedCount: blacklistedRows.length,
+      blacklistedCount,
       recentRuns: enrichedRuns,
     };
   },
@@ -532,23 +582,39 @@ export const createImageAuditRun = action({
       blacklistedIds = await ctx.runQuery(internal.galaxies.paperStats.loadBlacklistedIds, {});
     }
 
-    let totalGalaxies = 0;
-    let cursor: string | undefined;
+    let totalGalaxies = args.includeBlacklisted
+      ? await getAuditGalaxyCountFromAggregates(ctx, paperFilter)
+      : null;
 
-    while (true) {
-      const page = await ctx.runQuery(internal.imageAudit.scanAuditGalaxiesPage, {
-        cursor,
-        batchSize: 5000,
-        paperFilter,
-      });
+    if (totalGalaxies === null) {
+      let countScanCursor: string | undefined;
+      let countScanComplete = false;
+      let scannedTotalGalaxies = 0;
 
-      totalGalaxies += filterCandidates(page.items, paperFilter, blacklistedIds).length;
+      for (let pageCount = 0; pageCount < IMAGE_AUDIT_MAX_COUNT_SCAN_PAGES; pageCount += 1) {
+        const page: ScanPageResult = await ctx.runQuery(internal.imageAudit.scanAuditGalaxiesPage, {
+          cursor: countScanCursor,
+          batchSize: IMAGE_AUDIT_COUNT_SCAN_BATCH_SIZE,
+          paperFilter,
+        });
 
-      if (page.isDone || !page.nextCursor) {
-        break;
+        scannedTotalGalaxies += filterCandidates(page.items, paperFilter, blacklistedIds).length;
+
+        if (page.isDone || !page.nextCursor) {
+          countScanComplete = true;
+          break;
+        }
+
+        countScanCursor = page.nextCursor;
       }
 
-      cursor = page.nextCursor;
+      if (!countScanComplete) {
+        throw new Error(
+          "Audit run is too large to count exactly in one request. Narrow the paper filter or split the audit into smaller runs."
+        );
+      }
+
+      totalGalaxies = scannedTotalGalaxies;
     }
 
     const startedAt = Date.now();

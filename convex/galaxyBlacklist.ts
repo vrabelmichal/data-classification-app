@@ -1,6 +1,93 @@
-import { query, mutation } from "./_generated/server";
+import { internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { Doc } from "./_generated/dataModel";
 import { requireAdmin, requireUserId } from "./lib/auth";
+import {
+  GALAXY_BLACKLIST_AGGREGATE_READY_KEY,
+  galaxyBlacklistByExternalId,
+} from "./galaxies/aggregates";
+
+const BLACKLIST_COUNT_PAGE_SIZE = 500;
+
+async function countBlacklistRowsPaginated(ctx: any): Promise<number> {
+  let cursor: string | null = null;
+  let totalRows = 0;
+
+  while (true) {
+    const result: { page: unknown[]; isDone: boolean; continueCursor: string } = await ctx.db
+      .query("galaxyBlacklist")
+      .withIndex("by_added_at")
+      .paginate({
+        cursor,
+        numItems: BLACKLIST_COUNT_PAGE_SIZE,
+      });
+
+    totalRows += result.page.length;
+
+    if (result.isDone) {
+      return totalRows;
+    }
+
+    cursor = result.continueCursor;
+  }
+}
+
+async function isGalaxyBlacklistAggregateReady(ctx: any): Promise<boolean> {
+  const row = await ctx.db
+    .query("systemSettings")
+    .withIndex("by_key", (q: any) => q.eq("key", GALAXY_BLACKLIST_AGGREGATE_READY_KEY))
+    .unique();
+
+  return Boolean((row?.value as { ready?: boolean } | undefined)?.ready);
+}
+
+async function getReliableBlacklistCountValue(ctx: any): Promise<number> {
+  if (await isGalaxyBlacklistAggregateReady(ctx)) {
+    return await galaxyBlacklistByExternalId.count(ctx);
+  }
+
+  return await countBlacklistRowsPaginated(ctx);
+}
+
+async function insertGalaxyBlacklistEntry(
+  ctx: any,
+  entry: {
+    galaxyExternalId: string;
+    reason?: string;
+    addedAt: number;
+    addedBy: Doc<"galaxyBlacklist">["addedBy"];
+  }
+) {
+  const entryId = await ctx.db.insert("galaxyBlacklist", entry);
+  const insertedEntry = await ctx.db.get(entryId);
+
+  if (!insertedEntry) {
+    throw new Error(`Failed to load inserted blacklist entry (${entryId})`);
+  }
+
+  await galaxyBlacklistByExternalId.insert(ctx, insertedEntry);
+}
+
+async function safeDeleteGalaxyBlacklistAggregate(ctx: any, entry: Doc<"galaxyBlacklist">) {
+  try {
+    await galaxyBlacklistByExternalId.delete(ctx, entry);
+  } catch (error: any) {
+    const message: string | undefined = error?.message;
+    const code: string | undefined = error?.data?.code;
+    if (code === "DELETE_MISSING_KEY" || message?.includes("DELETE_MISSING_KEY")) {
+      return;
+    }
+    throw error;
+  }
+}
+
+export const getReliableBlacklistCount = internalQuery({
+  args: {},
+  returns: v.number(),
+  handler: async (ctx): Promise<number> => {
+    return await getReliableBlacklistCountValue(ctx);
+  },
+});
 
 // Get all blacklisted galaxies (admin only)
 export const getAllBlacklistedGalaxies = query({
@@ -114,8 +201,7 @@ export const getBlacklistCount = query({
   args: {},
   async handler(ctx) {
     await requireAdmin(ctx);
-    const blacklisted = await ctx.db.query("galaxyBlacklist").collect();
-    return blacklisted.length;
+    return await getReliableBlacklistCountValue(ctx);
   },
 });
 
@@ -154,7 +240,7 @@ export const addToBlacklist = mutation({
       return { success: false, message: "Galaxy not found in database", notFound: true };
     }
 
-    await ctx.db.insert("galaxyBlacklist", {
+    await insertGalaxyBlacklistEntry(ctx, {
       galaxyExternalId,
       reason: args.reason?.trim() || undefined,
       addedAt: Date.now(),
@@ -184,6 +270,7 @@ export const removeFromBlacklist = mutation({
       return { success: false, message: "Galaxy is not in the blacklist" };
     }
 
+    await safeDeleteGalaxyBlacklistAggregate(ctx, existing);
     await ctx.db.delete(existing._id);
 
     return { success: true, message: "Galaxy removed from blacklist" };
@@ -238,7 +325,7 @@ export const bulkAddToBlacklist = mutation({
         continue;
       }
 
-      await ctx.db.insert("galaxyBlacklist", {
+      await insertGalaxyBlacklistEntry(ctx, {
         galaxyExternalId,
         reason,
         addedAt: now,
@@ -285,6 +372,7 @@ export const bulkRemoveFromBlacklist = mutation({
         continue;
       }
 
+      await safeDeleteGalaxyBlacklistAggregate(ctx, existing);
       await ctx.db.delete(existing._id);
       removed++;
     }
@@ -318,6 +406,7 @@ export const clearBlacklist = mutation({
     const items = results.slice(0, batchSize);
 
     for (const item of items) {
+      await safeDeleteGalaxyBlacklistAggregate(ctx, item);
       await ctx.db.delete(item._id);
     }
 

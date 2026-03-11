@@ -22,6 +22,7 @@ app.use(aggregate, { name: "galaxiesByNumFailedFitting" });
 app.use(aggregate, { name: "galaxiesByTotalAssigned" });
 app.use(aggregate, { name: "galaxiesByNumericId" });
 app.use(aggregate, { name: "galaxiesByPaper" });
+app.use(aggregate, { name: "galaxyBlacklistByExternalId" });
 // Labeling aggregates
 app.use(aggregate, { name: "classificationsByCreated" });
 app.use(aggregate, { name: "userProfilesByClassificationsCount" });

@@ -232,6 +232,16 @@ export const galaxiesByPaper = new TableAggregate<{
   sortKey: (doc) => doc.misc?.paper ?? "",
 });
 
+export const galaxyBlacklistByExternalId = new TableAggregate<{
+  Key: string;
+  DataModel: DataModel;
+  TableName: "galaxyBlacklist";
+}>(components.galaxyBlacklistByExternalId, {
+  sortKey: (doc) => doc.galaxyExternalId,
+});
+
+export const GALAXY_BLACKLIST_AGGREGATE_READY_KEY = "galaxyBlacklistAggregateReady";
+
 // Helper function to get the appropriate aggregate based on sort field
 export function getGalaxiesAggregate(sortBy: string) {
   switch (sortBy) {
@@ -543,6 +553,29 @@ function getGalaxyAggregateByName(name: string) {
 
 const STAGED_REBUILD_DEFAULT_BATCH_SIZE = 100;
 
+const REBUILD_GALAXY_BLACKLIST_AGGREGATE_BATCH_SIZE = 500;
+
+async function setGalaxyBlacklistAggregateReadyState(ctx: any, ready: boolean) {
+  const existing = await ctx.db
+    .query("systemSettings")
+    .withIndex("by_key", (q: any) => q.eq("key", GALAXY_BLACKLIST_AGGREGATE_READY_KEY))
+    .unique();
+
+  const value = {
+    ready,
+    updatedAt: Date.now(),
+  };
+
+  if (existing) {
+    await ctx.db.patch(existing._id, { value });
+  } else {
+    await ctx.db.insert("systemSettings", {
+      key: GALAXY_BLACKLIST_AGGREGATE_READY_KEY,
+      value,
+    });
+  }
+}
+
 export const clearSingleGalaxyAggregate = mutation({
   args: { aggregateName: v.string() },
   handler: async (ctx, args) => {
@@ -550,6 +583,78 @@ export const clearSingleGalaxyAggregate = mutation({
     const agg = getGalaxyAggregateByName(args.aggregateName);
     await agg.clear(ctx);
     console.log(`[clearSingleGalaxyAggregate] Cleared ${args.aggregateName}`);
+  },
+});
+
+export const clearGalaxyBlacklistAggregate = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    await galaxyBlacklistByExternalId.clear(ctx);
+    await setGalaxyBlacklistAggregateReadyState(ctx, false);
+
+    return { message: "Galaxy blacklist aggregate cleared" };
+  },
+});
+
+export const rebuildGalaxyBlacklistAggregate = mutation({
+  args: {
+    cursor: v.optional(v.string()),
+    clearOnly: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    if (!args.cursor) {
+      await galaxyBlacklistByExternalId.clear(ctx);
+      await setGalaxyBlacklistAggregateReadyState(ctx, false);
+
+      if (args.clearOnly) {
+        return {
+          processed: 0,
+          isDone: true,
+          continueCursor: null,
+          message: "Galaxy blacklist aggregate cleared",
+        };
+      }
+    }
+
+    if (args.clearOnly) {
+      return {
+        processed: 0,
+        isDone: true,
+        continueCursor: null,
+        message: "Clear-only operation complete",
+      };
+    }
+
+    const { page, isDone, continueCursor } = await ctx.db
+      .query("galaxyBlacklist")
+      .withIndex("by_added_at")
+      .paginate({
+        numItems: REBUILD_GALAXY_BLACKLIST_AGGREGATE_BATCH_SIZE,
+        cursor: args.cursor ?? null,
+      });
+
+    let processed = 0;
+    for (const entry of page) {
+      await galaxyBlacklistByExternalId.insert(ctx, entry);
+      processed += 1;
+    }
+
+    if (isDone) {
+      await setGalaxyBlacklistAggregateReadyState(ctx, true);
+    }
+
+    return {
+      processed,
+      isDone,
+      continueCursor,
+      message: isDone
+        ? `Galaxy blacklist aggregate rebuilt. Processed ${processed} rows in final batch.`
+        : `Processed ${processed} blacklist rows. Continue with cursor: ${continueCursor}`,
+    };
   },
 });
 
@@ -805,6 +910,14 @@ export const getAggregateInfo = query({
     // make sure only admin can call this
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
+    const galaxyBlacklistAggregateReadyRow = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", GALAXY_BLACKLIST_AGGREGATE_READY_KEY))
+      .unique();
+    const galaxyBlacklistAggregateReady = Boolean(
+      (galaxyBlacklistAggregateReadyRow?.value as { ready?: boolean } | undefined)?.ready
+    );
+
     // Get counts for all aggregates
     const [
       galaxyIdsCount,
@@ -824,6 +937,7 @@ export const getAggregateInfo = query({
       galaxiesByTotalAssignedCount,
       galaxiesByNumericIdCount,
       galaxiesByPaperCount,
+      galaxyBlacklistByExternalIdCount,
       classificationsByAwesomeFlagCount,
       classificationsByVisibleNucleusCount,
       classificationsByFailedFittingCount,
@@ -851,6 +965,7 @@ export const getAggregateInfo = query({
       galaxiesByTotalAssigned.count(ctx),
       galaxiesByNumericId.count(ctx),
       galaxiesByPaper.count(ctx),
+      galaxyBlacklistByExternalId.count(ctx),
       classificationsByAwesomeFlag.count(ctx),
       classificationsByVisibleNucleus.count(ctx),
       classificationsByFailedFitting.count(ctx),
@@ -894,6 +1009,8 @@ export const getAggregateInfo = query({
       galaxiesByNumericIdMax,
       galaxiesByPaperMin,
       galaxiesByPaperMax,
+      galaxyBlacklistByExternalIdMin,
+      galaxyBlacklistByExternalIdMax,
       classificationsByAwesomeFlagMin,
       classificationsByAwesomeFlagMax,
       classificationsByVisibleNucleusMin,
@@ -943,6 +1060,8 @@ export const getAggregateInfo = query({
       galaxiesByNumericId.max(ctx).then(item => item?.key),
       galaxiesByPaper.min(ctx).then(item => item?.key),
       galaxiesByPaper.max(ctx).then(item => item?.key),
+      galaxyBlacklistByExternalId.min(ctx).then(item => item?.key),
+      galaxyBlacklistByExternalId.max(ctx).then(item => item?.key),
       classificationsByAwesomeFlag.min(ctx).then(item => item?.key),
       classificationsByAwesomeFlag.max(ctx).then(item => item?.key),
       classificationsByVisibleNucleus.min(ctx).then(item => item?.key),
@@ -1094,6 +1213,12 @@ export const getAggregateInfo = query({
         count: galaxiesByPaperCount,
         min: galaxiesByPaperMin,
         max: galaxiesByPaperMax,
+      },
+      galaxyBlacklistByExternalId: {
+        count: galaxyBlacklistByExternalIdCount,
+        min: galaxyBlacklistByExternalIdMin,
+        max: galaxyBlacklistByExternalIdMax,
+        ready: galaxyBlacklistAggregateReady,
       },
       classificationsByAwesomeFlag: {
         count: classificationsByAwesomeFlagCount,
