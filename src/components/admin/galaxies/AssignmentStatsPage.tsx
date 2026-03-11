@@ -95,7 +95,7 @@ const MAX_SEQUENCE_SIZE = 8192;
 // ---------------------------------------------------------------------------
 
 export function AssignmentStatsPage() {
-  usePageTitle("Admin – Galaxies – Assignment Stats");
+  usePageTitle("Assignment Statistics");
 
   // Convex hooks
   const summary = useQuery(api.galaxies.assignmentStats.getAssignmentStatsSummary);

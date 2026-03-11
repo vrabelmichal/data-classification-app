@@ -3,7 +3,6 @@ import { cn } from "../../lib/utils";
 import { GenerateSequencesPage } from "./galaxies/GenerateSequencesPage";
 import { ManageSequencesPage } from "./galaxies/ManageSequencesPage";
 import { BlacklistPage } from "./galaxies/BlacklistPage";
-import { AssignmentStatsPage } from "./galaxies/AssignmentStatsPage";
 
 interface GalaxiesTabProps {
   users: any[];
@@ -17,7 +16,6 @@ export function GalaxiesTab({ users, systemSettings }: GalaxiesTabProps) {
     { id: "generate", label: "Generate Sequences", icon: "➕", path: "/admin/galaxies/generate" },
     { id: "manage", label: "Manage Sequences", icon: "✏️", path: "/admin/galaxies/manage" },
     { id: "blacklist", label: "Blacklist", icon: "🚫", path: "/admin/galaxies/blacklist" },
-    { id: "stats", label: "Assignment Stats", icon: "📊", path: "/admin/galaxies/stats" },
   ];
 
   return (
@@ -49,7 +47,7 @@ export function GalaxiesTab({ users, systemSettings }: GalaxiesTabProps) {
         <Route path="generate" element={<GenerateSequencesPage users={users} systemSettings={systemSettings} />} />
         <Route path="manage" element={<ManageSequencesPage users={users} systemSettings={systemSettings} />} />
         <Route path="blacklist" element={<BlacklistPage />} />
-        <Route path="stats" element={<AssignmentStatsPage />} />
+        <Route path="stats" element={<Navigate to="/statistics/assignment-stats" replace />} />
       </Routes>
     </div>
   );
