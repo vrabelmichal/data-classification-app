@@ -318,14 +318,20 @@ export function NotificationsPage() {
                 <div className="flex items-center gap-2">
                   {!notification.isRead ? (
                     <button
-                      onClick={() => handleMarkAsRead(notification._id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkAsRead(notification._id);
+                      }}
                       className="px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
                     >
                       Mark as read
                     </button>
                   ) : (
                     <button
-                      onClick={() => handleMarkAsUnread(notification._id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkAsUnread(notification._id);
+                      }}
                       className="px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
                     >
                       Mark as unread
