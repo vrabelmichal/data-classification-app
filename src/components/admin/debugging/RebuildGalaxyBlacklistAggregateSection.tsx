@@ -18,8 +18,10 @@ export function RebuildGalaxyBlacklistAggregateSection() {
 
     let cursor: string | null = null;
     let totalProcessed = 0;
+    let batchesProcessed = 0;
     let iterations = 0;
     const maxIterations = 10000;
+    let completed = false;
 
     try {
       while (iterations < maxIterations) {
@@ -29,20 +31,32 @@ export function RebuildGalaxyBlacklistAggregateSection() {
           isDone?: boolean;
         } = await rebuild({ cursor: cursor ?? undefined });
 
+        batchesProcessed += 1;
         totalProcessed += result.processed ?? 0;
         setProgress(totalProcessed);
         cursor = result.continueCursor ?? null;
 
-        if (result.isDone || !cursor) {
+        if (result.isDone) {
+          completed = true;
+          break;
+        }
+
+        if (!cursor) {
           break;
         }
 
         iterations += 1;
       }
 
-      toast.success(
-        `Blacklist aggregate rebuilt. Processed ${totalProcessed.toLocaleString()} rows across ${iterations + 1} batches.`
-      );
+      if (completed) {
+        toast.success(
+          `Blacklist aggregate rebuilt. Processed ${totalProcessed.toLocaleString()} rows across ${batchesProcessed.toLocaleString()} batches.`
+        );
+      } else {
+        toast.info(
+          `Blacklist aggregate rebuild was truncated. Processed ${totalProcessed.toLocaleString()} rows across ${batchesProcessed.toLocaleString()} batches.`
+        );
+      }
     } catch (error) {
       console.error(error);
       toast.error("Failed to rebuild blacklist aggregate");

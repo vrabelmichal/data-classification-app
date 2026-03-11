@@ -105,9 +105,12 @@ export function AggregateInformationSection() {
         { label: "Max ID", value: formatValue(aggregateInfo.galaxyBlacklistByExternalId?.max) },
         {
           label: "Status",
-          value: formatValue(
-            aggregateInfo.galaxyBlacklistByExternalId?.ready ? "Ready" : "Needs backfill"
-          ),
+          value:
+            aggregateInfo.galaxyBlacklistByExternalId == null
+              ? formatValue("N/A")
+              : formatValue(
+                  aggregateInfo.galaxyBlacklistByExternalId.ready ? "Ready" : "Needs backfill"
+                ),
         },
       ],
     },
