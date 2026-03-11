@@ -162,6 +162,14 @@ export const thuruthipillySchema = {
   mu_mean_i_cor: v.optional(v.number()),
 };
 
+const imageAuditImageStatSchema = v.object({
+  imageKey: v.string(),
+  label: v.string(),
+  availableCount: v.number(),
+  missingCount: v.number(),
+  errorCount: v.number(),
+});
+
 
 const applicationTables = {
   // Galaxy data
@@ -390,6 +398,57 @@ const applicationTables = {
   })
     .index("by_created_at", ["createdAt"])
     .index("by_run_date_created_at", ["runDate", "createdAt"]),
+
+  // Persisted admin image availability audit runs
+  imageAuditRuns: defineTable({
+    createdBy: v.id("users"),
+    status: v.union(
+      v.literal("paused"),
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed")
+    ),
+    checkMode: v.union(v.literal("class_a"), v.literal("class_b"), v.literal("url")),
+    paperFilter: v.array(v.string()),
+    includeBlacklisted: v.boolean(),
+    batchSize: v.number(),
+    totalGalaxies: v.number(),
+    processedGalaxies: v.number(),
+    nextCursor: v.optional(v.string()),
+    selectedImageKeys: v.array(v.string()),
+    tokenHash: v.string(),
+    requestMethod: v.union(v.literal("head"), v.literal("get")),
+    requestAuthMode: v.union(v.literal("none"), v.literal("bearer"), v.literal("r2_keys")),
+    provider: v.union(v.literal("local"), v.literal("r2")),
+    imageBaseUrl: v.string(),
+    r2Endpoint: v.optional(v.string()),
+    r2Bucket: v.optional(v.string()),
+    r2Prefix: v.optional(v.string()),
+    r2Region: v.optional(v.string()),
+    imageStats: v.array(imageAuditImageStatSchema),
+    startedAt: v.number(),
+    updatedAt: v.number(),
+    completedAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    lastProcessedGalaxyId: v.optional(v.string()),
+    processedBatchCount: v.number(),
+  })
+    .index("by_updated_at", ["updatedAt"])
+    .index("by_created_by_updated_at", ["createdBy", "updatedAt"])
+    .index("by_status_updated_at", ["status", "updatedAt"]),
+
+  // Missing external IDs captured during image availability audit runs, chunked per image key
+  imageAuditMissingChunks: defineTable({
+    runId: v.id("imageAuditRuns"),
+    imageKey: v.string(),
+    label: v.string(),
+    externalIds: v.array(v.string()),
+    batchNumber: v.number(),
+    createdAt: v.number(),
+  })
+    .index("by_run", ["runId"])
+    .index("by_run_image", ["runId", "imageKey"])
+    .index("by_run_image_batch", ["runId", "imageKey", "batchNumber"]),
 
   // Notifications - messages sent from admins to users
   notifications: defineTable({

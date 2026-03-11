@@ -4,6 +4,7 @@ import { MaintenanceModeAndRegularPage } from "./maintenance/MaintenanceModeAndR
 import { DataRepairPage } from "./maintenance/DataRepairPage";
 import { AggregateManagementPage } from "./maintenance/AggregateManagementPage";
 import { DevelopmentTestingPage } from "./maintenance/DevelopmentTestingPage";
+import { ImageAvailabilityAuditPage } from "./maintenance/ImageAvailabilityAuditPage";
 
 export function MaintenanceTab() {
   const location = useLocation();
@@ -12,6 +13,7 @@ export function MaintenanceTab() {
     { id: "mode", label: "Maintenance Mode & Regular", icon: "🔧", path: "/admin/maintenance/mode" },
     { id: "repair", label: "Data Repair", icon: "🔨", path: "/admin/maintenance/repair" },
     { id: "aggregates", label: "Aggregates", icon: "📊", path: "/admin/maintenance/aggregates" },
+    { id: "images", label: "Image Availability", icon: "🖼️", path: "/admin/maintenance/images" },
     { id: "development", label: "Development & Testing", icon: "🧪", path: "/admin/maintenance/development" },
   ];
 
@@ -44,6 +46,7 @@ export function MaintenanceTab() {
         <Route path="mode" element={<MaintenanceModeAndRegularPage />} />
         <Route path="repair" element={<DataRepairPage />} />
         <Route path="aggregates" element={<AggregateManagementPage />} />
+        <Route path="images" element={<ImageAvailabilityAuditPage />} />
         <Route path="development" element={<DevelopmentTestingPage />} />
       </Routes>
     </div>
