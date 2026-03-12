@@ -126,33 +126,142 @@ export function BreakdownBar({
   items: Array<{ label: string; value: number; color: string; icon: string }>;
   total: number;
 }) {
+  const formatPercent = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) {
+      return "0%";
+    }
+
+    if (value < 0.1) {
+      return "<0.1%";
+    }
+
+    if (value < 10) {
+      return `${value.toFixed(1)}%`;
+    }
+
+    return `${value.toFixed(0)}%`;
+  };
+
   return (
     <div className="space-y-3">
       {items.map((item) => {
         const percentage = total > 0 ? Math.min((item.value / total) * 100, 100) : 0;
         return (
-          <div key={item.label} className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <span className="text-lg">{item.icon}</span>
-              <span className="font-medium text-gray-900 dark:text-white text-sm">{item.label}</span>
-            </div>
-            <div className="flex items-center space-x-3">
-              <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                <div
-                  className={`h-2 rounded-full ${item.color} transition-all duration-300`}
-                  style={{ width: `${percentage}%` }}
-                />
+          <div
+            key={item.label}
+            className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex items-center gap-3">
+                <span className="text-lg">{item.icon}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", item.color)} aria-hidden="true" />
+                    <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
+                  </div>
+                </div>
               </div>
-              <span className="text-sm font-medium text-gray-600 dark:text-gray-300 w-16 text-right">
-                {item.value.toLocaleString()}
-              </span>
-              <span className="text-sm text-gray-500 dark:text-gray-400 w-12 text-right">
-                {percentage.toFixed(0)}%
-              </span>
+
+              <div className="flex shrink-0 items-baseline gap-3 text-right">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {item.value.toLocaleString()}
+                </span>
+                <span className="w-14 text-xs text-gray-500 dark:text-gray-400">
+                  {formatPercent(percentage)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 h-2.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+              <div
+                className={cn("h-2.5 rounded-full transition-all duration-300", item.color)}
+                style={{ width: `${percentage}%` }}
+              />
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+export function CompositionBreakdown({
+  items,
+  totalLabel,
+}: {
+  items: Array<{ label: string; value: number; color: string; icon: string }>;
+  totalLabel: string;
+}) {
+  const total = items.reduce((sum, item) => sum + item.value, 0);
+
+  const formatPercent = (value: number) => {
+    if (!Number.isFinite(value) || value <= 0) {
+      return "0%";
+    }
+
+    if (value < 0.1) {
+      return "<0.1%";
+    }
+
+    if (value < 10) {
+      return `${value.toFixed(1)}%`;
+    }
+
+    return `${value.toFixed(0)}%`;
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{total.toLocaleString()}</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400">{totalLabel}</div>
+        </div>
+        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Adds up to 100%</div>
+      </div>
+
+      <div className="overflow-hidden rounded-full border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-900/60">
+        <div className="flex h-4 w-full">
+          {items.map((item) => {
+            const percentage = total > 0 ? (item.value / total) * 100 : 0;
+            return (
+              <div
+                key={item.label}
+                title={`${item.label}: ${item.value.toLocaleString()} (${formatPercent(percentage)})`}
+                className={cn("h-full transition-[width] duration-300", item.color)}
+                style={{ width: `${percentage}%` }}
+                aria-hidden="true"
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {items.map((item) => {
+          const percentage = total > 0 ? (item.value / total) * 100 : 0;
+
+          return (
+            <div
+              key={item.label}
+              className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+            >
+              <div className="min-w-0 flex items-center gap-3">
+                <span className="text-lg">{item.icon}</span>
+                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", item.color)} aria-hidden="true" />
+                <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
+              </div>
+
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                {item.value.toLocaleString()}
+              </span>
+              <span className="w-14 text-right text-xs text-gray-500 dark:text-gray-400">
+                {formatPercent(percentage)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

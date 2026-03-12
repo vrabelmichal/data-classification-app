@@ -1,7 +1,7 @@
 import { CSSProperties, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { cn } from "../../../lib/utils";
-import { BreakdownBar, LoadingBadge, LoadingPanel, ProgressBar, StatCard } from "./shared";
+import { BreakdownBar, CompositionBreakdown, LoadingBadge, LoadingPanel, ProgressBar, StatCard } from "./shared";
 import { PaperCount, PaperFilter, TargetProgressMetrics, Totals } from "./types";
 
 type OverviewMode = "live" | "cached";
@@ -1109,51 +1109,78 @@ export function ClassificationBreakdownsSection({
   updatedAt?: number | null;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+    <div className="space-y-6">
       {loading && lsbItems.length === 0 && morphologyItems.length === 0 && flagItems.length === 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 lg:col-span-2 xl:col-span-3">
+        <div className="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
           Loading classification breakdowns…
         </div>
       )}
 
-      {lsbItems.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <div className="mb-4 flex items-center gap-2">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">LSB Classification</h3>
-            {selectedPaper !== undefined && <GlobalBadge />}
-            <TimestampBadge timestamp={updatedAt} />
-          </div>
-          <BreakdownBar items={lsbItems} total={totalClassifications} />
-          {totalClassifications === 0 && (
-            <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
-          )}
-        </div>
-      )}
+      {(lsbItems.length > 0 || morphologyItems.length > 0) && (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          {lsbItems.length > 0 && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-4 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">LSB Classification</h3>
+                  {selectedPaper !== undefined && <GlobalBadge />}
+                  <TimestampBadge timestamp={updatedAt} />
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Each classification is either LSB or non-LSB, so this split always totals 100%.
+                </p>
+              </div>
 
-      {morphologyItems.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <div className="mb-4 flex items-center gap-2">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Morphology Classification</h3>
-            {selectedPaper !== undefined && <GlobalBadge />}
-            <TimestampBadge timestamp={updatedAt} />
-          </div>
-          <BreakdownBar items={morphologyItems} total={totalClassifications} />
-          {totalClassifications === 0 && (
-            <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+              {totalClassifications === 0 ? (
+                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+              ) : (
+                <CompositionBreakdown
+                  items={lsbItems}
+                  totalLabel="classifications in this split"
+                />
+              )}
+            </div>
+          )}
+
+          {morphologyItems.length > 0 && (
+            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-4 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Morphology Classification</h3>
+                  {selectedPaper !== undefined && <GlobalBadge />}
+                  <TimestampBadge timestamp={updatedAt} />
+                </div>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  These morphology classes are mutually exclusive here, so the panel adds up to 100%.
+                </p>
+              </div>
+
+              {totalClassifications === 0 ? (
+                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+              ) : (
+                <CompositionBreakdown
+                  items={morphologyItems}
+                  totalLabel="classifications in this split"
+                />
+              )}
+            </div>
           )}
         </div>
       )}
 
       {flagItems.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <div className="mb-2 flex items-center gap-2">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Classification Flags</h3>
-            {selectedPaper !== undefined && <GlobalBadge />}
-            <TimestampBadge timestamp={updatedAt} />
+          <div className="mb-4 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Classification Flags</h3>
+              {selectedPaper !== undefined && <GlobalBadge />}
+              <TimestampBadge timestamp={updatedAt} />
+            </div>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Count of classifications where each flag was marked true. Flags can overlap, so this panel does not add up to 100%.
+            </p>
           </div>
-          <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
-            Count of classifications where each flag was marked true
-          </p>
+
           <BreakdownBar items={flagItems} total={totalClassifications} />
           {totalClassifications === 0 && (
             <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
