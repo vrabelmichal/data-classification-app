@@ -1109,42 +1109,40 @@ export function ClassificationBreakdownsSection({
   updatedAt?: number | null;
 }) {
   return (
-    <>
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        {loading && lsbItems.length === 0 && morphologyItems.length === 0 && flagItems.length === 0 && (
-          <div className="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 lg:col-span-2">
-            Loading classification breakdowns…
-          </div>
-        )}
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-3">
+      {loading && lsbItems.length === 0 && morphologyItems.length === 0 && flagItems.length === 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 lg:col-span-2 xl:col-span-3">
+          Loading classification breakdowns…
+        </div>
+      )}
 
-        {lsbItems.length > 0 && (
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-4 flex items-center gap-2">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">LSB Classification</h3>
-              {selectedPaper !== undefined && <GlobalBadge />}
-              <TimestampBadge timestamp={updatedAt} />
-            </div>
-            <BreakdownBar items={lsbItems} total={totalClassifications} />
-            {totalClassifications === 0 && (
-              <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
-            )}
+      {lsbItems.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="mb-4 flex items-center gap-2">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">LSB Classification</h3>
+            {selectedPaper !== undefined && <GlobalBadge />}
+            <TimestampBadge timestamp={updatedAt} />
           </div>
-        )}
+          <BreakdownBar items={lsbItems} total={totalClassifications} />
+          {totalClassifications === 0 && (
+            <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+          )}
+        </div>
+      )}
 
-        {morphologyItems.length > 0 && (
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-4 flex items-center gap-2">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Morphology Classification</h3>
-              {selectedPaper !== undefined && <GlobalBadge />}
-              <TimestampBadge timestamp={updatedAt} />
-            </div>
-            <BreakdownBar items={morphologyItems} total={totalClassifications} />
-            {totalClassifications === 0 && (
-              <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
-            )}
+      {morphologyItems.length > 0 && (
+        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+          <div className="mb-4 flex items-center gap-2">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Morphology Classification</h3>
+            {selectedPaper !== undefined && <GlobalBadge />}
+            <TimestampBadge timestamp={updatedAt} />
           </div>
-        )}
-      </div>
+          <BreakdownBar items={morphologyItems} total={totalClassifications} />
+          {totalClassifications === 0 && (
+            <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+          )}
+        </div>
+      )}
 
       {flagItems.length > 0 && (
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -1162,6 +1160,6 @@ export function ClassificationBreakdownsSection({
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

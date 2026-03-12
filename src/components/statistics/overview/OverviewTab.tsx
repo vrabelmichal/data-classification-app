@@ -396,16 +396,29 @@ function OverviewDashboard({
 
   return (
     <div className="space-y-8">
-      {adminSwitchTo && adminSwitchLabel && (
-        <div className="flex justify-end">
-          <Link
-            to={adminSwitchTo}
-            className="inline-flex items-center rounded-full border border-gray-200/80 bg-gray-50/70 px-3 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700/80 dark:bg-gray-900/50 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-          >
-            {adminSwitchLabel}
-          </Link>
-        </div>
-      )}
+      <ClassificationBreakdownsSection
+        lsbItems={lsbItems}
+        morphologyItems={morphologyItems}
+        flagItems={flagItems}
+        totalClassifications={totalClassificationsForBreakdowns}
+        loading={breakdownLoading}
+        selectedPaper={selectedPaper}
+        updatedAt={classificationStatsUpdatedAt}
+      />
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ThroughputSection
+          recency={throughputRecency}
+          dailySeries={dailySeries}
+          selectedPaper={selectedPaper}
+          updatedAt={throughputUpdatedAt}
+        />
+        <TopClassifiersSection
+          topClassifiers={topClassifiers}
+          selectedPaper={selectedPaper}
+          updatedAt={topClassifiersUpdatedAt}
+        />
+      </div>
 
       <PaperCatalogSection
         availablePapers={availablePapers}
@@ -439,29 +452,16 @@ function OverviewDashboard({
         updatedAt={progressUpdatedAt}
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <ThroughputSection
-          recency={throughputRecency}
-          dailySeries={dailySeries}
-          selectedPaper={selectedPaper}
-          updatedAt={throughputUpdatedAt}
-        />
-        <TopClassifiersSection
-          topClassifiers={topClassifiers}
-          selectedPaper={selectedPaper}
-          updatedAt={topClassifiersUpdatedAt}
-        />
-      </div>
-
-      <ClassificationBreakdownsSection
-        lsbItems={lsbItems}
-        morphologyItems={morphologyItems}
-        flagItems={flagItems}
-        totalClassifications={totalClassificationsForBreakdowns}
-        loading={breakdownLoading}
-        selectedPaper={selectedPaper}
-        updatedAt={classificationStatsUpdatedAt}
-      />
+      {adminSwitchTo && adminSwitchLabel && (
+        <div className="flex justify-end pt-1">
+          <Link
+            to={adminSwitchTo}
+            className="inline-flex items-center rounded-full border border-gray-200/80 bg-gray-50/70 px-3 py-1 text-xs font-medium text-gray-500 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-700/80 dark:bg-gray-900/50 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+          >
+            {adminSwitchLabel}
+          </Link>
+        </div>
+      )}
     </div>
   );
 }
