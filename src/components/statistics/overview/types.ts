@@ -85,5 +85,35 @@ export type TargetProgressMetrics = {
 
 export type TargetProgressPayload = {
   targetProgress: TargetProgressMetrics;
+  classificationBuckets: number[];
   timestamp: number;
+};
+
+export type CachedOverviewSharedSnapshot = {
+  catalog?: {
+    availablePapers: string[];
+    paperCounts: Record<string, PaperCount>;
+  };
+  catalogUpdatedAt?: number;
+  recency?: RecencyPayload["recency"];
+  recencyUpdatedAt?: number;
+  topClassifiers?: TopClassifiersPayload["topClassifiers"];
+  topClassifiersUpdatedAt?: number;
+  classificationStats?: ClassificationStatsPayload["classificationStats"];
+  classificationStatsUpdatedAt?: number;
+  updatedAt: number;
+};
+
+export type CachedOverviewScopeSnapshot = {
+  scopeKey: string;
+  paper: string | null;
+  totals: Totals;
+  classificationBuckets: number[];
+  updatedAt: number;
+};
+
+export type CachedOverviewPayload = {
+  sharedSnapshot: CachedOverviewSharedSnapshot | null;
+  scopeSnapshot: CachedOverviewScopeSnapshot | null;
+  paperFilter: PaperFilter;
 };

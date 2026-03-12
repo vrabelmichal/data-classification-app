@@ -10,6 +10,73 @@ import {
   classificationsByVisibleNucleus,
 } from "../../galaxies/aggregates";
 
+export async function loadClassificationStats(
+  ctx: Parameters<typeof classificationsByAwesomeFlag.count>[0]
+) {
+  const [
+    awesomeFlagCount,
+    visibleNucleusCount,
+    failedFittingCount,
+    validRedshiftCount,
+    lsbClassNonLSB,
+    lsbClassLSB,
+    morphologyFeatureless,
+    morphologyIrregular,
+    morphologySpiral,
+    morphologyElliptical,
+  ] = await Promise.all([
+    classificationsByAwesomeFlag.count(ctx, {
+      bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
+    }),
+    classificationsByVisibleNucleus.count(ctx, {
+      bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
+    }),
+    classificationsByFailedFitting.count(ctx, {
+      bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
+    }),
+    classificationsByValidRedshift.count(ctx, {
+      bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
+    }),
+    classificationsByLsbClass.count(ctx, {
+      bounds: { lower: { key: 0, inclusive: true }, upper: { key: 0, inclusive: true } },
+    }),
+    classificationsByLsbClass.count(ctx, {
+      bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } },
+    }),
+    classificationsByMorphology.count(ctx, {
+      bounds: { lower: { key: -1, inclusive: true }, upper: { key: -1, inclusive: true } },
+    }),
+    classificationsByMorphology.count(ctx, {
+      bounds: { lower: { key: 0, inclusive: true }, upper: { key: 0, inclusive: true } },
+    }),
+    classificationsByMorphology.count(ctx, {
+      bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } },
+    }),
+    classificationsByMorphology.count(ctx, {
+      bounds: { lower: { key: 2, inclusive: true }, upper: { key: 2, inclusive: true } },
+    }),
+  ]);
+
+  return {
+    flags: {
+      awesome: awesomeFlagCount,
+      visibleNucleus: visibleNucleusCount,
+      failedFitting: failedFittingCount,
+      validRedshift: validRedshiftCount,
+    },
+    lsbClass: {
+      nonLSB: lsbClassNonLSB,
+      LSB: lsbClassLSB,
+    },
+    morphology: {
+      featureless: morphologyFeatureless,
+      irregular: morphologyIrregular,
+      spiral: morphologySpiral,
+      elliptical: morphologyElliptical,
+    },
+  };
+}
+
 export const get = query({
   args: {},
   returns: v.object({
@@ -35,70 +102,10 @@ export const get = query({
   }),
   handler: async (ctx) => {
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
-
-    const [
-      awesomeFlagCount,
-      visibleNucleusCount,
-      failedFittingCount,
-      validRedshiftCount,
-      lsbClassNonLSB,
-      lsbClassLSB,
-      morphologyFeatureless,
-      morphologyIrregular,
-      morphologySpiral,
-      morphologyElliptical,
-    ] = await Promise.all([
-      classificationsByAwesomeFlag.count(ctx, {
-        bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
-      }),
-      classificationsByVisibleNucleus.count(ctx, {
-        bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
-      }),
-      classificationsByFailedFitting.count(ctx, {
-        bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
-      }),
-      classificationsByValidRedshift.count(ctx, {
-        bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
-      }),
-      classificationsByLsbClass.count(ctx, {
-        bounds: { lower: { key: 0, inclusive: true }, upper: { key: 0, inclusive: true } },
-      }),
-      classificationsByLsbClass.count(ctx, {
-        bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } },
-      }),
-      classificationsByMorphology.count(ctx, {
-        bounds: { lower: { key: -1, inclusive: true }, upper: { key: -1, inclusive: true } },
-      }),
-      classificationsByMorphology.count(ctx, {
-        bounds: { lower: { key: 0, inclusive: true }, upper: { key: 0, inclusive: true } },
-      }),
-      classificationsByMorphology.count(ctx, {
-        bounds: { lower: { key: 1, inclusive: true }, upper: { key: 1, inclusive: true } },
-      }),
-      classificationsByMorphology.count(ctx, {
-        bounds: { lower: { key: 2, inclusive: true }, upper: { key: 2, inclusive: true } },
-      }),
-    ]);
+    const classificationStats = await loadClassificationStats(ctx);
 
     return {
-      classificationStats: {
-        flags: {
-          awesome: awesomeFlagCount,
-          visibleNucleus: visibleNucleusCount,
-          failedFitting: failedFittingCount,
-          validRedshift: validRedshiftCount,
-        },
-        lsbClass: {
-          nonLSB: lsbClassNonLSB,
-          LSB: lsbClassLSB,
-        },
-        morphology: {
-          featureless: morphologyFeatureless,
-          irregular: morphologyIrregular,
-          spiral: morphologySpiral,
-          elliptical: morphologyElliptical,
-        },
-      },
+      classificationStats,
       timestamp: Date.now(),
     };
   },

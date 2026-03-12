@@ -3,7 +3,7 @@ import { useQuery } from "convex/react";
 import { Routes, Route, Link, useLocation, Navigate } from "react-router";
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
-import { OverviewTab } from "./overview/OverviewTab";
+import { CachedOverviewTab, LiveOverviewTab } from "./overview/OverviewTab";
 import { cn } from "../../lib/utils";
 import { StatisticsTab } from "./StatisticsTab";
 import { UsersStatisticsTab } from "./UsersStatisticsTab";
@@ -26,13 +26,16 @@ export function Statistics() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const userProfile = useQuery(api.users.getUserProfile);
   const location = useLocation();
+  const isLiveOverview = location.pathname.startsWith("/statistics/overview-live");
   const isOverview = location.pathname.startsWith("/statistics/overview");
   const isUsersStatistics = location.pathname.startsWith("/statistics/users");
   const isAssignmentStats = location.pathname.startsWith("/statistics/assignment-stats");
   usePageTitle(
     isAssignmentStats
       ? "Assignment Statistics"
-      : isOverview
+      : isLiveOverview
+        ? "Overview Statistics (Live)"
+        : isOverview
         ? "Overview Statistics"
         : isUsersStatistics
           ? "Users Statistics"
@@ -44,11 +47,14 @@ export function Statistics() {
   const canAccessOverview = Boolean(isAdmin || allowPublicOverview);
   const canAccessUsersStatistics = Boolean(isAdmin);
   const canAccessAssignmentStats = Boolean(isAdmin);
+  const canAccessLiveOverview = Boolean(isAdmin);
   const restrictedTabRedirect = canAccessOverview ? "/statistics/overview" : "/statistics";
   const headerDescription = isAssignmentStats
     ? "Assignment coverage and sequence planning across the full dataset"
+    : isLiveOverview
+      ? "Live classification progress and performance overview"
     : canAccessOverview
-      ? "Classification progress and performance overview"
+      ? "Cached classification progress and performance overview"
       : "Your classification progress and performance";
   const tabs = [
     { id: "my-statistics", label: "My Statistics", icon: "📊", path: "/statistics" },
@@ -107,7 +113,17 @@ export function Statistics() {
         <Route index element={<StatisticsTab />} />
         <Route
           path="overview"
-          element={canAccessOverview ? <OverviewTab /> : <Navigate to="/statistics" replace />}
+          element={canAccessOverview ? <CachedOverviewTab systemSettings={systemSettings} isAdmin={isAdmin} /> : <Navigate to="/statistics" replace />}
+        />
+        <Route
+          path="overview-live"
+          element={
+            canAccessLiveOverview ? (
+              <LiveOverviewTab systemSettings={systemSettings} isAdmin={isAdmin} />
+            ) : (
+              <Navigate to={restrictedTabRedirect} replace />
+            )
+          }
         />
         <Route
           path="users"

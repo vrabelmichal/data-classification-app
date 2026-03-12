@@ -1,7 +1,43 @@
 import { CSSProperties, useEffect, useState } from "react";
+import { Link } from "react-router";
 import { cn } from "../../../lib/utils";
 import { BreakdownBar, LoadingBadge, LoadingPanel, ProgressBar, StatCard } from "./shared";
 import { PaperCount, PaperFilter, TargetProgressMetrics, Totals } from "./types";
+
+type OverviewMode = "live" | "cached";
+
+function formatTimestampBadgeLabel(timestamp: number) {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const includeYear = date.getFullYear() !== now.getFullYear();
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = String(date.getFullYear()).slice(-2);
+  const hours = date.getHours();
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return includeYear ? `${day}.${month}.${year} ${hours}:${minutes}` : `${day}.${month} ${hours}:${minutes}`;
+}
+
+function TimestampBadge({
+  timestamp,
+}: {
+  timestamp?: number | null;
+}) {
+  if (!timestamp) {
+    return null;
+  }
+
+  return (
+    <span
+      title={formatTimestampLabel(timestamp)}
+      className="inline-flex items-center gap-1 rounded-full border border-gray-200/80 bg-gray-100/70 px-2 py-0.5 text-[11px] font-medium text-gray-500 whitespace-nowrap dark:border-gray-700/80 dark:bg-gray-900/60 dark:text-gray-400"
+    >
+      <span className="h-1.5 w-1.5 rounded-full bg-current opacity-60" aria-hidden="true" />
+      {formatTimestampBadgeLabel(timestamp)}
+    </span>
+  );
+}
 
 const PAPER_COLORS = [
   "#2563eb",
@@ -115,7 +151,7 @@ function StatusPill({
   hidden = false,
 }: {
   label: string;
-  tone: "loading" | "ready" | "info";
+  tone: "loading" | "ready" | "info" | "warning" | "error";
   hidden?: boolean;
 }) {
   return (
@@ -129,12 +165,84 @@ function StatusPill({
           "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/70 dark:bg-emerald-950/20 dark:text-emerald-300",
         tone === "info" &&
           "border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-400",
+        tone === "warning" &&
+          "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800/70 dark:bg-amber-950/20 dark:text-amber-300",
+        tone === "error" &&
+          "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800/70 dark:bg-rose-950/20 dark:text-rose-300",
         hidden && "invisible"
       )}
     >
       {tone === "loading" && <span className="h-2 w-2 rounded-full bg-current animate-pulse" aria-hidden="true" />}
       {label}
     </span>
+  );
+}
+
+function formatTimestampLabel(timestamp: number | null | undefined) {
+  if (!timestamp) {
+    return "Not available yet";
+  }
+
+  return new Date(timestamp).toLocaleString();
+}
+
+export function OverviewStatusSection({
+  title,
+  description,
+  badges,
+  timestamps,
+  adminSwitchTo,
+  adminSwitchLabel,
+}: {
+  title: string;
+  description: string;
+  badges: Array<{
+    label: string;
+    tone: "loading" | "ready" | "info" | "warning" | "error";
+  }>;
+  timestamps: Array<{ label: string; timestamp: number | null | undefined }>;
+  adminSwitchTo?: string;
+  adminSwitchLabel?: string;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
+            {badges.map((badge) => (
+              <StatusPill key={`${badge.label}-${badge.tone}`} label={badge.label} tone={badge.tone} />
+            ))}
+          </div>
+          <p className="max-w-3xl text-sm text-gray-600 dark:text-gray-300">{description}</p>
+        </div>
+
+        {adminSwitchTo && adminSwitchLabel && (
+          <Link
+            to={adminSwitchTo}
+            className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-blue-300 hover:text-blue-700 dark:border-gray-600 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
+          >
+            {adminSwitchLabel}
+          </Link>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {timestamps.map((item) => (
+          <div
+            key={item.label}
+            className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/50"
+          >
+            <div className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              {item.label}
+            </div>
+            <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+              {formatTimestampLabel(item.timestamp)}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -249,11 +357,13 @@ function ProgressDetail({
   value,
   loading = false,
   helper,
+  loadingLabel,
 }: {
   title: string;
   value: string;
   loading?: boolean;
   helper?: string;
+  loadingLabel?: string;
 }) {
   return (
     <div
@@ -265,7 +375,7 @@ function ProgressDetail({
       <div className="font-medium text-gray-900 dark:text-white">{title}</div>
       <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
         <span className={cn(loading && "text-blue-700 dark:text-blue-200")}>{value}</span>
-        {loading && <LoadingBadge label="Counting" className="px-2 py-1 text-[11px]" />}
+        {loading && <LoadingBadge label={loadingLabel ?? "Counting"} className="px-2 py-1 text-[11px]" />}
       </div>
       <div
         aria-hidden={!helper || undefined}
@@ -400,6 +510,8 @@ export function PaperCatalogSection({
   onSelectPaper,
   isLoading = false,
   isPaperStatsLoading = false,
+  mode = "live",
+  updatedAt,
 }: {
   availablePapers: string[];
   paperCounts: Record<string, PaperCount>;
@@ -408,6 +520,8 @@ export function PaperCatalogSection({
   onSelectPaper: (paper: string | undefined) => void;
   isLoading?: boolean;
   isPaperStatsLoading?: boolean;
+  mode?: OverviewMode;
+  updatedAt?: number | null;
 }) {
   const paperKeys = Array.from(
     new Set(
@@ -452,8 +566,11 @@ export function PaperCatalogSection({
   const catalogStatusText = selectedPaper === undefined
     ? "Select a paper card below to filter the paper-scoped overview metrics."
     : isPaperStatsLoading
-      ? "Paper-specific classification totals are updating live."
+      ? mode === "cached"
+        ? "Paper-specific cached snapshot is loading."
+        : "Paper-specific classification totals are updating live."
       : "Paper filter is applied to the paper-scoped overview metrics.";
+  const loadingStatusLabel = mode === "cached" ? "Loading snapshot" : "Live count";
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -462,21 +579,26 @@ export function PaperCatalogSection({
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">Galaxy catalog by paper</h3>
             {selectedPaper !== undefined && <FilteredBadge paper={selectedPaper} />}
+            <TimestampBadge timestamp={updatedAt} />
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            One stacked bar shows each paper&apos;s share of the full catalog. Use the cards below to filter the rest of the overview.
+            {mode === "cached"
+              ? "One stacked bar shows each paper's share of the full catalog. Use the cards below to filter the rest of the overview. Timestamps on each panel show when that section's cached snapshot was last refreshed."
+              : "One stacked bar shows each paper's share of the full catalog. Use the cards below to filter the rest of the overview."}
           </p>
         </div>
 
-        {selectedPaper !== undefined && (
-          <button
-            type="button"
-            onClick={() => onSelectPaper(undefined)}
-            className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-blue-300 hover:text-blue-700 dark:border-gray-600 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
-          >
-            Clear filter
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {selectedPaper !== undefined && (
+            <button
+              type="button"
+              onClick={() => onSelectPaper(undefined)}
+              className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-blue-300 hover:text-blue-700 dark:border-gray-600 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
+            >
+              Clear filter
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4 dark:border-gray-700 dark:bg-gray-900/40">
@@ -543,7 +665,7 @@ export function PaperCatalogSection({
             </span>
           </div>
           <StatusPill
-            label={selectedPaper === undefined ? "Browse" : isPaperStatsLoading ? "Live count" : "Ready"}
+            label={selectedPaper === undefined ? "Browse" : isPaperStatsLoading ? loadingStatusLabel : "Ready"}
             tone={selectedPaper === undefined ? "info" : isPaperStatsLoading ? "loading" : "ready"}
           />
         </div>
@@ -582,22 +704,29 @@ export function SummaryCardsSection({
   totals,
   selectedPaper,
   isPaperStatsLoading = false,
+  mode = "live",
+  updatedAt,
 }: {
   totals?: Totals;
   selectedPaper: string | undefined;
   isPaperStatsLoading?: boolean;
+  mode?: OverviewMode;
+  updatedAt?: number | null;
 }) {
   if (!totals) return <LoadingPanel>Loading summary statistics…</LoadingPanel>;
 
   const isCountingSelectedPaper = selectedPaper !== undefined && isPaperStatsLoading;
+  const loadingStatusLabel = mode === "cached" ? "Loading snapshot" : "Live count";
+  const statLoadingLabel = mode === "cached" ? "Loading" : "Counting";
 
   return (
     <div className="space-y-3">
       <div className="flex min-h-[1.75rem] flex-wrap items-center gap-2">
         <span className="text-xs text-gray-500 dark:text-gray-400">Showing stats for</span>
         {selectedPaper !== undefined ? <FilteredBadge paper={selectedPaper} /> : <GlobalBadge />}
+        <TimestampBadge timestamp={updatedAt} />
         {selectedPaper !== undefined && (
-          <StatusPill label={isCountingSelectedPaper ? "Live count" : "Ready"} tone={isCountingSelectedPaper ? "loading" : "ready"} />
+          <StatusPill label={isCountingSelectedPaper ? loadingStatusLabel : "Ready"} tone={isCountingSelectedPaper ? "loading" : "ready"} />
         )}
       </div>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -605,24 +734,44 @@ export function SummaryCardsSection({
           label="Galaxies"
           value={totals.galaxies.toLocaleString()}
           helper={selectedPaper !== undefined ? "Galaxies in the selected paper" : "Total in catalog"}
+          loadingLabel={statLoadingLabel}
+          reserveLoadingLayout
         />
         <StatCard
           label="Classified"
           value={totals.classifiedGalaxies.toLocaleString()}
-          helper={isCountingSelectedPaper ? "Counted so far for this paper" : "Have at least one label"}
+          helper={isCountingSelectedPaper
+            ? mode === "cached"
+              ? "Waiting for the selected paper snapshot"
+              : "Counted so far for this paper"
+            : "Have at least one label"}
           isLoading={isCountingSelectedPaper}
+          loadingLabel={statLoadingLabel}
+          reserveLoadingLayout
         />
         <StatCard
           label="Unclassified"
           value={totals.unclassifiedGalaxies.toLocaleString()}
-          helper={isCountingSelectedPaper ? "Derived while the classified count is still updating" : "Still waiting"}
+          helper={isCountingSelectedPaper
+            ? mode === "cached"
+              ? "Will update when the selected paper snapshot loads"
+              : "Derived while the classified count is still updating"
+            : "Still waiting"}
           isLoading={isCountingSelectedPaper}
+          loadingLabel={statLoadingLabel}
+          reserveLoadingLayout
         />
         <StatCard
           label="Completion"
           value={`${totals.progress.toFixed(1)}%`}
-          helper={isCountingSelectedPaper ? "Will settle when counting finishes" : "Overall progress"}
+          helper={isCountingSelectedPaper
+            ? mode === "cached"
+              ? "Will update when the selected paper snapshot loads"
+              : "Will settle when counting finishes"
+            : "Overall progress"}
           isLoading={isCountingSelectedPaper}
+          loadingLabel={statLoadingLabel}
+          reserveLoadingLayout
         />
       </div>
     </div>
@@ -637,6 +786,8 @@ export function ProgressSection({
   activeClassifiers,
   selectedPaper,
   isPaperStatsLoading = false,
+  mode = "live",
+  updatedAt,
 }: {
   totals?: Totals;
   targetProgress?: TargetProgressMetrics;
@@ -645,6 +796,8 @@ export function ProgressSection({
   activeClassifiers?: number;
   selectedPaper: string | undefined;
   isPaperStatsLoading?: boolean;
+  mode?: OverviewMode;
+  updatedAt?: number | null;
 }) {
   const avgPerActive = totals && activeClassifiers && activeClassifiers > 0
     ? totals.totalClassifications / activeClassifiers
@@ -672,8 +825,12 @@ export function ProgressSection({
       ? "Loading catalog progress against the repeat-classification target."
       : `Showing how many galaxies have reached ${targetClassifications} classifications, plus the raw label volume collected.`
     : isCountingSelectedPaper
-      ? `Paper-specific target attainment and label volume are updating live.`
+      ? mode === "cached"
+        ? "Paper-specific target attainment and label volume are loading from the cached snapshot."
+        : "Paper-specific target attainment and label volume are updating live."
       : `Paper-specific target attainment and label volume are up to date.`;
+  const loadingStatusLabel = mode === "cached" ? "Loading snapshot" : "Live count";
+  const detailLoadingLabel = mode === "cached" ? "Loading" : "Counting";
 
   return (
     <div
@@ -689,6 +846,7 @@ export function ProgressSection({
           <div className="flex flex-wrap items-center gap-2">
             <div className="text-sm text-gray-500 dark:text-gray-400">Target progress</div>
             {selectedPaper !== undefined ? <FilteredBadge paper={selectedPaper} /> : <GlobalBadge />}
+            <TimestampBadge timestamp={updatedAt} />
           </div>
           <div
             className={cn(
@@ -749,6 +907,7 @@ export function ProgressSection({
           title="Label volume"
           value={labelVolumeSummary}
           loading={isTargetProgressLoading}
+          loadingLabel={detailLoadingLabel}
           helper={targetProgress
             ? "Counts every classification, so repeats on already-covered galaxies also contribute."
             : undefined}
@@ -757,12 +916,18 @@ export function ProgressSection({
           title="Per galaxy"
           value={totals ? `${totals.avgClassificationsPerGalaxy.toFixed(2)} avg classifications/galaxy` : "Loading…"}
           loading={isCountingSelectedPaper}
-          helper={isCountingSelectedPaper ? "This ratio updates as the paper scan completes." : undefined}
+          loadingLabel={detailLoadingLabel}
+          helper={isCountingSelectedPaper
+            ? mode === "cached"
+              ? "This ratio updates when the selected paper snapshot loads."
+              : "This ratio updates as the paper scan completes."
+            : undefined}
         />
         <ProgressDetail
           title="Repeat labels"
           value={targetProgress ? `${targetProgress.repeatClassifications.toLocaleString()} extra classifications` : "Loading…"}
           loading={isTargetProgressLoading}
+          loadingLabel={detailLoadingLabel}
           helper={targetProgress
             ? `${targetProgress.galaxiesWithMultipleClassifications.toLocaleString()} galaxies have 2+ classifications`
             : undefined}
@@ -771,6 +936,7 @@ export function ProgressSection({
           title="Remaining to target"
           value={targetProgress ? `${targetProgress.remainingClassificationsToTarget.toLocaleString()} classifications` : "Loading…"}
           loading={isTargetProgressLoading}
+          loadingLabel={detailLoadingLabel}
           helper={targetProgress
             ? `${targetProgress.galaxiesBelowTarget.toLocaleString()} galaxies are still below ${targetClassifications}x`
             : undefined}
@@ -784,7 +950,12 @@ export function ProgressSection({
           title="Avg per active user"
           value={totals && activeClassifiers !== undefined ? `${avgPerActive.toFixed(2)} classifications` : "Loading…"}
           loading={isCountingSelectedPaper}
-          helper={isCountingSelectedPaper ? "Uses the selected paper's running classification total." : undefined}
+          loadingLabel={detailLoadingLabel}
+          helper={isCountingSelectedPaper
+            ? mode === "cached"
+              ? "Uses the selected paper snapshot once it finishes loading."
+              : "Uses the selected paper's running classification total."
+            : undefined}
         />
       </div>
 
@@ -814,7 +985,7 @@ export function ProgressSection({
           </span>
         </div>
         <StatusPill
-          label={selectedPaper === undefined ? isGlobalTargetLoading ? "Calculating" : "Catalog" : isCountingSelectedPaper ? "Live count" : "Ready"}
+          label={selectedPaper === undefined ? isGlobalTargetLoading ? "Calculating" : "Catalog" : isCountingSelectedPaper ? loadingStatusLabel : "Ready"}
           tone={selectedPaper === undefined ? isGlobalTargetLoading ? "loading" : "info" : isCountingSelectedPaper ? "loading" : "ready"}
         />
       </div>
@@ -826,10 +997,12 @@ export function ThroughputSection({
   recency,
   dailySeries,
   selectedPaper,
+  updatedAt,
 }: {
   recency?: { classificationsLast24h: number; classificationsLast7d: number };
   dailySeries: Array<{ label: string; count: number }>;
   selectedPaper: string | undefined;
+  updatedAt?: number | null;
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -838,6 +1011,7 @@ export function ThroughputSection({
           <div className="flex items-center gap-2">
             <div className="text-sm text-gray-500 dark:text-gray-400">Recent throughput</div>
             {selectedPaper !== undefined && <GlobalBadge />}
+            <TimestampBadge timestamp={updatedAt} />
           </div>
           <div className="text-xl font-semibold text-gray-900 dark:text-white">
             {recency
@@ -865,6 +1039,7 @@ export function ThroughputSection({
 export function TopClassifiersSection({
   topClassifiers,
   selectedPaper,
+  updatedAt,
 }: {
   topClassifiers:
     | Array<{
@@ -876,6 +1051,7 @@ export function TopClassifiersSection({
       }>
     | undefined;
   selectedPaper: string | undefined;
+  updatedAt?: number | null;
 }) {
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -884,6 +1060,7 @@ export function TopClassifiersSection({
           <div className="flex items-center gap-2">
             <div className="text-sm text-gray-500 dark:text-gray-400">Top classifiers</div>
             {selectedPaper !== undefined && <GlobalBadge />}
+            <TimestampBadge timestamp={updatedAt} />
           </div>
           <div className="text-xl font-semibold text-gray-900 dark:text-white">Most cumulative labels</div>
         </div>
@@ -921,6 +1098,7 @@ export function ClassificationBreakdownsSection({
   totalClassifications,
   loading,
   selectedPaper,
+  updatedAt,
 }: {
   lsbItems: Array<{ label: string; value: number; color: string; icon: string }>;
   morphologyItems: Array<{ label: string; value: number; color: string; icon: string }>;
@@ -928,6 +1106,7 @@ export function ClassificationBreakdownsSection({
   totalClassifications: number;
   loading: boolean;
   selectedPaper: string | undefined;
+  updatedAt?: number | null;
 }) {
   return (
     <>
@@ -943,6 +1122,7 @@ export function ClassificationBreakdownsSection({
             <div className="mb-4 flex items-center gap-2">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">LSB Classification</h3>
               {selectedPaper !== undefined && <GlobalBadge />}
+              <TimestampBadge timestamp={updatedAt} />
             </div>
             <BreakdownBar items={lsbItems} total={totalClassifications} />
             {totalClassifications === 0 && (
@@ -956,6 +1136,7 @@ export function ClassificationBreakdownsSection({
             <div className="mb-4 flex items-center gap-2">
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Morphology Classification</h3>
               {selectedPaper !== undefined && <GlobalBadge />}
+              <TimestampBadge timestamp={updatedAt} />
             </div>
             <BreakdownBar items={morphologyItems} total={totalClassifications} />
             {totalClassifications === 0 && (
@@ -970,6 +1151,7 @@ export function ClassificationBreakdownsSection({
           <div className="mb-2 flex items-center gap-2">
             <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Classification Flags</h3>
             {selectedPaper !== undefined && <GlobalBadge />}
+            <TimestampBadge timestamp={updatedAt} />
           </div>
           <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
             Count of classifications where each flag was marked true

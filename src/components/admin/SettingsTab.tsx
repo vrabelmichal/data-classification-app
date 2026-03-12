@@ -206,10 +206,10 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         <label className="flex items-center justify-between">
           <div>
             <span className="text-sm font-medium text-gray-900 dark:text-white">
-              Make Overview visible to everyone
+              Make cached overview visible to confirmed users
             </span>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              When enabled, all authenticated users can open the labeling overview page. Otherwise only admins can access it.
+              When enabled, confirmed non-admin users can open the cached overview page at /statistics/overview. The live overview stays admin-only at /statistics/overview-live.
             </p>
           </div>
           <input

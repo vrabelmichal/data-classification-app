@@ -1,6 +1,13 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { authTables } from "@convex-dev/auth/server";
+import {
+  classificationStatsValidator,
+  overviewCatalogValidator,
+  topClassifierValidator,
+  totalsValidator,
+  recencyStatsValidator,
+} from "./statistics/labelingOverview/cacheValidators";
 
 
 // Core galaxy schema (after splitting large nested photometry & thuruthipilly tables)
@@ -449,6 +456,29 @@ const applicationTables = {
     .index("by_run", ["runId"])
     .index("by_run_image", ["runId", "imageKey"])
     .index("by_run_image_batch", ["runId", "imageKey", "batchNumber"]),
+
+  // Cached overview sections shared across all overview modes/papers.
+  overviewSharedSnapshots: defineTable({
+    key: v.string(),
+    catalog: v.optional(overviewCatalogValidator),
+    catalogUpdatedAt: v.optional(v.number()),
+    recency: v.optional(recencyStatsValidator),
+    recencyUpdatedAt: v.optional(v.number()),
+    topClassifiers: v.optional(v.array(topClassifierValidator)),
+    topClassifiersUpdatedAt: v.optional(v.number()),
+    classificationStats: v.optional(classificationStatsValidator),
+    classificationStatsUpdatedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
+
+  // Cached overview scope snapshots for the full catalog and individual papers.
+  overviewScopeSnapshots: defineTable({
+    scopeKey: v.string(),
+    paper: v.union(v.string(), v.null()),
+    totals: totalsValidator,
+    classificationBuckets: v.array(v.number()),
+    updatedAt: v.number(),
+  }).index("by_scope_key", ["scopeKey"]),
 
   // Notifications - messages sent from admins to users
   notifications: defineTable({

@@ -1,7 +1,23 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireAdmin } from "./lib/auth";
 import { DEFAULT_SYSTEM_SETTINGS } from "./lib/defaults";
+
+type SettingsContext = QueryCtx | MutationCtx;
+
+export async function loadMergedSystemSettings(ctx: SettingsContext) {
+  const settings = await ctx.db.query("systemSettings").collect();
+
+  const settingsMap = settings.reduce((acc, setting) => {
+    acc[setting.key as keyof typeof DEFAULT_SYSTEM_SETTINGS] = setting.value;
+    return acc;
+  }, {} as Partial<typeof DEFAULT_SYSTEM_SETTINGS>);
+
+  return {
+    ...DEFAULT_SYSTEM_SETTINGS,
+    ...settingsMap,
+  } as typeof DEFAULT_SYSTEM_SETTINGS;
+}
 
 
 // Admin: Get system settings
@@ -10,18 +26,7 @@ export const getSystemSettings = query({
   handler: async (ctx) => {
     await requireAdmin(ctx);
 
-    const settings = await ctx.db.query("systemSettings").collect();
-
-    const settingsMap = settings.reduce((acc, setting) => {
-      acc[setting.key as keyof typeof DEFAULT_SYSTEM_SETTINGS] = setting.value;
-      return acc;
-    }, {} as Partial<typeof DEFAULT_SYSTEM_SETTINGS>);
-
-    const mergedSettings: typeof DEFAULT_SYSTEM_SETTINGS = {
-      ...DEFAULT_SYSTEM_SETTINGS,
-      ...settingsMap,
-    };
-    return mergedSettings;
+    return await loadMergedSystemSettings(ctx);
   },
 });
 
@@ -46,17 +51,7 @@ export const getPublicSystemSettings = query({
     overviewDefaultPaper: v.union(v.string(), v.null()),
   }),
   handler: async (ctx) => {
-    const settings = await ctx.db.query("systemSettings").collect();
-
-    const settingsMap = settings.reduce((acc, setting) => {
-      acc[setting.key as keyof typeof DEFAULT_SYSTEM_SETTINGS] = setting.value;
-      return acc;
-    }, {} as Partial<typeof DEFAULT_SYSTEM_SETTINGS>);
-
-    const mergedSettings: typeof DEFAULT_SYSTEM_SETTINGS = {
-      ...DEFAULT_SYSTEM_SETTINGS,
-      ...settingsMap,
-    };
+    const mergedSettings = await loadMergedSystemSettings(ctx);
 
     // Return only the whitelisted subset with explicit fields so TypeScript
     // preserves the narrow per-key types required by the `returns` validator.

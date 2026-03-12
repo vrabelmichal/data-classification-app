@@ -33,13 +33,17 @@ export function StatCard({
   helper,
   isLoading = false,
   loadingLabel,
+  reserveLoadingLayout = false,
 }: {
   label: string;
   value: string;
   helper?: string;
   isLoading?: boolean;
   loadingLabel?: string;
+  reserveLoadingLayout?: boolean;
 }) {
+  const effectiveLoadingLabel = loadingLabel ?? "Counting";
+
   return (
     <div
       className={cn(
@@ -49,9 +53,19 @@ export function StatCard({
           : "border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800"
       )}
     >
-      <div className="flex items-start justify-between gap-3">
+      <div
+        className={cn(
+          "flex items-start justify-between gap-3",
+          reserveLoadingLayout && "min-h-[1.75rem]"
+        )}
+      >
         <div className="text-sm text-gray-500 dark:text-gray-400">{label}</div>
-        {isLoading && <LoadingBadge label={loadingLabel ?? undefined} className="shrink-0" />}
+        {(isLoading || reserveLoadingLayout) && (
+          <LoadingBadge
+            label={effectiveLoadingLabel}
+            className={cn("shrink-0", !isLoading && "invisible")}
+          />
+        )}
       </div>
       <div
         className={cn(
@@ -65,6 +79,7 @@ export function StatCard({
         <div
           className={cn(
             "mt-1 text-xs text-gray-500 dark:text-gray-400",
+            reserveLoadingLayout && "min-h-[2rem] leading-4",
             isLoading && "text-blue-700/80 dark:text-blue-200/80"
           )}
         >
