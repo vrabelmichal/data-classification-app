@@ -13,7 +13,14 @@ function resolveFinalImageOptions(
   const settings = loadImageDisplaySettings();
   let forcedQuality: ImageQuality | undefined;
 
-  for (const group of settings.classification.contrastGroups) {
+  // Guard against undefined classification or contrastGroups
+  const contrastGroups = settings.classification?.contrastGroups;
+  if (!contrastGroups || contrastGroups.length === 0) {
+    const finalOpts = { ...opts };
+    return finalOpts;
+  }
+
+  for (const group of contrastGroups) {
     const entry = group.find((e) => e.key === name || e.key_masked === name);
     if (entry?.forcedQuality) {
       forcedQuality = entry.forcedQuality;
