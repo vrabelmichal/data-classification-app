@@ -1025,14 +1025,6 @@ export function ClassificationInterface() {
   // Render mobile or desktop layout
   const renderMobileLayout = () => (
     <div className="block space-y-4">
-      {/* Blacklisted banner */}
-      {isBlacklisted === true && (
-        <div className="flex items-center gap-2 rounded-lg border border-red-300 dark:border-red-700 bg-red-50 dark:bg-red-900/20 px-3 py-2">
-          <span className="text-red-600 dark:text-red-400 text-lg leading-none">🚫</span>
-          <span className="text-sm font-semibold text-red-700 dark:text-red-400">Blacklisted</span>
-          <span className="text-sm text-red-600 dark:text-red-400">— This galaxy has been blacklisted and will not appear in classification sequences.</span>
-        </div>
-      )}
       {/* 1. Image Slider with overlay controls */}
       <MobileImageSlider
         imageTypes={mobileImageTypes}
@@ -1040,6 +1032,7 @@ export function ClassificationInterface() {
         userPrefs={userPrefs}
         contrast={contrast}
         shouldShowEllipse={shouldShowEllipseFunc}
+        isBlacklisted={isBlacklisted === true}
         currentIndex={mobileSliderIndex}
         onIndexChange={setMobileSliderIndex}
         renderControls={(controls: MobileImageSliderControlsRenderProps) => (

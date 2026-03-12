@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, useLayoutEffect, type ReactNode } from "react";
+import { cn } from "../../lib/utils";
 import { ImageViewer } from "./ImageViewer";
 import { SMALL_IMAGE_DEFAULT_ZOOM } from "./GalaxyImages";
 import type { ImageType, GalaxyData, UserPreferences } from "./types";
@@ -17,6 +18,7 @@ interface MobileImageSliderProps {
   userPrefs: UserPreferences | null | undefined;
   contrast: number;
   shouldShowEllipse: (showEllipse: boolean | undefined) => boolean;
+  isBlacklisted?: boolean;
   currentIndex: number;
   onIndexChange: (index: number) => void;
   /** Optional controls to render as an overlay at the bottom of the image */
@@ -29,6 +31,7 @@ export function MobileImageSlider({
   userPrefs,
   contrast,
   shouldShowEllipse,
+  isBlacklisted = false,
   currentIndex,
   onIndexChange,
   renderControls,
@@ -41,6 +44,8 @@ export function MobileImageSlider({
   const [isAnimating, setIsAnimating] = useState(false);
   const [trackIndex, setTrackIndex] = useState(() => (imageTypes.length > 1 ? currentIndex + 1 : 0));
   const [loopResetTrackIndex, setLoopResetTrackIndex] = useState<number | null>(null);
+  const [showBlacklistedInfo, setShowBlacklistedInfo] = useState(false);
+  const [isBlacklistedInfoPinned, setIsBlacklistedInfoPinned] = useState(false);
 
   const hasMultipleImages = imageTypes.length > 1;
   const pendingInternalIndexRef = useRef<number | null>(null);
@@ -256,6 +261,11 @@ export function MobileImageSlider({
     syncTrackToCurrentIndex();
   }, [currentIndex, imageTypes.length, syncTrackToCurrentIndex]);
 
+  useEffect(() => {
+    setShowBlacklistedInfo(false);
+    setIsBlacklistedInfoPinned(false);
+  }, [displayGalaxy.id]);
+
   const handleTrackTransitionEnd = useCallback((e: React.TransitionEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget || e.propertyName !== "transform") {
       return;
@@ -278,19 +288,91 @@ export function MobileImageSlider({
   const parenMatch = imageName.match(/^(.+?)(\s*\([^)]+\))$/);
   const mainName = parenMatch ? parenMatch[1] : imageName;
   const parenPart = parenMatch ? parenMatch[2] : '';
+  const isBlacklistedInfoVisible = showBlacklistedInfo || isBlacklistedInfoPinned;
 
   return (
-    <div className="relative overflow-hidden bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 max-w-[400px] mx-auto">
+    <div
+      className={cn(
+        "relative overflow-hidden rounded-lg shadow-sm border max-w-[400px] mx-auto",
+        isBlacklisted
+          ? "bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800"
+          : "bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+      )}
+    >
       {/* Header: Image title on left, position indicator on right - single line */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-gray-200 dark:border-gray-700 min-h-0">
+      <div
+        className={cn(
+          "relative flex items-center gap-2 px-3 py-3 border-b min-h-0",
+          isBlacklisted
+            ? "border-red-200 dark:border-red-800"
+            : "border-gray-200 dark:border-gray-700"
+        )}
+      >
         {/* Image name - single line with ellipsis overflow, parenthetical text smaller */}
-        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate min-w-0 flex-1 mr-2 leading-tight">
+        <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate min-w-0 flex-1 leading-tight">
           {mainName}
           {parenPart && <span className="text-xs font-normal text-gray-500 dark:text-gray-400">{parenPart}</span>}
         </h3>
-        
-        {/* Position indicator with dots */}
-        <div className="flex items-center gap-1 flex-shrink-0">
+
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {isBlacklisted && (
+            <div
+              className="relative"
+              onMouseEnter={() => setShowBlacklistedInfo(true)}
+              onMouseLeave={() => {
+                if (!isBlacklistedInfoPinned) {
+                  setShowBlacklistedInfo(false);
+                }
+              }}
+            >
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setShowBlacklistedInfo(true);
+                  setIsBlacklistedInfoPinned(true);
+                }}
+                onFocus={() => setShowBlacklistedInfo(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-700 transition-colors hover:bg-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 dark:border-red-700 dark:bg-red-900/50 dark:text-red-200 dark:hover:bg-red-900/70"
+                aria-label="Show blacklisted galaxy details"
+                aria-expanded={isBlacklistedInfoVisible}
+              >
+                <span className="h-1.5 w-1.5 rounded-full bg-red-500 dark:bg-red-300" aria-hidden="true" />
+                <span>BL</span>
+              </button>
+
+              {isBlacklistedInfoVisible && (
+                <div
+                  className="absolute right-0 top-full z-20 mt-2 w-56 max-w-[calc(100vw-3rem)] rounded-lg border border-red-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-red-800 dark:bg-gray-900/95"
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold text-red-700 dark:text-red-300">Blacklisted galaxy</div>
+                      <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">
+                        This galaxy has been blacklisted and will not appear in classification sequences.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setShowBlacklistedInfo(false);
+                        setIsBlacklistedInfoPinned(false);
+                      }}
+                      className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-red-200 text-sm font-semibold text-red-700 transition-colors hover:bg-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 dark:border-red-700 dark:text-red-200 dark:hover:bg-red-900/40"
+                      aria-label="Close blacklisted galaxy details"
+                    >
+                      X
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Position indicator with dots */}
+          <div className="flex items-center gap-1">
           {imageTypes.map((_, idx) => (
             <button
               key={idx}
@@ -303,13 +385,17 @@ export function MobileImageSlider({
               aria-label={`Go to image ${idx + 1}`}
             />
           ))}
+          </div>
         </div>
       </div>
 
       {/* Slider container */}
       <div
         ref={containerRef}
-        className="relative touch-pan-y"
+        className={cn(
+          "relative touch-pan-y",
+          isBlacklisted && "bg-red-50/60 dark:bg-red-900/10"
+        )}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
