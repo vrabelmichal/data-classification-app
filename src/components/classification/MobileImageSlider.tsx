@@ -333,6 +333,11 @@ export function MobileImageSlider({
                   setIsBlacklistedInfoPinned(true);
                 }}
                 onFocus={() => setShowBlacklistedInfo(true)}
+                onBlur={() => {
+                  if (!isBlacklistedInfoPinned) {
+                    setShowBlacklistedInfo(false);
+                  }
+                }}
                 className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-100 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-red-700 transition-colors hover:bg-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/60 dark:border-red-700 dark:bg-red-900/50 dark:text-red-200 dark:hover:bg-red-900/70"
                 aria-label="Show blacklisted galaxy details"
                 aria-expanded={isBlacklistedInfoVisible}
