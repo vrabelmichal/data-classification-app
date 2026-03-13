@@ -17,6 +17,7 @@ export async function loadClassificationStats(
     awesomeFlagCount,
     visibleNucleusCount,
     failedFittingCount,
+    lsbClassLegacyCount,
     validRedshiftCount,
     lsbClassNonLSB,
     lsbClassLSB,
@@ -33,6 +34,9 @@ export async function loadClassificationStats(
     }),
     classificationsByFailedFitting.count(ctx, {
       bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
+    }),
+    classificationsByLsbClass.count(ctx, {
+      bounds: { lower: { key: -1, inclusive: true }, upper: { key: -1, inclusive: true } },
     }),
     classificationsByValidRedshift.count(ctx, {
       bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
@@ -65,7 +69,7 @@ export async function loadClassificationStats(
       validRedshift: validRedshiftCount,
     },
     lsbClass: {
-      nonLSB: lsbClassNonLSB,
+      nonLSB: lsbClassLegacyCount + lsbClassNonLSB,
       LSB: lsbClassLSB,
     },
     morphology: {

@@ -187,10 +187,8 @@ export function BreakdownBar({
 
 export function CompositionBreakdown({
   items,
-  totalLabel,
 }: {
   items: Array<{ label: string; value: number; color: string; icon: string }>;
-  totalLabel: string;
 }) {
   const total = items.reduce((sum, item) => sum + item.value, 0);
 
@@ -212,14 +210,6 @@ export function CompositionBreakdown({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-2xl font-semibold text-gray-900 dark:text-white">{total.toLocaleString()}</div>
-          <div className="text-xs text-gray-500 dark:text-gray-400">{totalLabel}</div>
-        </div>
-        <div className="text-xs font-medium text-gray-500 dark:text-gray-400">Adds up to 100%</div>
-      </div>
-
       <div className="overflow-hidden rounded-full border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-900/60">
         <div className="flex h-4 w-full">
           {items.map((item) => {

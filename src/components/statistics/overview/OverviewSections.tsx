@@ -186,6 +186,14 @@ function formatTimestampLabel(timestamp: number | null | undefined) {
   return new Date(timestamp).toLocaleString();
 }
 
+function formatLastActiveSummary(timestamp: number | undefined) {
+  if (timestamp === undefined) {
+    return "Last active n/a";
+  }
+
+  return `Last active ${formatTimestampBadgeLabel(timestamp)}`;
+}
+
 export function OverviewStatusSection({
   title,
   description,
@@ -1004,33 +1012,77 @@ export function ThroughputSection({
   selectedPaper: string | undefined;
   updatedAt?: number | null;
 }) {
+  const maxDailyCount = dailySeries.reduce((max, day) => Math.max(max, day.count), 0);
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="mb-4 flex items-center justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">Recent throughput</div>
-            {selectedPaper !== undefined && <GlobalBadge />}
-            <TimestampBadge timestamp={updatedAt} />
-          </div>
-          <div className="text-xl font-semibold text-gray-900 dark:text-white">
-            {recency
-              ? `${recency.classificationsLast24h.toLocaleString()} past 24h • ${recency.classificationsLast7d.toLocaleString()} past 7d`
-              : "Loading recent throughput…"}
-          </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-sm text-gray-500 dark:text-gray-400">Recent throughput</div>
+          {selectedPaper !== undefined && <GlobalBadge />}
+          <TimestampBadge timestamp={updatedAt} />
+        </div>
+        <div className="mt-3 text-xl font-semibold text-gray-900 dark:text-white">
+          {recency ? "Labels collected over the last 24h and 7d" : "Loading recent throughput…"}
         </div>
       </div>
+
       {recency ? (
-        <div className="space-y-2">
-          {dailySeries.map((day) => (
-            <div key={day.label} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-200">
-              <span className="text-gray-500 dark:text-gray-400">{day.label}</span>
-              <span className="font-medium">{day.count.toLocaleString()}</span>
+        <div className="mt-4 space-y-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="rounded-2xl border border-cyan-100 bg-cyan-50/70 px-4 py-3 shadow-sm dark:border-cyan-900/60 dark:bg-cyan-950/15">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-cyan-700 dark:text-cyan-300">
+                Past 24h
+              </div>
+              <div className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+                {recency.classificationsLast24h.toLocaleString()}
+              </div>
             </div>
-          ))}
+
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3 shadow-sm dark:border-blue-900/60 dark:bg-blue-950/15">
+              <div className="text-[11px] font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">
+                Past 7d
+              </div>
+              <div className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
+                {recency.classificationsLast7d.toLocaleString()}
+              </div>
+            </div>
+          </div>
+
+          {dailySeries.length > 0 ? (
+            <div className="rounded-2xl border border-gray-200 bg-gray-50/80 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/40">
+              <div className="mb-3 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Daily activity
+              </div>
+              <div className="space-y-3">
+                {dailySeries.map((day) => {
+                  const barPercent = maxDailyCount > 0 ? (day.count / maxDailyCount) * 100 : 0;
+
+                  return (
+                    <div key={day.label} className="grid grid-cols-[4.75rem_minmax(0,1fr)_auto] items-center gap-3">
+                      <span className="text-xs text-gray-500 dark:text-gray-400">{day.label}</span>
+                      <div className="h-2 rounded-full bg-gray-200 dark:bg-gray-800">
+                        <div
+                          className="h-2 rounded-full bg-gradient-to-r from-cyan-500 to-blue-500"
+                          style={{ width: `${barPercent}%` }}
+                        />
+                      </div>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        {day.count.toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-gray-200 bg-gray-50/80 px-4 py-3 text-sm text-gray-500 shadow-sm dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
+              Daily activity series is not available yet.
+            </div>
+          )}
         </div>
       ) : (
-        <div className="text-sm text-gray-500 dark:text-gray-400">Loading daily activity…</div>
+        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">Loading daily activity…</div>
       )}
     </div>
   );
@@ -1053,39 +1105,90 @@ export function TopClassifiersSection({
   selectedPaper: string | undefined;
   updatedAt?: number | null;
 }) {
+  const leader = topClassifiers?.[0];
+  const remainingTopClassifiers = topClassifiers?.slice(1) ?? [];
+
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <div className="text-sm text-gray-500 dark:text-gray-400">Top classifiers</div>
-            {selectedPaper !== undefined && <GlobalBadge />}
-            <TimestampBadge timestamp={updatedAt} />
-          </div>
-          <div className="text-xl font-semibold text-gray-900 dark:text-white">Most cumulative labels</div>
+      <div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="text-sm text-gray-500 dark:text-gray-400">Top classifiers</div>
+          {selectedPaper !== undefined && <GlobalBadge />}
+          <TimestampBadge timestamp={updatedAt} />
         </div>
+        <div className="mt-3 text-xl font-semibold text-gray-900 dark:text-white">Most cumulative labels</div>
       </div>
+
       {topClassifiers === undefined ? (
-        <div className="text-sm text-gray-500 dark:text-gray-400">Loading classifier data…</div>
-      ) : topClassifiers.length > 0 ? (
-        <div className="space-y-3">
-          {topClassifiers.map((entry) => (
-            <div key={entry.profileId} className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-200">
-              <div>
-                <div className="font-medium text-gray-900 dark:text-white">{entry.name || entry.userId}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
-                  Last active: {entry.lastActiveAt !== undefined ? new Date(entry.lastActiveAt).toLocaleString() : "n/a"}
+        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">Loading classifier data…</div>
+      ) : leader ? (
+        <div className="mt-4 space-y-3">
+          <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4 shadow-sm dark:border-amber-900/50 dark:bg-amber-950/15">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0 flex-1">
+                <div className="inline-flex rounded-full border border-amber-200 bg-white/80 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:border-amber-800/70 dark:bg-gray-900/40 dark:text-amber-300">
+                  Current leader
+                </div>
+                <div className="mt-3 truncate text-lg font-semibold text-gray-900 dark:text-white">
+                  {leader.name || leader.userId}
+                </div>
+                <div
+                  title={leader.lastActiveAt !== undefined ? formatTimestampLabel(leader.lastActiveAt) : undefined}
+                  className="mt-1 text-xs text-gray-500 dark:text-gray-400"
+                >
+                  {formatLastActiveSummary(leader.lastActiveAt)}
                 </div>
               </div>
+
               <div className="text-right">
-                <div className="text-lg font-semibold">{entry.classifications.toLocaleString()}</div>
+                <div className="text-xs font-medium uppercase tracking-wide text-amber-700 dark:text-amber-300">
+                  #1
+                </div>
+                <div className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">
+                  {leader.classifications.toLocaleString()}
+                </div>
                 <div className="text-xs text-gray-500 dark:text-gray-400">labels</div>
               </div>
             </div>
-          ))}
+          </div>
+
+          {remainingTopClassifiers.length > 0 && (
+            <div className="space-y-2">
+              {remainingTopClassifiers.map((entry, index) => (
+                <div
+                  key={entry.profileId}
+                  className="flex items-center justify-between gap-4 rounded-2xl border border-gray-200 bg-gray-50/80 px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-900/40"
+                >
+                  <div className="min-w-0 flex items-center gap-3">
+                    <div className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-white text-xs font-semibold text-amber-700 dark:border-amber-800/70 dark:bg-gray-900/50 dark:text-amber-300">
+                      {index + 2}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-gray-900 dark:text-white">
+                        {entry.name || entry.userId}
+                      </div>
+                      <div
+                        title={entry.lastActiveAt !== undefined ? formatTimestampLabel(entry.lastActiveAt) : undefined}
+                        className="text-xs text-gray-500 dark:text-gray-400"
+                      >
+                        {formatLastActiveSummary(entry.lastActiveAt)}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {entry.classifications.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">labels</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ) : (
-        <div className="text-sm text-gray-500 dark:text-gray-400">No classifier data yet.</div>
+        <div className="mt-4 text-sm text-gray-500 dark:text-gray-400">No classifier data yet.</div>
       )}
     </div>
   );
@@ -1108,6 +1211,12 @@ export function ClassificationBreakdownsSection({
   selectedPaper: string | undefined;
   updatedAt?: number | null;
 }) {
+  const lsbTotal = lsbItems.reduce((sum, item) => sum + item.value, 0);
+  const morphologyTotal = morphologyItems.reduce((sum, item) => sum + item.value, 0);
+  const hasCompositionPanels = lsbItems.length > 0 || morphologyItems.length > 0;
+  const hasMismatchWarning =
+    lsbItems.length > 0 && morphologyItems.length > 0 && lsbTotal !== morphologyTotal;
+
   return (
     <div className="space-y-6">
       {loading && lsbItems.length === 0 && morphologyItems.length === 0 && flagItems.length === 0 && (
@@ -1116,77 +1225,79 @@ export function ClassificationBreakdownsSection({
         </div>
       )}
 
-      {(lsbItems.length > 0 || morphologyItems.length > 0) && (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-          {lsbItems.length > 0 && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <div className="mb-4 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">LSB Classification</h3>
-                  {selectedPaper !== undefined && <GlobalBadge />}
-                  <TimestampBadge timestamp={updatedAt} />
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Each classification is either LSB or non-LSB, so this split always totals 100%.
-                </p>
-              </div>
-
-              {totalClassifications === 0 ? (
-                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
-              ) : (
-                <CompositionBreakdown
-                  items={lsbItems}
-                  totalLabel="classifications in this split"
-                />
-              )}
-            </div>
-          )}
-
-          {morphologyItems.length > 0 && (
-            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-              <div className="mb-4 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Morphology Classification</h3>
-                  {selectedPaper !== undefined && <GlobalBadge />}
-                  <TimestampBadge timestamp={updatedAt} />
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  These morphology classes are mutually exclusive here, so the panel adds up to 100%.
-                </p>
-              </div>
-
-              {totalClassifications === 0 ? (
-                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
-              ) : (
-                <CompositionBreakdown
-                  items={morphologyItems}
-                  totalLabel="classifications in this split"
-                />
-              )}
-            </div>
-          )}
+      {hasMismatchWarning && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-800 shadow-sm dark:border-amber-800/70 dark:bg-amber-950/20 dark:text-amber-200">
+          LSB total ({lsbTotal.toLocaleString()}) and morphology total ({morphologyTotal.toLocaleString()}) do not match. This points to legacy or invalid stored classification values.
         </div>
       )}
 
-      {flagItems.length > 0 && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <div className="mb-4 space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Classification Flags</h3>
-              {selectedPaper !== undefined && <GlobalBadge />}
-              <TimestampBadge timestamp={updatedAt} />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
+        {hasCompositionPanels && lsbItems.length > 0 && (
+          <div className="xl:col-span-3">
+            <div className="h-full rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-4 space-y-2">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">LSB Classification</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedPaper !== undefined && <GlobalBadge />}
+                  <TimestampBadge timestamp={updatedAt} />
+                </div>
+              </div>
+
+              {totalClassifications === 0 ? (
+                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+              ) : (
+                <CompositionBreakdown items={lsbItems} />
+              )}
             </div>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Count of classifications where each flag was marked true. Flags can overlap, so this panel does not add up to 100%.
-            </p>
           </div>
+        )}
 
-          <BreakdownBar items={flagItems} total={totalClassifications} />
-          {totalClassifications === 0 && (
-            <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
-          )}
-        </div>
-      )}
+        {hasCompositionPanels && morphologyItems.length > 0 && (
+          <div className="xl:col-span-5">
+            <div className="h-full rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-4 space-y-2">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Morphology Classification</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedPaper !== undefined && <GlobalBadge />}
+                  <TimestampBadge timestamp={updatedAt} />
+                </div>
+              </div>
+
+              {totalClassifications === 0 ? (
+                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+              ) : (
+                <CompositionBreakdown items={morphologyItems} />
+              )}
+            </div>
+          </div>
+        )}
+
+        {flagItems.length > 0 && (
+          <div className="lg:col-span-2 xl:col-span-4">
+            <div className="h-full rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+              <div className="mb-4 space-y-2">
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Classification Flags</h3>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedPaper !== undefined && <GlobalBadge />}
+                  <TimestampBadge timestamp={updatedAt} />
+                </div>
+              </div>
+
+              {totalClassifications === 0 ? (
+                <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">No classifications yet</div>
+              ) : (
+                <BreakdownBar items={flagItems} total={totalClassifications} />
+              )}
+
+              {totalClassifications > 0 && (
+                <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                  Count of classifications where each flag was marked true. Flags can overlap, so totals do not add up to 100%.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
