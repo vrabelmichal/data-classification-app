@@ -28,9 +28,11 @@ type UserStatisticsData = {
 type BreakdownItem = {
   label: string;
   value: number;
-  color: string;
-  icon: string;
+  accentColor: string;
+  icon: React.ReactNode;
 };
+
+type StatisticsMorphologyIconKind = "featureless" | "irregular" | "spiral" | "elliptical";
 
 type SummaryCard = {
   id: string;
@@ -39,6 +41,7 @@ type SummaryCard = {
   icon: string;
   bgColor: string;
   textColor: string;
+  title?: string;
 };
 
 function formatBreakdownPercent(value: number) {
@@ -59,6 +62,65 @@ function formatBreakdownPercent(value: number) {
 
 function StatisticsEmptyState({ message }: { message: string }) {
   return <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">{message}</div>;
+}
+
+function StatisticsLsbIcon({ color }: { color: string }) {
+  return (
+    <span
+      className="block h-5 w-5 rounded-full ring-1 ring-gray-300/80 dark:ring-gray-600/80"
+      style={{ backgroundColor: color }}
+    />
+  );
+}
+
+function StatisticsMorphologyIcon({
+  kind,
+  color,
+}: {
+  kind: StatisticsMorphologyIconKind;
+  color: string;
+}) {
+  switch (kind) {
+    case "featureless":
+      return <span className="block h-5 w-5 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />;
+    case "irregular":
+      return (
+        <svg viewBox="0 0 24 24" className="h-6 w-6" style={{ color }} fill="currentColor" aria-hidden="true">
+          <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" />
+        </svg>
+      );
+    case "spiral":
+      return (
+        <svg
+          viewBox="0 0 24 24"
+          className="h-6 w-6"
+          style={{ color }}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+          <path
+            d="M12 7C14.7614 7 17 9.23858 17 12C17 15.3137 14.3137 18 11 18C8.5 18 6.5 16.5 6 14.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M12 17C9.23858 17 7 14.7614 7 12C7 8.68629 9.68629 6 13 6C15.5 6 17.5 7.5 18 9.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case "elliptical":
+      return (
+        <svg viewBox="0 0 24 24" className="h-6 w-6" style={{ color }} fill="currentColor" aria-hidden="true">
+          <ellipse cx="12" cy="12" rx="10" ry="5" transform="rotate(-30 12 12)" fillOpacity="0.3" />
+          <ellipse cx="12" cy="12" rx="5" ry="2.5" transform="rotate(-30 12 12)" />
+          <circle cx="12" cy="12" r="1.2" />
+        </svg>
+      );
+  }
 }
 
 function StatisticsBreakdownCard({
@@ -100,8 +162,8 @@ function StatisticsCompositionBreakdown({ items }: { items: BreakdownItem[] }) {
               <div
                 key={item.label}
                 title={`${item.label}: ${item.value.toLocaleString()} (${formatBreakdownPercent(percentage)})`}
-                className={cn("h-full transition-[width] duration-300", item.color)}
-                style={{ width: `${percentage}%` }}
+                className="h-full transition-[width] duration-300"
+                style={{ width: `${percentage}%`, backgroundColor: item.accentColor }}
                 aria-hidden="true"
               />
             );
@@ -119,8 +181,9 @@ function StatisticsCompositionBreakdown({ items }: { items: BreakdownItem[] }) {
               className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
             >
               <div className="min-w-0 flex items-center gap-3">
-                <span className="text-lg">{item.icon}</span>
-                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", item.color)} aria-hidden="true" />
+                <span className="inline-flex shrink-0 items-center justify-center text-lg leading-none" aria-hidden="true">
+                  {item.icon}
+                </span>
                 <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
               </div>
 
@@ -157,13 +220,10 @@ function StatisticsFlagBreakdown({
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex items-center gap-3">
-                <span className="text-lg">{item.icon}</span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", item.color)} aria-hidden="true" />
-                    <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
-                  </div>
-                </div>
+                <span className="inline-flex shrink-0 items-center justify-center text-lg leading-none" aria-hidden="true">
+                  {item.icon}
+                </span>
+                <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
               </div>
 
               <div className="flex shrink-0 items-baseline gap-3 text-right">
@@ -178,8 +238,8 @@ function StatisticsFlagBreakdown({
 
             <div className="mt-3 h-2.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
               <div
-                className={cn("h-2.5 rounded-full transition-all duration-300", item.color)}
-                style={{ width: `${percentage}%` }}
+                className="h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${percentage}%`, backgroundColor: item.accentColor }}
               />
             </div>
           </div>
@@ -322,30 +382,70 @@ export function StatisticsTab() {
 
   const totalClassifications = displayStats?.total ?? 0;
 
+  const neutralColor = "#6b7280";
+  const lsbColor = "#22c55e";
+  const irregularColor = "#eab308";
+  const spiralColor = "#3b82f6";
+  const ellipticalColor = "#a855f7";
+  const awesomeColor = "#eab308";
+  const nucleusColor = "#f97316";
+  const redshiftColor = "#ef4444";
+  const failedFittingColor = "#f43f5e";
+
   const lsbItems: BreakdownItem[] = [
-    { label: "Non-LSB", value: displayStats?.byLsbClass?.nonLSB ?? 0, color: "bg-gray-500", icon: "⚪" },
-    { label: "LSB", value: displayStats?.byLsbClass?.LSB ?? 0, color: "bg-green-500", icon: "🟢" },
+    {
+      label: "Non-LSB",
+      value: displayStats?.byLsbClass?.nonLSB ?? 0,
+      accentColor: neutralColor,
+      icon: <StatisticsLsbIcon color={neutralColor} />,
+    },
+    {
+      label: "LSB",
+      value: displayStats?.byLsbClass?.LSB ?? 0,
+      accentColor: lsbColor,
+      icon: <StatisticsLsbIcon color={lsbColor} />,
+    },
   ];
 
   const morphologyItems: BreakdownItem[] = [
-    { label: "Featureless", value: displayStats?.byMorphology?.featureless ?? 0, color: "bg-gray-500", icon: "⚫" },
-    { label: "Irregular", value: displayStats?.byMorphology?.irregular ?? 0, color: "bg-yellow-500", icon: "⚡" },
-    { label: "Spiral", value: displayStats?.byMorphology?.spiral ?? 0, color: "bg-blue-500", icon: "🌀" },
-    { label: "Elliptical", value: displayStats?.byMorphology?.elliptical ?? 0, color: "bg-purple-500", icon: "⭕" },
+    {
+      label: "Featureless",
+      value: displayStats?.byMorphology?.featureless ?? 0,
+      accentColor: neutralColor,
+      icon: <StatisticsMorphologyIcon kind="featureless" color={neutralColor} />,
+    },
+    {
+      label: "Irregular",
+      value: displayStats?.byMorphology?.irregular ?? 0,
+      accentColor: irregularColor,
+      icon: <StatisticsMorphologyIcon kind="irregular" color={irregularColor} />,
+    },
+    {
+      label: "Spiral",
+      value: displayStats?.byMorphology?.spiral ?? 0,
+      accentColor: spiralColor,
+      icon: <StatisticsMorphologyIcon kind="spiral" color={spiralColor} />,
+    },
+    {
+      label: "Elliptical",
+      value: displayStats?.byMorphology?.elliptical ?? 0,
+      accentColor: ellipticalColor,
+      icon: <StatisticsMorphologyIcon kind="elliptical" color={ellipticalColor} />,
+    },
   ];
 
   const flagItems: BreakdownItem[] = [];
   if (showAwesomeFlag) {
-    flagItems.push({ label: "Awesome", value: displayStats?.awesomeCount ?? 0, color: "bg-yellow-500", icon: "⭐" });
+    flagItems.push({ label: "Awesome", value: displayStats?.awesomeCount ?? 0, accentColor: awesomeColor, icon: "⭐" });
   }
   if (showVisibleNucleus) {
-    flagItems.push({ label: "Visible Nucleus", value: displayStats?.visibleNucleusCount ?? 0, color: "bg-orange-500", icon: "🎯" });
+    flagItems.push({ label: "Visible Nucleus", value: displayStats?.visibleNucleusCount ?? 0, accentColor: nucleusColor, icon: "🎯" });
   }
   if (showValidRedshift) {
-    flagItems.push({ label: "Valid Redshift", value: displayStats?.validRedshiftCount ?? 0, color: "bg-red-500", icon: "🔴" });
+    flagItems.push({ label: "Valid Redshift", value: displayStats?.validRedshiftCount ?? 0, accentColor: redshiftColor, icon: "🔴" });
   }
   if (showFailedFitting) {
-    flagItems.push({ label: "Failed Fitting", value: displayStats?.failedFittingCount ?? 0, color: "bg-rose-500", icon: "❌" });
+    flagItems.push({ label: "Failed Fitting", value: displayStats?.failedFittingCount ?? 0, accentColor: failedFittingColor, icon: "❌" });
   }
 
   // Build dynamic stat cards based on enabled flags
@@ -382,7 +482,8 @@ export function StatisticsTab() {
   if (showVisibleNucleus) {
     statCards.push({
       id: "visibleNucleus",
-      label: "Visible Nucleus",
+      label: "Nucleus",
+      title: "Visible Nucleus",
       value: displayStats?.visibleNucleusCount || 0,
       icon: "🎯",
       bgColor: "bg-orange-100 dark:bg-orange-900/30",
@@ -404,7 +505,8 @@ export function StatisticsTab() {
   if (showFailedFitting) {
     statCards.push({
       id: "failedFitting",
-      label: "Failed Fitting",
+      label: "Failed",
+      title: "Failed Fitting",
       value: displayStats?.failedFittingCount || 0,
       icon: "❌",
       bgColor: "bg-rose-100 dark:bg-rose-900/30",
@@ -476,7 +578,7 @@ export function StatisticsTab() {
                 </div>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">{card.label}</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300 whitespace-nowrap" title={card.title}>{card.label}</p>
                 <p className="text-2xl font-semibold text-gray-900 dark:text-white">{card.value}</p>
               </div>
             </div>

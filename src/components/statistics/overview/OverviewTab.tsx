@@ -27,6 +27,67 @@ const DEFAULT_TARGET_CLASSIFICATIONS = 3;
 const MAX_TARGET_CLASSIFICATIONS = 25;
 const OVERVIEW_BUCKET_COUNT = MAX_TARGET_CLASSIFICATIONS + 1;
 
+type MorphologyIconKind = "featureless" | "irregular" | "spiral" | "elliptical";
+
+function OverviewLsbIcon({ color }: { color: string }) {
+  return (
+    <span
+      className="block h-5 w-5 rounded-full ring-1 ring-gray-300/80 dark:ring-gray-600/80"
+      style={{ backgroundColor: color }}
+    />
+  );
+}
+
+function OverviewMorphologyIcon({
+  kind,
+  color,
+}: {
+  kind: MorphologyIconKind;
+  color: string;
+}) {
+  switch (kind) {
+    case "featureless":
+      return <span className="block h-5 w-5 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />;
+    case "irregular":
+      return (
+        <svg viewBox="0 0 24 24" className="h-6 w-6" style={{ color }} fill="currentColor" aria-hidden="true">
+          <path d="M13 2L3 14H12L11 22L21 10H12L13 2Z" />
+        </svg>
+      );
+    case "spiral":
+      return (
+        <svg
+          viewBox="0 0 24 24"
+          className="h-6 w-6"
+          style={{ color }}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" />
+          <path
+            d="M12 7C14.7614 7 17 9.23858 17 12C17 15.3137 14.3137 18 11 18C8.5 18 6.5 16.5 6 14.5"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M12 17C9.23858 17 7 14.7614 7 12C7 8.68629 9.68629 6 13 6C15.5 6 17.5 7.5 18 9.5"
+            strokeLinejoin="round"
+          />
+        </svg>
+      );
+    case "elliptical":
+      return (
+        <svg viewBox="0 0 24 24" className="h-6 w-6" style={{ color }} fill="currentColor" aria-hidden="true">
+          <ellipse cx="12" cy="12" rx="10" ry="5" transform="rotate(-30 12 12)" fillOpacity="0.3" />
+          <ellipse cx="12" cy="12" rx="5" ry="2.5" transform="rotate(-30 12 12)" />
+          <circle cx="12" cy="12" r="1.2" />
+        </svg>
+      );
+  }
+}
+
 type OverviewSettings = {
   overviewDefaultPaper?: string | null;
   showAwesomeFlag?: boolean;
@@ -261,30 +322,70 @@ function useClassificationBreakdownItems(
     const failedFittingMode = systemSettings.failedFittingMode ?? "checkbox";
     const showFailedFitting = failedFittingMode === "checkbox";
 
-    const flagItems: Array<{ label: string; value: number; color: string; icon: string }> = [];
+    const neutralColor = "#6b7280";
+    const lsbColor = "#22c55e";
+    const irregularColor = "#eab308";
+    const spiralColor = "#3b82f6";
+    const ellipticalColor = "#a855f7";
+    const awesomeColor = "#eab308";
+    const nucleusColor = "#f97316";
+    const redshiftColor = "#ef4444";
+    const failedFittingColor = "#f43f5e";
+
+    const flagItems: Array<{ label: string; value: number; accentColor: string; icon: ReactNode }> = [];
     if (showAwesomeFlag && classificationStats?.flags) {
-      flagItems.push({ label: "Awesome", value: classificationStats.flags.awesome || 0, color: "bg-yellow-500", icon: "⭐" });
+      flagItems.push({ label: "Awesome", value: classificationStats.flags.awesome || 0, accentColor: awesomeColor, icon: "⭐" });
     }
     if (showVisibleNucleus && classificationStats?.flags) {
-      flagItems.push({ label: "Visible Nucleus", value: classificationStats.flags.visibleNucleus || 0, color: "bg-orange-500", icon: "🎯" });
+      flagItems.push({ label: "Visible Nucleus", value: classificationStats.flags.visibleNucleus || 0, accentColor: nucleusColor, icon: "🎯" });
     }
     if (showValidRedshift && classificationStats?.flags) {
-      flagItems.push({ label: "Valid Redshift", value: classificationStats.flags.validRedshift || 0, color: "bg-red-500", icon: "🔴" });
+      flagItems.push({ label: "Valid Redshift", value: classificationStats.flags.validRedshift || 0, accentColor: redshiftColor, icon: "🔴" });
     }
     if (showFailedFitting && classificationStats?.flags) {
-      flagItems.push({ label: "Failed Fitting", value: classificationStats.flags.failedFitting || 0, color: "bg-rose-500", icon: "❌" });
+      flagItems.push({ label: "Failed Fitting", value: classificationStats.flags.failedFitting || 0, accentColor: failedFittingColor, icon: "❌" });
     }
 
     const lsbItems = classificationStats?.lsbClass ? [
-      { label: "Non-LSB", value: classificationStats.lsbClass.nonLSB || 0, color: "bg-gray-500", icon: "⚪" },
-      { label: "LSB", value: classificationStats.lsbClass.LSB || 0, color: "bg-green-500", icon: "🟢" },
+      {
+        label: "Non-LSB",
+        value: classificationStats.lsbClass.nonLSB || 0,
+        accentColor: neutralColor,
+        icon: <OverviewLsbIcon color={neutralColor} />,
+      },
+      {
+        label: "LSB",
+        value: classificationStats.lsbClass.LSB || 0,
+        accentColor: lsbColor,
+        icon: <OverviewLsbIcon color={lsbColor} />,
+      },
     ] : [];
 
     const morphologyItems = classificationStats?.morphology ? [
-      { label: "Featureless", value: classificationStats.morphology.featureless || 0, color: "bg-gray-500", icon: "⚫" },
-      { label: "Irregular", value: classificationStats.morphology.irregular || 0, color: "bg-yellow-500", icon: "⚡" },
-      { label: "Spiral", value: classificationStats.morphology.spiral || 0, color: "bg-blue-500", icon: "🌀" },
-      { label: "Elliptical", value: classificationStats.morphology.elliptical || 0, color: "bg-purple-500", icon: "⭕" },
+      {
+        label: "Featureless",
+        value: classificationStats.morphology.featureless || 0,
+        accentColor: neutralColor,
+        icon: <OverviewMorphologyIcon kind="featureless" color={neutralColor} />,
+      },
+      {
+        label: "Irregular",
+        value: classificationStats.morphology.irregular || 0,
+        accentColor: irregularColor,
+        icon: <OverviewMorphologyIcon kind="irregular" color={irregularColor} />,
+      },
+      {
+        label: "Spiral",
+        value: classificationStats.morphology.spiral || 0,
+        accentColor: spiralColor,
+        icon: <OverviewMorphologyIcon kind="spiral" color={spiralColor} />,
+      },
+      {
+        label: "Elliptical",
+        value: classificationStats.morphology.elliptical || 0,
+        accentColor: ellipticalColor,
+        icon: <OverviewMorphologyIcon kind="elliptical" color={ellipticalColor} />,
+      },
     ] : [];
 
     const totalClassificationsForBreakdowns = classificationStats?.lsbClass

@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useState } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { cn } from "../../../lib/utils";
 import { BreakdownBar, CompositionBreakdown, LoadingBadge, LoadingPanel, ProgressBar, StatCard } from "./shared";
@@ -1208,9 +1208,9 @@ export function ClassificationBreakdownsSection({
   selectedPaper,
   updatedAt,
 }: {
-  lsbItems: Array<{ label: string; value: number; color: string; icon: string }>;
-  morphologyItems: Array<{ label: string; value: number; color: string; icon: string }>;
-  flagItems: Array<{ label: string; value: number; color: string; icon: string }>;
+  lsbItems: Array<{ label: string; value: number; accentColor: string; icon: ReactNode }>;
+  morphologyItems: Array<{ label: string; value: number; accentColor: string; icon: ReactNode }>;
+  flagItems: Array<{ label: string; value: number; accentColor: string; icon: ReactNode }>;
   totalClassifications: number;
   loading: boolean;
   selectedPaper: string | undefined;

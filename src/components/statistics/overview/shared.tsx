@@ -1,6 +1,13 @@
 import { ReactNode } from "react";
 import { cn } from "../../../lib/utils";
 
+type BreakdownItem = {
+  label: string;
+  value: number;
+  accentColor: string;
+  icon: ReactNode;
+};
+
 export function LoadingBadge({
   label = "Counting",
   className,
@@ -123,7 +130,7 @@ export function BreakdownBar({
   items,
   total,
 }: {
-  items: Array<{ label: string; value: number; color: string; icon: string }>;
+  items: BreakdownItem[];
   total: number;
 }) {
   const formatPercent = (value: number) => {
@@ -153,13 +160,10 @@ export function BreakdownBar({
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0 flex items-center gap-3">
-                <span className="text-lg">{item.icon}</span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", item.color)} aria-hidden="true" />
-                    <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
-                  </div>
-                </div>
+                <span className="inline-flex shrink-0 items-center justify-center text-lg leading-none" aria-hidden="true">
+                  {item.icon}
+                </span>
+                <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
               </div>
 
               <div className="flex shrink-0 items-baseline gap-3 text-right">
@@ -174,8 +178,8 @@ export function BreakdownBar({
 
             <div className="mt-3 h-2.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
               <div
-                className={cn("h-2.5 rounded-full transition-all duration-300", item.color)}
-                style={{ width: `${percentage}%` }}
+                className="h-2.5 rounded-full transition-all duration-300"
+                style={{ width: `${percentage}%`, backgroundColor: item.accentColor }}
               />
             </div>
           </div>
@@ -188,7 +192,7 @@ export function BreakdownBar({
 export function CompositionBreakdown({
   items,
 }: {
-  items: Array<{ label: string; value: number; color: string; icon: string }>;
+  items: BreakdownItem[];
 }) {
   const total = items.reduce((sum, item) => sum + item.value, 0);
 
@@ -218,8 +222,8 @@ export function CompositionBreakdown({
               <div
                 key={item.label}
                 title={`${item.label}: ${item.value.toLocaleString()} (${formatPercent(percentage)})`}
-                className={cn("h-full transition-[width] duration-300", item.color)}
-                style={{ width: `${percentage}%` }}
+                className="h-full transition-[width] duration-300"
+                style={{ width: `${percentage}%`, backgroundColor: item.accentColor }}
                 aria-hidden="true"
               />
             );
@@ -237,8 +241,9 @@ export function CompositionBreakdown({
               className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
             >
               <div className="min-w-0 flex items-center gap-3">
-                <span className="text-lg">{item.icon}</span>
-                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", item.color)} aria-hidden="true" />
+                <span className="inline-flex shrink-0 items-center justify-center text-lg leading-none" aria-hidden="true">
+                  {item.icon}
+                </span>
                 <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
               </div>
 
