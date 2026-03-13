@@ -2,10 +2,267 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
+import { cn } from "../../lib/utils";
+
+type UserStatisticsData = {
+  total: number;
+  thisWeek: number;
+  byLsbClass: {
+    nonLSB: number;
+    LSB: number;
+  };
+  byMorphology: {
+    featureless: number;
+    irregular: number;
+    spiral: number;
+    elliptical: number;
+  };
+  averageTime: number;
+  awesomeCount: number;
+  validRedshiftCount: number;
+  visibleNucleusCount: number;
+  failedFittingCount: number;
+  _source: "profile" | "classifications";
+};
+
+type BreakdownItem = {
+  label: string;
+  value: number;
+  color: string;
+  icon: string;
+};
+
+type SummaryCard = {
+  id: string;
+  label: string;
+  value: number | string;
+  icon: string;
+  bgColor: string;
+  textColor: string;
+};
+
+function formatBreakdownPercent(value: number) {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0%";
+  }
+
+  if (value < 0.1) {
+    return "<0.1%";
+  }
+
+  if (value < 10) {
+    return `${value.toFixed(1)}%`;
+  }
+
+  return `${value.toFixed(0)}%`;
+}
+
+function StatisticsEmptyState({ message }: { message: string }) {
+  return <div className="py-4 text-center text-sm text-gray-500 dark:text-gray-400">{message}</div>;
+}
+
+function StatisticsBreakdownCard({
+  title,
+  description,
+  children,
+  footer,
+}: {
+  title: string;
+  description: string;
+  children: React.ReactNode;
+  footer?: React.ReactNode;
+}) {
+  return (
+    <div className="h-full rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="mb-4 space-y-1">
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">{title}</h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+      </div>
+
+      {children}
+
+      {footer && <div className="mt-4 text-xs text-gray-500 dark:text-gray-400">{footer}</div>}
+    </div>
+  );
+}
+
+function StatisticsCompositionBreakdown({ items }: { items: BreakdownItem[] }) {
+  const total = items.reduce((sum, item) => sum + item.value, 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="overflow-hidden rounded-full border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-900/60">
+        <div className="flex h-4 w-full">
+          {items.map((item) => {
+            const percentage = total > 0 ? Math.min((item.value / total) * 100, 100) : 0;
+
+            return (
+              <div
+                key={item.label}
+                title={`${item.label}: ${item.value.toLocaleString()} (${formatBreakdownPercent(percentage)})`}
+                className={cn("h-full transition-[width] duration-300", item.color)}
+                style={{ width: `${percentage}%` }}
+                aria-hidden="true"
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        {items.map((item) => {
+          const percentage = total > 0 ? Math.min((item.value / total) * 100, 100) : 0;
+
+          return (
+            <div
+              key={item.label}
+              className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+            >
+              <div className="min-w-0 flex items-center gap-3">
+                <span className="text-lg">{item.icon}</span>
+                <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", item.color)} aria-hidden="true" />
+                <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
+              </div>
+
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                {item.value.toLocaleString()}
+              </span>
+              <span className="w-14 text-right text-xs text-gray-500 dark:text-gray-400">
+                {formatBreakdownPercent(percentage)}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StatisticsFlagBreakdown({
+  items,
+  total,
+}: {
+  items: BreakdownItem[];
+  total: number;
+}) {
+  return (
+    <div className="space-y-3">
+      {items.map((item) => {
+        const percentage = total > 0 ? Math.min((item.value / total) * 100, 100) : 0;
+
+        return (
+          <div
+            key={item.label}
+            className="rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0 flex items-center gap-3">
+                <span className="text-lg">{item.icon}</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className={cn("h-2.5 w-2.5 shrink-0 rounded-full", item.color)} aria-hidden="true" />
+                    <span className="truncate text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex shrink-0 items-baseline gap-3 text-right">
+                <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">
+                  {item.value.toLocaleString()}
+                </span>
+                <span className="w-14 text-xs text-gray-500 dark:text-gray-400">
+                  {formatBreakdownPercent(percentage)}
+                </span>
+              </div>
+            </div>
+
+            <div className="mt-3 h-2.5 w-full rounded-full bg-gray-200 dark:bg-gray-700">
+              <div
+                className={cn("h-2.5 rounded-full transition-all duration-300", item.color)}
+                style={{ width: `${percentage}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatisticsBreakdownsSection({
+  lsbItems,
+  morphologyItems,
+  flagItems,
+  totalClassifications,
+}: {
+  lsbItems: BreakdownItem[];
+  morphologyItems: BreakdownItem[];
+  flagItems: BreakdownItem[];
+  totalClassifications: number;
+}) {
+  const lsbTotal = lsbItems.reduce((sum, item) => sum + item.value, 0);
+  const morphologyTotal = morphologyItems.reduce((sum, item) => sum + item.value, 0);
+  const hasFlagsPanel = flagItems.length > 0;
+  const hasMismatchWarning = lsbItems.length > 0 && morphologyItems.length > 0 && lsbTotal !== morphologyTotal;
+
+  return (
+    <div className="mb-8 space-y-6">
+      {hasMismatchWarning && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-800 shadow-sm dark:border-amber-800/70 dark:bg-amber-950/20 dark:text-amber-200">
+          LSB total ({lsbTotal.toLocaleString()}) and morphology total ({morphologyTotal.toLocaleString()}) do not match. This usually points to legacy or invalid stored classification values.
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 xl:grid-cols-12">
+        <div className={cn(hasFlagsPanel ? "xl:col-span-3" : "xl:col-span-4")}>
+          <StatisticsBreakdownCard
+            title="LSB Classification"
+            description="How your submitted classifications split between non-LSB and LSB labels."
+          >
+            {totalClassifications === 0 ? (
+              <StatisticsEmptyState message="No classifications yet." />
+            ) : (
+              <StatisticsCompositionBreakdown items={lsbItems} />
+            )}
+          </StatisticsBreakdownCard>
+        </div>
+
+        <div className={cn(hasFlagsPanel ? "xl:col-span-5" : "xl:col-span-8")}>
+          <StatisticsBreakdownCard
+            title="Morphology Classification"
+            description="Distribution of morphology choices across your submitted classifications."
+          >
+            {totalClassifications === 0 ? (
+              <StatisticsEmptyState message="No classifications yet." />
+            ) : (
+              <StatisticsCompositionBreakdown items={morphologyItems} />
+            )}
+          </StatisticsBreakdownCard>
+        </div>
+
+        {hasFlagsPanel && (
+          <div className="lg:col-span-2 xl:col-span-4">
+            <StatisticsBreakdownCard
+              title="Classification Flags"
+              description="Optional flags you have marked true on submitted classifications."
+              footer="Flags can overlap, so the percentages here do not add up to 100%."
+            >
+              {totalClassifications === 0 ? (
+                <StatisticsEmptyState message="No classifications yet." />
+              ) : (
+                <StatisticsFlagBreakdown items={flagItems} total={totalClassifications} />
+              )}
+            </StatisticsBreakdownCard>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function StatisticsTab() {
   const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
-  const [lastStats, setLastStats] = useState<any>(null);
+  const [lastStats, setLastStats] = useState<UserStatisticsData | null>(null);
   
   const userProfile = useQuery(api.users.getUserProfile);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -61,32 +318,38 @@ export function StatisticsTab() {
   // Show failed fitting stat only in checkbox mode
   const showFailedFitting = failedFittingMode === "checkbox";
 
-  // Binary LSB classification (nonLSB vs LSB)
-  const lsbClassTypes = [
-    { key: "nonLSB", label: "Non-LSB", color: "bg-gray-500", icon: "⚪" },
-    { key: "LSB", label: "LSB", color: "bg-green-500", icon: "🟢" },
-  ];
-
-  const morphologyTypes = [
-    { key: "featureless", label: "Featureless", color: "bg-gray-500", icon: "⚫" },
-    { key: "irregular", label: "Irregular", color: "bg-yellow-500", icon: "⚡" },
-    { key: "spiral", label: "Spiral", color: "bg-blue-500", icon: "🌀" },
-    { key: "elliptical", label: "Elliptical", color: "bg-purple-500", icon: "⭕" },
-  ];
-
   const isRefetching = stats === undefined && !!lastStats;
 
-  const totalClassifications = displayStats ? displayStats.total : 0;
+  const totalClassifications = displayStats?.total ?? 0;
+
+  const lsbItems: BreakdownItem[] = [
+    { label: "Non-LSB", value: displayStats?.byLsbClass?.nonLSB ?? 0, color: "bg-gray-500", icon: "⚪" },
+    { label: "LSB", value: displayStats?.byLsbClass?.LSB ?? 0, color: "bg-green-500", icon: "🟢" },
+  ];
+
+  const morphologyItems: BreakdownItem[] = [
+    { label: "Featureless", value: displayStats?.byMorphology?.featureless ?? 0, color: "bg-gray-500", icon: "⚫" },
+    { label: "Irregular", value: displayStats?.byMorphology?.irregular ?? 0, color: "bg-yellow-500", icon: "⚡" },
+    { label: "Spiral", value: displayStats?.byMorphology?.spiral ?? 0, color: "bg-blue-500", icon: "🌀" },
+    { label: "Elliptical", value: displayStats?.byMorphology?.elliptical ?? 0, color: "bg-purple-500", icon: "⭕" },
+  ];
+
+  const flagItems: BreakdownItem[] = [];
+  if (showAwesomeFlag) {
+    flagItems.push({ label: "Awesome", value: displayStats?.awesomeCount ?? 0, color: "bg-yellow-500", icon: "⭐" });
+  }
+  if (showVisibleNucleus) {
+    flagItems.push({ label: "Visible Nucleus", value: displayStats?.visibleNucleusCount ?? 0, color: "bg-orange-500", icon: "🎯" });
+  }
+  if (showValidRedshift) {
+    flagItems.push({ label: "Valid Redshift", value: displayStats?.validRedshiftCount ?? 0, color: "bg-red-500", icon: "🔴" });
+  }
+  if (showFailedFitting) {
+    flagItems.push({ label: "Failed Fitting", value: displayStats?.failedFittingCount ?? 0, color: "bg-rose-500", icon: "❌" });
+  }
 
   // Build dynamic stat cards based on enabled flags
-  const statCards: Array<{
-    id: string;
-    label: string;
-    value: number | string;
-    icon: string;
-    bgColor: string;
-    textColor: string;
-  }> = [
+  const statCards: SummaryCard[] = [
     {
       id: "total",
       label: "Total",
@@ -221,92 +484,12 @@ export function StatisticsTab() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* LSB Classification Breakdown */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-            LSB Classification
-          </h2>
-          
-          <div className="space-y-4">
-            {lsbClassTypes.map((type) => {
-              const count = displayStats?.byLsbClass[type.key] || 0;
-              const percentage = totalClassifications > 0 ? (count / totalClassifications) * 100 : 0;
-              
-              return (
-                <div key={type.key} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-lg">{type.icon}</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {type.label}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${type.color} transition-all duration-300`}
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-300 w-12 text-right">
-                      {count}
-                    </span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400 w-12 text-right">
-                      {percentage.toFixed(0)}%
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {totalClassifications === 0 && (
-            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-              <p>No classifications yet</p>
-              <p className="text-sm">Start classifying galaxies to see your statistics!</p>
-            </div>
-          )}
-        </div>
-
-        {/* Morphology Breakdown */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-            Morphology Classification
-          </h2>
-          
-          <div className="space-y-4">
-            {morphologyTypes.map((type) => {
-              const count = displayStats?.byMorphology[type.key] || 0;
-              const percentage = totalClassifications > 0 ? (count / totalClassifications) * 100 : 0;
-              
-              return (
-                <div key={type.key} className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <span className="text-lg">{type.icon}</span>
-                    <span className="font-medium text-gray-900 dark:text-white">
-                      {type.label}
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                    <div className="w-24 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-                      <div
-                        className={`h-2 rounded-full ${type.color} transition-all duration-300`}
-                        style={{ width: `${percentage}%` }}
-                      />
-                    </div>
-                    <span className="text-sm font-medium text-gray-600 dark:text-gray-300 w-12 text-right">
-                      {count}
-                    </span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400 w-12 text-right">
-                      {percentage.toFixed(0)}%
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+      <StatisticsBreakdownsSection
+        lsbItems={lsbItems}
+        morphologyItems={morphologyItems}
+        flagItems={flagItems}
+        totalClassifications={totalClassifications}
+      />
 
       {/* Progress Overview */}
       <div className="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
