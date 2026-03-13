@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
@@ -60,6 +60,7 @@ type DashboardProps = {
   mode: "live" | "cached";
   adminSwitchTo?: string;
   adminSwitchLabel?: string;
+  scopeStatusNotice?: ReactNode;
   catalogUpdatedAt?: number | null;
   summaryUpdatedAt?: number | null;
   progressUpdatedAt?: number | null;
@@ -205,7 +206,7 @@ function useOverviewFilters(systemSettings: OverviewSettings) {
       const next = new URLSearchParams(prev);
       updateFn(next);
       return next;
-    }, { replace: true });
+    }, { replace: true, preventScrollReset: true });
   };
 
   const handleSelectPaper = (paper: string | undefined) => {
@@ -360,6 +361,7 @@ function OverviewDashboard({
   mode,
   adminSwitchTo,
   adminSwitchLabel,
+  scopeStatusNotice,
   catalogUpdatedAt,
   summaryUpdatedAt,
   progressUpdatedAt,
@@ -432,6 +434,8 @@ function OverviewDashboard({
         updatedAt={catalogUpdatedAt}
       />
 
+      {scopeStatusNotice}
+
       <SummaryCardsSection
         totals={totals}
         selectedPaper={selectedPaper}
@@ -497,15 +501,14 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
   const sharedSnapshot = cachedData?.sharedSnapshot ?? latestSharedSnapshotRef.current ?? null;
   const resolvedScopeSnapshot = latestScopeSnapshotByKeyRef.current[currentScopeKey] ?? null;
   const scopeSnapshot = cachedData?.scopeSnapshot ?? resolvedScopeSnapshot;
-  const snapshotReady = Boolean(
+  const sharedSnapshotReady = Boolean(
     sharedSnapshot?.catalog
       && sharedSnapshot.recency
       && sharedSnapshot.topClassifiers
-      && sharedSnapshot.classificationStats
-      && scopeSnapshot,
+      && sharedSnapshot.classificationStats,
   );
-  const isScopeLoading = cachedData === undefined && Boolean(resolvedScopeSnapshot);
-  const isScopePending = cachedData !== undefined && !cachedData.scopeSnapshot;
+  const isScopeLoading = !scopeSnapshot && cachedData === undefined;
+  const isScopePending = !scopeSnapshot && cachedData !== undefined;
   const liveSwitchTo = isAdmin
     ? buildOverviewModeLink("/statistics/overview-live", searchParams)
     : undefined;
@@ -554,7 +557,7 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
       scopeSnapshot?.totals,
     );
 
-  if (!snapshotReady) {
+  if (!sharedSnapshotReady) {
     return (
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -578,11 +581,30 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
     );
   }
 
+  const scopeStatusNotice = isScopePending ? (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50/80 p-5 shadow-sm dark:border-amber-800/70 dark:bg-amber-950/20">
+      <p className="text-sm text-amber-800 dark:text-amber-200">
+        {selectedPaper === undefined
+          ? "Cached overview totals are not available yet. Open the live overview as an admin or wait for the scheduled refresh to populate them."
+          : `Cached snapshot for ${paperLabel(selectedPaper)} is not available yet. Open the live overview as an admin or wait for the scheduled refresh to populate it.`}
+      </p>
+      {liveSwitchTo && (
+        <Link
+          to={liveSwitchTo}
+          className="rounded-full border border-amber-300 bg-white/70 px-3 py-1.5 text-xs font-medium text-amber-800 transition-colors hover:border-amber-400 hover:bg-white dark:border-amber-700/80 dark:bg-transparent dark:text-amber-200 dark:hover:border-amber-600 dark:hover:bg-amber-950/30"
+        >
+          Open live overview
+        </Link>
+      )}
+    </div>
+  ) : undefined;
+
   return (
     <OverviewDashboard
       mode="cached"
       adminSwitchTo={liveSwitchTo}
       adminSwitchLabel="Open live overview"
+      scopeStatusNotice={scopeStatusNotice}
       catalogUpdatedAt={sharedSnapshot?.catalogUpdatedAt}
       summaryUpdatedAt={scopeSnapshot?.updatedAt}
       progressUpdatedAt={scopeSnapshot?.updatedAt}
@@ -594,7 +616,7 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
       paperFilter={paperFilter}
       selectedPaper={selectedPaper}
       onSelectPaper={handleSelectPaper}
-      isPaperStatsLoading={isScopeLoading || isScopePending}
+      isPaperStatsLoading={selectedPaper !== undefined && (isScopeLoading || isScopePending)}
       totals={scopeSnapshot?.totals}
       targetProgress={targetProgress}
       targetClassifications={targetClassifications}

@@ -583,8 +583,8 @@ export function PaperCatalogSection({
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
-        <div className="space-y-1">
+      <div className="mb-5 grid grid-cols-[minmax(0,1fr)_auto] items-start gap-3">
+        <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">Galaxy catalog by paper</h3>
             {selectedPaper !== undefined && <FilteredBadge paper={selectedPaper} />}
@@ -597,16 +597,20 @@ export function PaperCatalogSection({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          {selectedPaper !== undefined && (
-            <button
-              type="button"
-              onClick={() => onSelectPaper(undefined)}
-              className="rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-blue-300 hover:text-blue-700 dark:border-gray-600 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
-            >
-              Clear filter
-            </button>
-          )}
+        <div className="flex items-start justify-end">
+          <button
+            type="button"
+            onClick={selectedPaper !== undefined ? () => onSelectPaper(undefined) : undefined}
+            disabled={selectedPaper === undefined}
+            aria-hidden={selectedPaper === undefined}
+            tabIndex={selectedPaper !== undefined ? undefined : -1}
+            className={cn(
+              "rounded-full border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:border-blue-300 hover:text-blue-700 dark:border-gray-600 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-200",
+              selectedPaper === undefined && "invisible pointer-events-none"
+            )}
+          >
+            Clear filter
+          </button>
         </div>
       </div>
 
