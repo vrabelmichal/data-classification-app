@@ -103,6 +103,7 @@ export function ClassificationInterface() {
   const [currentContrastGroup, setCurrentContrastGroup] = useState(defaultContrastGroupIndex);
   const [currentGalaxy, setCurrentGalaxy] = useState<any>(null);
   const [formLocked, setFormLocked] = useState<boolean>(true);
+  const [isSubmittingClassification, setIsSubmittingClassification] = useState(false);
   const [shouldRefocusQuickInput, setShouldRefocusQuickInput] = useState(false);
 
   const [showEllipseOverlay, setShowEllipseOverlay] = useState(true);
@@ -122,6 +123,7 @@ export function ClassificationInterface() {
   // Quick-tap / 4-tap issue reporting state
   const quickTapCountRef = useRef(0);
   const quickTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const submitInFlightRef = useRef(false);
 
   // Online status
   const isOnline = useOnlineStatus();
@@ -186,6 +188,7 @@ export function ClassificationInterface() {
     showVisibleNucleus
   );
   const { handlePrevious: navPrevious, handleNext: navNext } = useClassificationNavigation(currentGalaxy, navigation);
+  const interactionLocked = formLocked || isSubmittingClassification;
 
   // Resolved galaxy ID
   const resolvedGalaxyId = routeGalaxyId ? galaxyByExternalId?.id : galaxy?.id;
@@ -389,6 +392,9 @@ export function ClassificationInterface() {
   };
 
   const handleSubmit = useCallback(async () => {
+    if (submitInFlightRef.current) {
+      return;
+    }
     if (!isOnline) {
       toast.error("Cannot submit while offline");
       return;
@@ -414,6 +420,9 @@ export function ClassificationInterface() {
       });
       toast.success("Classification submitted successfully!");
       // Get next unprocessed galaxy (skipping skipped and classified ones)
+      submitInFlightRef.current = true;
+      setIsSubmittingClassification(true);
+
       const nextGalaxy = await getNextGalaxyMutation();
       if (nextGalaxy?.id) {
         navigate(`/classify/${nextGalaxy.id}`);
@@ -424,10 +433,16 @@ export function ClassificationInterface() {
     } catch (error) {
       toast.error("Failed to submit classification");
       console.error(error);
+    } finally {
+      submitInFlightRef.current = false;
+      setIsSubmittingClassification(false);
     }
   }, [currentGalaxy, formState, startTime, submitClassification, getNextGalaxyMutation, navigate, isOnline, maintenanceDisableClassifications]);
 
   const handleSkip = useCallback(async () => {
+    if (submitInFlightRef.current) {
+      return;
+    }
     if (!isOnline) {
       toast.error("Cannot skip while offline");
       return;
@@ -463,6 +478,9 @@ export function ClassificationInterface() {
   }, [currentGalaxy, formState.comments, skipGalaxy, unskipGalaxy, getNextGalaxyMutation, navigate, isOnline, isSkipped]);
 
   const handlePrevious = useCallback(async () => {
+    if (submitInFlightRef.current) {
+      return;
+    }
     if (!isOnline) {
       toast.error("Cannot navigate while offline");
       return;
@@ -472,6 +490,9 @@ export function ClassificationInterface() {
   }, [navPrevious, isOnline]);
 
   const handleNext = useCallback(async () => {
+    if (submitInFlightRef.current) {
+      return;
+    }
     if (!isOnline) {
       toast.error("Cannot navigate while offline");
       return;
@@ -1057,7 +1078,7 @@ export function ClassificationInterface() {
         visibleNucleus={formState.visibleNucleus}
         failedFitting={formState.failedFitting}
         comments={formState.comments}
-        formLocked={formLocked}
+        formLocked={interactionLocked}
         displayGalaxy={displayGalaxy}
         failedFittingMode={failedFittingMode}
         showAwesomeFlag={showAwesomeFlag}
@@ -1075,7 +1096,8 @@ export function ClassificationInterface() {
       {/* Action Buttons */}
       <ActionButtons
         canSubmit={formState.canSubmit}
-        formLocked={formLocked}
+        formLocked={interactionLocked}
+        isSubmitting={isSubmittingClassification}
         navigation={navigation}
         isOnline={isOnline}
         isSkipped={isSkipped === true}
@@ -1152,7 +1174,7 @@ export function ClassificationInterface() {
           onChange={formState.handleQuickInputChange}
           onKeyDown={handleQuickInputKeyDown}
           inputRef={formState.quickInputRef}
-          disabled={formLocked}
+          disabled={interactionLocked}
           showAwesomeFlag={showAwesomeFlag}
           showValidRedshift={showValidRedshift}
           showVisibleNucleus={showVisibleNucleus}
@@ -1166,7 +1188,7 @@ export function ClassificationInterface() {
           visibleNucleus={formState.visibleNucleus}
           failedFitting={formState.failedFitting}
           comments={formState.comments}
-          formLocked={formLocked}
+          formLocked={interactionLocked}
           displayGalaxy={displayGalaxy}
           failedFittingMode={failedFittingMode}
           showAwesomeFlag={showAwesomeFlag}
@@ -1182,7 +1204,8 @@ export function ClassificationInterface() {
         />
         <ActionButtons
           canSubmit={formState.canSubmit}
-          formLocked={formLocked}
+          formLocked={interactionLocked}
+          isSubmitting={isSubmittingClassification}
           navigation={navigation}
           isOnline={isOnline}
           isSkipped={isSkipped === true}
