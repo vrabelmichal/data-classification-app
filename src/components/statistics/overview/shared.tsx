@@ -213,7 +213,7 @@ export function CompositionBreakdown({
       <div className="overflow-hidden rounded-full border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-900/60">
         <div className="flex h-4 w-full">
           {items.map((item) => {
-            const percentage = total > 0 ? (item.value / total) * 100 : 0;
+            const percentage = total > 0 ? Math.min((item.value / total) * 100, 100) : 0;
             return (
               <div
                 key={item.label}
