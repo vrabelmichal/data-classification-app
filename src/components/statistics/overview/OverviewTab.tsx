@@ -483,7 +483,6 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
   const currentScopeKey = selectedPaper ?? "__all__";
   const latestSharedSnapshotRef = useRef<CachedOverviewPayload["sharedSnapshot"] | null>(null);
   const latestScopeSnapshotByKeyRef = useRef<Record<string, NonNullable<CachedOverviewPayload["scopeSnapshot"]>>>({});
-  const latestAnyScopeSnapshotRef = useRef<NonNullable<CachedOverviewPayload["scopeSnapshot"]> | null>(null);
 
   useEffect(() => {
     if (cachedData?.sharedSnapshot) {
@@ -492,13 +491,12 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
 
     if (cachedData?.scopeSnapshot) {
       latestScopeSnapshotByKeyRef.current[currentScopeKey] = cachedData.scopeSnapshot;
-      latestAnyScopeSnapshotRef.current = cachedData.scopeSnapshot;
     }
   }, [cachedData, currentScopeKey]);
 
   const sharedSnapshot = cachedData?.sharedSnapshot ?? latestSharedSnapshotRef.current ?? null;
   const resolvedScopeSnapshot = latestScopeSnapshotByKeyRef.current[currentScopeKey] ?? null;
-  const scopeSnapshot = cachedData?.scopeSnapshot ?? resolvedScopeSnapshot ?? latestAnyScopeSnapshotRef.current;
+  const scopeSnapshot = cachedData?.scopeSnapshot ?? resolvedScopeSnapshot;
   const snapshotReady = Boolean(
     sharedSnapshot?.catalog
       && sharedSnapshot.recency
@@ -506,7 +504,7 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
       && sharedSnapshot.classificationStats
       && scopeSnapshot,
   );
-  const isScopeLoading = cachedData === undefined && Boolean(latestAnyScopeSnapshotRef.current);
+  const isScopeLoading = cachedData === undefined && Boolean(resolvedScopeSnapshot);
   const isScopePending = cachedData !== undefined && !cachedData.scopeSnapshot;
   const liveSwitchTo = isAdmin
     ? buildOverviewModeLink("/statistics/overview-live", searchParams)

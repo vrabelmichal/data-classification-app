@@ -229,7 +229,7 @@ export function CompositionBreakdown({
 
       <div className="space-y-2">
         {items.map((item) => {
-          const percentage = total > 0 ? (item.value / total) * 100 : 0;
+          const percentage = total > 0 ? Math.min((item.value / total) * 100, 100) : 0;
 
           return (
             <div

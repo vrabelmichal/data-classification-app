@@ -205,6 +205,7 @@ export function OverviewStatusSection({
   title: string;
   description: string;
   badges: Array<{
+    id?: string;
     label: string;
     tone: "loading" | "ready" | "info" | "warning" | "error";
   }>;
@@ -218,8 +219,8 @@ export function OverviewStatusSection({
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
-            {badges.map((badge) => (
-              <StatusPill key={`${badge.label}-${badge.tone}`} label={badge.label} tone={badge.tone} />
+            {badges.map((badge, index) => (
+              <StatusPill key={badge.id ?? index} label={badge.label} tone={badge.tone} />
             ))}
           </div>
           <p className="max-w-3xl text-sm text-gray-600 dark:text-gray-300">{description}</p>
