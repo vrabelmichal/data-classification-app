@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
+import { toast } from "sonner";
 import { cn } from "../../lib/utils";
 
 type UserStatisticsData = {
   total: number;
-  thisWeek: number;
+  thisWeek: number | null;
   byLsbClass: {
     nonLSB: number;
     LSB: number;
@@ -17,12 +18,23 @@ type UserStatisticsData = {
     spiral: number;
     elliptical: number;
   };
-  averageTime: number;
+  averageTime: number | null;
   awesomeCount: number;
   validRedshiftCount: number;
   visibleNucleusCount: number;
   failedFittingCount: number;
-  _source: "profile" | "classifications";
+  _source: "cache" | "profile_fallback";
+};
+
+type StatisticsCacheState = {
+  status: "cached" | "stale" | "missing";
+  updatedAt: number | null;
+  dirtySince: number | null;
+};
+
+type UserStatisticsResponse = {
+  data: UserStatisticsData | null;
+  cache: StatisticsCacheState;
 };
 
 type BreakdownItem = {
@@ -46,7 +58,7 @@ type SummaryCard = {
 
 type StatisticsSnapshot = {
   targetKey: string;
-  data: UserStatisticsData;
+  data: UserStatisticsResponse;
 };
 
 function formatBreakdownPercent(value: number) {
@@ -63,6 +75,106 @@ function formatBreakdownPercent(value: number) {
   }
 
   return `${value.toFixed(0)}%`;
+}
+
+function formatStatValue(value: number | null) {
+  return value === null ? "—" : value.toLocaleString();
+}
+
+function formatAverageTimeValue(value: number | null) {
+  return value === null ? "—" : `${value}s`;
+}
+
+function formatCompactTimestamp(timestamp: number | null) {
+  if (!timestamp) {
+    return null;
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function formatRelativeTimestamp(timestamp: number | null) {
+  if (!timestamp) {
+    return null;
+  }
+
+  const diffMs = Date.now() - timestamp;
+  if (diffMs < 60_000) {
+    return "just now";
+  }
+
+  const minutes = Math.round(diffMs / 60_000);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) {
+    return `${hours}h ago`;
+  }
+
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+function StatisticsRefreshFooter({
+  cache,
+  source,
+  isRefreshing,
+  onRefresh,
+}: {
+  cache: StatisticsCacheState;
+  source: UserStatisticsData["_source"] | null;
+  isRefreshing: boolean;
+  onRefresh: () => void;
+}) {
+  const updatedAtLabel = formatCompactTimestamp(cache.updatedAt);
+  const updatedAtRelative = formatRelativeTimestamp(cache.updatedAt);
+  const dirtySinceLabel = formatRelativeTimestamp(cache.dirtySince);
+
+  let title = "Cached statistics";
+  let description = "Refresh recalculates this panel from live classifications.";
+
+  if (cache.status === "cached") {
+    title = updatedAtLabel
+      ? `Cached snapshot from ${updatedAtLabel}${updatedAtRelative ? ` (${updatedAtRelative})` : ""}`
+      : "Cached snapshot ready";
+  } else if (cache.status === "stale") {
+    title = updatedAtLabel
+      ? `Showing cached snapshot from ${updatedAtLabel}`
+      : "Showing cached snapshot";
+    description = dirtySinceLabel
+      ? `New classifications landed ${dirtySinceLabel}. Refresh or wait for the hourly cache update.`
+      : "Refresh or wait for the hourly cache update to pull in newer classifications.";
+  } else if (source === "profile_fallback") {
+    title = "Detailed snapshot not calculated yet";
+    description = "Totals and breakdowns come from cached profile counters. Weekly activity and average time appear after refresh.";
+  }
+
+  return (
+    <div className="mt-8 rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-900/40">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-200">{title}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{description}</p>
+        </div>
+
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={isRefreshing}
+          className="inline-flex shrink-0 items-center justify-center rounded-md border border-transparent px-2.5 py-1.5 text-xs font-medium text-gray-600 underline decoration-gray-300 underline-offset-4 transition hover:text-gray-900 hover:decoration-gray-500 disabled:cursor-not-allowed disabled:text-gray-400 dark:text-gray-300 dark:decoration-gray-600 dark:hover:text-white dark:hover:decoration-gray-300 disabled:dark:text-gray-500"
+        >
+          {isRefreshing ? "Refreshing…" : "Refresh"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function StatisticsEmptyState({ message }: { message: string }) {
@@ -328,9 +440,11 @@ function StatisticsBreakdownsSection({
 export function StatisticsTab() {
   const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
   const [lastStatsSnapshot, setLastStatsSnapshot] = useState<StatisticsSnapshot | null>(null);
+  const [isRefreshingStats, setIsRefreshingStats] = useState(false);
   
   const userProfile = useQuery(api.users.getUserProfile);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  const refreshUserStatsSnapshot = useAction(api.users.refreshUserStatsSnapshot);
   
   const isAdmin = userProfile?.role === "admin";
   
@@ -367,13 +481,16 @@ export function StatisticsTab() {
     return user.name || user.email || user.userId;
   }, [selectedUserId, usersList]);
 
-  const displayStats =
+  const displayStatsResponse =
     stats ??
     (statsTargetKey !== null && lastStatsSnapshot?.targetKey === String(statsTargetKey)
       ? lastStatsSnapshot.data
       : null);
 
-  if ((stats === undefined && !displayStats) || progress === undefined || systemSettings === undefined || userProfile === undefined) {
+  const displayStats = displayStatsResponse?.data ?? null;
+  const displayCache = displayStatsResponse?.cache ?? null;
+
+  if ((stats === undefined && !displayStatsResponse) || progress === undefined || systemSettings === undefined || userProfile === undefined) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)] overflow-hidden">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -389,7 +506,24 @@ export function StatisticsTab() {
   // Show failed fitting stat only in checkbox mode
   const showFailedFitting = failedFittingMode === "checkbox";
 
-  const isRefetching = stats === undefined && !!displayStats;
+  const isRefetching = stats === undefined && !!displayStatsResponse;
+
+  const handleRefreshStats = async () => {
+    if (isRefreshingStats) {
+      return;
+    }
+
+    setIsRefreshingStats(true);
+    try {
+      await refreshUserStatsSnapshot(selectedUserId ? { targetUserId: selectedUserId } : {});
+      toast.success("Statistics refreshed.");
+    } catch (error) {
+      console.error("[StatisticsTab] failed to refresh statistics", error);
+      toast.error("Failed to refresh statistics.");
+    } finally {
+      setIsRefreshingStats(false);
+    }
+  };
 
   const totalClassifications = displayStats?.total ?? 0;
 
@@ -464,7 +598,7 @@ export function StatisticsTab() {
     {
       id: "total",
       label: "Total",
-      value: displayStats?.total || 0,
+      value: formatStatValue(displayStats?.total ?? null),
       icon: "🔍",
       bgColor: "bg-blue-100 dark:bg-blue-900/30",
       textColor: "text-blue-600 dark:text-blue-400",
@@ -472,7 +606,7 @@ export function StatisticsTab() {
     {
       id: "thisWeek",
       label: "This Week",
-      value: displayStats?.thisWeek || 0,
+      value: formatStatValue(displayStats?.thisWeek ?? null),
       icon: "📅",
       bgColor: "bg-green-100 dark:bg-green-900/30",
       textColor: "text-green-600 dark:text-green-400",
@@ -483,7 +617,7 @@ export function StatisticsTab() {
     statCards.push({
       id: "awesome",
       label: "Awesome",
-      value: displayStats?.awesomeCount || 0,
+      value: formatStatValue(displayStats?.awesomeCount ?? null),
       icon: "⭐",
       bgColor: "bg-yellow-100 dark:bg-yellow-900/30",
       textColor: "text-yellow-600 dark:text-yellow-400",
@@ -495,7 +629,7 @@ export function StatisticsTab() {
       id: "visibleNucleus",
       label: "Nucleus",
       title: "Visible Nucleus",
-      value: displayStats?.visibleNucleusCount || 0,
+      value: formatStatValue(displayStats?.visibleNucleusCount ?? null),
       icon: "🎯",
       bgColor: "bg-orange-100 dark:bg-orange-900/30",
       textColor: "text-orange-600 dark:text-orange-400",
@@ -506,7 +640,7 @@ export function StatisticsTab() {
     statCards.push({
       id: "validRedshift",
       label: "Valid Redshift",
-      value: displayStats?.validRedshiftCount || 0,
+      value: formatStatValue(displayStats?.validRedshiftCount ?? null),
       icon: "🔴",
       bgColor: "bg-red-100 dark:bg-red-900/30",
       textColor: "text-red-600 dark:text-red-400",
@@ -518,7 +652,7 @@ export function StatisticsTab() {
       id: "failedFitting",
       label: "Failed",
       title: "Failed Fitting",
-      value: displayStats?.failedFittingCount || 0,
+      value: formatStatValue(displayStats?.failedFittingCount ?? null),
       icon: "❌",
       bgColor: "bg-rose-100 dark:bg-rose-900/30",
       textColor: "text-rose-600 dark:text-rose-400",
@@ -528,7 +662,7 @@ export function StatisticsTab() {
   statCards.push({
     id: "avgTime",
     label: "Avg Time",
-    value: `${displayStats?.averageTime || 0}s`,
+    value: formatAverageTimeValue(displayStats?.averageTime ?? null),
     icon: "⏱️",
     bgColor: "bg-purple-100 dark:bg-purple-900/30",
     textColor: "text-purple-600 dark:text-purple-400",
@@ -576,12 +710,6 @@ export function StatisticsTab() {
               Showing statistics for: <span className="font-medium text-gray-700 dark:text-gray-200">{selectedUserDisplay}</span>
             </p>
           )}
-        </div>
-      )}
-
-      {displayStats?._source === "classifications" && (
-        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-800 shadow-sm dark:border-amber-800/70 dark:bg-amber-950/20 dark:text-amber-200">
-          Cached per-user counters are out of sync with the live classifications for this user. This view is showing live classification totals. Recompute user classification counters in Maintenance to repair the cached values.
         </div>
       )}
 
@@ -680,6 +808,15 @@ export function StatisticsTab() {
           </div>
         )}
       </div>
+
+      {displayCache && (
+        <StatisticsRefreshFooter
+          cache={displayCache}
+          source={displayStats?._source ?? null}
+          isRefreshing={isRefreshingStats}
+          onRefresh={() => void handleRefreshStats()}
+        />
+      )}
     </div>
   );
 }

@@ -1,9 +1,9 @@
-import { query, mutation, action } from "./_generated/server";
+import { query, mutation, action, internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import { getOptionalUserId, requireAdmin, requireUserId, requireUserProfile } from "./lib/auth";
 import { getDefaultImageQuality } from "./lib/settings";
 import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
 import {
   classificationsByCreated,
@@ -17,9 +17,11 @@ import {
   userProfilesByLastActive,
 } from "./galaxies/aggregates";
 import {
-  auditUserClassificationStats,
-  getUserClassificationCounterDiffKeys,
+  buildUserClassificationCounterPatch,
+  createEmptyUserClassificationCounterSnapshot,
   getUserClassificationCounterSnapshotFromProfile,
+  userClassificationCounterSnapshotValidator,
+  type UserClassificationCounterSnapshot,
 } from "./classifications/userCounterStats";
 
 async function insertUserProfileAggregates(ctx: any, profile: any) {
@@ -43,6 +45,223 @@ async function replaceUserProfileAggregates(ctx: any, oldProfile: any, newProfil
       }
     }
   }
+}
+
+type UserStatisticsSnapshotData = {
+  total: number;
+  thisWeek: number;
+  byLsbClass: {
+    nonLSB: number;
+    LSB: number;
+  };
+  byMorphology: {
+    featureless: number;
+    irregular: number;
+    spiral: number;
+    elliptical: number;
+  };
+  averageTime: number;
+  awesomeCount: number;
+  validRedshiftCount: number;
+  visibleNucleusCount: number;
+  failedFittingCount: number;
+};
+
+type UserStatisticsDisplayData = {
+  total: number;
+  thisWeek: number | null;
+  byLsbClass: {
+    nonLSB: number;
+    LSB: number;
+  };
+  byMorphology: {
+    featureless: number;
+    irregular: number;
+    spiral: number;
+    elliptical: number;
+  };
+  averageTime: number | null;
+  awesomeCount: number;
+  validRedshiftCount: number;
+  visibleNucleusCount: number;
+  failedFittingCount: number;
+  _source: "cache" | "profile_fallback";
+};
+
+type UserStatisticsQueryResult = {
+  data: UserStatisticsDisplayData | null;
+  cache: {
+    status: "cached" | "stale" | "missing";
+    updatedAt: number | null;
+    dirtySince: number | null;
+  };
+};
+
+const USER_STATS_REFRESH_PAGE_SIZE = 500;
+const USER_STATS_CRON_BATCH_SIZE = 50;
+const USER_STATS_BACKFILL_CURSOR_KEY = "userStatsSnapshotBackfillCursor";
+
+const userStatisticsSnapshotDataValidator = v.object({
+  total: v.number(),
+  thisWeek: v.number(),
+  byLsbClass: v.object({
+    nonLSB: v.number(),
+    LSB: v.number(),
+  }),
+  byMorphology: v.object({
+    featureless: v.number(),
+    irregular: v.number(),
+    spiral: v.number(),
+    elliptical: v.number(),
+  }),
+  averageTime: v.number(),
+  awesomeCount: v.number(),
+  validRedshiftCount: v.number(),
+  visibleNucleusCount: v.number(),
+  failedFittingCount: v.number(),
+});
+
+const userStatisticsDisplayDataValidator = v.object({
+  total: v.number(),
+  thisWeek: v.union(v.number(), v.null()),
+  byLsbClass: v.object({
+    nonLSB: v.number(),
+    LSB: v.number(),
+  }),
+  byMorphology: v.object({
+    featureless: v.number(),
+    irregular: v.number(),
+    spiral: v.number(),
+    elliptical: v.number(),
+  }),
+  averageTime: v.union(v.number(), v.null()),
+  awesomeCount: v.number(),
+  validRedshiftCount: v.number(),
+  visibleNucleusCount: v.number(),
+  failedFittingCount: v.number(),
+  _source: v.union(v.literal("cache"), v.literal("profile_fallback")),
+});
+
+const userStatisticsQueryResultValidator = v.object({
+  data: v.union(userStatisticsDisplayDataValidator, v.null()),
+  cache: v.object({
+    status: v.union(v.literal("cached"), v.literal("stale"), v.literal("missing")),
+    updatedAt: v.union(v.number(), v.null()),
+    dirtySince: v.union(v.number(), v.null()),
+  }),
+});
+
+const userStatsRefreshPageValidator = v.object({
+  page: v.array(v.object({
+    createdAt: v.number(),
+    timeSpent: v.number(),
+    awesome_flag: v.boolean(),
+    valid_redshift: v.boolean(),
+    visible_nucleus: v.optional(v.boolean()),
+    failed_fitting: v.optional(v.boolean()),
+    lsb_class: v.number(),
+    morphology: v.number(),
+  })),
+  continueCursor: v.union(v.string(), v.null()),
+  isDone: v.boolean(),
+});
+
+const dirtyUserStatsRefreshPageValidator = v.object({
+  userIds: v.array(v.id("users")),
+  continueCursor: v.union(v.string(), v.null()),
+  isDone: v.boolean(),
+});
+
+function buildUserStatisticsSnapshotData(
+  counters: UserClassificationCounterSnapshot,
+  thisWeek: number,
+  averageTime: number
+): UserStatisticsSnapshotData {
+  return {
+    total: counters.classificationsCount,
+    thisWeek,
+    byLsbClass: {
+      nonLSB: counters.lsb0Count + counters.lsbNeg1Count,
+      LSB: counters.lsb1Count,
+    },
+    byMorphology: {
+      featureless: counters.morphNeg1Count,
+      irregular: counters.morph0Count,
+      spiral: counters.morph1Count,
+      elliptical: counters.morph2Count,
+    },
+    averageTime,
+    awesomeCount: counters.awesomeCount,
+    validRedshiftCount: counters.validRedshiftCount,
+    visibleNucleusCount: counters.visibleNucleusCount,
+    failedFittingCount: counters.failedFittingCount,
+  };
+}
+
+function buildUserStatisticsDisplayData(
+  data: UserStatisticsSnapshotData,
+  source: UserStatisticsDisplayData["_source"]
+): UserStatisticsDisplayData {
+  return {
+    ...data,
+    _source: source,
+  };
+}
+
+function buildUserStatisticsFallbackFromProfile(
+  profile: Partial<Doc<"userProfiles">>
+): UserStatisticsDisplayData {
+  const counters = getUserClassificationCounterSnapshotFromProfile(profile);
+  const snapshot = buildUserStatisticsSnapshotData(counters, 0, 0);
+
+  return {
+    ...snapshot,
+    thisWeek: null,
+    averageTime: null,
+    _source: "profile_fallback",
+  };
+}
+
+async function insertEmptyUserStatsSnapshotIfMissing(
+  ctx: any,
+  profile: Pick<Doc<"userProfiles">, "userId" | "classificationsCount">
+) {
+  if (profile.classificationsCount !== 0) {
+    return;
+  }
+
+  const existing = await ctx.db
+    .query("userStatsSnapshots")
+    .withIndex("by_user", (q: any) => q.eq("userId", profile.userId))
+    .unique();
+
+  if (existing) {
+    return;
+  }
+
+  await ctx.db.insert("userStatsSnapshots", {
+    userId: profile.userId,
+    data: buildUserStatisticsSnapshotData(createEmptyUserClassificationCounterSnapshot(), 0, 0),
+    updatedAt: Date.now(),
+    dirty: false,
+  });
+}
+
+async function resolveUserStatsTargetUserId(
+  ctx: any,
+  targetUserId?: Id<"users"> | null
+): Promise<Id<"users"> | null> {
+  const currentUserId = await getOptionalUserId(ctx);
+  if (!currentUserId) {
+    return null;
+  }
+
+  if (targetUserId && targetUserId !== currentUserId) {
+    await requireAdmin(ctx, { notAdminMessage: "Only admins can view other users' statistics" });
+    return targetUserId;
+  }
+
+  return currentUserId;
 }
 // adminSetUserPassword removed: we now only support email-based reset flow.
 
@@ -130,6 +349,7 @@ export const initializeUserProfile = mutation({
 
     if (existing) {
       await insertUserProfileAggregates(ctx, existing);
+      await insertEmptyUserStatsSnapshotIfMissing(ctx, existing);
       return existing;
     }
 
@@ -152,6 +372,7 @@ export const initializeUserProfile = mutation({
     const createdProfile = await ctx.db.get(profileId);
     if (createdProfile) {
       await insertUserProfileAggregates(ctx, createdProfile);
+      await insertEmptyUserStatsSnapshotIfMissing(ctx, createdProfile);
     }
 
     return createdProfile;
@@ -182,14 +403,358 @@ export const getUserProfile = query({
   },
 });
 
-/**
- * Toggle to switch between user stats calculation methods:
- * - false: Use filter/reduce on classifications table (original method, accurate but slower)
- * - true: Use pre-computed counters from userProfiles table (fast method, relies on counters being up-to-date)
- * 
- * Set to true for production performance, false for debugging/cross-checking accuracy.
- */
-const USE_PROFILE_COUNTERS_FOR_STATS = true;
+export const resolveUserStatsTargetUserIdInternal = internalQuery({
+  args: {
+    targetUserId: v.optional(v.id("users")),
+  },
+  returns: v.union(v.id("users"), v.null()),
+  handler: async (ctx, args): Promise<Id<"users"> | null> => {
+    return await resolveUserStatsTargetUserId(ctx, args.targetUserId ?? null);
+  },
+});
+
+export const getUserStatsRefreshPageInternal = internalQuery({
+  args: {
+    userId: v.id("users"),
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: userStatsRefreshPageValidator,
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("classifications")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .paginate({ numItems: USER_STATS_REFRESH_PAGE_SIZE, cursor: args.cursor });
+
+    return {
+      page: page.page.map((classification) => ({
+        createdAt: classification._creationTime,
+        timeSpent: classification.timeSpent,
+        awesome_flag: classification.awesome_flag,
+        valid_redshift: classification.valid_redshift,
+        visible_nucleus: classification.visible_nucleus,
+        failed_fitting: classification.failed_fitting,
+        lsb_class: classification.lsb_class,
+        morphology: classification.morphology,
+      })),
+      continueCursor: page.continueCursor,
+      isDone: page.isDone,
+    };
+  },
+});
+
+export const getDirtyUserStatsRefreshPageInternal = internalQuery({
+  args: {
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: dirtyUserStatsRefreshPageValidator,
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("userStatsSnapshots")
+      .withIndex("by_dirty_and_updated_at", (q) => q.eq("dirty", true))
+      .paginate({ numItems: USER_STATS_CRON_BATCH_SIZE, cursor: args.cursor });
+
+    return {
+      userIds: page.page.map((snapshot) => snapshot.userId),
+      continueCursor: page.continueCursor,
+      isDone: page.isDone,
+    };
+  },
+});
+
+export const getUserStatsBackfillCursorInternal = internalQuery({
+  args: {},
+  returns: v.union(v.string(), v.null()),
+  handler: async (ctx) => {
+    const cursorSetting = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", USER_STATS_BACKFILL_CURSOR_KEY))
+      .unique();
+
+    return typeof cursorSetting?.value === "string" ? cursorSetting.value : null;
+  },
+});
+
+export const setUserStatsBackfillCursorInternal = internalMutation({
+  args: {
+    cursor: v.union(v.string(), v.null()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("systemSettings")
+      .withIndex("by_key", (q) => q.eq("key", USER_STATS_BACKFILL_CURSOR_KEY))
+      .unique();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, { value: args.cursor });
+    } else {
+      await ctx.db.insert("systemSettings", {
+        key: USER_STATS_BACKFILL_CURSOR_KEY,
+        value: args.cursor,
+      });
+    }
+
+    return null;
+  },
+});
+
+export const getMissingUserStatsRefreshPageInternal = internalQuery({
+  args: {
+    cursor: v.union(v.string(), v.null()),
+    limit: v.number(),
+  },
+  returns: dirtyUserStatsRefreshPageValidator,
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("userProfiles")
+      .paginate({ numItems: Math.max(1, Math.min(args.limit, USER_STATS_CRON_BATCH_SIZE)), cursor: args.cursor });
+
+    const userIds: Id<"users">[] = [];
+
+    for (const profile of page.page) {
+      const snapshot = await ctx.db
+        .query("userStatsSnapshots")
+        .withIndex("by_user", (q) => q.eq("userId", profile.userId))
+        .unique();
+
+      if (!snapshot?.data) {
+        userIds.push(profile.userId);
+      }
+    }
+
+    return {
+      userIds,
+      continueCursor: page.continueCursor,
+      isDone: page.isDone,
+    };
+  },
+});
+
+export const persistUserStatsSnapshotInternal = internalMutation({
+  args: {
+    userId: v.id("users"),
+    data: userStatisticsSnapshotDataValidator,
+    counters: userClassificationCounterSnapshotValidator,
+  },
+  returns: v.object({ updatedAt: v.number() }),
+  handler: async (ctx, args) => {
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    if (profile) {
+      const profilePatch = buildUserClassificationCounterPatch(profile, args.counters);
+      if (Object.keys(profilePatch).length > 0) {
+        await ctx.db.patch(profile._id, profilePatch);
+        const refreshedProfile = await ctx.db.get(profile._id);
+        if (refreshedProfile && profilePatch.classificationsCount !== undefined) {
+          await replaceUserProfileAggregates(ctx, profile, refreshedProfile);
+        }
+      }
+    }
+
+    const updatedAt = Date.now();
+    const existingSnapshot = await ctx.db
+      .query("userStatsSnapshots")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .unique();
+
+    if (existingSnapshot) {
+      await ctx.db.patch(existingSnapshot._id, {
+        data: args.data,
+        updatedAt,
+        dirty: false,
+      });
+    } else {
+      await ctx.db.insert("userStatsSnapshots", {
+        userId: args.userId,
+        data: args.data,
+        updatedAt,
+        dirty: false,
+      });
+    }
+
+    return { updatedAt };
+  },
+});
+
+async function recomputeAndPersistUserStatsSnapshot(
+  ctx: any,
+  userId: Id<"users">
+): Promise<{ updatedAt: number }> {
+  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const counters = createEmptyUserClassificationCounterSnapshot();
+  let totalTimeSpentMs = 0;
+  let thisWeek = 0;
+  let cursor: string | null = null;
+
+  while (true) {
+    const page: {
+      page: Array<{
+        createdAt: number;
+        timeSpent: number;
+        awesome_flag: boolean;
+        valid_redshift: boolean;
+        visible_nucleus?: boolean;
+        failed_fitting?: boolean;
+        lsb_class: number;
+        morphology: number;
+      }>;
+      continueCursor: string | null;
+      isDone: boolean;
+    } = await ctx.runQuery(internal.users.getUserStatsRefreshPageInternal, {
+      userId,
+      cursor,
+    });
+
+    for (const classification of page.page) {
+      counters.classificationsCount += 1;
+      if (classification.createdAt >= oneWeekAgo) {
+        thisWeek += 1;
+      }
+      totalTimeSpentMs += classification.timeSpent;
+
+      if (classification.awesome_flag) counters.awesomeCount += 1;
+      if (classification.visible_nucleus) counters.visibleNucleusCount += 1;
+      if (classification.failed_fitting) counters.failedFittingCount += 1;
+      if (classification.valid_redshift) counters.validRedshiftCount += 1;
+
+      switch (classification.lsb_class) {
+        case -1:
+          counters.lsbNeg1Count += 1;
+          break;
+        case 0:
+          counters.lsb0Count += 1;
+          break;
+        case 1:
+          counters.lsb1Count += 1;
+          break;
+      }
+
+      switch (classification.morphology) {
+        case -1:
+          counters.morphNeg1Count += 1;
+          break;
+        case 0:
+          counters.morph0Count += 1;
+          break;
+        case 1:
+          counters.morph1Count += 1;
+          break;
+        case 2:
+          counters.morph2Count += 1;
+          break;
+      }
+    }
+
+    if (page.isDone) {
+      break;
+    }
+
+    cursor = page.continueCursor;
+  }
+
+  const averageTime = counters.classificationsCount > 0
+    ? Math.round(totalTimeSpentMs / counters.classificationsCount / 1000)
+    : 0;
+
+  return await ctx.runMutation(internal.users.persistUserStatsSnapshotInternal, {
+    userId,
+    data: buildUserStatisticsSnapshotData(counters, thisWeek, averageTime),
+    counters,
+  });
+}
+
+export const refreshUserStatsSnapshot = action({
+  args: {
+    targetUserId: v.optional(v.id("users")),
+  },
+  returns: v.object({ updatedAt: v.number() }),
+  handler: async (ctx, args): Promise<{ updatedAt: number }> => {
+    const userId: Id<"users"> | null = await ctx.runQuery(internal.users.resolveUserStatsTargetUserIdInternal, {
+      targetUserId: args.targetUserId,
+    });
+
+    if (!userId) {
+      throw new Error("Not authenticated");
+    }
+
+    return await recomputeAndPersistUserStatsSnapshot(ctx, userId);
+  },
+});
+
+export const refreshDirtyUserStatsSnapshots = internalAction({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    let cursor: string | null = null;
+    let processed = 0;
+
+    while (processed < USER_STATS_CRON_BATCH_SIZE) {
+      const page: {
+        userIds: Id<"users">[];
+        continueCursor: string | null;
+        isDone: boolean;
+      } = await ctx.runQuery(internal.users.getDirtyUserStatsRefreshPageInternal, { cursor });
+
+      for (const userId of page.userIds) {
+        try {
+          await recomputeAndPersistUserStatsSnapshot(ctx, userId);
+        } catch (error) {
+          console.error("[users:refreshDirtyUserStatsSnapshots] failed to refresh snapshot", {
+            userId,
+            error,
+          });
+        }
+
+        processed += 1;
+        if (processed >= USER_STATS_CRON_BATCH_SIZE) {
+          break;
+        }
+      }
+
+      if (page.isDone || processed >= USER_STATS_CRON_BATCH_SIZE) {
+        break;
+      }
+
+      cursor = page.continueCursor;
+    }
+
+    const remaining = USER_STATS_CRON_BATCH_SIZE - processed;
+    if (remaining > 0) {
+      const backfillCursor: string | null = await ctx.runQuery(
+        internal.users.getUserStatsBackfillCursorInternal,
+        {}
+      );
+      const backfillPage: {
+        userIds: Id<"users">[];
+        continueCursor: string | null;
+        isDone: boolean;
+      } = await ctx.runQuery(internal.users.getMissingUserStatsRefreshPageInternal, {
+        cursor: backfillCursor,
+        limit: remaining,
+      });
+
+      for (const userId of backfillPage.userIds) {
+        try {
+          await recomputeAndPersistUserStatsSnapshot(ctx, userId);
+        } catch (error) {
+          console.error("[users:refreshDirtyUserStatsSnapshots] failed to backfill snapshot", {
+            userId,
+            error,
+          });
+        }
+      }
+
+      await ctx.runMutation(internal.users.setUserStatsBackfillCursorInternal, {
+        cursor: backfillPage.isDone ? null : backfillPage.continueCursor,
+      });
+    }
+
+    return null;
+  },
+});
 
 // Get user statistics
 // If targetUserId is provided, requires admin access to view other users' stats
@@ -197,121 +762,42 @@ export const getUserStats = query({
   args: {
     targetUserId: v.optional(v.id("users")),
   },
-  handler: async (ctx, args) => {
-    const currentUserId = await getOptionalUserId(ctx);
-    if (!currentUserId) return null;
-
-    // Determine which user's stats to fetch
-    let userId = currentUserId;
-
-    if (args.targetUserId && args.targetUserId !== currentUserId) {
-      // Viewing another user's stats requires admin access
-      await requireAdmin(ctx, { notAdminMessage: "Only admins can view other users' statistics" });
-      userId = args.targetUserId;
+  returns: v.union(userStatisticsQueryResultValidator, v.null()),
+  handler: async (ctx, args): Promise<UserStatisticsQueryResult | null> => {
+    const userId = await resolveUserStatsTargetUserId(ctx, args.targetUserId ?? null);
+    if (!userId) {
+      return null;
     }
 
-    // Get user profile (needed for both methods, and always available)
-    const profile = await ctx.db
-      .query("userProfiles")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .unique();
-
-    if (USE_PROFILE_COUNTERS_FOR_STATS && profile) {
-      // Fast method: Use pre-computed counters from userProfiles
-      // For "this week", we still need to query classifications (no counter for this)
-      const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const recentClassifications = await ctx.db
-        .query("classifications")
+    const [profile, snapshotDoc] = await Promise.all([
+      ctx.db
+        .query("userProfiles")
         .withIndex("by_user", (q) => q.eq("userId", userId))
-        .filter((q) => q.gte(q.field("_creationTime"), oneWeekAgo))
-        .collect();
-      const thisWeek = recentClassifications.length;
-
-      // For average time, we still need to compute from classifications
-      // TODO: This is a problem, these data should not be retrieved every time. 
-      const allClassifications = await ctx.db
-        .query("classifications")
+        .unique(),
+      ctx.db
+        .query("userStatsSnapshots")
         .withIndex("by_user", (q) => q.eq("userId", userId))
-        .collect();
-      const averageTime = allClassifications.length > 0
-        ? allClassifications.reduce((sum, c) => sum + c.timeSpent, 0) / allClassifications.length
-        : 0;
+        .unique(),
+    ]);
 
-      const cachedCounters = getUserClassificationCounterSnapshotFromProfile(profile);
-      const actualCounterAudit = auditUserClassificationStats(allClassifications);
-      const actualCounters = actualCounterAudit.counters;
-      const canUseProfileCounters = getUserClassificationCounterDiffKeys(cachedCounters, actualCounters).length === 0;
-
-      const sourceCounters = canUseProfileCounters ? cachedCounters : actualCounters;
-
-      // LSB counts: combine lsb0 as nonLSB, lsb1 as LSB (lsbNeg1 is legacy/failed fitting)
-      const lsbClassCounts = {
-        nonLSB: sourceCounters.lsb0Count + sourceCounters.lsbNeg1Count,
-        LSB: sourceCounters.lsb1Count,
-      };
-
-      // Morphology counts from profile
-      const morphologyCounts = {
-        featureless: sourceCounters.morphNeg1Count,
-        irregular: sourceCounters.morph0Count,
-        spiral: sourceCounters.morph1Count,
-        elliptical: sourceCounters.morph2Count,
-      };
-
+    if (snapshotDoc?.data) {
       return {
-        total: sourceCounters.classificationsCount,
-        thisWeek,
-        byLsbClass: lsbClassCounts,
-        byMorphology: morphologyCounts,
-        averageTime: Math.round(averageTime / 1000), // Convert to seconds
-        awesomeCount: sourceCounters.awesomeCount,
-        validRedshiftCount: sourceCounters.validRedshiftCount,
-        visibleNucleusCount: sourceCounters.visibleNucleusCount,
-        failedFittingCount: sourceCounters.failedFittingCount,
-        // Include raw profile counters for debugging/comparison
-        _source: canUseProfileCounters ? ("profile" as const) : ("classifications" as const),
+        data: buildUserStatisticsDisplayData(snapshotDoc.data, "cache"),
+        cache: {
+          status: snapshotDoc.dirty ? "stale" : "cached",
+          updatedAt: snapshotDoc.updatedAt > 0 ? snapshotDoc.updatedAt : null,
+          dirtySince: snapshotDoc.dirty ? snapshotDoc.dirtySince ?? null : null,
+        },
       };
     }
-
-    // Original method: Filter and reduce on classifications table
-    const classifications = await ctx.db
-      .query("classifications")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
-      .collect();
-
-    const recentClassifications = classifications
-      .filter(c => c._creationTime > Date.now() - 7 * 24 * 60 * 60 * 1000)
-      .length;
-
-    const actualCounters = auditUserClassificationStats(classifications).counters;
-
-    const lsbClassCounts = {
-      nonLSB: actualCounters.lsb0Count + actualCounters.lsbNeg1Count,
-      LSB: actualCounters.lsb1Count,
-    };
-
-    const morphologyCounts = {
-      featureless: actualCounters.morphNeg1Count,
-      irregular: actualCounters.morph0Count,
-      spiral: actualCounters.morph1Count,
-      elliptical: actualCounters.morph2Count,
-    };
-
-    const averageTime = classifications.length > 0
-      ? classifications.reduce((sum, c) => sum + c.timeSpent, 0) / classifications.length
-      : 0;
 
     return {
-      total: actualCounters.classificationsCount,
-      thisWeek: recentClassifications,
-      byLsbClass: lsbClassCounts,
-      byMorphology: morphologyCounts,
-      averageTime: Math.round(averageTime / 1000), // Convert to seconds
-      awesomeCount: actualCounters.awesomeCount,
-      validRedshiftCount: actualCounters.validRedshiftCount,
-      visibleNucleusCount: actualCounters.visibleNucleusCount,
-      failedFittingCount: actualCounters.failedFittingCount,
-      _source: "classifications" as const,
+      data: profile ? buildUserStatisticsFallbackFromProfile(profile) : null,
+      cache: {
+        status: "missing",
+        updatedAt: null,
+        dirtySince: snapshotDoc?.dirtySince ?? null,
+      },
     };
   },
 });
@@ -566,7 +1052,10 @@ export const updateUserStatus = mutation({
         sequenceGenerated: false,
       });
       const newProfile = await ctx.db.get(profileId);
-      if (newProfile) await insertUserProfileAggregates(ctx, newProfile);
+      if (newProfile) {
+        await insertUserProfileAggregates(ctx, newProfile);
+        await insertEmptyUserStatsSnapshotIfMissing(ctx, newProfile);
+      }
       return { success: true };
     }
 
@@ -608,7 +1097,10 @@ export const confirmUser = mutation({
         sequenceGenerated: false,
       });
       const newProfile = await ctx.db.get(profileId);
-      if (newProfile) await insertUserProfileAggregates(ctx, newProfile);
+      if (newProfile) {
+        await insertUserProfileAggregates(ctx, newProfile);
+        await insertEmptyUserStatsSnapshotIfMissing(ctx, newProfile);
+      }
       return { success: true };
     }
 
@@ -650,7 +1142,10 @@ export const updateUserRole = mutation({
         sequenceGenerated: false,
       });
       const newProfile = await ctx.db.get(profileId);
-      if (newProfile) await insertUserProfileAggregates(ctx, newProfile);
+      if (newProfile) {
+        await insertUserProfileAggregates(ctx, newProfile);
+        await insertEmptyUserStatsSnapshotIfMissing(ctx, newProfile);
+      }
       return { success: true };
     }
 
@@ -712,6 +1207,15 @@ export const deleteUser = mutation({
 
     if (userPrefs) {
       await ctx.db.delete(userPrefs._id);
+    }
+
+    const userStatsSnapshot = await ctx.db
+      .query("userStatsSnapshots")
+      .withIndex("by_user", (q) => q.eq("userId", args.targetUserId))
+      .unique();
+
+    if (userStatsSnapshot) {
+      await ctx.db.delete(userStatsSnapshot._id);
     }
 
     // Delete user classifications

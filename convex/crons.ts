@@ -10,4 +10,11 @@ crons.interval(
   {}
 );
 
+crons.interval(
+  "refresh dirty user statistics snapshots",
+  { hours: 1 },
+  internal.users.refreshDirtyUserStatsSnapshots,
+  {}
+);
+
 export default crons;

@@ -261,6 +261,34 @@ const applicationTables = {
     morph2Count: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
+  userStatsSnapshots: defineTable({
+    userId: v.id("users"),
+    data: v.optional(v.object({
+      total: v.number(),
+      thisWeek: v.number(),
+      byLsbClass: v.object({
+        nonLSB: v.number(),
+        LSB: v.number(),
+      }),
+      byMorphology: v.object({
+        featureless: v.number(),
+        irregular: v.number(),
+        spiral: v.number(),
+        elliptical: v.number(),
+      }),
+      averageTime: v.number(),
+      awesomeCount: v.number(),
+      validRedshiftCount: v.number(),
+      visibleNucleusCount: v.number(),
+      failedFittingCount: v.number(),
+    })),
+    updatedAt: v.number(),
+    dirty: v.boolean(),
+    dirtySince: v.optional(v.number()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_dirty_and_updated_at", ["dirty", "updatedAt"]),
+
   // User preferences
   userPreferences: defineTable({
     userId: v.id("users"),

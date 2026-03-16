@@ -93,6 +93,32 @@ async function safeReplaceClassificationAggregate(
   }
 }
 
+async function markUserStatsSnapshotDirty(
+  ctx: any,
+  userId: Doc<"userProfiles">["userId"]
+) {
+  const now = Date.now();
+  const existing = await ctx.db
+    .query("userStatsSnapshots")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .unique();
+
+  if (existing) {
+    await ctx.db.patch(existing._id, {
+      dirty: true,
+      dirtySince: existing.dirtySince ?? now,
+    });
+    return;
+  }
+
+  await ctx.db.insert("userStatsSnapshots", {
+    userId,
+    updatedAt: 0,
+    dirty: true,
+    dirtySince: now,
+  });
+}
+
 
 // Get progress
 
@@ -294,6 +320,8 @@ export const submitClassification = mutation({
           }
         }
       }
+
+      await markUserStatsSnapshotDirty(ctx, userId);
     } else {
 
       // // Remove from skipped if it was skipped before
@@ -406,6 +434,8 @@ export const submitClassification = mutation({
           numClassified: (sequence.numClassified || 0) + 1,
         });
       }
+
+      await markUserStatsSnapshotDirty(ctx, userId);
     }
 
     return { success: true };

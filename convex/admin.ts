@@ -8,16 +8,50 @@ export const createUserProfile = mutation({
   handler: async (ctx, args) => {
     await requireAdmin(ctx);
 
+    const now = Date.now();
+
     await ctx.db.insert("userProfiles", {
       userId: args.targetUserId,
       role: "user",
       isActive: true,
       isConfirmed: true,
       classificationsCount: 0,
-      joinedAt: Date.now(),
-      lastActiveAt: Date.now(),
+      joinedAt: now,
+      lastActiveAt: now,
       sequenceGenerated: false,
     });
+
+    const existingStatsSnapshot = await ctx.db
+      .query("userStatsSnapshots")
+      .withIndex("by_user", (q) => q.eq("userId", args.targetUserId))
+      .unique();
+
+    if (!existingStatsSnapshot) {
+      await ctx.db.insert("userStatsSnapshots", {
+        userId: args.targetUserId,
+        data: {
+          total: 0,
+          thisWeek: 0,
+          byLsbClass: {
+            nonLSB: 0,
+            LSB: 0,
+          },
+          byMorphology: {
+            featureless: 0,
+            irregular: 0,
+            spiral: 0,
+            elliptical: 0,
+          },
+          averageTime: 0,
+          awesomeCount: 0,
+          validRedshiftCount: 0,
+          visibleNucleusCount: 0,
+          failedFittingCount: 0,
+        },
+        updatedAt: now,
+        dirty: false,
+      });
+    }
 
     return { success: true };
   },
