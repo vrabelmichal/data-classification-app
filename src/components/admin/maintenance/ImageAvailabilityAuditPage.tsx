@@ -1,6 +1,8 @@
 import { ImageAvailabilityAuditPanel } from "../../imageAudit/ImageAvailabilityAuditPanel";
+import { usePageTitle } from "../../../hooks/usePageTitle";
 
 export function ImageAvailabilityAuditPage() {
+  usePageTitle("Admin – Image Availability");
   return (
     <section>
       <h2 className="border-b border-gray-200 pb-2 text-xl font-bold text-gray-900 dark:border-gray-700 dark:text-white">

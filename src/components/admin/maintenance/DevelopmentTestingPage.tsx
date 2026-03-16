@@ -8,8 +8,10 @@ import {
   DeleteAllGalaxyDataSection,
   DeleteConfirmationModal,
 } from "../debugging";
+import { usePageTitle } from "../../../hooks/usePageTitle";
 
 export function DevelopmentTestingPage() {
+  usePageTitle("Admin – Development & Testing");
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletingGalaxies, setDeletingGalaxies] = useState(false);
   const deleteAllGalaxies = useMutation(api.galaxies.maintenance.deleteAllGalaxies);

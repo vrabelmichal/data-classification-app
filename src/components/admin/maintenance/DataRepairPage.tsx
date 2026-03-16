@@ -8,8 +8,10 @@ import {
   FastBackfillUserClassificationCountersSection,
   BackfillUserClassificationCountersSection,
 } from "../debugging";
+import { usePageTitle } from "../../../hooks/usePageTitle";
 
 export function DataRepairPage() {
+  usePageTitle("Admin – Data Repair");
   return (
     <section>
       <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white border-b pb-2 border-gray-200 dark:border-gray-700">Data Repair & Backfill</h2>

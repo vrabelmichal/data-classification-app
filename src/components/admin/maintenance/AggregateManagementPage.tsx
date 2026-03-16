@@ -10,8 +10,10 @@ import {
   FastBackfillClassificationAggregatesSection,
   BackfillClassificationAggregatesSection,
 } from "../debugging";
+import { usePageTitle } from "../../../hooks/usePageTitle";
 
 export function AggregateManagementPage() {
+  usePageTitle("Admin – Aggregates");
   return (
     <section>
       <h2 className="text-xl font-bold mb-6 text-gray-900 dark:text-white border-b pb-2 border-gray-200 dark:border-gray-700">Aggregate Management</h2>

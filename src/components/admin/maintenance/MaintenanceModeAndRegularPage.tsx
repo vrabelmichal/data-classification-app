@@ -1,8 +1,10 @@
 import { MaintenanceModeSection } from "../MaintenanceModeSection";
 import { TestEmailSection } from "../debugging";
 import { SeedGalaxyAssignmentStatsSection } from "../debugging";
+import { usePageTitle } from "../../../hooks/usePageTitle";
 
 export function MaintenanceModeAndRegularPage() {
+  usePageTitle("Admin – Maintenance Mode & Regular");
   return (
     <div>
       {/* Maintenance Mode Toggles */}
