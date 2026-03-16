@@ -1,15 +1,88 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvex, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { cn } from "../../../lib/utils";
 
+const USER_COUNTER_DIAGNOSTICS_PAGE_SIZE = 5;
+const USER_COUNTER_REPAIR_BATCH_SIZE = 5;
+
+type UserClassificationCounterDiagnosticsRow = {
+  userId: Id<"users">;
+  name: string | null;
+  email: string | null;
+  isConsistent: boolean;
+  hasInvalidStoredValues: boolean;
+  changedFields: string[];
+  cachedClassificationsCount: number;
+  actualClassificationsCount: number;
+  cachedLsbTotal: number;
+  actualLsbTotal: number;
+  cachedMorphologyTotal: number;
+  actualMorphologyTotal: number;
+  invalidLsbCount: number;
+  invalidMorphologyCount: number;
+};
+
+type UserClassificationCounterDiagnosticsSummary = {
+  requestedUsers: number;
+  scannedUsers: number;
+  missingProfiles: number;
+  inconsistentUsers: number;
+  invalidValueUsers: number;
+};
+
+type UserClassificationCounterDiagnosticsPage = UserClassificationCounterDiagnosticsSummary & {
+  rows: UserClassificationCounterDiagnosticsRow[];
+  isDone: boolean;
+  nextCursor: string | null;
+};
+
+type UserClassificationCounterRepairProgress = {
+  total: number;
+  processed: number;
+  updated: number;
+  skipped: number;
+  missingProfiles: number;
+  invalidValueUsers: number;
+};
+
 function formatUserLabel(name: string | null, email: string | null, userId: Id<"users">) {
   return name || email || String(userId);
 }
 
+function compareDiagnosticRows(
+  left: UserClassificationCounterDiagnosticsRow,
+  right: UserClassificationCounterDiagnosticsRow
+) {
+  if (Number(left.isConsistent) !== Number(right.isConsistent)) {
+    return Number(left.isConsistent) - Number(right.isConsistent);
+  }
+
+  if (right.changedFields.length !== left.changedFields.length) {
+    return right.changedFields.length - left.changedFields.length;
+  }
+
+  if (right.actualClassificationsCount !== left.actualClassificationsCount) {
+    return right.actualClassificationsCount - left.actualClassificationsCount;
+  }
+
+  const leftLabel = left.name || left.email || String(left.userId);
+  const rightLabel = right.name || right.email || String(right.userId);
+  return leftLabel.localeCompare(rightLabel);
+}
+
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 export function UserClassificationCounterRepairSection() {
+  const convex = useConvex();
   const users = useQuery(api.users.getUsersForSelection);
   const repairCounters = useMutation(api.classifications.maintenance.repairUserClassificationCounters);
 
@@ -17,29 +90,101 @@ export function UserClassificationCounterRepairSection() {
   const [repairSelection, setRepairSelection] = useState<Id<"users">[]>([]);
   const [includeConsistent, setIncludeConsistent] = useState(false);
   const [scanMode, setScanMode] = useState<"all" | "selected" | null>(null);
+  const [scanSummary, setScanSummary] = useState<UserClassificationCounterDiagnosticsSummary | null>(null);
+  const [scanRows, setScanRows] = useState<UserClassificationCounterDiagnosticsRow[]>([]);
+  const [scanStatusMessage, setScanStatusMessage] = useState<string | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
   const [repairing, setRepairing] = useState(false);
+  const [repairProgress, setRepairProgress] = useState<UserClassificationCounterRepairProgress | null>(null);
 
-  const scanArgs =
-    scanMode === null
-      ? null
-      : scanMode === "selected"
-        ? { userIds: selectedUserIds, includeConsistent }
-        : { includeConsistent };
-
-  const diagnostics = useQuery(
-    api.classifications.maintenance.getUserClassificationCounterDiagnostics,
-    scanArgs ? scanArgs : "skip"
-  );
-
-  const isScanning = scanMode !== null && diagnostics === undefined;
-  const rows = diagnostics?.rows ?? [];
+  const rows = [...scanRows].sort(compareDiagnosticRows);
   const inconsistentRows = rows.filter((row) => !row.isConsistent);
   const selectedRepairUserIds = new Set(repairSelection.map((userId) => String(userId)));
 
   useEffect(() => {
-    if (!diagnostics) return;
-    setRepairSelection(inconsistentRows.map((row) => row.userId));
-  }, [diagnostics]);
+    if (isScanning) return;
+    setRepairSelection(scanRows.filter((row) => !row.isConsistent).map((row) => row.userId));
+  }, [isScanning, scanRows]);
+
+  const runScan = async (mode: "all" | "selected") => {
+    const scanUserIds = mode === "selected" ? selectedUserIds : [];
+
+    if (mode === "selected" && scanUserIds.length === 0) {
+      toast.error("Select at least one user to scan.");
+      return;
+    }
+
+    setScanMode(mode);
+    setIsScanning(true);
+    setScanRows([]);
+    setRepairSelection([]);
+    setScanSummary({
+      requestedUsers: mode === "selected" ? scanUserIds.length : 0,
+      scannedUsers: 0,
+      missingProfiles: 0,
+      inconsistentUsers: 0,
+      invalidValueUsers: 0,
+    });
+    setScanStatusMessage(
+      mode === "selected"
+        ? `Scanning 0 of ${scanUserIds.length.toLocaleString()} selected user(s)...`
+        : "Scanning user profiles against the classifications table..."
+    );
+
+    let nextCursor: string | undefined;
+    let requestedUsers = mode === "selected" ? scanUserIds.length : 0;
+    let scannedUsers = 0;
+    let missingProfiles = 0;
+    let inconsistentUsers = 0;
+    let invalidValueUsers = 0;
+    const accumulatedRows: UserClassificationCounterDiagnosticsRow[] = [];
+
+    try {
+      for (let pageIndex = 0; pageIndex < 10000; pageIndex += 1) {
+        const result = (await convex.query(api.classifications.maintenance.getUserClassificationCounterDiagnostics, {
+          userIds: mode === "selected" ? scanUserIds : undefined,
+          includeConsistent,
+          cursor: nextCursor,
+          limit: USER_COUNTER_DIAGNOSTICS_PAGE_SIZE,
+        })) as UserClassificationCounterDiagnosticsPage;
+
+        requestedUsers = result.requestedUsers;
+        scannedUsers += result.scannedUsers;
+        missingProfiles += result.missingProfiles;
+        inconsistentUsers += result.inconsistentUsers;
+        invalidValueUsers += result.invalidValueUsers;
+        accumulatedRows.push(...result.rows);
+
+        setScanRows([...accumulatedRows]);
+        setScanSummary({
+          requestedUsers,
+          scannedUsers,
+          missingProfiles,
+          inconsistentUsers,
+          invalidValueUsers,
+        });
+        setScanStatusMessage(
+          `Scanned ${scannedUsers.toLocaleString()} of ${requestedUsers.toLocaleString()} user profile(s)...`
+        );
+
+        if (result.isDone || !result.nextCursor) {
+          break;
+        }
+
+        nextCursor = result.nextCursor;
+      }
+
+      toast.success(
+        `Scan finished. Checked ${scannedUsers.toLocaleString()} user profile(s) and found ${inconsistentUsers.toLocaleString()} inconsistent profile(s).`
+      );
+    } catch (error) {
+      console.error(error);
+      toast.error(getErrorMessage(error, "Failed to scan user counters."));
+    } finally {
+      setIsScanning(false);
+      setScanStatusMessage(null);
+    }
+  };
 
   const handleSelectedUsersChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const nextUserIds = Array.from(event.target.selectedOptions, (option) => option.value as Id<"users">);
@@ -47,15 +192,11 @@ export function UserClassificationCounterRepairSection() {
   };
 
   const handleScanSelected = () => {
-    if (selectedUserIds.length === 0) {
-      toast.error("Select at least one user to scan.");
-      return;
-    }
-    setScanMode("selected");
+    void runScan("selected");
   };
 
   const handleScanAll = () => {
-    setScanMode("all");
+    void runScan("all");
   };
 
   const handleToggleRepairSelection = (userId: Id<"users">, checked: boolean) => {
@@ -80,16 +221,51 @@ export function UserClassificationCounterRepairSection() {
     if (!confirmed) return;
 
     setRepairing(true);
+    setRepairProgress({
+      total: repairSelection.length,
+      processed: 0,
+      updated: 0,
+      skipped: 0,
+      missingProfiles: 0,
+      invalidValueUsers: 0,
+    });
+
+    let processed = 0;
+    let updated = 0;
+    let skipped = 0;
+    let missingProfiles = 0;
+    let invalidValueUsers = 0;
+
     try {
-      const result = await repairCounters({ userIds: repairSelection });
+      for (let startIndex = 0; startIndex < repairSelection.length; startIndex += USER_COUNTER_REPAIR_BATCH_SIZE) {
+        const batchUserIds = repairSelection.slice(startIndex, startIndex + USER_COUNTER_REPAIR_BATCH_SIZE);
+        const result = await repairCounters({ userIds: batchUserIds });
+
+        processed += result.processed;
+        updated += result.updated;
+        skipped += result.skipped;
+        missingProfiles += result.missingProfiles;
+        invalidValueUsers += result.invalidValueUsers;
+
+        setRepairProgress({
+          total: repairSelection.length,
+          processed,
+          updated,
+          skipped,
+          missingProfiles,
+          invalidValueUsers,
+        });
+      }
+
       toast.success(
-        `Repaired ${result.updated.toLocaleString()} user(s); ${result.skipped.toLocaleString()} already matched.`
+        `Repaired ${updated.toLocaleString()} user(s); ${skipped.toLocaleString()} already matched.`
       );
     } catch (error) {
       console.error(error);
-      toast.error("Failed to repair user counters.");
+      toast.error(getErrorMessage(error, "Failed to repair user counters."));
     } finally {
       setRepairing(false);
+      setRepairProgress(null);
     }
   };
 
@@ -144,7 +320,7 @@ export function UserClassificationCounterRepairSection() {
             <button
               type="button"
               onClick={handleScanSelected}
-              disabled={isScanning || selectedUserIds.length === 0}
+              disabled={isScanning || repairing || selectedUserIds.length === 0}
               className="inline-flex items-center justify-center rounded-lg bg-amber-700 px-4 py-2 font-medium text-white transition-colors hover:bg-amber-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isScanning && scanMode === "selected" ? "Scanning selected..." : "Scan selected users"}
@@ -153,7 +329,7 @@ export function UserClassificationCounterRepairSection() {
             <button
               type="button"
               onClick={handleScanAll}
-              disabled={isScanning}
+              disabled={isScanning || repairing}
               className="inline-flex items-center justify-center rounded-lg bg-gray-700 px-4 py-2 font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isScanning && scanMode === "all" ? "Scanning all..." : "Scan all users"}
@@ -162,46 +338,47 @@ export function UserClassificationCounterRepairSection() {
         </div>
 
         <div className="space-y-4">
-          {diagnostics && (
+          {scanSummary && (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
                 <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Requested</div>
                 <div className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
-                  {diagnostics.requestedUsers.toLocaleString()}
+                  {scanSummary.requestedUsers.toLocaleString()}
                 </div>
               </div>
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
                 <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Profiles scanned</div>
                 <div className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
-                  {diagnostics.scannedUsers.toLocaleString()}
+                  {scanSummary.scannedUsers.toLocaleString()}
                 </div>
               </div>
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/60 dark:bg-red-950/20">
                 <div className="text-xs uppercase tracking-wide text-red-600 dark:text-red-300">Inconsistent</div>
                 <div className="mt-1 text-2xl font-semibold text-red-700 dark:text-red-200">
-                  {diagnostics.inconsistentUsers.toLocaleString()}
+                  {scanSummary.inconsistentUsers.toLocaleString()}
                 </div>
               </div>
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-900/60 dark:bg-amber-950/20">
                 <div className="text-xs uppercase tracking-wide text-amber-700 dark:text-amber-300">Invalid values</div>
                 <div className="mt-1 text-2xl font-semibold text-amber-800 dark:text-amber-200">
-                  {diagnostics.invalidValueUsers.toLocaleString()}
+                  {scanSummary.invalidValueUsers.toLocaleString()}
                 </div>
               </div>
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
                 <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Missing profiles</div>
                 <div className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white">
-                  {diagnostics.missingProfiles.toLocaleString()}
+                  {scanSummary.missingProfiles.toLocaleString()}
                 </div>
               </div>
             </div>
           )}
 
-          {diagnostics && rows.length > 0 && (
+          {rows.length > 0 && (
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
               <button
                 type="button"
                 onClick={() => setRepairSelection(inconsistentRows.map((row) => row.userId))}
+                disabled={isScanning || repairing}
                 className="text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
               >
                 Select all inconsistent users
@@ -209,6 +386,7 @@ export function UserClassificationCounterRepairSection() {
               <button
                 type="button"
                 onClick={() => setRepairSelection([])}
+                disabled={isScanning || repairing}
                 className="text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
               >
                 Clear repair selection
@@ -216,15 +394,22 @@ export function UserClassificationCounterRepairSection() {
               <button
                 type="button"
                 onClick={() => void handleRepairSelected()}
-                disabled={repairing || repairSelection.length === 0}
+                disabled={repairing || isScanning || repairSelection.length === 0}
                 className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {repairing ? "Repairing..." : `Repair selected (${repairSelection.length.toLocaleString()})`}
+                {repairing
+                  ? `Repairing ${repairProgress?.processed.toLocaleString() ?? "0"}/${repairProgress?.total.toLocaleString() ?? repairSelection.length.toLocaleString()}`
+                  : `Repair selected (${repairSelection.length.toLocaleString()})`}
               </button>
+              {repairProgress && (
+                <div className="text-sm text-gray-600 dark:text-gray-300">
+                  Processed {repairProgress.processed.toLocaleString()} / {repairProgress.total.toLocaleString()} selected user(s); updated {repairProgress.updated.toLocaleString()}.
+                </div>
+              )}
             </div>
           )}
 
-          {!diagnostics && !isScanning && (
+          {!scanSummary && !isScanning && (
             <div className="rounded-lg border border-dashed border-gray-300 px-4 py-6 text-sm text-gray-600 dark:border-gray-600 dark:text-gray-300">
               Run a scan to find users whose cached classification counters drifted away from the live classifications table.
             </div>
@@ -234,12 +419,12 @@ export function UserClassificationCounterRepairSection() {
             <div className="rounded-lg border border-gray-200 px-4 py-6 dark:border-gray-700">
               <div className="flex items-center gap-3 text-sm text-gray-700 dark:text-gray-300">
                 <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-                Scanning user profiles against live classification rows...
+                {scanStatusMessage ?? "Scanning user profiles against live classification rows..."}
               </div>
             </div>
           )}
 
-          {diagnostics && rows.length === 0 && !isScanning && (
+          {scanSummary && rows.length === 0 && !isScanning && (
             <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-6 text-sm text-green-800 dark:border-green-900/60 dark:bg-green-950/20 dark:text-green-200">
               No users matched this scan filter. Cached counters currently agree with the classifications table.
             </div>
@@ -286,7 +471,7 @@ export function UserClassificationCounterRepairSection() {
                           <input
                             type="checkbox"
                             checked={selectedRepairUserIds.has(String(row.userId))}
-                            disabled={!canRepair || repairing}
+                            disabled={!canRepair || repairing || isScanning}
                             onChange={(event) => handleToggleRepairSelection(row.userId, event.target.checked)}
                             className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                           />

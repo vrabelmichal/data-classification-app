@@ -16,8 +16,9 @@ import {
 import {
   auditUserClassificationStats,
   buildUserClassificationCounterPatch,
-  createEmptyUserClassificationCounterSnapshot,
   getUserClassificationCounterDiffKeys,
+  type UserClassificationCounterKey,
+  type UserClassificationCounterSnapshot,
   userClassificationCounterKeyValidator,
   userClassificationCounterSnapshotValidator,
   getUserClassificationCounterSnapshotFromProfile,
@@ -28,6 +29,7 @@ import {
 const CLASSIFICATION_AGG_BATCH_SIZE = 500;
 const USER_FULL_BATCH_SIZE = 75;
 const USER_FAST_CLASSIFICATIONS_BATCH_SIZE = 500;
+const USER_COUNTER_DIAGNOSTICS_PAGE_SIZE = 5;
 
 const userClassificationCounterDiagnosticRowValidator = v.object({
   userId: v.id("users"),
@@ -55,6 +57,8 @@ const userClassificationCounterDiagnosticsResultValidator = v.object({
   inconsistentUsers: v.number(),
   invalidValueUsers: v.number(),
   rows: v.array(userClassificationCounterDiagnosticRowValidator),
+  isDone: v.boolean(),
+  nextCursor: v.union(v.string(), v.null()),
 });
 
 const repairUserClassificationCountersResultValidator = v.object({
@@ -125,10 +129,50 @@ async function applyUserClassificationCounterRepair(
   };
 }
 
+function parseSelectedUserDiagnosticsCursor(cursor: string | undefined): number {
+  if (!cursor) {
+    return 0;
+  }
+
+  const parsed = Number.parseInt(cursor, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
+function sortUserClassificationDiagnosticRows(
+  rows: Array<{
+    userId: Doc<"userProfiles">["userId"];
+    name: string | null;
+    email: string | null;
+    isConsistent: boolean;
+    changedFields: UserClassificationCounterKey[];
+    actualClassificationsCount: number;
+  }>
+) {
+  return rows.sort((left, right) => {
+    if (Number(left.isConsistent) !== Number(right.isConsistent)) {
+      return Number(left.isConsistent) - Number(right.isConsistent);
+    }
+
+    if (right.changedFields.length !== left.changedFields.length) {
+      return right.changedFields.length - left.changedFields.length;
+    }
+
+    if (right.actualClassificationsCount !== left.actualClassificationsCount) {
+      return right.actualClassificationsCount - left.actualClassificationsCount;
+    }
+
+    const leftLabel = left.name || left.email || String(left.userId);
+    const rightLabel = right.name || right.email || String(right.userId);
+    return leftLabel.localeCompare(rightLabel);
+  });
+}
+
 export const getUserClassificationCounterDiagnostics = query({
   args: {
     userIds: v.optional(v.array(v.id("users"))),
     includeConsistent: v.optional(v.boolean()),
+    cursor: v.optional(v.string()),
+    limit: v.optional(v.number()),
   },
   returns: userClassificationCounterDiagnosticsResultValidator,
   handler: async (ctx, args) => {
@@ -137,143 +181,120 @@ export const getUserClassificationCounterDiagnostics = query({
     const includeConsistent = args.includeConsistent ?? false;
     const requestedUserIds = args.userIds?.length ? Array.from(new Set(args.userIds)) : null;
 
-    const usersById = new Map<string, Doc<"users"> | null>();
-    const auditByUserId = new Map<string, ReturnType<typeof auditUserClassificationStats>>();
+    const limit = Math.max(1, Math.min(args.limit ?? USER_COUNTER_DIAGNOSTICS_PAGE_SIZE, USER_COUNTER_DIAGNOSTICS_PAGE_SIZE));
 
     let profiles: Doc<"userProfiles">[] = [];
     let requestedUsers = 0;
+    let missingProfiles = 0;
+    let isDone = true;
+    let nextCursor: string | null = null;
 
     if (requestedUserIds) {
       requestedUsers = requestedUserIds.length;
 
-      const [userResults, profileResults, classificationResults] = await Promise.all([
-        Promise.all(requestedUserIds.map((userId) => ctx.db.get(userId))),
-        Promise.all(
-          requestedUserIds.map((userId) =>
-            ctx.db
-              .query("userProfiles")
-              .withIndex("by_user", (q) => q.eq("userId", userId))
-              .unique()
-          )
-        ),
-        Promise.all(
-          requestedUserIds.map((userId) =>
-            ctx.db
-              .query("classifications")
-              .withIndex("by_user", (q) => q.eq("userId", userId))
-              .collect()
-          )
-        ),
-      ]);
+      const startIndex = parseSelectedUserDiagnosticsCursor(args.cursor);
+      const pageUserIds = requestedUserIds.slice(startIndex, startIndex + limit);
+      const nextIndex = startIndex + pageUserIds.length;
+      isDone = nextIndex >= requestedUserIds.length;
+      nextCursor = isDone ? null : String(nextIndex);
 
-      for (let index = 0; index < requestedUserIds.length; index += 1) {
-        const userId = requestedUserIds[index];
-        usersById.set(String(userId), userResults[index] ?? null);
-        auditByUserId.set(String(userId), auditUserClassificationStats(classificationResults[index]));
-      }
+      for (const userId of pageUserIds) {
+        const profile = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_user", (q) => q.eq("userId", userId))
+          .unique();
 
-      profiles = profileResults.filter((profile): profile is Doc<"userProfiles"> => profile !== null);
-    } else {
-      const [allProfiles, allUsers, allClassifications] = await Promise.all([
-        ctx.db.query("userProfiles").collect(),
-        ctx.db.query("users").collect(),
-        ctx.db.query("classifications").collect(),
-      ]);
-
-      profiles = allProfiles;
-      requestedUsers = allProfiles.length;
-
-      for (const user of allUsers) {
-        usersById.set(String(user._id), user);
-      }
-
-      const classificationsByUserId = new Map<string, Doc<"classifications">[]>();
-      for (const classification of allClassifications) {
-        const userKey = String(classification.userId);
-        const existing = classificationsByUserId.get(userKey);
-        if (existing) {
-          existing.push(classification);
+        if (profile) {
+          profiles.push(profile);
         } else {
-          classificationsByUserId.set(userKey, [classification]);
+          missingProfiles += 1;
         }
       }
+    } else {
+      requestedUsers = await userProfilesByClassificationsCount.count(ctx);
 
-      for (const profile of allProfiles) {
-        auditByUserId.set(
-          String(profile.userId),
-          auditUserClassificationStats(classificationsByUserId.get(String(profile.userId)) ?? [])
-        );
-      }
+      const page = await ctx.db
+        .query("userProfiles")
+        .paginate({ numItems: limit, cursor: args.cursor ?? null });
+
+      profiles = page.page;
+      isDone = page.isDone;
+      nextCursor = page.isDone ? null : page.continueCursor;
     }
 
     let inconsistentUsers = 0;
     let invalidValueUsers = 0;
 
-    const rows = profiles
-      .map((profile) => {
-        const audit = auditByUserId.get(String(profile.userId)) ?? {
-          counters: createEmptyUserClassificationCounterSnapshot(),
-          invalidLsbCount: 0,
-          invalidMorphologyCount: 0,
-        };
-        const cachedCounters = getUserClassificationCounterSnapshotFromProfile(profile);
-        const changedFields = getUserClassificationCounterDiffKeys(cachedCounters, audit.counters);
-        const isConsistent = changedFields.length === 0;
-        const hasInvalidStoredValues = audit.invalidLsbCount > 0 || audit.invalidMorphologyCount > 0;
-        const user = usersById.get(String(profile.userId));
+    const rows: Array<{
+      userId: Doc<"userProfiles">["userId"];
+      name: string | null;
+      email: string | null;
+      isConsistent: boolean;
+      hasInvalidStoredValues: boolean;
+      changedFields: UserClassificationCounterKey[];
+      cachedClassificationsCount: number;
+      actualClassificationsCount: number;
+      cachedLsbTotal: number;
+      actualLsbTotal: number;
+      cachedMorphologyTotal: number;
+      actualMorphologyTotal: number;
+      invalidLsbCount: number;
+      invalidMorphologyCount: number;
+      cachedCounters: UserClassificationCounterSnapshot;
+      actualCounters: UserClassificationCounterSnapshot;
+    }> = [];
 
-        if (!isConsistent) {
-          inconsistentUsers += 1;
-        }
-        if (hasInvalidStoredValues) {
-          invalidValueUsers += 1;
-        }
-        // Including email in the response poses a compliance/privacy risk (GDPR/CCPA). Even for admin-only diagnostics, consider whether email is necessary or if userId alone suffices for identification.
-        return {
-          userId: profile.userId,
-          name: (user as any)?.name ?? null,
-          email: (user as any)?.email ?? null,
-          isConsistent,
-          hasInvalidStoredValues,
-          changedFields,
-          cachedClassificationsCount: cachedCounters.classificationsCount,
-          actualClassificationsCount: audit.counters.classificationsCount,
-          cachedLsbTotal: getUserClassificationLsbTotal(cachedCounters),
-          actualLsbTotal: getUserClassificationLsbTotal(audit.counters),
-          cachedMorphologyTotal: getUserClassificationMorphologyTotal(cachedCounters),
-          actualMorphologyTotal: getUserClassificationMorphologyTotal(audit.counters),
-          invalidLsbCount: audit.invalidLsbCount,
-          invalidMorphologyCount: audit.invalidMorphologyCount,
-          cachedCounters,
-          actualCounters: audit.counters,
-        };
-      })
-      .filter((row) => includeConsistent || !row.isConsistent || row.hasInvalidStoredValues)
-      .sort((left, right) => {
-        if (Number(left.isConsistent) !== Number(right.isConsistent)) {
-          return Number(left.isConsistent) - Number(right.isConsistent);
-        }
+    for (const profile of profiles) {
+      const audit = await getUserClassificationAudit(ctx, profile.userId);
+      const user = await ctx.db.get(profile.userId);
+      const cachedCounters = getUserClassificationCounterSnapshotFromProfile(profile);
+      const changedFields = getUserClassificationCounterDiffKeys(cachedCounters, audit.counters);
+      const isConsistent = changedFields.length === 0;
+      const hasInvalidStoredValues = audit.invalidLsbCount > 0 || audit.invalidMorphologyCount > 0;
 
-        if (right.changedFields.length !== left.changedFields.length) {
-          return right.changedFields.length - left.changedFields.length;
-        }
+      if (!isConsistent) {
+        inconsistentUsers += 1;
+      }
+      if (hasInvalidStoredValues) {
+        invalidValueUsers += 1;
+      }
 
-        if (right.actualClassificationsCount !== left.actualClassificationsCount) {
-          return right.actualClassificationsCount - left.actualClassificationsCount;
-        }
+      // Including email in the response poses a compliance/privacy risk (GDPR/CCPA). Even for admin-only diagnostics, consider whether email is necessary or if userId alone suffices for identification.
+      const row = {
+        userId: profile.userId,
+        name: (user as any)?.name ?? null,
+        email: (user as any)?.email ?? null,
+        isConsistent,
+        hasInvalidStoredValues,
+        changedFields,
+        cachedClassificationsCount: cachedCounters.classificationsCount,
+        actualClassificationsCount: audit.counters.classificationsCount,
+        cachedLsbTotal: getUserClassificationLsbTotal(cachedCounters),
+        actualLsbTotal: getUserClassificationLsbTotal(audit.counters),
+        cachedMorphologyTotal: getUserClassificationMorphologyTotal(cachedCounters),
+        actualMorphologyTotal: getUserClassificationMorphologyTotal(audit.counters),
+        invalidLsbCount: audit.invalidLsbCount,
+        invalidMorphologyCount: audit.invalidMorphologyCount,
+        cachedCounters,
+        actualCounters: audit.counters,
+      };
 
-        const leftLabel = left.name || left.email || String(left.userId);
-        const rightLabel = right.name || right.email || String(right.userId);
-        return leftLabel.localeCompare(rightLabel);
-      });
+      if (includeConsistent || !row.isConsistent || row.hasInvalidStoredValues) {
+        rows.push(row);
+      }
+    }
+
+    sortUserClassificationDiagnosticRows(rows);
 
     return {
       requestedUsers,
       scannedUsers: profiles.length,
-      missingProfiles: Math.max(requestedUsers - profiles.length, 0),
+      missingProfiles,
       inconsistentUsers,
       invalidValueUsers,
       rows,
+      isDone,
+      nextCursor,
     };
   },
 });
