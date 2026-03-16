@@ -18,6 +18,8 @@ import {
   buildUserClassificationCounterPatch,
   createEmptyUserClassificationCounterSnapshot,
   getUserClassificationCounterDiffKeys,
+  userClassificationCounterKeyValidator,
+  userClassificationCounterSnapshotValidator,
   getUserClassificationCounterSnapshotFromProfile,
   getUserClassificationLsbTotal,
   getUserClassificationMorphologyTotal,
@@ -26,6 +28,42 @@ import {
 const CLASSIFICATION_AGG_BATCH_SIZE = 500;
 const USER_FULL_BATCH_SIZE = 75;
 const USER_FAST_CLASSIFICATIONS_BATCH_SIZE = 500;
+
+const userClassificationCounterDiagnosticRowValidator = v.object({
+  userId: v.id("users"),
+  name: v.union(v.string(), v.null()),
+  email: v.union(v.string(), v.null()),
+  isConsistent: v.boolean(),
+  hasInvalidStoredValues: v.boolean(),
+  changedFields: v.array(userClassificationCounterKeyValidator),
+  cachedClassificationsCount: v.number(),
+  actualClassificationsCount: v.number(),
+  cachedLsbTotal: v.number(),
+  actualLsbTotal: v.number(),
+  cachedMorphologyTotal: v.number(),
+  actualMorphologyTotal: v.number(),
+  invalidLsbCount: v.number(),
+  invalidMorphologyCount: v.number(),
+  cachedCounters: userClassificationCounterSnapshotValidator,
+  actualCounters: userClassificationCounterSnapshotValidator,
+});
+
+const userClassificationCounterDiagnosticsResultValidator = v.object({
+  requestedUsers: v.number(),
+  scannedUsers: v.number(),
+  missingProfiles: v.number(),
+  inconsistentUsers: v.number(),
+  invalidValueUsers: v.number(),
+  rows: v.array(userClassificationCounterDiagnosticRowValidator),
+});
+
+const repairUserClassificationCountersResultValidator = v.object({
+  processed: v.number(),
+  updated: v.number(),
+  skipped: v.number(),
+  missingProfiles: v.number(),
+  invalidValueUsers: v.number(),
+});
 
 async function replaceOrInsertUserProfileAggregate(
   ctx: any,
@@ -92,6 +130,7 @@ export const getUserClassificationCounterDiagnostics = query({
     userIds: v.optional(v.array(v.id("users"))),
     includeConsistent: v.optional(v.boolean()),
   },
+  returns: userClassificationCounterDiagnosticsResultValidator,
   handler: async (ctx, args) => {
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 
@@ -189,7 +228,7 @@ export const getUserClassificationCounterDiagnostics = query({
         if (hasInvalidStoredValues) {
           invalidValueUsers += 1;
         }
-
+        // Including email in the response poses a compliance/privacy risk (GDPR/CCPA). Even for admin-only diagnostics, consider whether email is necessary or if userId alone suffices for identification.
         return {
           userId: profile.userId,
           name: (user as any)?.name ?? null,
@@ -243,6 +282,7 @@ export const repairUserClassificationCounters = mutation({
   args: {
     userIds: v.array(v.id("users")),
   },
+  returns: repairUserClassificationCountersResultValidator,
   handler: async (ctx, args) => {
     await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
 

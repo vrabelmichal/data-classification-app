@@ -1,3 +1,4 @@
+import { v } from "convex/values";
 import { Doc } from "../_generated/dataModel";
 
 export type UserClassificationCounterSnapshot = {
@@ -29,6 +30,36 @@ export const USER_CLASSIFICATION_COUNTER_KEYS = [
   "morph1Count",
   "morph2Count",
 ] as const;
+
+export const userClassificationCounterKeyValidator = v.union(
+  v.literal("classificationsCount"),
+  v.literal("awesomeCount"),
+  v.literal("visibleNucleusCount"),
+  v.literal("failedFittingCount"),
+  v.literal("validRedshiftCount"),
+  v.literal("lsbNeg1Count"),
+  v.literal("lsb0Count"),
+  v.literal("lsb1Count"),
+  v.literal("morphNeg1Count"),
+  v.literal("morph0Count"),
+  v.literal("morph1Count"),
+  v.literal("morph2Count")
+);
+
+export const userClassificationCounterSnapshotValidator = v.object({
+  classificationsCount: v.number(),
+  awesomeCount: v.number(),
+  visibleNucleusCount: v.number(),
+  failedFittingCount: v.number(),
+  validRedshiftCount: v.number(),
+  lsbNeg1Count: v.number(),
+  lsb0Count: v.number(),
+  lsb1Count: v.number(),
+  morphNeg1Count: v.number(),
+  morph0Count: v.number(),
+  morph1Count: v.number(),
+  morph2Count: v.number(),
+});
 
 export type UserClassificationCounterKey = (typeof USER_CLASSIFICATION_COUNTER_KEYS)[number];
 
@@ -101,7 +132,6 @@ export function auditUserClassificationStats(
         break;
       default:
         invalidLsbCount += 1;
-        counters.lsb1Count += 1;
         break;
     }
 
@@ -120,7 +150,6 @@ export function auditUserClassificationStats(
         break;
       default:
         invalidMorphologyCount += 1;
-        counters.morph2Count += 1;
         break;
     }
   }
