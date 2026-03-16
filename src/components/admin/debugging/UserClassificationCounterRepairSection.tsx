@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useConvex, useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
@@ -6,7 +6,7 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 import { cn } from "../../../lib/utils";
 
 const USER_COUNTER_DIAGNOSTICS_PAGE_SIZE = 5;
-const USER_COUNTER_REPAIR_BATCH_SIZE = 5;
+const USER_COUNTER_REPAIR_BATCH_SIZE = 1;
 
 type UserClassificationCounterDiagnosticsRow = {
   userId: Id<"users">;
@@ -46,6 +46,20 @@ type UserClassificationCounterRepairProgress = {
   skipped: number;
   missingProfiles: number;
   invalidValueUsers: number;
+  failed: number;
+  currentUserLabel: string | null;
+};
+
+type UserClassificationRepairStatus =
+  | "processing"
+  | "repaired"
+  | "already-matched"
+  | "failed"
+  | "missing-profile";
+
+type UserClassificationRepairStatusEntry = {
+  status: UserClassificationRepairStatus;
+  message: string;
 };
 
 function formatUserLabel(name: string | null, email: string | null, userId: Id<"users">) {
@@ -81,6 +95,96 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+function getRowRepairState(
+  row: UserClassificationCounterDiagnosticsRow,
+  repairStatus: UserClassificationRepairStatusEntry | undefined,
+  isSelected: boolean
+) {
+  switch (repairStatus?.status) {
+    case "processing":
+      return {
+        label: "Processing",
+        message: repairStatus.message,
+        badgeClassName: "bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-200",
+        rowClassName: "bg-blue-50/40 dark:bg-blue-950/10",
+        showSpinner: true,
+      };
+    case "repaired":
+      return {
+        label: "Repaired",
+        message: repairStatus.message,
+        badgeClassName: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200",
+        rowClassName: "bg-emerald-50/40 dark:bg-emerald-950/10",
+        showSpinner: false,
+      };
+    case "already-matched":
+      return {
+        label: "Already matched",
+        message: repairStatus.message,
+        badgeClassName: "bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-200",
+        rowClassName: "bg-green-50/40 dark:bg-green-950/10",
+        showSpinner: false,
+      };
+    case "failed":
+      return {
+        label: "Failed",
+        message: repairStatus.message,
+        badgeClassName: "bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200",
+        rowClassName: "bg-amber-50/40 dark:bg-amber-950/10",
+        showSpinner: false,
+      };
+    case "missing-profile":
+      return {
+        label: "Profile missing",
+        message: repairStatus.message,
+        badgeClassName: "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200",
+        rowClassName: "bg-slate-50/40 dark:bg-slate-900/30",
+        showSpinner: false,
+      };
+    default:
+      if (isSelected) {
+        return {
+          label: "Selected",
+          message: "Queued for repair.",
+          badgeClassName: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-200",
+          rowClassName: row.isConsistent ? "bg-white dark:bg-gray-800" : "bg-indigo-50/30 dark:bg-indigo-950/10",
+          showSpinner: false,
+        };
+      }
+
+      if (!row.isConsistent) {
+        return {
+          label: "Needs repair",
+          message: `${row.changedFields.length.toLocaleString()} counter field(s) differ from live data.`,
+          badgeClassName: "bg-red-100 text-red-800 dark:bg-red-950/30 dark:text-red-200",
+          rowClassName: "bg-red-50/40 dark:bg-red-950/10",
+          showSpinner: false,
+        };
+      }
+
+      return {
+        label: "Healthy",
+        message: row.hasInvalidStoredValues
+          ? "Cached counters match, but invalid raw classification values still exist."
+          : "Cached counters match live data.",
+        badgeClassName: "bg-green-100 text-green-800 dark:bg-green-950/30 dark:text-green-200",
+        rowClassName: "bg-white dark:bg-gray-800",
+        showSpinner: false,
+      };
+  }
+}
+
+function isRowRepairable(
+  row: UserClassificationCounterDiagnosticsRow,
+  repairStatus: UserClassificationRepairStatusEntry | undefined
+) {
+  if (row.isConsistent) {
+    return false;
+  }
+
+  return !repairStatus || repairStatus.status === "failed";
+}
+
 export function UserClassificationCounterRepairSection() {
   const convex = useConvex();
   const users = useQuery(api.users.getUsersForSelection);
@@ -96,15 +200,14 @@ export function UserClassificationCounterRepairSection() {
   const [isScanning, setIsScanning] = useState(false);
   const [repairing, setRepairing] = useState(false);
   const [repairProgress, setRepairProgress] = useState<UserClassificationCounterRepairProgress | null>(null);
+  const [repairStatusByUserId, setRepairStatusByUserId] = useState<
+    Record<string, UserClassificationRepairStatusEntry | undefined>
+  >({});
 
   const rows = [...scanRows].sort(compareDiagnosticRows);
-  const inconsistentRows = rows.filter((row) => !row.isConsistent);
+  const repairableRows = rows.filter((row) => isRowRepairable(row, repairStatusByUserId[String(row.userId)]));
   const selectedRepairUserIds = new Set(repairSelection.map((userId) => String(userId)));
-
-  useEffect(() => {
-    if (isScanning) return;
-    setRepairSelection(scanRows.filter((row) => !row.isConsistent).map((row) => row.userId));
-  }, [isScanning, scanRows]);
+  const allSelectableUserIds = (users ?? []).map((user) => user.userId);
 
   const runScan = async (mode: "all" | "selected") => {
     const scanUserIds = mode === "selected" ? selectedUserIds : [];
@@ -118,6 +221,8 @@ export function UserClassificationCounterRepairSection() {
     setIsScanning(true);
     setScanRows([]);
     setRepairSelection([]);
+    setRepairProgress(null);
+    setRepairStatusByUserId({});
     setScanSummary({
       requestedUsers: mode === "selected" ? scanUserIds.length : 0,
       scannedUsers: 0,
@@ -174,6 +279,7 @@ export function UserClassificationCounterRepairSection() {
         nextCursor = result.nextCursor;
       }
 
+      setRepairSelection(accumulatedRows.filter((row) => !row.isConsistent).map((row) => row.userId));
       toast.success(
         `Scan finished. Checked ${scannedUsers.toLocaleString()} user profile(s) and found ${inconsistentUsers.toLocaleString()} inconsistent profile(s).`
       );
@@ -189,6 +295,22 @@ export function UserClassificationCounterRepairSection() {
   const handleSelectedUsersChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
     const nextUserIds = Array.from(event.target.selectedOptions, (option) => option.value as Id<"users">);
     setSelectedUserIds(nextUserIds);
+  };
+
+  const handleSelectAllCandidateUsers = () => {
+    setSelectedUserIds(allSelectableUserIds);
+  };
+
+  const handleDeselectAllCandidateUsers = () => {
+    setSelectedUserIds([]);
+  };
+
+  const handleSelectAllRepairableUsers = () => {
+    setRepairSelection(repairableRows.map((row) => row.userId));
+  };
+
+  const handleDeselectAllRepairableUsers = () => {
+    setRepairSelection([]);
   };
 
   const handleScanSelected = () => {
@@ -221,6 +343,15 @@ export function UserClassificationCounterRepairSection() {
     if (!confirmed) return;
 
     setRepairing(true);
+    setRepairStatusByUserId((current) => {
+      const next = { ...current };
+      for (const userId of repairSelection) {
+        if (!next[String(userId)] || next[String(userId)]?.status === "failed") {
+          delete next[String(userId)];
+        }
+      }
+      return next;
+    });
     setRepairProgress({
       total: repairSelection.length,
       processed: 0,
@@ -228,6 +359,8 @@ export function UserClassificationCounterRepairSection() {
       skipped: 0,
       missingProfiles: 0,
       invalidValueUsers: 0,
+      failed: 0,
+      currentUserLabel: null,
     });
 
     let processed = 0;
@@ -235,17 +368,104 @@ export function UserClassificationCounterRepairSection() {
     let skipped = 0;
     let missingProfiles = 0;
     let invalidValueUsers = 0;
+    let failed = 0;
+    let workingRows = [...rows];
+    let workingSelection = [...repairSelection];
+    let workingSummary = scanSummary ? { ...scanSummary } : null;
 
     try {
       for (let startIndex = 0; startIndex < repairSelection.length; startIndex += USER_COUNTER_REPAIR_BATCH_SIZE) {
         const batchUserIds = repairSelection.slice(startIndex, startIndex + USER_COUNTER_REPAIR_BATCH_SIZE);
-        const result = await repairCounters({ userIds: batchUserIds });
+        const userId = batchUserIds[0];
+        const currentRow = workingRows.find((row) => row.userId === userId);
+        const currentUserLabel = currentRow
+          ? formatUserLabel(currentRow.name, currentRow.email, currentRow.userId)
+          : String(userId);
 
-        processed += result.processed;
-        updated += result.updated;
-        skipped += result.skipped;
-        missingProfiles += result.missingProfiles;
-        invalidValueUsers += result.invalidValueUsers;
+        setRepairStatusByUserId((current) => ({
+          ...current,
+          [String(userId)]: {
+            status: "processing",
+            message: `Repairing cached counters for ${currentUserLabel}.`,
+          },
+        }));
+        setRepairProgress({
+          total: repairSelection.length,
+          processed,
+          updated,
+          skipped,
+          missingProfiles,
+          invalidValueUsers,
+          failed,
+          currentUserLabel,
+        });
+
+        try {
+          const result = await repairCounters({ userIds: [userId] });
+
+          processed += result.processed;
+          updated += result.updated;
+          skipped += result.skipped;
+          missingProfiles += result.missingProfiles;
+          invalidValueUsers += result.invalidValueUsers;
+
+          if (result.updated > 0 || result.skipped > 0) {
+            workingRows = workingRows.map((row) => {
+              if (row.userId !== userId) {
+                return row;
+              }
+
+              return {
+                ...row,
+                isConsistent: true,
+                changedFields: [],
+                cachedClassificationsCount: row.actualClassificationsCount,
+                cachedLsbTotal: row.actualLsbTotal,
+                cachedMorphologyTotal: row.actualMorphologyTotal,
+              };
+            });
+            workingSelection = workingSelection.filter((selectedUserId) => selectedUserId !== userId);
+            if (workingSummary) {
+              workingSummary = {
+                ...workingSummary,
+                inconsistentUsers: workingRows.filter((row) => !row.isConsistent).length,
+              };
+              setScanSummary(workingSummary);
+            }
+
+            setScanRows([...workingRows]);
+            setRepairSelection(workingSelection);
+            setRepairStatusByUserId((current) => ({
+              ...current,
+              [String(userId)]: {
+                status: result.updated > 0 ? "repaired" : "already-matched",
+                message:
+                  result.updated > 0
+                    ? `Cached counters were refreshed for ${currentUserLabel}.`
+                    : `${currentUserLabel} already matched live counters.`,
+              },
+            }));
+          } else if (result.missingProfiles > 0) {
+            workingSelection = workingSelection.filter((selectedUserId) => selectedUserId !== userId);
+            setRepairSelection(workingSelection);
+            setRepairStatusByUserId((current) => ({
+              ...current,
+              [String(userId)]: {
+                status: "missing-profile",
+                message: `${currentUserLabel} no longer has a user profile to update.`,
+              },
+            }));
+          }
+        } catch (error) {
+          failed += 1;
+          setRepairStatusByUserId((current) => ({
+            ...current,
+            [String(userId)]: {
+              status: "failed",
+              message: getErrorMessage(error, `Repair failed for ${currentUserLabel}.`),
+            },
+          }));
+        }
 
         setRepairProgress({
           total: repairSelection.length,
@@ -254,18 +474,30 @@ export function UserClassificationCounterRepairSection() {
           skipped,
           missingProfiles,
           invalidValueUsers,
+          failed,
+          currentUserLabel,
         });
       }
 
-      toast.success(
-        `Repaired ${updated.toLocaleString()} user(s); ${skipped.toLocaleString()} already matched.`
-      );
-    } catch (error) {
-      console.error(error);
-      toast.error(getErrorMessage(error, "Failed to repair user counters."));
+      if (failed > 0) {
+        toast.error(
+          `Repair finished with ${failed.toLocaleString()} failure(s). Updated ${updated.toLocaleString()} user(s); ${skipped.toLocaleString()} already matched.`
+        );
+      } else {
+        toast.success(
+          `Repaired ${updated.toLocaleString()} user(s); ${skipped.toLocaleString()} already matched.`
+        );
+      }
     } finally {
       setRepairing(false);
-      setRepairProgress(null);
+      setRepairProgress((current) =>
+        current
+          ? {
+              ...current,
+              currentUserLabel: null,
+            }
+          : null
+      );
     }
   };
 
@@ -298,6 +530,24 @@ export function UserClassificationCounterRepairSection() {
             <label htmlFor="counter-repair-user-select" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
               Candidate users
             </label>
+            <div className="mb-2 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleSelectAllCandidateUsers}
+                disabled={isScanning || repairing || allSelectableUserIds.length === 0}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700/60"
+              >
+                Select all users
+              </button>
+              <button
+                type="button"
+                onClick={handleDeselectAllCandidateUsers}
+                disabled={isScanning || repairing || selectedUserIds.length === 0}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700/60"
+              >
+                Deselect all users
+              </button>
+            </div>
             <select
               id="counter-repair-user-select"
               multiple
@@ -377,19 +627,19 @@ export function UserClassificationCounterRepairSection() {
             <div className="flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 dark:border-gray-700 dark:bg-gray-900/40">
               <button
                 type="button"
-                onClick={() => setRepairSelection(inconsistentRows.map((row) => row.userId))}
+                onClick={handleSelectAllRepairableUsers}
                 disabled={isScanning || repairing}
                 className="text-sm font-medium text-blue-700 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
               >
-                Select all inconsistent users
+                Select all repairable
               </button>
               <button
                 type="button"
-                onClick={() => setRepairSelection([])}
+                onClick={handleDeselectAllRepairableUsers}
                 disabled={isScanning || repairing}
                 className="text-sm font-medium text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
               >
-                Clear repair selection
+                Deselect all
               </button>
               <button
                 type="button"
@@ -402,8 +652,14 @@ export function UserClassificationCounterRepairSection() {
                   : `Repair selected (${repairSelection.length.toLocaleString()})`}
               </button>
               {repairProgress && (
-                <div className="text-sm text-gray-600 dark:text-gray-300">
-                  Processed {repairProgress.processed.toLocaleString()} / {repairProgress.total.toLocaleString()} selected user(s); updated {repairProgress.updated.toLocaleString()}.
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600 dark:text-gray-300">
+                  <span>
+                    Processed {repairProgress.processed.toLocaleString()} / {repairProgress.total.toLocaleString()} selected user(s)
+                  </span>
+                  <span>Updated {repairProgress.updated.toLocaleString()}</span>
+                  <span>Already matched {repairProgress.skipped.toLocaleString()}</span>
+                  {repairProgress.failed > 0 && <span>Failed {repairProgress.failed.toLocaleString()}</span>}
+                  {repairProgress.currentUserLabel && <span>Current user: {repairProgress.currentUserLabel}</span>}
                 </div>
               )}
             </div>
@@ -442,6 +698,9 @@ export function UserClassificationCounterRepairSection() {
                       User
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       Cached totals
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -454,18 +713,20 @@ export function UserClassificationCounterRepairSection() {
                 </thead>
                 <tbody className="divide-y divide-gray-200 bg-white dark:divide-gray-700 dark:bg-gray-800">
                   {rows.map((row) => {
-                    const canRepair = !row.isConsistent;
+                    const repairStatus = repairStatusByUserId[String(row.userId)];
+                    const canRepair = isRowRepairable(row, repairStatus);
                     const label = formatUserLabel(row.name, row.email, row.userId);
                     const invalidCount = row.invalidLsbCount + row.invalidMorphologyCount;
+                    const rowRepairState = getRowRepairState(
+                      row,
+                      repairStatus,
+                      selectedRepairUserIds.has(String(row.userId))
+                    );
 
                     return (
                       <tr
                         key={row.userId}
-                        className={cn(
-                          row.isConsistent
-                            ? "bg-white dark:bg-gray-800"
-                            : "bg-red-50/40 dark:bg-red-950/10"
-                        )}
+                        className={rowRepairState.rowClassName}
                       >
                         <td className="px-4 py-4 align-top">
                           <input
@@ -484,6 +745,20 @@ export function UserClassificationCounterRepairSection() {
                           <div className="mt-2 inline-flex rounded-full px-2 py-1 text-xs font-medium text-white bg-gray-700 dark:bg-gray-600">
                             {row.actualClassificationsCount.toLocaleString()} classifications
                           </div>
+                        </td>
+                        <td className="px-4 py-4 align-top text-sm text-gray-700 dark:text-gray-300">
+                          <div
+                            className={cn(
+                              "inline-flex items-center gap-2 rounded-full px-2 py-1 text-xs font-medium",
+                              rowRepairState.badgeClassName
+                            )}
+                          >
+                            {rowRepairState.showSpinner && (
+                              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            )}
+                            {rowRepairState.label}
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">{rowRepairState.message}</div>
                         </td>
                         <td className="px-4 py-4 align-top text-sm text-gray-700 dark:text-gray-300">
                           <div>Total: {row.cachedClassificationsCount.toLocaleString()}</div>
