@@ -404,6 +404,10 @@ export function ClassificationInterface() {
       return;
     }
     if (!currentGalaxy || formState.lsbClass === null || formState.morphology === null) return;
+
+    submitInFlightRef.current = true;
+    setIsSubmittingClassification(true);
+
     try {
       const timeSpent = Date.now() - startTime;
       await submitClassification({
@@ -420,9 +424,6 @@ export function ClassificationInterface() {
       });
       toast.success("Classification submitted successfully!");
       // Get next unprocessed galaxy (skipping skipped and classified ones)
-      submitInFlightRef.current = true;
-      setIsSubmittingClassification(true);
-
       const nextGalaxy = await getNextGalaxyMutation();
       if (nextGalaxy?.id) {
         navigate(`/classify/${nextGalaxy.id}`);

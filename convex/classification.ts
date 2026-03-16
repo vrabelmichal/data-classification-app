@@ -260,11 +260,10 @@ export const submitClassification = mutation({
       const morphKeyFromVal = (val: number) =>
         val === -1 ? "morphNeg1Count" : val === 0 ? "morph0Count" : val === 1 ? "morph1Count" : "morph2Count";
 
-      const profilePatch: Record<string, number> = {};
+      const profileCounterDeltas: Record<string, number> = {};
       const bump = (key: string, delta: number) => {
         if (delta === 0) return;
-        const current = (profile as any)[key] ?? 0;
-        profilePatch[key] = Math.max(0, current + delta);
+        profileCounterDeltas[key] = (profileCounterDeltas[key] ?? 0) + delta;
       };
 
       bump("awesomeCount", awesomeDelta);
@@ -275,6 +274,13 @@ export const submitClassification = mutation({
       bump(lsbKeyFromVal(existing.lsb_class), -1);
       bump(morphKeyFromVal(args.morphology), 1);
       bump(morphKeyFromVal(existing.morphology), -1);
+
+      const profilePatch: Record<string, number> = {};
+      for (const [key, delta] of Object.entries(profileCounterDeltas)) {
+        if (delta === 0) continue;
+        const current = (profile as any)[key] ?? 0;
+        profilePatch[key] = Math.max(0, current + delta);
+      }
 
       if (Object.keys(profilePatch).length > 0) {
         await ctx.db.patch(profile._id, profilePatch);
