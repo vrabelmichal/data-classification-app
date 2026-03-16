@@ -16,6 +16,11 @@ import {
   userProfilesByClassificationsCount,
   userProfilesByLastActive,
 } from "./galaxies/aggregates";
+import {
+  auditUserClassificationStats,
+  getUserClassificationCounterDiffKeys,
+  getUserClassificationCounterSnapshotFromProfile,
+} from "./classifications/userCounterStats";
 
 async function insertUserProfileAggregates(ctx: any, profile: any) {
   await userProfilesByClassificationsCount.insertIfDoesNotExist(ctx, profile);
@@ -213,8 +218,6 @@ export const getUserStats = query({
 
     if (USE_PROFILE_COUNTERS_FOR_STATS && profile) {
       // Fast method: Use pre-computed counters from userProfiles
-      const total = profile.classificationsCount ?? 0;
-
       // For "this week", we still need to query classifications (no counter for this)
       const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
       const recentClassifications = await ctx.db
@@ -225,6 +228,7 @@ export const getUserStats = query({
       const thisWeek = recentClassifications.length;
 
       // For average time, we still need to compute from classifications
+      // TODO: This is a problem, these data should not be retrieved every time. 
       const allClassifications = await ctx.db
         .query("classifications")
         .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -233,32 +237,39 @@ export const getUserStats = query({
         ? allClassifications.reduce((sum, c) => sum + c.timeSpent, 0) / allClassifications.length
         : 0;
 
+      const cachedCounters = getUserClassificationCounterSnapshotFromProfile(profile);
+      const actualCounterAudit = auditUserClassificationStats(allClassifications);
+      const actualCounters = actualCounterAudit.counters;
+      const canUseProfileCounters = getUserClassificationCounterDiffKeys(cachedCounters, actualCounters).length === 0;
+
+      const sourceCounters = canUseProfileCounters ? cachedCounters : actualCounters;
+
       // LSB counts: combine lsb0 as nonLSB, lsb1 as LSB (lsbNeg1 is legacy/failed fitting)
       const lsbClassCounts = {
-        nonLSB: (profile.lsb0Count ?? 0) + (profile.lsbNeg1Count ?? 0),
-        LSB: profile.lsb1Count ?? 0,
+        nonLSB: sourceCounters.lsb0Count + sourceCounters.lsbNeg1Count,
+        LSB: sourceCounters.lsb1Count,
       };
 
       // Morphology counts from profile
       const morphologyCounts = {
-        featureless: profile.morphNeg1Count ?? 0,
-        irregular: profile.morph0Count ?? 0,
-        spiral: profile.morph1Count ?? 0,
-        elliptical: profile.morph2Count ?? 0,
+        featureless: sourceCounters.morphNeg1Count,
+        irregular: sourceCounters.morph0Count,
+        spiral: sourceCounters.morph1Count,
+        elliptical: sourceCounters.morph2Count,
       };
 
       return {
-        total,
+        total: sourceCounters.classificationsCount,
         thisWeek,
         byLsbClass: lsbClassCounts,
         byMorphology: morphologyCounts,
         averageTime: Math.round(averageTime / 1000), // Convert to seconds
-        awesomeCount: profile.awesomeCount ?? 0,
-        validRedshiftCount: profile.validRedshiftCount ?? 0,
-        visibleNucleusCount: profile.visibleNucleusCount ?? 0,
-        failedFittingCount: profile.failedFittingCount ?? 0,
+        awesomeCount: sourceCounters.awesomeCount,
+        validRedshiftCount: sourceCounters.validRedshiftCount,
+        visibleNucleusCount: sourceCounters.visibleNucleusCount,
+        failedFittingCount: sourceCounters.failedFittingCount,
         // Include raw profile counters for debugging/comparison
-        _source: "profile" as const,
+        _source: canUseProfileCounters ? ("profile" as const) : ("classifications" as const),
       };
     }
 
@@ -272,42 +283,34 @@ export const getUserStats = query({
       .filter(c => c._creationTime > Date.now() - 7 * 24 * 60 * 60 * 1000)
       .length;
 
-    // Count by LSB class - binary (0 = nonLSB, 1 = LSB)
-    // lsb_class values: 0 = nonLSB, 1 = LSB (failed fitting is now a separate flag)
-    const lsbClassCounts = classifications.reduce((acc, c) => {
-      const key = c.lsb_class === 1 ? "LSB" : "nonLSB";
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const actualCounters = auditUserClassificationStats(classifications).counters;
 
-    // Count by morphology
-    const morphologyCounts = classifications.reduce((acc, c) => {
-      const key = c.morphology === -1 ? "featureless" :
-        c.morphology === 0 ? "irregular" :
-          c.morphology === 1 ? "spiral" : "elliptical";
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    const lsbClassCounts = {
+      nonLSB: actualCounters.lsb0Count + actualCounters.lsbNeg1Count,
+      LSB: actualCounters.lsb1Count,
+    };
+
+    const morphologyCounts = {
+      featureless: actualCounters.morphNeg1Count,
+      irregular: actualCounters.morph0Count,
+      spiral: actualCounters.morph1Count,
+      elliptical: actualCounters.morph2Count,
+    };
 
     const averageTime = classifications.length > 0
       ? classifications.reduce((sum, c) => sum + c.timeSpent, 0) / classifications.length
       : 0;
 
-    const awesomeCount = classifications.filter(c => c.awesome_flag).length;
-    const validRedshiftCount = classifications.filter(c => c.valid_redshift).length;
-    const visibleNucleusCount = classifications.filter(c => c.visible_nucleus).length;
-    const failedFittingCount = classifications.filter(c => c.failed_fitting).length;
-
     return {
-      total: classifications.length,
+      total: actualCounters.classificationsCount,
       thisWeek: recentClassifications,
       byLsbClass: lsbClassCounts,
       byMorphology: morphologyCounts,
       averageTime: Math.round(averageTime / 1000), // Convert to seconds
-      awesomeCount,
-      validRedshiftCount,
-      visibleNucleusCount,
-      failedFittingCount,
+      awesomeCount: actualCounters.awesomeCount,
+      validRedshiftCount: actualCounters.validRedshiftCount,
+      visibleNucleusCount: actualCounters.visibleNucleusCount,
+      failedFittingCount: actualCounters.failedFittingCount,
       _source: "classifications" as const,
     };
   },

@@ -44,6 +44,11 @@ type SummaryCard = {
   title?: string;
 };
 
+type StatisticsSnapshot = {
+  targetKey: string;
+  data: UserStatisticsData;
+};
+
 function formatBreakdownPercent(value: number) {
   if (!Number.isFinite(value) || value <= 0) {
     return "0%";
@@ -269,7 +274,7 @@ function StatisticsBreakdownsSection({
     <div className="mb-8 space-y-6">
       {hasMismatchWarning && (
         <div className="rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-800 shadow-sm dark:border-amber-800/70 dark:bg-amber-950/20 dark:text-amber-200">
-          LSB total ({lsbTotal.toLocaleString()}) and morphology total ({morphologyTotal.toLocaleString()}) do not match. This usually points to legacy or invalid stored classification values.
+          LSB total ({lsbTotal.toLocaleString()}) and morphology total ({morphologyTotal.toLocaleString()}) do not match. For per-user statistics this usually means the cached user counters are stale and should be recomputed from the underlying classifications.
         </div>
       )}
 
@@ -322,7 +327,7 @@ function StatisticsBreakdownsSection({
 
 export function StatisticsTab() {
   const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
-  const [lastStats, setLastStats] = useState<UserStatisticsData | null>(null);
+  const [lastStatsSnapshot, setLastStatsSnapshot] = useState<StatisticsSnapshot | null>(null);
   
   const userProfile = useQuery(api.users.getUserProfile);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -345,12 +350,14 @@ export function StatisticsTab() {
     selectedUserId ? { targetUserId: selectedUserId } : {}
   );
 
+  const statsTargetKey = selectedUserId ?? userProfile?.userId ?? null;
+
   // Preserve last successful stats to avoid layout jumps/scrollbar flicker while refetching
   useEffect(() => {
-    if (stats) {
-      setLastStats(stats);
+    if (stats && statsTargetKey) {
+      setLastStatsSnapshot({ targetKey: String(statsTargetKey), data: stats });
     }
-  }, [stats]);
+  }, [stats, statsTargetKey]);
 
   // Find the selected user's display name
   const selectedUserDisplay = useMemo(() => {
@@ -360,15 +367,19 @@ export function StatisticsTab() {
     return user.name || user.email || user.userId;
   }, [selectedUserId, usersList]);
 
-  if ((stats === undefined && !lastStats) || progress === undefined || systemSettings === undefined || userProfile === undefined) {
+  const displayStats =
+    stats ??
+    (statsTargetKey !== null && lastStatsSnapshot?.targetKey === String(statsTargetKey)
+      ? lastStatsSnapshot.data
+      : null);
+
+  if ((stats === undefined && !displayStats) || progress === undefined || systemSettings === undefined || userProfile === undefined) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)] overflow-hidden">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
-
-  const displayStats = stats ?? lastStats;
 
   // System settings for showing/hiding flags
   const showAwesomeFlag = systemSettings?.showAwesomeFlag ?? true;
@@ -378,7 +389,7 @@ export function StatisticsTab() {
   // Show failed fitting stat only in checkbox mode
   const showFailedFitting = failedFittingMode === "checkbox";
 
-  const isRefetching = stats === undefined && !!lastStats;
+  const isRefetching = stats === undefined && !!displayStats;
 
   const totalClassifications = displayStats?.total ?? 0;
 
@@ -565,6 +576,12 @@ export function StatisticsTab() {
               Showing statistics for: <span className="font-medium text-gray-700 dark:text-gray-200">{selectedUserDisplay}</span>
             </p>
           )}
+        </div>
+      )}
+
+      {displayStats?._source === "classifications" && (
+        <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-800 shadow-sm dark:border-amber-800/70 dark:bg-amber-950/20 dark:text-amber-200">
+          Cached per-user counters are out of sync with the live classifications for this user. This view is showing live classification totals. Recompute user classification counters in Maintenance to repair the cached values.
         </div>
       )}
 

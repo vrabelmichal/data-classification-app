@@ -23,3 +23,4 @@ export { BackfillUserGalaxyClassificationsSection } from './BackfillUserGalaxyCl
 export { BackfillUserClassificationCountersSection } from './BackfillUserClassificationCountersSection';
 export { FastBackfillUserClassificationCountersSection } from './FastBackfillUserClassificationCountersSection';
 export { GalaxyCountDiagnosticsSection } from './GalaxyCountDiagnosticsSection';
+export { UserClassificationCounterRepairSection } from './UserClassificationCounterRepairSection';

@@ -1,4 +1,4 @@
-import { mutation } from "../_generated/server";
+import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { requireAdmin } from "../lib/auth";
 import { Doc } from "../_generated/dataModel";
@@ -13,6 +13,15 @@ import {
   userProfilesByClassificationsCount,
   userProfilesByLastActive,
 } from "../galaxies/aggregates";
+import {
+  auditUserClassificationStats,
+  buildUserClassificationCounterPatch,
+  createEmptyUserClassificationCounterSnapshot,
+  getUserClassificationCounterDiffKeys,
+  getUserClassificationCounterSnapshotFromProfile,
+  getUserClassificationLsbTotal,
+  getUserClassificationMorphologyTotal,
+} from "./userCounterStats";
 
 const CLASSIFICATION_AGG_BATCH_SIZE = 500;
 const USER_FULL_BATCH_SIZE = 75;
@@ -38,40 +47,246 @@ async function replaceOrInsertUserProfileAggregate(
   }
 }
 
-function tallyUserClassificationStats(classifications: Doc<"classifications">[]) {
-  const result = {
-    classificationsCount: classifications.length,
-    awesomeCount: 0,
-    visibleNucleusCount: 0,
-    failedFittingCount: 0,
-    validRedshiftCount: 0,
-    lsbNeg1Count: 0,
-    lsb0Count: 0,
-    lsb1Count: 0,
-    morphNeg1Count: 0,
-    morph0Count: 0,
-    morph1Count: 0,
-    morph2Count: 0,
-  };
+async function getUserClassificationAudit(ctx: any, userId: Doc<"userProfiles">["userId"]) {
+  const classifications = await ctx.db
+    .query("classifications")
+    .withIndex("by_user", (q: any) => q.eq("userId", userId))
+    .collect();
 
-  for (const c of classifications) {
-    if (c.awesome_flag) result.awesomeCount += 1;
-    if (c.visible_nucleus) result.visibleNucleusCount += 1;
-    if (c.failed_fitting) result.failedFittingCount += 1;
-    if (c.valid_redshift) result.validRedshiftCount += 1;
+  return auditUserClassificationStats(classifications);
+}
 
-    if (c.lsb_class === -1) result.lsbNeg1Count += 1;
-    else if (c.lsb_class === 0) result.lsb0Count += 1;
-    else result.lsb1Count += 1;
+async function applyUserClassificationCounterRepair(
+  ctx: any,
+  profile: Doc<"userProfiles">
+) {
+  const audit = await getUserClassificationAudit(ctx, profile.userId);
+  const patch = buildUserClassificationCounterPatch(profile, audit.counters);
 
-    if (c.morphology === -1) result.morphNeg1Count += 1;
-    else if (c.morphology === 0) result.morph0Count += 1;
-    else if (c.morphology === 1) result.morph1Count += 1;
-    else result.morph2Count += 1;
+  if (Object.keys(patch).length === 0) {
+    return {
+      updated: false,
+      changedFields: [] as string[],
+      invalidLsbCount: audit.invalidLsbCount,
+      invalidMorphologyCount: audit.invalidMorphologyCount,
+    };
   }
 
-  return result;
+  await ctx.db.patch(profile._id, patch);
+  const refreshed = await ctx.db.get(profile._id);
+  if (refreshed) {
+    await replaceOrInsertUserProfileAggregate(ctx, userProfilesByClassificationsCount, profile, refreshed);
+    await replaceOrInsertUserProfileAggregate(ctx, userProfilesByLastActive, profile, refreshed);
+  }
+
+  return {
+    updated: true,
+    changedFields: Object.keys(patch),
+    invalidLsbCount: audit.invalidLsbCount,
+    invalidMorphologyCount: audit.invalidMorphologyCount,
+  };
 }
+
+export const getUserClassificationCounterDiagnostics = query({
+  args: {
+    userIds: v.optional(v.array(v.id("users"))),
+    includeConsistent: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    const includeConsistent = args.includeConsistent ?? false;
+    const requestedUserIds = args.userIds?.length ? Array.from(new Set(args.userIds)) : null;
+
+    const usersById = new Map<string, Doc<"users"> | null>();
+    const auditByUserId = new Map<string, ReturnType<typeof auditUserClassificationStats>>();
+
+    let profiles: Doc<"userProfiles">[] = [];
+    let requestedUsers = 0;
+
+    if (requestedUserIds) {
+      requestedUsers = requestedUserIds.length;
+
+      const [userResults, profileResults, classificationResults] = await Promise.all([
+        Promise.all(requestedUserIds.map((userId) => ctx.db.get(userId))),
+        Promise.all(
+          requestedUserIds.map((userId) =>
+            ctx.db
+              .query("userProfiles")
+              .withIndex("by_user", (q) => q.eq("userId", userId))
+              .unique()
+          )
+        ),
+        Promise.all(
+          requestedUserIds.map((userId) =>
+            ctx.db
+              .query("classifications")
+              .withIndex("by_user", (q) => q.eq("userId", userId))
+              .collect()
+          )
+        ),
+      ]);
+
+      for (let index = 0; index < requestedUserIds.length; index += 1) {
+        const userId = requestedUserIds[index];
+        usersById.set(String(userId), userResults[index] ?? null);
+        auditByUserId.set(String(userId), auditUserClassificationStats(classificationResults[index]));
+      }
+
+      profiles = profileResults.filter((profile): profile is Doc<"userProfiles"> => profile !== null);
+    } else {
+      const [allProfiles, allUsers, allClassifications] = await Promise.all([
+        ctx.db.query("userProfiles").collect(),
+        ctx.db.query("users").collect(),
+        ctx.db.query("classifications").collect(),
+      ]);
+
+      profiles = allProfiles;
+      requestedUsers = allProfiles.length;
+
+      for (const user of allUsers) {
+        usersById.set(String(user._id), user);
+      }
+
+      const classificationsByUserId = new Map<string, Doc<"classifications">[]>();
+      for (const classification of allClassifications) {
+        const userKey = String(classification.userId);
+        const existing = classificationsByUserId.get(userKey);
+        if (existing) {
+          existing.push(classification);
+        } else {
+          classificationsByUserId.set(userKey, [classification]);
+        }
+      }
+
+      for (const profile of allProfiles) {
+        auditByUserId.set(
+          String(profile.userId),
+          auditUserClassificationStats(classificationsByUserId.get(String(profile.userId)) ?? [])
+        );
+      }
+    }
+
+    let inconsistentUsers = 0;
+    let invalidValueUsers = 0;
+
+    const rows = profiles
+      .map((profile) => {
+        const audit = auditByUserId.get(String(profile.userId)) ?? {
+          counters: createEmptyUserClassificationCounterSnapshot(),
+          invalidLsbCount: 0,
+          invalidMorphologyCount: 0,
+        };
+        const cachedCounters = getUserClassificationCounterSnapshotFromProfile(profile);
+        const changedFields = getUserClassificationCounterDiffKeys(cachedCounters, audit.counters);
+        const isConsistent = changedFields.length === 0;
+        const hasInvalidStoredValues = audit.invalidLsbCount > 0 || audit.invalidMorphologyCount > 0;
+        const user = usersById.get(String(profile.userId));
+
+        if (!isConsistent) {
+          inconsistentUsers += 1;
+        }
+        if (hasInvalidStoredValues) {
+          invalidValueUsers += 1;
+        }
+
+        return {
+          userId: profile.userId,
+          name: (user as any)?.name ?? null,
+          email: (user as any)?.email ?? null,
+          isConsistent,
+          hasInvalidStoredValues,
+          changedFields,
+          cachedClassificationsCount: cachedCounters.classificationsCount,
+          actualClassificationsCount: audit.counters.classificationsCount,
+          cachedLsbTotal: getUserClassificationLsbTotal(cachedCounters),
+          actualLsbTotal: getUserClassificationLsbTotal(audit.counters),
+          cachedMorphologyTotal: getUserClassificationMorphologyTotal(cachedCounters),
+          actualMorphologyTotal: getUserClassificationMorphologyTotal(audit.counters),
+          invalidLsbCount: audit.invalidLsbCount,
+          invalidMorphologyCount: audit.invalidMorphologyCount,
+          cachedCounters,
+          actualCounters: audit.counters,
+        };
+      })
+      .filter((row) => includeConsistent || !row.isConsistent || row.hasInvalidStoredValues)
+      .sort((left, right) => {
+        if (Number(left.isConsistent) !== Number(right.isConsistent)) {
+          return Number(left.isConsistent) - Number(right.isConsistent);
+        }
+
+        if (right.changedFields.length !== left.changedFields.length) {
+          return right.changedFields.length - left.changedFields.length;
+        }
+
+        if (right.actualClassificationsCount !== left.actualClassificationsCount) {
+          return right.actualClassificationsCount - left.actualClassificationsCount;
+        }
+
+        const leftLabel = left.name || left.email || String(left.userId);
+        const rightLabel = right.name || right.email || String(right.userId);
+        return leftLabel.localeCompare(rightLabel);
+      });
+
+    return {
+      requestedUsers,
+      scannedUsers: profiles.length,
+      missingProfiles: Math.max(requestedUsers - profiles.length, 0),
+      inconsistentUsers,
+      invalidValueUsers,
+      rows,
+    };
+  },
+});
+
+export const repairUserClassificationCounters = mutation({
+  args: {
+    userIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+
+    const userIds = Array.from(new Set(args.userIds));
+
+    let processed = 0;
+    let updated = 0;
+    let skipped = 0;
+    let missingProfiles = 0;
+    let invalidValueUsers = 0;
+
+    for (const userId of userIds) {
+      const profile = await ctx.db
+        .query("userProfiles")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .unique();
+
+      if (!profile) {
+        missingProfiles += 1;
+        continue;
+      }
+
+      const result = await applyUserClassificationCounterRepair(ctx, profile);
+      if (result.invalidLsbCount > 0 || result.invalidMorphologyCount > 0) {
+        invalidValueUsers += 1;
+      }
+
+      processed += 1;
+      if (result.updated) {
+        updated += 1;
+      } else {
+        skipped += 1;
+      }
+    }
+
+    return {
+      processed,
+      updated,
+      skipped,
+      missingProfiles,
+      invalidValueUsers,
+    };
+  },
+});
 
 export const backfillClassificationAggregates = mutation({
   args: {
@@ -185,32 +400,8 @@ export const fullBackfillUserClassificationCounters = mutation({
     let updated = 0;
 
     for (const profile of page) {
-      const classifications = await ctx.db
-        .query("classifications")
-        .withIndex("by_user", (q) => q.eq("userId", profile.userId))
-        .collect();
-
-      const counts = tallyUserClassificationStats(classifications);
-
-      const patch: Partial<Doc<"userProfiles">> = {};
-      const maybe = (key: keyof typeof counts, value: number) => {
-        if ((profile as any)[key] !== value) {
-          patch[key] = value as any;
-        }
-      };
-
-      maybe("classificationsCount", counts.classificationsCount);
-      maybe("awesomeCount", counts.awesomeCount);
-      maybe("visibleNucleusCount", counts.visibleNucleusCount);
-      maybe("failedFittingCount", counts.failedFittingCount);
-      maybe("validRedshiftCount", counts.validRedshiftCount);
-      maybe("lsbNeg1Count", counts.lsbNeg1Count);
-      maybe("lsb0Count", counts.lsb0Count);
-      maybe("lsb1Count", counts.lsb1Count);
-      maybe("morphNeg1Count", counts.morphNeg1Count);
-      maybe("morph0Count", counts.morph0Count);
-      maybe("morph1Count", counts.morph1Count);
-      maybe("morph2Count", counts.morph2Count);
+      const counts = (await getUserClassificationAudit(ctx, profile.userId)).counters;
+      const patch = buildUserClassificationCounterPatch(profile, counts);
 
       if (Object.keys(patch).length > 0) {
         await ctx.db.patch(profile._id, patch);
@@ -259,12 +450,7 @@ export const fastBackfillUserClassificationCounters = mutation({
         .unique();
       if (!profile) continue;
 
-      const classifications = await ctx.db
-        .query("classifications")
-        .withIndex("by_user", (q) => q.eq("userId", userId))
-        .collect();
-
-      const counts = tallyUserClassificationStats(classifications);
+      const counts = (await getUserClassificationAudit(ctx, userId)).counters;
 
       const patch: Partial<Doc<"userProfiles">> = {
         classificationsCount: counts.classificationsCount,
