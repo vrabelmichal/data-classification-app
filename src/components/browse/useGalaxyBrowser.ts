@@ -12,6 +12,38 @@ import {
 } from "./galaxyBrowserUtils";
 import { getPreviewImageName } from "../../images/displaySettings";
 
+export interface AppliedGalaxySearchValues {
+  searchId: string;
+  searchRaMin: string;
+  searchRaMax: string;
+  searchDecMin: string;
+  searchDecMax: string;
+  searchReffMin: string;
+  searchReffMax: string;
+  searchQMin: string;
+  searchQMax: string;
+  searchPaMin: string;
+  searchPaMax: string;
+  searchMagMin: string;
+  searchMagMax: string;
+  searchMeanMueMin: string;
+  searchMeanMueMax: string;
+  searchNucleus: boolean | undefined;
+  searchTotalClassificationsMin: string;
+  searchTotalClassificationsMax: string;
+  searchNumVisibleNucleusMin: string;
+  searchNumVisibleNucleusMax: string;
+  searchNumAwesomeFlagMin: string;
+  searchNumAwesomeFlagMax: string;
+  searchNumFailedFittingMin: string;
+  searchNumFailedFittingMax: string;
+  searchTotalAssignedMin: string;
+  searchTotalAssignedMax: string;
+  searchAwesome: boolean | undefined;
+  searchValidRedshift: boolean | undefined;
+  searchVisibleNucleus: boolean | undefined;
+}
+
 export interface UseGalaxyBrowserReturn {
   // State
   page: number;
@@ -88,6 +120,7 @@ export interface UseGalaxyBrowserReturn {
   setSearchValidRedshift: (value: boolean | undefined) => void;
   searchVisibleNucleus: boolean | undefined;
   setSearchVisibleNucleus: (value: boolean | undefined) => void;
+  appliedSearchValues: AppliedGalaxySearchValues;
   isSearchActive: boolean;
   hasPendingChanges: boolean;
   hasPreviousData: boolean;
@@ -812,6 +845,37 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     setSearchValidRedshift,
     searchVisibleNucleus,
     setSearchVisibleNucleus,
+    appliedSearchValues: {
+      searchId: appliedSearchId,
+      searchRaMin: appliedSearchRaMin,
+      searchRaMax: appliedSearchRaMax,
+      searchDecMin: appliedSearchDecMin,
+      searchDecMax: appliedSearchDecMax,
+      searchReffMin: appliedSearchReffMin,
+      searchReffMax: appliedSearchReffMax,
+      searchQMin: appliedSearchQMin,
+      searchQMax: appliedSearchQMax,
+      searchPaMin: appliedSearchPaMin,
+      searchPaMax: appliedSearchPaMax,
+      searchMagMin: appliedSearchMagMin,
+      searchMagMax: appliedSearchMagMax,
+      searchMeanMueMin: appliedSearchMeanMueMin,
+      searchMeanMueMax: appliedSearchMeanMueMax,
+      searchNucleus: appliedSearchNucleus,
+      searchTotalClassificationsMin: appliedSearchTotalClassificationsMin,
+      searchTotalClassificationsMax: appliedSearchTotalClassificationsMax,
+      searchNumVisibleNucleusMin: appliedSearchNumVisibleNucleusMin,
+      searchNumVisibleNucleusMax: appliedSearchNumVisibleNucleusMax,
+      searchNumAwesomeFlagMin: appliedSearchNumAwesomeFlagMin,
+      searchNumAwesomeFlagMax: appliedSearchNumAwesomeFlagMax,
+      searchNumFailedFittingMin: appliedSearchNumFailedFittingMin,
+      searchNumFailedFittingMax: appliedSearchNumFailedFittingMax,
+      searchTotalAssignedMin: appliedSearchTotalAssignedMin,
+      searchTotalAssignedMax: appliedSearchTotalAssignedMax,
+      searchAwesome: appliedSearchAwesome,
+      searchValidRedshift: appliedSearchValidRedshift,
+      searchVisibleNucleus: appliedSearchVisibleNucleus,
+    },
     isSearchActive,
     hasPendingChanges,
     hasPreviousData,

@@ -122,6 +122,7 @@ export function GalaxyBrowser() {
     setSearchValidRedshift,
     searchVisibleNucleus,
     setSearchVisibleNucleus,
+    appliedSearchValues,
     isSearchActive,
     hasPendingChanges,
     hasAnySearchValues,
@@ -168,6 +169,7 @@ export function GalaxyBrowser() {
   // pendingNavRef < 0  → need to go back   (goPrev)
   const pendingNavRef = useRef(0);
   const lastProcessedGalaxyDataRef = useRef<unknown>(null);
+  const lastPageRef = useRef(page);
   // True while post-close page-stepping hasn't finished yet (hides the table).
   const [isSyncingPage, setIsSyncingPage] = useState(false);
 
@@ -203,6 +205,72 @@ export function GalaxyBrowser() {
   // Calling goNext()/goPrev() while QR is visible makes galaxyData go undefined,
   // which switches the render branch and unmounts QR, resetting all its state.
   // Instead, we sync the page only after the overlay is closed (see handleCloseReview).
+
+  const appliedSearchQueryFilters = {
+    sortBy,
+    sortOrder,
+    filter,
+    searchId: isSearchActive ? (appliedSearchValues.searchId || undefined) : undefined,
+    searchRaMin: isSearchActive ? (appliedSearchValues.searchRaMin || undefined) : undefined,
+    searchRaMax: isSearchActive ? (appliedSearchValues.searchRaMax || undefined) : undefined,
+    searchDecMin: isSearchActive ? (appliedSearchValues.searchDecMin || undefined) : undefined,
+    searchDecMax: isSearchActive ? (appliedSearchValues.searchDecMax || undefined) : undefined,
+    searchReffMin: isSearchActive ? (appliedSearchValues.searchReffMin || undefined) : undefined,
+    searchReffMax: isSearchActive ? (appliedSearchValues.searchReffMax || undefined) : undefined,
+    searchQMin: isSearchActive ? (appliedSearchValues.searchQMin || undefined) : undefined,
+    searchQMax: isSearchActive ? (appliedSearchValues.searchQMax || undefined) : undefined,
+    searchPaMin: isSearchActive ? (appliedSearchValues.searchPaMin || undefined) : undefined,
+    searchPaMax: isSearchActive ? (appliedSearchValues.searchPaMax || undefined) : undefined,
+    searchMagMin: isSearchActive ? (appliedSearchValues.searchMagMin || undefined) : undefined,
+    searchMagMax: isSearchActive ? (appliedSearchValues.searchMagMax || undefined) : undefined,
+    searchMeanMueMin: isSearchActive ? (appliedSearchValues.searchMeanMueMin || undefined) : undefined,
+    searchMeanMueMax: isSearchActive ? (appliedSearchValues.searchMeanMueMax || undefined) : undefined,
+    searchNucleus: isSearchActive ? appliedSearchValues.searchNucleus : undefined,
+    searchTotalClassificationsMin: isSearchActive ? (appliedSearchValues.searchTotalClassificationsMin || undefined) : undefined,
+    searchTotalClassificationsMax: isSearchActive ? (appliedSearchValues.searchTotalClassificationsMax || undefined) : undefined,
+    searchNumVisibleNucleusMin: isSearchActive ? (appliedSearchValues.searchNumVisibleNucleusMin || undefined) : undefined,
+    searchNumVisibleNucleusMax: isSearchActive ? (appliedSearchValues.searchNumVisibleNucleusMax || undefined) : undefined,
+    searchNumAwesomeFlagMin: isSearchActive ? (appliedSearchValues.searchNumAwesomeFlagMin || undefined) : undefined,
+    searchNumAwesomeFlagMax: isSearchActive ? (appliedSearchValues.searchNumAwesomeFlagMax || undefined) : undefined,
+    searchNumFailedFittingMin: isSearchActive ? (appliedSearchValues.searchNumFailedFittingMin || undefined) : undefined,
+    searchNumFailedFittingMax: isSearchActive ? (appliedSearchValues.searchNumFailedFittingMax || undefined) : undefined,
+    searchTotalAssignedMin: isSearchActive ? (appliedSearchValues.searchTotalAssignedMin || undefined) : undefined,
+    searchTotalAssignedMax: isSearchActive ? (appliedSearchValues.searchTotalAssignedMax || undefined) : undefined,
+    searchAwesome: isSearchActive ? appliedSearchValues.searchAwesome : undefined,
+    searchValidRedshift: isSearchActive ? appliedSearchValues.searchValidRedshift : undefined,
+    searchVisibleNucleus: isSearchActive ? appliedSearchValues.searchVisibleNucleus : undefined,
+  };
+  const quickReviewFilters = {
+    ...appliedSearchQueryFilters,
+    isSearchActive,
+  } satisfies GalaxyQuickReviewFilters;
+  const quickReviewResetKey = JSON.stringify(quickReviewFilters);
+  const lastQuickReviewResetKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (lastQuickReviewResetKeyRef.current === null) {
+      lastQuickReviewResetKeyRef.current = quickReviewResetKey;
+      return;
+    }
+    if (lastQuickReviewResetKeyRef.current === quickReviewResetKey) return;
+
+    lastQuickReviewResetKeyRef.current = quickReviewResetKey;
+    pendingNavRef.current = 0;
+    lastProcessedGalaxyDataRef.current = null;
+    setIsSyncingPage(false);
+    setLastViewedGalaxyId(null);
+    setLastReviewIndex(0);
+  }, [quickReviewResetKey]);
+
+  useEffect(() => {
+    if (lastPageRef.current === page) return;
+
+    lastPageRef.current = page;
+    if (isSyncingPage) return;
+
+    setLastViewedGalaxyId(null);
+    setLastReviewIndex(0);
+  }, [isSyncingPage, page]);
 
   const handleOpenReview = () => {
     pendingNavRef.current = 0; // cancel any in-flight navigation
@@ -248,38 +316,7 @@ export function GalaxyBrowser() {
     isComputingTotal ? {
       cursor: countCursor || undefined,
       batchSize: 5000,
-      sortBy,
-      sortOrder,
-      filter,
-      searchId: isSearchActive ? searchId : undefined,
-      searchRaMin: isSearchActive ? searchRaMin : undefined,
-      searchRaMax: isSearchActive ? searchRaMax : undefined,
-      searchDecMin: isSearchActive ? searchDecMin : undefined,
-      searchDecMax: isSearchActive ? searchDecMax : undefined,
-      searchReffMin: isSearchActive ? searchReffMin : undefined,
-      searchReffMax: isSearchActive ? searchReffMax : undefined,
-      searchQMin: isSearchActive ? searchQMin : undefined,
-      searchQMax: isSearchActive ? searchQMax : undefined,
-      searchPaMin: isSearchActive ? searchPaMin : undefined,
-      searchPaMax: isSearchActive ? searchPaMax : undefined,
-      searchMagMin: isSearchActive ? searchMagMin : undefined,
-      searchMagMax: isSearchActive ? searchMagMax : undefined,
-      searchMeanMueMin: isSearchActive ? searchMeanMueMin : undefined,
-      searchMeanMueMax: isSearchActive ? searchMeanMueMax : undefined,
-      searchNucleus: isSearchActive ? searchNucleus : undefined,
-      searchTotalClassificationsMin: isSearchActive ? searchTotalClassificationsMin : undefined,
-      searchTotalClassificationsMax: isSearchActive ? searchTotalClassificationsMax : undefined,
-      searchNumVisibleNucleusMin: isSearchActive ? searchNumVisibleNucleusMin : undefined,
-      searchNumVisibleNucleusMax: isSearchActive ? searchNumVisibleNucleusMax : undefined,
-      searchNumAwesomeFlagMin: isSearchActive ? searchNumAwesomeFlagMin : undefined,
-      searchNumAwesomeFlagMax: isSearchActive ? searchNumAwesomeFlagMax : undefined,
-      searchNumFailedFittingMin: isSearchActive ? searchNumFailedFittingMin : undefined,
-      searchNumFailedFittingMax: isSearchActive ? searchNumFailedFittingMax : undefined,
-      searchTotalAssignedMin: isSearchActive ? searchTotalAssignedMin : undefined,
-      searchTotalAssignedMax: isSearchActive ? searchTotalAssignedMax : undefined,
-      searchAwesome: isSearchActive ? searchAwesome : undefined,
-      searchValidRedshift: isSearchActive ? searchValidRedshift : undefined,
-      searchVisibleNucleus: isSearchActive ? searchVisibleNucleus : undefined,
+      ...appliedSearchQueryFilters,
     } : "skip"
   );
 
@@ -310,53 +347,14 @@ export function GalaxyBrowser() {
   // Reset computed total when filters/search change
   useEffect(() => {
     setComputedTotal(null);
-  }, [filter, sortBy, sortOrder, isSearchActive, searchId, searchRaMin, searchRaMax, searchDecMin, searchDecMax, 
-      searchReffMin, searchReffMax, searchQMin, searchQMax, searchPaMin, searchPaMax, searchMagMin, searchMagMax, 
-      searchMeanMueMin, searchMeanMueMax, searchNucleus, searchTotalClassificationsMin, searchTotalClassificationsMax,
-      searchNumVisibleNucleusMin, searchNumVisibleNucleusMax, searchNumAwesomeFlagMin, searchNumAwesomeFlagMax,
-      searchNumFailedFittingMin, searchNumFailedFittingMax,
-      searchTotalAssignedMin, searchTotalAssignedMax, searchAwesome, searchValidRedshift, searchVisibleNucleus]);
+  }, [quickReviewResetKey]);
 
   // ── QR overlay ──
   // Rendered BEFORE the if (!galaxyData) early returns so it stays mounted
   // during background page transitions (galaxyData temporarily undefined).
   const quickReviewOverlay = isReviewMode ? (
     <GalaxyQuickReview
-      filters={{
-        sortBy,
-        sortOrder,
-        filter,
-        isSearchActive,
-        searchId: isSearchActive ? searchId : undefined,
-        searchRaMin: isSearchActive ? searchRaMin : undefined,
-        searchRaMax: isSearchActive ? searchRaMax : undefined,
-        searchDecMin: isSearchActive ? searchDecMin : undefined,
-        searchDecMax: isSearchActive ? searchDecMax : undefined,
-        searchReffMin: isSearchActive ? searchReffMin : undefined,
-        searchReffMax: isSearchActive ? searchReffMax : undefined,
-        searchQMin: isSearchActive ? searchQMin : undefined,
-        searchQMax: isSearchActive ? searchQMax : undefined,
-        searchPaMin: isSearchActive ? searchPaMin : undefined,
-        searchPaMax: isSearchActive ? searchPaMax : undefined,
-        searchMagMin: isSearchActive ? searchMagMin : undefined,
-        searchMagMax: isSearchActive ? searchMagMax : undefined,
-        searchMeanMueMin: isSearchActive ? searchMeanMueMin : undefined,
-        searchMeanMueMax: isSearchActive ? searchMeanMueMax : undefined,
-        searchNucleus: isSearchActive ? searchNucleus : undefined,
-        searchTotalClassificationsMin: isSearchActive ? searchTotalClassificationsMin : undefined,
-        searchTotalClassificationsMax: isSearchActive ? searchTotalClassificationsMax : undefined,
-        searchNumVisibleNucleusMin: isSearchActive ? searchNumVisibleNucleusMin : undefined,
-        searchNumVisibleNucleusMax: isSearchActive ? searchNumVisibleNucleusMax : undefined,
-        searchNumAwesomeFlagMin: isSearchActive ? searchNumAwesomeFlagMin : undefined,
-        searchNumAwesomeFlagMax: isSearchActive ? searchNumAwesomeFlagMax : undefined,
-        searchNumFailedFittingMin: isSearchActive ? searchNumFailedFittingMin : undefined,
-        searchNumFailedFittingMax: isSearchActive ? searchNumFailedFittingMax : undefined,
-        searchTotalAssignedMin: isSearchActive ? searchTotalAssignedMin : undefined,
-        searchTotalAssignedMax: isSearchActive ? searchTotalAssignedMax : undefined,
-        searchAwesome: isSearchActive ? searchAwesome : undefined,
-        searchValidRedshift: isSearchActive ? searchValidRedshift : undefined,
-        searchVisibleNucleus: isSearchActive ? searchVisibleNucleus : undefined,
-      } satisfies GalaxyQuickReviewFilters}
+      filters={quickReviewFilters}
       effectiveImageQuality={effectiveImageQuality}
       userPrefs={userPrefs}
       initialIndex={reviewInitialIndex}
@@ -769,39 +767,7 @@ export function GalaxyBrowser() {
 
       {/* Export Section */}
       <GalaxyExport
-        filter={filter}
-        sortBy={sortBy}
-        sortOrder={sortOrder}
-        isSearchActive={isSearchActive}
-        searchId={searchId}
-        searchRaMin={searchRaMin}
-        searchRaMax={searchRaMax}
-        searchDecMin={searchDecMin}
-        searchDecMax={searchDecMax}
-        searchReffMin={searchReffMin}
-        searchReffMax={searchReffMax}
-        searchQMin={searchQMin}
-        searchQMax={searchQMax}
-        searchPaMin={searchPaMin}
-        searchPaMax={searchPaMax}
-        searchMagMin={searchMagMin}
-        searchMagMax={searchMagMax}
-        searchMeanMueMin={searchMeanMueMin}
-        searchMeanMueMax={searchMeanMueMax}
-        searchNucleus={searchNucleus}
-        searchTotalClassificationsMin={searchTotalClassificationsMin}
-        searchTotalClassificationsMax={searchTotalClassificationsMax}
-        searchNumVisibleNucleusMin={searchNumVisibleNucleusMin}
-        searchNumVisibleNucleusMax={searchNumVisibleNucleusMax}
-        searchNumAwesomeFlagMin={searchNumAwesomeFlagMin}
-        searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
-        searchNumFailedFittingMin={searchNumFailedFittingMin}
-        searchNumFailedFittingMax={searchNumFailedFittingMax}
-        searchTotalAssignedMin={searchTotalAssignedMin}
-        searchTotalAssignedMax={searchTotalAssignedMax}
-        searchAwesome={searchAwesome}
-        searchValidRedshift={searchValidRedshift}
-        searchVisibleNucleus={searchVisibleNucleus}
+        {...quickReviewFilters}
         currentPageGalaxies={galaxyData?.galaxies}
         pageSize={pageSize}
         page={page}
