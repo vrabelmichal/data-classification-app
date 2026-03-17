@@ -206,6 +206,12 @@ export function GalaxyBrowser() {
   // which switches the render branch and unmounts QR, resetting all its state.
   // Instead, we sync the page only after the overlay is closed (see handleCloseReview).
 
+  // Search inputs are stored as strings in useGalaxyBrowser. Blank inputs should
+  // become undefined so the backend treats them as "no filter", while a user-
+  // entered zero stays as the truthy string "0" and is preserved. Reports about
+  // `|| undefined` dropping numeric 0 are therefore incorrect for this code as
+  // written; only revisit this normalization if these fields ever become numbers.
+  
   const appliedSearchQueryFilters = {
     sortBy,
     sortOrder,
