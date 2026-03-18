@@ -99,51 +99,26 @@ const scanMembershipFilteredGalaxies = async (options: ScanMembershipFilteredOpt
     augmentGalaxy,
   } = options;
 
-  const createGalaxyBrowseQuery = () =>
-    buildGalaxyBrowseQuery(ctx, requestedSort, sortOrder, filters);
+  const q = buildGalaxyBrowseQuery(ctx, requestedSort, sortOrder, filters);
   const collected: any[] = [];
   let matchedBeforePage = 0;
-  let rawCursor: string | null = null;
   let hasMore = false;
-  let iterationCount = 0;
-  const maxIterations = 100;
-  const batchSize = Math.min(Math.max(numItems * (includeMembers ? 4 : 6), 200), 500);
+  for await (const galaxy of q) {
+    const isMember = lookup.has(galaxy.id);
+    if (includeMembers ? !isMember : isMember) continue;
 
-  while (iterationCount < maxIterations) {
-    iterationCount++;
-
-    const q = createGalaxyBrowseQuery();
-    const {
-      page: galaxyBatch,
-      continueCursor,
-      isDone,
-    }: { page: any[]; continueCursor: string | null; isDone: boolean } = await q.paginate({
-      numItems: batchSize,
-      cursor: rawCursor,
-    });
-
-    if (galaxyBatch.length === 0) break;
-
-    for (const galaxy of galaxyBatch) {
-      const isMember = lookup.has(galaxy.id);
-      if (includeMembers ? !isMember : isMember) continue;
-
-      if (matchedBeforePage < initialOffset) {
-        matchedBeforePage++;
-        continue;
-      }
-
-      if (collected.length >= numItems) {
-        hasMore = true;
-        break;
-      }
-
-      const metadata = lookup.getMeta ? lookup.getMeta(galaxy.id) : undefined;
-      collected.push(augmentGalaxy ? augmentGalaxy(galaxy, metadata) : galaxy);
+    if (matchedBeforePage < initialOffset) {
+      matchedBeforePage++;
+      continue;
     }
 
-    if (hasMore || isDone) break;
-    rawCursor = continueCursor;
+    if (collected.length >= numItems) {
+      hasMore = true;
+      break;
+    }
+
+    const metadata = lookup.getMeta ? lookup.getMeta(galaxy.id) : undefined;
+    collected.push(augmentGalaxy ? augmentGalaxy(galaxy, metadata) : galaxy);
   }
 
   const nextOffset = initialOffset + collected.length;
