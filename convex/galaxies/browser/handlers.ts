@@ -125,11 +125,8 @@ export const browseGalaxiesHandler = async (ctx: any, args: any) => {
 
   return {
     galaxies,
-    // True totals are not available from Convex cursor pagination without a separate count pass.
-    total: undefined,
     hasNext: !isDone,
     hasPrevious: Boolean(cursor),
-    totalPages: undefined,
     aggregatesPopulated: false,
     cursor: continueCursor,
     isDone,
