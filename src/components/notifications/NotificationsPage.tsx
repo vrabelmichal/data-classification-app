@@ -633,11 +633,17 @@ export function NotificationsPage() {
             return (
               <div
                 key={notification._id}
+                onClick={() => {
+                  if (showToggleButton && !isIndividuallyExpanded) {
+                    toggleCardExpanded(notification._id);
+                  }
+                }}
                 className={cn(
                   "rounded-lg border bg-white shadow-sm transition-all dark:bg-gray-800",
                   notification.isRead
                     ? "border-gray-200 dark:border-gray-700"
-                    : "border-blue-300 ring-2 ring-blue-100 dark:border-blue-600 dark:ring-blue-900/30"
+                    : "border-blue-300 ring-2 ring-blue-100 dark:border-blue-600 dark:ring-blue-900/30",
+                  showToggleButton && !isIndividuallyExpanded && "cursor-pointer"
                 )}
               >
                 <div className="px-4 py-3 sm:px-5 sm:py-4">
@@ -657,7 +663,7 @@ export function NotificationsPage() {
                       {/* Read / unread toggle */}
                       {!notification.isRead ? (
                         <button
-                          onClick={() => handleMarkAsRead(notification._id)}
+                          onClick={(e) => { e.stopPropagation(); handleMarkAsRead(notification._id); }}
                           title="Mark as read"
                           aria-label="Mark as read"
                           className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
@@ -669,7 +675,7 @@ export function NotificationsPage() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => handleMarkAsUnread(notification._id)}
+                          onClick={(e) => { e.stopPropagation(); handleMarkAsUnread(notification._id); }}
                           title="Mark as unread"
                           aria-label="Mark as unread"
                           className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
@@ -684,7 +690,7 @@ export function NotificationsPage() {
                       {/* Expand / collapse per-card toggle */}
                       {showToggleButton && (
                         <button
-                          onClick={() => toggleCardExpanded(notification._id)}
+                          onClick={(e) => { e.stopPropagation(); toggleCardExpanded(notification._id); }}
                           title={isIndividuallyExpanded ? "Collapse" : "Expand"}
                           aria-label={isIndividuallyExpanded ? "Collapse notification" : "Expand notification"}
                           aria-expanded={isIndividuallyExpanded}
