@@ -114,44 +114,78 @@ export const createEmptySearchBounds = () => ({
   totalAssigned: { min: null, max: null },
 });
 
-export const computeBounds = (galaxies: any[]) => {
-  const raValues = galaxies.map((g) => g.ra).filter((v) => typeof v === "number" && !Number.isNaN(v));
-  const decValues = galaxies.map((g) => g.dec).filter((v) => typeof v === "number" && !Number.isNaN(v));
-  const reffValues = galaxies.map((g) => g.reff).filter((v) => typeof v === "number" && !Number.isNaN(v));
-  const qValues = galaxies.map((g) => g.q).filter((v) => typeof v === "number" && !Number.isNaN(v));
-  const paValues = galaxies.map((g) => g.pa).filter((v) => typeof v === "number" && !Number.isNaN(v));
-  const magValues = galaxies.map((g) => g.mag).filter((v) => typeof v === "number" && !Number.isNaN(v));
-  const meanMueValues = galaxies.map((g) => g.mean_mue).filter((v) => typeof v === "number" && !Number.isNaN(v));
+interface GalaxyBoundsInput {
+  ra?: number;
+  dec?: number;
+  reff?: number;
+  q?: number;
+  pa?: number;
+  mag?: number;
+  mean_mue?: number;
+  nucleus?: boolean;
+}
+
+const isValidNumber = (value: unknown): value is number =>
+  typeof value === "number" && !Number.isNaN(value);
+
+const computeNumericBounds = (values: number[]) =>
+  values.reduce<{ min: number; max: number } | null>((bounds, value) => {
+    if (bounds === null) {
+      return { min: value, max: value };
+    }
+
+    return {
+      min: value < bounds.min ? value : bounds.min,
+      max: value > bounds.max ? value : bounds.max,
+    };
+  }, null);
+
+export const computeBounds = (galaxies: GalaxyBoundsInput[]) => {
+  const raValues = galaxies.map((g) => g.ra).filter(isValidNumber);
+  const decValues = galaxies.map((g) => g.dec).filter(isValidNumber);
+  const reffValues = galaxies.map((g) => g.reff).filter(isValidNumber);
+  const qValues = galaxies.map((g) => g.q).filter(isValidNumber);
+  const paValues = galaxies.map((g) => g.pa).filter(isValidNumber);
+  const magValues = galaxies.map((g) => g.mag).filter(isValidNumber);
+  const meanMueValues = galaxies.map((g) => g.mean_mue).filter(isValidNumber);
   const nucleusCount = galaxies.filter((g) => g.nucleus === true).length;
+
+  const raBounds = computeNumericBounds(raValues);
+  const decBounds = computeNumericBounds(decValues);
+  const reffBounds = computeNumericBounds(reffValues);
+  const qBounds = computeNumericBounds(qValues);
+  const paBounds = computeNumericBounds(paValues);
+  const magBounds = computeNumericBounds(magValues);
+  const meanMueBounds = computeNumericBounds(meanMueValues);
 
   return {
     ra: {
-      min: raValues.length > 0 ? Math.min(...raValues) : null,
-      max: raValues.length > 0 ? Math.max(...raValues) : null,
+      min: raBounds?.min ?? null,
+      max: raBounds?.max ?? null,
     },
     dec: {
-      min: decValues.length > 0 ? Math.min(...decValues) : null,
-      max: decValues.length > 0 ? Math.max(...decValues) : null,
+      min: decBounds?.min ?? null,
+      max: decBounds?.max ?? null,
     },
     reff: {
-      min: reffValues.length > 0 ? Math.min(...reffValues) : null,
-      max: reffValues.length > 0 ? Math.max(...reffValues) : null,
+      min: reffBounds?.min ?? null,
+      max: reffBounds?.max ?? null,
     },
     q: {
-      min: qValues.length > 0 ? Math.min(...qValues) : null,
-      max: qValues.length > 0 ? Math.max(...qValues) : null,
+      min: qBounds?.min ?? null,
+      max: qBounds?.max ?? null,
     },
     pa: {
-      min: paValues.length > 0 ? Math.min(...paValues) : null,
-      max: paValues.length > 0 ? Math.max(...paValues) : null,
+      min: paBounds?.min ?? null,
+      max: paBounds?.max ?? null,
     },
     mag: {
-      min: magValues.length > 0 ? Math.min(...magValues) : null,
-      max: magValues.length > 0 ? Math.max(...magValues) : null,
+      min: magBounds?.min ?? null,
+      max: magBounds?.max ?? null,
     },
     mean_mue: {
-      min: meanMueValues.length > 0 ? Math.min(...meanMueValues) : null,
-      max: meanMueValues.length > 0 ? Math.max(...meanMueValues) : null,
+      min: meanMueBounds?.min ?? null,
+      max: meanMueBounds?.max ?? null,
     },
     nucleus: {
       hasNucleus: nucleusCount > 0,

@@ -28,6 +28,11 @@ import {
   handleSkippedGalaxies,
 } from "./specialFilters";
 
+const CLASSIFICATION_SEARCH_OPTIONS = {
+  lsbClasses: [-1, 0, 1],
+  morphologies: [-1, 0, 1, 2],
+} as const;
+
 const pickGalaxySearchFilters = (source: any): GalaxySearchFilters => ({
   searchId: source.searchId,
   searchRaMin: source.searchRaMin,
@@ -120,10 +125,11 @@ export const browseGalaxiesHandler = async (ctx: any, args: any) => {
 
   return {
     galaxies,
-    total: galaxies.length,
+    // True totals are not available from Convex cursor pagination without a separate count pass.
+    total: undefined,
     hasNext: !isDone,
-    hasPrevious: false,
-    totalPages: 0,
+    hasPrevious: Boolean(cursor),
+    totalPages: undefined,
     aggregatesPopulated: false,
     cursor: continueCursor,
     isDone,
@@ -252,16 +258,8 @@ export const getClassificationSearchOptionsHandler = async (ctx: any) => {
     };
   }
 
-  const classifications = await ctx.db
-    .query("classifications")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
-    .collect();
-
-  const lsbClasses = [...new Set(classifications.map((c: any) => c.lsb_class).filter(Boolean))].sort();
-  const morphologies = [...new Set(classifications.map((c: any) => c.morphology).filter(Boolean))].sort();
-
   return {
-    lsbClasses,
-    morphologies,
+    lsbClasses: [...CLASSIFICATION_SEARCH_OPTIONS.lsbClasses],
+    morphologies: [...CLASSIFICATION_SEARCH_OPTIONS.morphologies],
   };
 };
