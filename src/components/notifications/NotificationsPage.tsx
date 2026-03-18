@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "convex/react";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { NavLink, Navigate, useLocation } from "react-router";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
@@ -398,6 +398,32 @@ function renderMarkdown(text: string): React.ReactNode[] {
   return elements;
 }
 
+function getContentPreview(content: string, maxChars = 220): string {
+  const plain = content
+    .split("\n")
+    .map((line) =>
+      line
+        .replace(/^#{1,6}\s+/, "")
+        .replace(/^[-*+]\s/, "")
+        .replace(/^\d+\.\s/, "")
+        .replace(/^>\s/, "")
+        .replace(/\*\*\*(.+?)\*\*\*/g, "$1")
+        .replace(/___(.+?)___/g, "$1")
+        .replace(/\*\*(.+?)\*\*/g, "$1")
+        .replace(/__(.+?)__/g, "$1")
+        .replace(/\*(.+?)\*/g, "$1")
+        .replace(/_(.+?)_/g, "$1")
+        .replace(/`([^`]+)`/g, "$1")
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+        .trim()
+    )
+    .filter((line) => line.length > 0)
+    .join(" ");
+  return plain.length > maxChars ? plain.slice(0, maxChars).trimEnd() + "\u2026" : plain;
+}
+
+type ViewMode = "header" | "preview" | "full";
+
 export function NotificationsPage() {
   const location = useLocation();
   const normalizedPath =
@@ -417,6 +443,27 @@ export function NotificationsPage() {
   const markAllAsRead = useMutation(api.notifications.markAllAsRead);
 
   const isAdmin = userProfile?.role === "admin";
+
+  const [viewMode, setViewMode] = useState<ViewMode>(() => {
+    const saved = localStorage.getItem("notifications_view_mode");
+    return saved === "header" || saved === "preview" || saved === "full" ? saved : "preview";
+  });
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const handleSetViewMode = (mode: ViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem("notifications_view_mode", mode);
+    setExpandedIds(new Set());
+  };
+
+  const toggleCardExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleMarkAsRead = async (notificationId: Id<"notifications">) => {
     try {
@@ -470,114 +517,199 @@ export function NotificationsPage() {
           ? `${unreadCount} unread notification${unreadCount !== 1 ? "s" : ""}`
           : "All caught up!";
 
-  const renderInbox = () => (
-    notifications.length === 0 ? (
-      <div className="text-center py-12">
-        <div className="text-6xl mb-4">📭</div>
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
-          No notifications yet
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400">
-          You'll see notifications from the team here when they're sent.
-        </p>
-      </div>
-    ) : (
-      <div className="space-y-4">
-        {notifications.map((notification) => (
-          <div
-            key={notification._id}
-            role={!notification.isRead ? "button" : undefined}
-            aria-label={!notification.isRead ? `Mark as read: ${notification.title}` : undefined}
-            tabIndex={!notification.isRead ? 0 : undefined}
-            className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border transition-all ${
-              notification.isRead
-                ? "border-gray-200 dark:border-gray-700"
-                : "border-blue-300 dark:border-blue-600 ring-2 ring-blue-100 dark:ring-blue-900/30"
-            }`}
-            onClick={() => {
-              if (!notification.isRead) {
-                handleMarkAsRead(notification._id);
-              }
-            }}
-            onKeyDown={(e) => {
-              if (notification.isRead) {
-                return;
-              }
+  const renderInbox = () => {
+    if (notifications.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <div className="text-6xl mb-4">📭</div>
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+            No notifications yet
+          </h2>
+          <p className="text-gray-600 dark:text-gray-400">
+            You'll see notifications from the team here when they're sent.
+          </p>
+        </div>
+      );
+    }
 
-              if (e.key === " ") {
-                e.preventDefault();
-                handleMarkAsRead(notification._id);
-              } else if (e.key === "Enter") {
-                handleMarkAsRead(notification._id);
-              }
-            }}
+    return (
+      <div>
+        {/* View mode selector */}
+        <div className="mb-4 flex items-center">
+          <div
+            className="inline-flex items-center gap-0.5 rounded-lg bg-gray-100 p-1 dark:bg-gray-800/70"
+            role="group"
+            aria-label="Message view mode"
           >
-            <div className="p-4 sm:p-6">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <div className="flex items-center gap-2 min-w-0">
-                    {!notification.isRead && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
-                        New
-                      </span>
-                    )}
-                    <h2 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
-                      {notification.title}
-                    </h2>
+            {(
+              [
+                {
+                  mode: "header" as const,
+                  label: "Header",
+                  title: "Show header only",
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                      <rect x="1" y="2" width="13" height="3" rx="1" fill="currentColor" />
+                      <rect x="1" y="7.5" width="13" height="1.5" rx="0.5" fill="currentColor" opacity="0.25" />
+                      <rect x="1" y="11" width="9" height="1.5" rx="0.5" fill="currentColor" opacity="0.25" />
+                    </svg>
+                  ),
+                },
+                {
+                  mode: "preview" as const,
+                  label: "Preview",
+                  title: "Show short preview",
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                      <rect x="1" y="2" width="13" height="2.5" rx="1" fill="currentColor" />
+                      <rect x="1" y="7" width="13" height="1.5" rx="0.5" fill="currentColor" opacity="0.7" />
+                      <rect x="1" y="10.5" width="8" height="1.5" rx="0.5" fill="currentColor" opacity="0.7" />
+                      <circle cx="10.5" cy="13.5" r="0.8" fill="currentColor" opacity="0.5" />
+                      <circle cx="13" cy="13.5" r="0.8" fill="currentColor" opacity="0.3" />
+                    </svg>
+                  ),
+                },
+                {
+                  mode: "full" as const,
+                  label: "Full",
+                  title: "Show full messages",
+                  icon: (
+                    <svg width="14" height="14" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                      <rect x="1" y="1.5" width="13" height="2" rx="0.5" fill="currentColor" />
+                      <rect x="1" y="5.5" width="13" height="2" rx="0.5" fill="currentColor" />
+                      <rect x="1" y="9.5" width="13" height="2" rx="0.5" fill="currentColor" />
+                      <rect x="1" y="13" width="9" height="1.5" rx="0.5" fill="currentColor" />
+                    </svg>
+                  ),
+                },
+              ] as const
+            ).map(({ mode, label, title, icon }) => (
+              <button
+                key={mode}
+                onClick={() => handleSetViewMode(mode)}
+                title={title}
+                aria-pressed={viewMode === mode}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all",
+                  viewMode === mode
+                    ? "bg-white text-gray-900 shadow-sm dark:bg-gray-700 dark:text-white"
+                    : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                )}
+              >
+                {icon}
+                <span>{label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Notification cards */}
+        <div className="space-y-3">
+          {notifications.map((notification) => {
+            const isIndividuallyExpanded = expandedIds.has(notification._id);
+            const effectiveMode: ViewMode = isIndividuallyExpanded ? "full" : viewMode;
+            const showToggleButton = viewMode !== "full";
+
+            return (
+              <div
+                key={notification._id}
+                className={cn(
+                  "rounded-lg border bg-white shadow-sm transition-all dark:bg-gray-800",
+                  notification.isRead
+                    ? "border-gray-200 dark:border-gray-700"
+                    : "border-blue-300 ring-2 ring-blue-100 dark:border-blue-600 dark:ring-blue-900/30"
+                )}
+              >
+                <div className="px-4 py-3 sm:px-5 sm:py-4">
+                  {/* Header row: title + action buttons */}
+                  <div className="flex items-start gap-2">
+                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                      {!notification.isRead && (
+                        <span className="inline-flex shrink-0 items-center rounded px-2 py-0.5 text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
+                          New
+                        </span>
+                      )}
+                      <h2 className="truncate text-base font-semibold text-gray-900 dark:text-white">
+                        {notification.title}
+                      </h2>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      {/* Read / unread toggle */}
+                      {!notification.isRead ? (
+                        <button
+                          onClick={() => handleMarkAsRead(notification._id)}
+                          title="Mark as read"
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <rect width="20" height="16" x="2" y="4" rx="2" />
+                            <path d="m22 7-10 7L2 7" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleMarkAsUnread(notification._id)}
+                          title="Mark as unread"
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M22 10V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10" />
+                            <path d="M22 10L12 2L2 10" />
+                            <path d="M2 10l10 7 10-7" />
+                          </svg>
+                        </button>
+                      )}
+                      {/* Expand / collapse per-card toggle */}
+                      {showToggleButton && (
+                        <button
+                          onClick={() => toggleCardExpanded(notification._id)}
+                          title={isIndividuallyExpanded ? "Collapse" : "Expand"}
+                          aria-expanded={isIndividuallyExpanded}
+                          className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                        >
+                          {isIndividuallyExpanded ? (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <polyline points="18 15 12 9 6 15" />
+                            </svg>
+                          ) : (
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          )}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex-shrink-0">
-                    {!notification.isRead ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMarkAsRead(notification._id);
-                        }}
-                        title="Mark as read"
-                        className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <rect width="20" height="16" x="2" y="4" rx="2" />
-                          <path d="m22 7-10 7L2 7" />
-                        </svg>
-                      </button>
-                    ) : (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleMarkAsUnread(notification._id);
-                        }}
-                        title="Mark as unread"
-                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M22 10V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10" />
-                          <path d="M22 10L12 2L2 10" />
-                          <path d="M2 10l10 7 10-7" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                  From {notification.creatorName} •{" "}
-                  {new Date(notification.createdAt).toLocaleDateString(undefined, {
-                    year: "numeric",
-                    month: "short",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </div>
-                <div className="max-w-none text-[15px] leading-7 sm:text-base [&>:first-child]:mt-0 [&>:last-child]:mb-0">
-                  {renderMarkdown(notification.content)}
+                  {/* Meta: sender + timestamp */}
+                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    From {notification.creatorName} •{" "}
+                    {new Date(notification.createdAt).toLocaleDateString(undefined, {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </p>
+                  {/* Content area — driven by effective view mode */}
+                  {effectiveMode === "preview" && (
+                    <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                      {getContentPreview(notification.content)}
+                    </p>
+                  )}
+                  {effectiveMode === "full" && (
+                    <div className="mt-3 max-w-none text-[15px] leading-7 sm:text-base [&>:first-child]:mt-0 [&>:last-child]:mb-0">
+                      {renderMarkdown(notification.content)}
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          </div>
-        ))}
+            );
+          })}
+        </div>
       </div>
-    )
-  );
+    );
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
