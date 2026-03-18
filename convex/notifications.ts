@@ -22,49 +22,181 @@ function sanitizeHref(url: string): string | null {
   return escapeHtml(trimmed);
 }
 
-function renderInlineMarkdownToHtml(text: string): string {
-  const pattern = /(\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|(\*\*|__)(.+?)\5|(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|(?<!_)_(?!_)(.+?)(?<!_)_(?!_))/g;
+const MAX_INLINE_MARKDOWN_DEPTH = 24;
+
+type InlineMarkdownToken =
+  | {
+      type: "link";
+      index: number;
+      fullMatch: string;
+      text: string;
+      url: string;
+    }
+  | {
+      type: "code" | "boldItalic" | "bold" | "italic";
+      index: number;
+      fullMatch: string;
+      content: string;
+    };
+
+type ParagraphLine = {
+  text: string;
+  hardBreakAfter: boolean;
+};
+
+function findNextInlineMarkdownToken(text: string): InlineMarkdownToken | null {
+  const linkMatch = text.match(/\[([^\]]+)\]\(([^)]+)\)/);
+  const codeMatch = text.match(/`([^`]+)`/);
+  const boldItalicMatch = text.match(/(\*\*\*|___)(.+?)\1/);
+  const boldMatch = text.match(/(\*\*|__)(.+?)\1/);
+  const italicAsteriskMatch = text.match(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/);
+  const italicUnderscoreMatch = text.match(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/);
+
+  const candidates: InlineMarkdownToken[] = [];
+
+  if (linkMatch && linkMatch.index !== undefined) {
+    candidates.push({
+      type: "link",
+      index: linkMatch.index,
+      fullMatch: linkMatch[0],
+      text: linkMatch[1],
+      url: linkMatch[2],
+    });
+  }
+
+  if (codeMatch && codeMatch.index !== undefined) {
+    candidates.push({
+      type: "code",
+      index: codeMatch.index,
+      fullMatch: codeMatch[0],
+      content: codeMatch[1],
+    });
+  }
+
+  if (boldItalicMatch && boldItalicMatch.index !== undefined) {
+    candidates.push({
+      type: "boldItalic",
+      index: boldItalicMatch.index,
+      fullMatch: boldItalicMatch[0],
+      content: boldItalicMatch[2],
+    });
+  }
+
+  if (boldMatch && boldMatch.index !== undefined) {
+    candidates.push({
+      type: "bold",
+      index: boldMatch.index,
+      fullMatch: boldMatch[0],
+      content: boldMatch[2],
+    });
+  }
+
+  if (italicAsteriskMatch && italicAsteriskMatch.index !== undefined) {
+    candidates.push({
+      type: "italic",
+      index: italicAsteriskMatch.index,
+      fullMatch: italicAsteriskMatch[0],
+      content: italicAsteriskMatch[1],
+    });
+  }
+
+  if (italicUnderscoreMatch && italicUnderscoreMatch.index !== undefined) {
+    candidates.push({
+      type: "italic",
+      index: italicUnderscoreMatch.index,
+      fullMatch: italicUnderscoreMatch[0],
+      content: italicUnderscoreMatch[1],
+    });
+  }
+
+  if (candidates.length === 0) {
+    return null;
+  }
+
+  return candidates.reduce((earliest, candidate) =>
+    candidate.index < earliest.index ? candidate : earliest
+  );
+}
+
+function renderInlineMarkdownToHtml(text: string, depth = 0): string {
+  if (depth >= MAX_INLINE_MARKDOWN_DEPTH) {
+    return escapeHtml(text);
+  }
+
   let html = "";
   let lastIndex = 0;
 
-  for (const match of text.matchAll(pattern)) {
-    const matchIndex = match.index ?? 0;
-    html += escapeHtml(text.slice(lastIndex, matchIndex));
-
-    const linkText = match[2];
-    const linkUrl = match[3];
-    const codeText = match[4];
-    const boldText = match[6];
-    const italicText = match[7] ?? match[8];
-
-    if (linkText && linkUrl) {
-      const href = sanitizeHref(linkUrl);
-      if (href) {
-        html += `<a href="${href}" style="color: #2563eb; text-decoration: underline;">${renderInlineMarkdownToHtml(linkText)}</a>`;
-      } else {
-        html += escapeHtml(match[0]);
-      }
-    } else if (codeText) {
-      html += `<code style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f3f4f6; border-radius: 4px; padding: 2px 6px;">${escapeHtml(codeText)}</code>`;
-    } else if (boldText) {
-      html += `<strong>${renderInlineMarkdownToHtml(boldText)}</strong>`;
-    } else if (italicText) {
-      html += `<em>${renderInlineMarkdownToHtml(italicText)}</em>`;
-    } else {
-      html += escapeHtml(match[0]);
+  while (lastIndex < text.length) {
+    const nextToken = findNextInlineMarkdownToken(text.slice(lastIndex));
+    if (!nextToken) {
+      html += escapeHtml(text.slice(lastIndex));
+      break;
     }
 
-    lastIndex = matchIndex + match[0].length;
+    const matchIndex = lastIndex + nextToken.index;
+    html += escapeHtml(text.slice(lastIndex, matchIndex));
+
+    if (nextToken.type === "link") {
+      const href = sanitizeHref(nextToken.url);
+      if (href) {
+        html += `<a href="${href}" style="color: #2563eb; text-decoration: underline;">${renderInlineMarkdownToHtml(nextToken.text, depth + 1)}</a>`;
+      } else {
+        html += escapeHtml(nextToken.fullMatch);
+      }
+    } else if (nextToken.type === "code") {
+      html += `<code style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f3f4f6; border-radius: 4px; padding: 2px 6px;">${escapeHtml(nextToken.content)}</code>`;
+    } else if (nextToken.type === "boldItalic") {
+      html += `<strong><em>${renderInlineMarkdownToHtml(nextToken.content, depth + 1)}</em></strong>`;
+    } else if (nextToken.type === "bold") {
+      html += `<strong>${renderInlineMarkdownToHtml(nextToken.content, depth + 1)}</strong>`;
+    } else if (nextToken.type === "italic") {
+      html += `<em>${renderInlineMarkdownToHtml(nextToken.content, depth + 1)}</em>`;
+    } else {
+      html += escapeHtml(nextToken.fullMatch);
+    }
+
+    lastIndex = matchIndex + nextToken.fullMatch.length;
+  }
+  return html;
+}
+
+function parseParagraphLine(line: string): ParagraphLine {
+  let normalized = line;
+  let hardBreakAfter = false;
+
+  if (/ {2,}$/.test(normalized)) {
+    hardBreakAfter = true;
+    normalized = normalized.replace(/ {2,}$/, "");
+  } else if (/(^|[^\\])(\\\\)*\\$/.test(normalized)) {
+    hardBreakAfter = true;
+    normalized = normalized.slice(0, -1);
   }
 
-  html += escapeHtml(text.slice(lastIndex));
+  return {
+    text: normalized.trim(),
+    hardBreakAfter,
+  };
+}
+
+function renderParagraphToHtml(lines: ParagraphLine[]): string {
+  let html = "";
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const line = lines[index];
+    html += renderInlineMarkdownToHtml(line.text);
+
+    if (index < lines.length - 1) {
+      html += line.hardBreakAfter ? "<br />" : " ";
+    }
+  }
+
   return html;
 }
 
 function markdownToEmailHtml(content: string): string {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   const htmlParts: string[] = [];
-  let paragraphLines: string[] = [];
+  let paragraphLines: ParagraphLine[] = [];
   let listType: "ul" | "ol" | null = null;
   let listItems: string[] = [];
   let codeBlockLines: string[] = [];
@@ -75,10 +207,10 @@ function markdownToEmailHtml(content: string): string {
       return;
     }
 
-    const paragraph = paragraphLines.join(" ").trim();
+    const paragraph = renderParagraphToHtml(paragraphLines).trim();
     if (paragraph) {
       htmlParts.push(
-        `<p style="margin: 0 0 16px;">${renderInlineMarkdownToHtml(paragraph)}</p>`
+        `<p style="margin: 0 0 16px;">${paragraph}</p>`
       );
     }
     paragraphLines = [];
@@ -205,7 +337,7 @@ function markdownToEmailHtml(content: string): string {
     if (listType) {
       flushList();
     }
-    paragraphLines.push(trimmed);
+    paragraphLines.push(parseParagraphLine(line));
   }
 
   flushParagraph();

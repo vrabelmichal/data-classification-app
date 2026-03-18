@@ -149,7 +149,7 @@ export function AdminNotificationsPanel({
                 placeholder="Write your message here...&#10;&#10;**Bold text** and *italic text* are supported.&#10;- Bullet lists&#10;- [Links](https://example.com)"
               />
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                Supports: **bold**, *italic*, `code`, [links](url), headers (#, ##, ###), lists (-, *), and code blocks (```)
+                Supports: **bold**, *italic*, `code`, [links](url), headers (#, ##, ###), lists (-, *), and code blocks (```). Use a trailing \ or two trailing spaces to force a line break inside a paragraph.
               </p>
             </div>
 

@@ -9,6 +9,12 @@ import { cn } from "../../lib/utils";
 
 const NOTIFICATIONS_INBOX_PATH = "/notifications";
 const NOTIFICATIONS_CREATE_PATH = "/notifications/create";
+const MAX_INLINE_MARKDOWN_DEPTH = 24;
+
+type ParagraphLine = {
+  text: string;
+  hardBreakAfter: boolean;
+};
 
 const LazyAdminNotificationsPanel = lazy(() =>
   import("./AdminNotificationsPanel").then((module) => ({
@@ -22,85 +28,260 @@ function renderMarkdown(text: string): React.ReactNode[] {
   const elements: React.ReactNode[] = [];
   let inCodeBlock = false;
   let codeBlockContent: string[] = [];
+  let paragraphLines: ParagraphLine[] = [];
+  let listType: "ul" | "ol" | null = null;
+  let listItems: React.ReactNode[] = [];
 
-  const processInlineMarkdown = (line: string): React.ReactNode => {
-    // Process inline elements: bold, italic, code, links
+  type InlineMarkdownToken =
+    | {
+        type: "link";
+        index: number;
+        fullMatch: string;
+        text: string;
+        url: string;
+      }
+    | {
+        type: "code" | "boldItalic" | "bold" | "italic";
+        index: number;
+        fullMatch: string;
+        content: string;
+      };
+
+  const findNextInlineMarkdownToken = (
+    value: string
+  ): InlineMarkdownToken | null => {
+    const linkMatch = value.match(/\[([^\]]+)\]\(([^)]+)\)/);
+    const codeMatch = value.match(/`([^`]+)`/);
+    const boldItalicMatch = value.match(/(\*\*\*|___)(.+?)\1/);
+    const boldMatch = value.match(/(\*\*|__)(.+?)\1/);
+    const italicAsteriskMatch = value.match(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/);
+    const italicUnderscoreMatch = value.match(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/);
+
+    const candidates: InlineMarkdownToken[] = [];
+
+    if (linkMatch && linkMatch.index !== undefined) {
+      candidates.push({
+        type: "link",
+        index: linkMatch.index,
+        fullMatch: linkMatch[0],
+        text: linkMatch[1],
+        url: linkMatch[2],
+      });
+    }
+
+    if (codeMatch && codeMatch.index !== undefined) {
+      candidates.push({
+        type: "code",
+        index: codeMatch.index,
+        fullMatch: codeMatch[0],
+        content: codeMatch[1],
+      });
+    }
+
+    if (boldItalicMatch && boldItalicMatch.index !== undefined) {
+      candidates.push({
+        type: "boldItalic",
+        index: boldItalicMatch.index,
+        fullMatch: boldItalicMatch[0],
+        content: boldItalicMatch[2],
+      });
+    }
+
+    if (boldMatch && boldMatch.index !== undefined) {
+      candidates.push({
+        type: "bold",
+        index: boldMatch.index,
+        fullMatch: boldMatch[0],
+        content: boldMatch[2],
+      });
+    }
+
+    if (italicAsteriskMatch && italicAsteriskMatch.index !== undefined) {
+      candidates.push({
+        type: "italic",
+        index: italicAsteriskMatch.index,
+        fullMatch: italicAsteriskMatch[0],
+        content: italicAsteriskMatch[1],
+      });
+    }
+
+    if (italicUnderscoreMatch && italicUnderscoreMatch.index !== undefined) {
+      candidates.push({
+        type: "italic",
+        index: italicUnderscoreMatch.index,
+        fullMatch: italicUnderscoreMatch[0],
+        content: italicUnderscoreMatch[1],
+      });
+    }
+
+    if (candidates.length === 0) {
+      return null;
+    }
+
+    return candidates.reduce((earliest, candidate) =>
+      candidate.index < earliest.index ? candidate : earliest
+    );
+  };
+
+  const processInlineMarkdown = (
+    line: string,
+    depth = 0
+  ): React.ReactNode => {
+    if (depth >= MAX_INLINE_MARKDOWN_DEPTH) {
+      return line;
+    }
+
+    // Process inline elements by earliest token so formats don't mask each other.
     const parts: React.ReactNode[] = [];
     let remaining = line;
     let key = 0;
 
     while (remaining.length > 0) {
-      // Bold: **text** or __text__
-      const boldMatch = remaining.match(/^(.*?)(\*\*|__)(.+?)\2(.*)$/);
-      if (boldMatch) {
-        if (boldMatch[1]) parts.push(boldMatch[1]);
-        parts.push(<strong key={key++}>{boldMatch[3]}</strong>);
-        remaining = boldMatch[4];
-        continue;
+      const nextToken = findNextInlineMarkdownToken(remaining);
+      if (!nextToken) {
+        parts.push(remaining);
+        break;
       }
 
-      // Italic: *text* or _text_ (but not ** or __)
-      const italicMatch = remaining.match(/^(.*?)(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)(.*)$/);
-      if (italicMatch) {
-        if (italicMatch[1]) parts.push(italicMatch[1]);
-        parts.push(<em key={key++}>{italicMatch[2]}</em>);
-        remaining = italicMatch[3];
-        continue;
+      if (nextToken.index > 0) {
+        parts.push(remaining.slice(0, nextToken.index));
       }
 
-      // Inline code: `code`
-      const codeMatch = remaining.match(/^(.*?)`([^`]+)`(.*)$/);
-      if (codeMatch) {
-        if (codeMatch[1]) parts.push(codeMatch[1]);
+      if (nextToken.type === "link") {
+        parts.push(
+          <a
+            key={key++}
+            href={nextToken.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 dark:text-blue-400 hover:underline"
+          >
+            {processInlineMarkdown(nextToken.text, depth + 1)}
+          </a>
+        );
+      } else if (nextToken.type === "code") {
         parts.push(
           <code
             key={key++}
             className="px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700 rounded text-sm font-mono"
           >
-            {codeMatch[2]}
+            {nextToken.content}
           </code>
         );
-        remaining = codeMatch[3];
-        continue;
-      }
-
-      // Link: [text](url)
-      const linkMatch = remaining.match(/^(.*?)\[([^\]]+)\]\(([^)]+)\)(.*)$/);
-      if (linkMatch) {
-        if (linkMatch[1]) parts.push(linkMatch[1]);
+      } else if (nextToken.type === "boldItalic") {
         parts.push(
-          <a
-            key={key++}
-            href={linkMatch[3]}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            {linkMatch[2]}
-          </a>
+          <strong key={key++}>
+            <em>{processInlineMarkdown(nextToken.content, depth + 1)}</em>
+          </strong>
         );
-        remaining = linkMatch[4];
-        continue;
+      } else if (nextToken.type === "bold") {
+        parts.push(<strong key={key++}>{processInlineMarkdown(nextToken.content, depth + 1)}</strong>);
+      } else if (nextToken.type === "italic") {
+        parts.push(<em key={key++}>{processInlineMarkdown(nextToken.content, depth + 1)}</em>);
       }
 
-      // No more matches, add remaining text
-      parts.push(remaining);
-      break;
+      remaining = remaining.slice(nextToken.index + nextToken.fullMatch.length);
+      continue;
+
     }
 
     return parts.length === 1 ? parts[0] : <>{parts}</>;
   };
 
+  const parseParagraphLine = (line: string): ParagraphLine => {
+    let normalized = line;
+    let hardBreakAfter = false;
+
+    if (/ {2,}$/.test(normalized)) {
+      hardBreakAfter = true;
+      normalized = normalized.replace(/ {2,}$/, "");
+    } else if (/(^|[^\\])(\\\\)*\\$/.test(normalized)) {
+      hardBreakAfter = true;
+      normalized = normalized.slice(0, -1);
+    }
+
+    return {
+      text: normalized.trim(),
+      hardBreakAfter,
+    };
+  };
+
+  const renderParagraphContent = (linesToRender: ParagraphLine[]) => {
+    const parts: React.ReactNode[] = [];
+
+    for (let index = 0; index < linesToRender.length; index += 1) {
+      const line = linesToRender[index];
+      parts.push(
+        <span key={`text-${index}`}>{processInlineMarkdown(line.text)}</span>
+      );
+
+      if (index < linesToRender.length - 1) {
+        parts.push(
+          line.hardBreakAfter ? <br key={`break-${index}`} /> : " "
+        );
+      }
+    }
+
+    return parts;
+  };
+
+  const flushParagraph = (key: string) => {
+    if (paragraphLines.length === 0) {
+      return;
+    }
+
+    elements.push(
+      <p key={key} className="my-4 leading-7 text-gray-700 dark:text-gray-300">
+        {renderParagraphContent(paragraphLines)}
+      </p>
+    );
+    paragraphLines = [];
+  };
+
+  const flushList = (key: string) => {
+    if (!listType || listItems.length === 0) {
+      listType = null;
+      listItems = [];
+      return;
+    }
+
+    if (listType === "ul") {
+      elements.push(
+        <ul
+          key={key}
+          className="my-5 list-disc space-y-2 pl-6 marker:text-gray-400 dark:marker:text-gray-500"
+        >
+          {listItems}
+        </ul>
+      );
+    } else {
+      elements.push(
+        <ol
+          key={key}
+          className="my-5 list-decimal space-y-2 pl-6 marker:text-gray-400 dark:marker:text-gray-500"
+        >
+          {listItems}
+        </ol>
+      );
+    }
+
+    listType = null;
+    listItems = [];
+  };
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
+    const trimmed = line.trim();
 
     // Code blocks
     if (line.startsWith("```")) {
+      flushParagraph(`paragraph-before-code-${i}`);
+      flushList(`list-before-code-${i}`);
       if (inCodeBlock) {
         elements.push(
           <pre
             key={`code-${i}`}
-            className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg overflow-x-auto my-2 text-sm font-mono"
+            className="my-6 overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-6 text-gray-800 dark:border-gray-700 dark:bg-gray-900/60 dark:text-gray-200"
           >
             {codeBlockContent.join("\n")}
           </pre>
@@ -120,47 +301,65 @@ function renderMarkdown(text: string): React.ReactNode[] {
 
     // Headers
     if (line.startsWith("### ")) {
+      flushParagraph(`paragraph-before-h3-${i}`);
+      flushList(`list-before-h3-${i}`);
       elements.push(
-        <h3 key={i} className="text-lg font-semibold mt-4 mb-2">
+        <h3 key={i} className="mt-8 mb-3 text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
           {processInlineMarkdown(line.slice(4))}
         </h3>
       );
     } else if (line.startsWith("## ")) {
+      flushParagraph(`paragraph-before-h2-${i}`);
+      flushList(`list-before-h2-${i}`);
       elements.push(
-        <h2 key={i} className="text-xl font-semibold mt-4 mb-2">
+        <h2 key={i} className="mt-10 mb-4 text-xl font-semibold tracking-tight text-gray-900 dark:text-white">
           {processInlineMarkdown(line.slice(3))}
         </h2>
       );
     } else if (line.startsWith("# ")) {
+      flushParagraph(`paragraph-before-h1-${i}`);
+      flushList(`list-before-h1-${i}`);
       elements.push(
-        <h1 key={i} className="text-2xl font-bold mt-4 mb-2">
+        <h1 key={i} className="mt-10 mb-4 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">
           {processInlineMarkdown(line.slice(2))}
         </h1>
       );
     }
     // Bullet lists
     else if (line.match(/^[-*]\s/)) {
-      elements.push(
-        <li key={i} className="ml-4 list-disc">
+      flushParagraph(`paragraph-before-ul-${i}`);
+      if (listType === "ol") {
+        flushList(`list-before-ul-${i}`);
+      }
+      listType = "ul";
+      listItems.push(
+        <li key={i} className="pl-1 leading-7 text-gray-700 dark:text-gray-300">
           {processInlineMarkdown(line.slice(2))}
         </li>
       );
     }
     // Numbered lists
     else if (line.match(/^\d+\.\s/)) {
+      flushParagraph(`paragraph-before-ol-${i}`);
+      if (listType === "ul") {
+        flushList(`list-before-ol-${i}`);
+      }
+      listType = "ol";
       const content = line.replace(/^\d+\.\s/, "");
-      elements.push(
-        <li key={i} className="ml-4 list-decimal">
+      listItems.push(
+        <li key={i} className="pl-1 leading-7 text-gray-700 dark:text-gray-300">
           {processInlineMarkdown(content)}
         </li>
       );
     }
     // Blockquote
     else if (line.startsWith("> ")) {
+      flushParagraph(`paragraph-before-blockquote-${i}`);
+      flushList(`list-before-blockquote-${i}`);
       elements.push(
         <blockquote
           key={i}
-          className="border-l-4 border-gray-300 dark:border-gray-600 pl-4 italic text-gray-600 dark:text-gray-400 my-2"
+          className="my-6 border-l-4 border-slate-300 pl-5 pr-1 italic leading-7 text-slate-600 dark:border-slate-600 dark:text-slate-300"
         >
           {processInlineMarkdown(line.slice(2))}
         </blockquote>
@@ -168,23 +367,26 @@ function renderMarkdown(text: string): React.ReactNode[] {
     }
     // Horizontal rule
     else if (line.match(/^[-*_]{3,}$/)) {
+      flushParagraph(`paragraph-before-hr-${i}`);
+      flushList(`list-before-hr-${i}`);
       elements.push(
-        <hr key={i} className="my-4 border-gray-300 dark:border-gray-600" />
+        <hr key={i} className="my-8 border-gray-200 dark:border-gray-700" />
       );
     }
     // Empty line
-    else if (line.trim() === "") {
-      elements.push(<br key={i} />);
+    else if (trimmed === "") {
+      flushParagraph(`paragraph-break-${i}`);
+      flushList(`list-break-${i}`);
     }
     // Regular paragraph
     else {
-      elements.push(
-        <p key={i} className="my-1">
-          {processInlineMarkdown(line)}
-        </p>
-      );
+      flushList(`list-before-paragraph-${i}`);
+      paragraphLines.push(parseParagraphLine(line));
     }
   }
+
+  flushParagraph("paragraph-final");
+  flushList("list-final");
 
   return elements;
 }
@@ -326,7 +528,7 @@ export function NotificationsPage() {
                       minute: "2-digit",
                     })}
                   </div>
-                  <div className="prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
+                  <div className="max-w-none text-[15px] leading-7 sm:text-base [&>:first-child]:mt-0 [&>:last-child]:mb-0">
                     {renderMarkdown(notification.content)}
                   </div>
                 </div>
