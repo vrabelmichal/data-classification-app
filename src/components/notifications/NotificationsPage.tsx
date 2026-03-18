@@ -148,17 +148,24 @@ function renderMarkdown(text: string): React.ReactNode[] {
       }
 
       if (nextToken.type === "link") {
-        parts.push(
-          <a
-            key={key++}
-            href={nextToken.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            {processInlineMarkdown(nextToken.text, depth + 1)}
-          </a>
-        );
+        const isSafeUrl = /^(https?:|mailto:)/i.test(nextToken.url.trimStart());
+        if (isSafeUrl) {
+          parts.push(
+            <a
+              key={key++}
+              href={nextToken.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              {processInlineMarkdown(nextToken.text, depth + 1)}
+            </a>
+          );
+        } else {
+          parts.push(
+            <span key={key++}>{processInlineMarkdown(nextToken.text, depth + 1)}</span>
+          );
+        }
       } else if (nextToken.type === "code") {
         parts.push(
           <code
@@ -506,9 +513,9 @@ export function NotificationsPage() {
             }}
           >
             <div className="p-4 sm:p-6">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <div className="flex items-center gap-2 min-w-0">
                     {!notification.isRead && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300">
                         New
@@ -518,42 +525,51 @@ export function NotificationsPage() {
                       {notification.title}
                     </h2>
                   </div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                    From {notification.creatorName} •{" "}
-                    {new Date(notification.createdAt).toLocaleDateString(undefined, {
-                      year: "numeric",
-                      month: "short",
-                      day: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </div>
-                  <div className="max-w-none text-[15px] leading-7 sm:text-base [&>:first-child]:mt-0 [&>:last-child]:mb-0">
-                    {renderMarkdown(notification.content)}
+                  <div className="flex-shrink-0">
+                    {!notification.isRead ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkAsRead(notification._id);
+                        }}
+                        title="Mark as read"
+                        className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect width="20" height="16" x="2" y="4" rx="2" />
+                          <path d="m22 7-10 7L2 7" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleMarkAsUnread(notification._id);
+                        }}
+                        title="Mark as unread"
+                        className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M22 10V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V10" />
+                          <path d="M22 10L12 2L2 10" />
+                          <path d="M2 10l10 7 10-7" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {!notification.isRead ? (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMarkAsRead(notification._id);
-                      }}
-                      className="px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"
-                    >
-                      Mark as read
-                    </button>
-                  ) : (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleMarkAsUnread(notification._id);
-                      }}
-                      className="px-3 py-1 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
-                    >
-                      Mark as unread
-                    </button>
-                  )}
+                <div className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                  From {notification.creatorName} •{" "}
+                  {new Date(notification.createdAt).toLocaleDateString(undefined, {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </div>
+                <div className="max-w-none text-[15px] leading-7 sm:text-base [&>:first-child]:mt-0 [&>:last-child]:mb-0">
+                  {renderMarkdown(notification.content)}
                 </div>
               </div>
             </div>
