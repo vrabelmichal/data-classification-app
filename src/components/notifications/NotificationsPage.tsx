@@ -148,12 +148,13 @@ function renderMarkdown(text: string): React.ReactNode[] {
       }
 
       if (nextToken.type === "link") {
-        const isSafeUrl = /^(https?:|mailto:)/i.test(nextToken.url.trimStart());
+        const normalizedUrl = nextToken.url.replace(/^[\s\x00-\x1F\x7F]+/, "");
+        const isSafeUrl = /^(https?:|mailto:)/i.test(normalizedUrl);
         if (isSafeUrl) {
           parts.push(
             <a
               key={key++}
-              href={nextToken.url}
+              href={normalizedUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 dark:text-blue-400 hover:underline"
@@ -399,8 +400,18 @@ function renderMarkdown(text: string): React.ReactNode[] {
 }
 
 function getContentPreview(content: string, maxChars = 220): string {
+  let insideFence = false;
   const plain = content
     .split("\n")
+    .filter((line) => {
+      if (/^```/.test(line)) {
+        insideFence = !insideFence;
+        return false;
+      }
+      if (insideFence) return false;
+      if (/^[-*_]{3,}\s*$/.test(line)) return false;
+      return true;
+    })
     .map((line) =>
       line
         .replace(/^#{1,6}\s+/, "")
@@ -445,14 +456,23 @@ export function NotificationsPage() {
   const isAdmin = userProfile?.role === "admin";
 
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
-    const saved = localStorage.getItem("notifications_view_mode");
-    return saved === "header" || saved === "preview" || saved === "full" ? saved : "preview";
+    try {
+      const saved = localStorage.getItem("notifications_view_mode");
+      if (saved === "header" || saved === "preview" || saved === "full") return saved;
+    } catch {
+      // localStorage unavailable (e.g. restricted iframe, private browsing quirk)
+    }
+    return "preview";
   });
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const handleSetViewMode = (mode: ViewMode) => {
     setViewMode(mode);
-    localStorage.setItem("notifications_view_mode", mode);
+    try {
+      localStorage.setItem("notifications_view_mode", mode);
+    } catch {
+      // Ignore write failures (storage full, restricted environment)
+    }
     setExpandedIds(new Set());
   };
 
@@ -639,6 +659,7 @@ export function NotificationsPage() {
                         <button
                           onClick={() => handleMarkAsRead(notification._id)}
                           title="Mark as read"
+                          aria-label="Mark as read"
                           className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/30 dark:hover:text-blue-400"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -650,6 +671,7 @@ export function NotificationsPage() {
                         <button
                           onClick={() => handleMarkAsUnread(notification._id)}
                           title="Mark as unread"
+                          aria-label="Mark as unread"
                           className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                         >
                           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -664,6 +686,7 @@ export function NotificationsPage() {
                         <button
                           onClick={() => toggleCardExpanded(notification._id)}
                           title={isIndividuallyExpanded ? "Collapse" : "Expand"}
+                          aria-label={isIndividuallyExpanded ? "Collapse notification" : "Expand notification"}
                           aria-expanded={isIndividuallyExpanded}
                           className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
                         >
