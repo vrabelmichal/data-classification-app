@@ -13,10 +13,209 @@ function escapeHtml(input: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function markdownToSimpleHtml(content: string): string {
-  const escaped = escapeHtml(content);
-  const withBreaks = escaped.replace(/\n/g, "<br>");
-  return `<div style="font-family: Arial, sans-serif; color: #111; line-height: 1.5;">${withBreaks}</div>`;
+function sanitizeHref(url: string): string | null {
+  const trimmed = url.trim();
+  if (!trimmed || /^(javascript|data|vbscript):/i.test(trimmed)) {
+    return null;
+  }
+
+  return escapeHtml(trimmed);
+}
+
+function renderInlineMarkdownToHtml(text: string): string {
+  const pattern = /(\[([^\]]+)\]\(([^)]+)\)|`([^`]+)`|(\*\*|__)(.+?)\5|(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)|(?<!_)_(?!_)(.+?)(?<!_)_(?!_))/g;
+  let html = "";
+  let lastIndex = 0;
+
+  for (const match of text.matchAll(pattern)) {
+    const matchIndex = match.index ?? 0;
+    html += escapeHtml(text.slice(lastIndex, matchIndex));
+
+    const linkText = match[2];
+    const linkUrl = match[3];
+    const codeText = match[4];
+    const boldText = match[6];
+    const italicText = match[7] ?? match[8];
+
+    if (linkText && linkUrl) {
+      const href = sanitizeHref(linkUrl);
+      if (href) {
+        html += `<a href="${href}" style="color: #2563eb; text-decoration: underline;">${renderInlineMarkdownToHtml(linkText)}</a>`;
+      } else {
+        html += escapeHtml(match[0]);
+      }
+    } else if (codeText) {
+      html += `<code style="font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; background: #f3f4f6; border-radius: 4px; padding: 2px 6px;">${escapeHtml(codeText)}</code>`;
+    } else if (boldText) {
+      html += `<strong>${renderInlineMarkdownToHtml(boldText)}</strong>`;
+    } else if (italicText) {
+      html += `<em>${renderInlineMarkdownToHtml(italicText)}</em>`;
+    } else {
+      html += escapeHtml(match[0]);
+    }
+
+    lastIndex = matchIndex + match[0].length;
+  }
+
+  html += escapeHtml(text.slice(lastIndex));
+  return html;
+}
+
+function markdownToEmailHtml(content: string): string {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const htmlParts: string[] = [];
+  let paragraphLines: string[] = [];
+  let listType: "ul" | "ol" | null = null;
+  let listItems: string[] = [];
+  let codeBlockLines: string[] = [];
+  let inCodeBlock = false;
+
+  const flushParagraph = () => {
+    if (paragraphLines.length === 0) {
+      return;
+    }
+
+    const paragraph = paragraphLines.join(" ").trim();
+    if (paragraph) {
+      htmlParts.push(
+        `<p style="margin: 0 0 16px;">${renderInlineMarkdownToHtml(paragraph)}</p>`
+      );
+    }
+    paragraphLines = [];
+  };
+
+  const flushList = () => {
+    if (!listType || listItems.length === 0) {
+      listType = null;
+      listItems = [];
+      return;
+    }
+
+    htmlParts.push(
+      `<${listType} style="margin: 0 0 16px; padding-left: 20px;">${listItems.join("")}</${listType}>`
+    );
+    listType = null;
+    listItems = [];
+  };
+
+  const flushCodeBlock = () => {
+    if (codeBlockLines.length === 0) {
+      return;
+    }
+
+    htmlParts.push(
+      `<pre style="margin: 0 0 16px; padding: 12px 16px; background: #f3f4f6; border-radius: 8px; overflow-x: auto; font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; font-size: 13px; line-height: 1.5;"><code>${escapeHtml(codeBlockLines.join("\n"))}</code></pre>`
+    );
+    codeBlockLines = [];
+  };
+
+  for (const line of lines) {
+    if (line.startsWith("```")) {
+      flushParagraph();
+      flushList();
+
+      if (inCodeBlock) {
+        flushCodeBlock();
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+        codeBlockLines = [];
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBlockLines.push(line);
+      continue;
+    }
+
+    const trimmed = line.trim();
+    const headingMatch = line.match(/^(#{1,3})\s+(.*)$/);
+    const unorderedListMatch = line.match(/^[-*]\s+(.*)$/);
+    const orderedListMatch = line.match(/^\d+\.\s+(.*)$/);
+    const blockquoteMatch = line.match(/^>\s?(.*)$/);
+
+    if (trimmed === "") {
+      flushParagraph();
+      flushList();
+      continue;
+    }
+
+    if (/^([-*_])(?:\s*\1){2,}$/.test(trimmed)) {
+      flushParagraph();
+      flushList();
+      htmlParts.push(
+        '<hr style="border: none; border-top: 1px solid #d1d5db; margin: 24px 0;" />'
+      );
+      continue;
+    }
+
+    if (headingMatch) {
+      flushParagraph();
+      flushList();
+
+      const headingLevel = headingMatch[1].length;
+      const headingStyles = {
+        1: "font-size: 24px; font-weight: 700; margin: 24px 0 12px;",
+        2: "font-size: 20px; font-weight: 600; margin: 20px 0 10px;",
+        3: "font-size: 18px; font-weight: 600; margin: 18px 0 8px;",
+      } as const;
+
+      htmlParts.push(
+        `<h${headingLevel} style="${headingStyles[headingLevel as 1 | 2 | 3]}">${renderInlineMarkdownToHtml(headingMatch[2])}</h${headingLevel}>`
+      );
+      continue;
+    }
+
+    if (unorderedListMatch) {
+      flushParagraph();
+      if (listType === "ol") {
+        flushList();
+      }
+
+      listType = "ul";
+      listItems.push(
+        `<li style="margin: 0 0 8px;">${renderInlineMarkdownToHtml(unorderedListMatch[1])}</li>`
+      );
+      continue;
+    }
+
+    if (orderedListMatch) {
+      flushParagraph();
+      if (listType === "ul") {
+        flushList();
+      }
+
+      listType = "ol";
+      listItems.push(
+        `<li style="margin: 0 0 8px;">${renderInlineMarkdownToHtml(orderedListMatch[1])}</li>`
+      );
+      continue;
+    }
+
+    if (blockquoteMatch) {
+      flushParagraph();
+      flushList();
+      htmlParts.push(
+        `<blockquote style="margin: 0 0 16px; padding-left: 16px; border-left: 4px solid #d1d5db; color: #4b5563;"><p style="margin: 0;">${renderInlineMarkdownToHtml(blockquoteMatch[1])}</p></blockquote>`
+      );
+      continue;
+    }
+
+    if (listType) {
+      flushList();
+    }
+    paragraphLines.push(trimmed);
+  }
+
+  flushParagraph();
+  flushList();
+
+  if (inCodeBlock) {
+    flushCodeBlock();
+  }
+
+  return `<div style="font-family: Arial, sans-serif; color: #111; line-height: 1.6;">${htmlParts.join("")}</div>`;
 }
 
 async function sendNotificationEmails(ctx: any, args: {
@@ -46,7 +245,7 @@ async function sendNotificationEmails(ctx: any, args: {
     throw new Error("No recipients with valid email addresses found");
   }
 
-  const htmlBody = markdownToSimpleHtml(args.content);
+  const htmlBody = markdownToEmailHtml(args.content);
 
   const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
