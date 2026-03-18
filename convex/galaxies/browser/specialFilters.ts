@@ -99,7 +99,8 @@ const scanMembershipFilteredGalaxies = async (options: ScanMembershipFilteredOpt
     augmentGalaxy,
   } = options;
 
-  const q = buildGalaxyBrowseQuery(ctx, requestedSort, sortOrder, filters);
+  const createGalaxyBrowseQuery = () =>
+    buildGalaxyBrowseQuery(ctx, requestedSort, sortOrder, filters);
   const collected: any[] = [];
   let matchedBeforePage = 0;
   let rawCursor: string | null = null;
@@ -111,6 +112,7 @@ const scanMembershipFilteredGalaxies = async (options: ScanMembershipFilteredOpt
   while (iterationCount < maxIterations) {
     iterationCount++;
 
+    const q = createGalaxyBrowseQuery();
     const {
       page: galaxyBatch,
       continueCursor,
