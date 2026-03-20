@@ -6,6 +6,27 @@ export function GeneralSettingsPage({
   handleSettingChange,
 }: SettingsPageProps) {
   usePageTitle("Admin – Settings – General");
+  const isProductionBuild = import.meta.env.PROD;
+  const hasDebugAdminFeatureOverride =
+    import.meta.env.VITE_FEATURE_DEBUG_ADMIN === "1";
+  const canManageDebugAdmin =
+    !isProductionBuild || hasDebugAdminFeatureOverride;
+
+  const handleDebugAdminModeChange = (checked: boolean) => {
+    if (!checked) {
+      handleSettingChange("debugAdminMode", false);
+      return;
+    }
+
+    const confirmed = window.confirm(
+      "Enable Debugging Admin Mode? This allows users to become admins from the UI and should only be used in controlled development environments.",
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    handleSettingChange("debugAdminMode", true);
+  };
 
   return (
     <div className="space-y-6">
@@ -119,25 +140,39 @@ export function GeneralSettingsPage({
             />
           </label>
 
-          <label className="flex items-center justify-between gap-4">
-            <div>
+          {canManageDebugAdmin ? (
+            <label className="flex items-center justify-between gap-4 rounded-lg border border-red-200 bg-red-50/70 p-4 dark:border-red-900/60 dark:bg-red-950/20">
+              <div>
+                <span className="flex items-center gap-2 text-sm font-medium text-red-700 dark:text-red-300">
+                  <span aria-hidden="true">⚠️</span>
+                  <span>Allow anybody to become admin (Debugging Admin Mode)</span>
+                </span>
+                <p className="mt-1 text-sm text-red-700/90 dark:text-red-300/90">
+                  Unsafe development-only control. Enabling this lets users gain
+                  admin access from the navigation.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={localSettings.debugAdminMode}
+                onChange={(e) =>
+                  handleDebugAdminModeChange(e.target.checked)
+                }
+                className="h-4 w-4 rounded border-gray-300 bg-gray-100 text-red-600 focus:ring-2 focus:ring-red-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-red-600"
+              />
+            </label>
+          ) : (
+            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/40">
               <span className="text-sm font-medium text-gray-900 dark:text-white">
-                Allow anybody to become admin (Debugging Admin Mode)
+                Debugging Admin Mode
               </span>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Allow users to become admins via a button in the navigation.
-                Development only.
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                Hidden in production builds unless the
+                <span className="mx-1 font-mono">VITE_FEATURE_DEBUG_ADMIN</span>
+                override is enabled.
               </p>
             </div>
-            <input
-              type="checkbox"
-              checked={localSettings.debugAdminMode}
-              onChange={(e) =>
-                handleSettingChange("debugAdminMode", e.target.checked)
-              }
-              className="h-4 w-4 rounded border-gray-300 bg-gray-100 text-blue-600 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-blue-600"
-            />
-          </label>
+          )}
         </div>
       </div>
     </div>

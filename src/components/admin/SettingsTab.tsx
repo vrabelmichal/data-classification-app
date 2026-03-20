@@ -232,6 +232,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
             />
           }
         />
+        <Route path="*" element={<Navigate to="general" replace />} />
       </Routes>
     </div>
   );

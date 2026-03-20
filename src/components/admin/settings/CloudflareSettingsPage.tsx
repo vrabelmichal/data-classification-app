@@ -7,6 +7,11 @@ export function CloudflareSettingsPage({
   cloudflareCachePurgeStatus,
 }: CloudflareSettingsPageProps) {
   usePageTitle("Admin – Settings – Cloudflare");
+  const missingCredentials = Array.isArray(
+    cloudflareCachePurgeStatus?.missingCredentials,
+  )
+    ? cloudflareCachePurgeStatus.missingCredentials
+    : [];
 
   return (
     <div className="space-y-6">
@@ -113,9 +118,10 @@ export function CloudflareSettingsPage({
           </div>
 
           {cloudflareCachePurgeStatus &&
-            !cloudflareCachePurgeStatus.hasCredentials && (
+            !cloudflareCachePurgeStatus.hasCredentials &&
+            missingCredentials.length > 0 && (
               <p className="text-sm text-rose-700 dark:text-rose-300">
-                Missing: {cloudflareCachePurgeStatus.missingCredentials.join(", ")}
+                Missing: {missingCredentials.join(", ")}
               </p>
             )}
 

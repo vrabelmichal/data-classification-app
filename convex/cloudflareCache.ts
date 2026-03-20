@@ -1,7 +1,6 @@
 import { v } from "convex/values";
 import { action, query } from "./_generated/server";
-import { api } from "./_generated/api";
-import { loadMergedSystemSettings } from "./system_settings";
+import { api, internal } from "./_generated/api";
 
 const CLOUDFLARE_PURGE_BATCH_SIZE = 30;
 
@@ -15,6 +14,19 @@ type CloudflarePurgeResponse = {
   errors?: Array<CloudflarePurgeErrorPayload | string>;
   messages?: string[];
   result?: unknown;
+};
+
+type CloudflareAdminSettings = {
+  cloudflareCachePurgeEnabled: boolean;
+  cloudflareZoneId?: string;
+  cloudflareApiToken?: string;
+};
+
+type AdminPurgeStatus = {
+  enabled: boolean;
+  hasCredentials: boolean;
+  available: boolean;
+  missingCredentials: string[];
 };
 
 function getCloudflareCredentials(settings: {
@@ -102,7 +114,7 @@ export const getAdminPurgeStatus = query({
     available: v.boolean(),
     missingCredentials: v.array(v.string()),
   }),
-  handler: async (ctx) => {
+  handler: async (ctx): Promise<AdminPurgeStatus> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) {
       throw new Error("Not authenticated");
@@ -113,7 +125,10 @@ export const getAdminPurgeStatus = query({
       throw new Error("Admin access required");
     }
 
-    const settings = await loadMergedSystemSettings(ctx);
+    const settings: CloudflareAdminSettings = await ctx.runQuery(
+      internal.system_settings.loadMergedSystemSettingsInternal,
+      {},
+    );
     const credentials = getCloudflareCredentials(settings);
     const missingCredentials: string[] = [];
 
@@ -148,7 +163,10 @@ export const purgeImageUrls = action({
   handler: async (ctx, args) => {
     await assertAdmin(ctx);
 
-    const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
+    const settings = await ctx.runQuery(
+      internal.system_settings.loadMergedSystemSettingsInternal,
+      {},
+    );
     if (!settings.cloudflareCachePurgeEnabled) {
       throw new Error("Cloudflare cache invalidation is disabled in admin settings");
     }

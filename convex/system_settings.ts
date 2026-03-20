@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
+import { internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { requireAdmin } from "./lib/auth";
 import { DEFAULT_SYSTEM_SETTINGS } from "./lib/defaults";
 
@@ -18,6 +18,13 @@ export async function loadMergedSystemSettings(ctx: SettingsContext) {
     ...settingsMap,
   } as typeof DEFAULT_SYSTEM_SETTINGS;
 }
+
+export const loadMergedSystemSettingsInternal = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    return await loadMergedSystemSettings(ctx);
+  },
+});
 
 
 // Admin: Get system settings

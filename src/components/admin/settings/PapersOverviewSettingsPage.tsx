@@ -1,6 +1,8 @@
 import { usePageTitle } from "../../../hooks/usePageTitle";
 import type { PapersOverviewSettingsPageProps } from "./types";
 
+const OVERVIEW_DEFAULT_NONE_SENTINEL = "__overview_default_none__";
+
 export function PapersOverviewSettingsPage({
   localSettings,
   handleSettingChange,
@@ -12,7 +14,10 @@ export function PapersOverviewSettingsPage({
 
   const addPaper = (rawValue: string) => {
     const trimmed = rawValue.trim();
-    if (localSettings.availablePapers.includes(trimmed)) {
+    if (
+      trimmed === OVERVIEW_DEFAULT_NONE_SENTINEL ||
+      localSettings.availablePapers.includes(trimmed)
+    ) {
       return;
     }
 
@@ -136,25 +141,31 @@ export function PapersOverviewSettingsPage({
           <select
             value={
               localSettings.overviewDefaultPaper === null
-                ? "__none__"
+                ? OVERVIEW_DEFAULT_NONE_SENTINEL
                 : localSettings.overviewDefaultPaper
             }
             onChange={(e) => {
               const value = e.target.value;
               handleSettingChange(
                 "overviewDefaultPaper",
-                value === "__none__" ? null : value,
+                value === OVERVIEW_DEFAULT_NONE_SENTINEL ? null : value,
               );
             }}
             className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           >
-            <option value="__none__">None - show all papers by default</option>
+            <option value={OVERVIEW_DEFAULT_NONE_SENTINEL}>
+              None - show all papers by default
+            </option>
             {localSettings.availablePapers.map((paper, index) => (
               <option key={`${paper}-${index}`} value={paper}>
                 {paper === "" ? "(empty - unassigned galaxies)" : paper}
               </option>
             ))}
           </select>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            The reserved token used for the None option cannot be added as a
+            paper value.
+          </p>
         </label>
       </div>
     </div>

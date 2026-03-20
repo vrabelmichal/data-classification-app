@@ -28,7 +28,7 @@ export interface SettingsTabProps {
 
 export interface CloudflareCachePurgeStatus {
   hasCredentials: boolean;
-  missingCredentials: string[];
+  missingCredentials?: string[];
   available: boolean;
 }
 
