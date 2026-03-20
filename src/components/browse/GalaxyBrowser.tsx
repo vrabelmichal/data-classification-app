@@ -283,6 +283,13 @@ export function GalaxyBrowser() {
     setIsReviewMode(true);
   };
 
+  const handleOpenReviewAtIndex = (pageIndex: number, galaxyId: string) => {
+    pendingNavRef.current = 0;
+    setLastViewedGalaxyId(galaxyId);
+    setLastReviewIndex(((page - 1) * pageSize) + pageIndex);
+    setIsReviewMode(true);
+  };
+
   // Resume at the last-viewed index (0 on first open)
   const reviewInitialIndex = lastReviewIndex;
 
@@ -754,6 +761,7 @@ export function GalaxyBrowser() {
               sortBy={sortBy}
               sortOrder={sortOrder}
               handleSort={handleSort}
+              onOpenReviewAtIndex={handleOpenReviewAtIndex}
               lastViewedGalaxyId={lastViewedGalaxyId ?? undefined}
             />
           </div>
@@ -765,6 +773,7 @@ export function GalaxyBrowser() {
               userPrefs={userPrefs}
               effectiveImageQuality={effectiveImageQuality}
               previewImageName={previewImageName}
+              onOpenReviewAtIndex={handleOpenReviewAtIndex}
               lastViewedGalaxyId={lastViewedGalaxyId ?? undefined}
             />
           </div>

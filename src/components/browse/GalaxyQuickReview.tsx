@@ -55,6 +55,26 @@ function buildImageOptions(): ImageOption[] {
 }
 
 const IMAGE_OPTIONS = buildImageOptions();
+const QUICK_REVIEW_IMAGE_STORAGE_KEY = "galaxyQuickReview:selectedImageKey";
+
+function isKnownImageOption(key: string | null | undefined): key is string {
+  return !!key && IMAGE_OPTIONS.some((option) => option.key === key);
+}
+
+function getInitialSelectedImageKey(): string {
+  const fallback = loadImageDisplaySettings().previewImageName;
+
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  try {
+    const storedImageKey = window.localStorage.getItem(QUICK_REVIEW_IMAGE_STORAGE_KEY);
+    return isKnownImageOption(storedImageKey) ? storedImageKey : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // Props
@@ -164,9 +184,7 @@ export function GalaxyQuickReview({
   onClose,
 }: GalaxyQuickReviewProps) {
   // Image + overlay state
-  const [selectedImageKey, setSelectedImageKey] = useState<string>(() =>
-    loadImageDisplaySettings().previewImageName
-  );
+  const [selectedImageKey, setSelectedImageKey] = useState<string>(getInitialSelectedImageKey);
   const [showEllipse, setShowEllipse] = useState(false);
 
   // Navigation
@@ -181,6 +199,14 @@ export function GalaxyQuickReview({
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
   const [isAtEnd, setIsAtEnd] = useState(false);
   const processedCursors = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(QUICK_REVIEW_IMAGE_STORAGE_KEY, selectedImageKey);
+    } catch {
+      // Ignore storage failures and continue with in-memory state.
+    }
+  }, [selectedImageKey]);
 
 
 

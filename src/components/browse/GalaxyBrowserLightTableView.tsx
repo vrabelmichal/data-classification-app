@@ -13,6 +13,7 @@ interface GalaxyBrowserLightTableViewProps {
   sortBy: SortField;
   sortOrder: 'asc' | 'desc';
   handleSort: (field: SortField) => void;
+  onOpenReviewAtIndex: (pageIndex: number, galaxyId: string) => void;
   /** Galaxy id last viewed in Quick Review — highlighted with a visual indicator */
   lastViewedGalaxyId?: string;
 }
@@ -25,6 +26,7 @@ export function GalaxyBrowserLightTableView({
   sortBy,
   sortOrder,
   handleSort,
+  onOpenReviewAtIndex,
   lastViewedGalaxyId,
 }: GalaxyBrowserLightTableViewProps) {
   const getSortIcon = (field: SortField) => {
@@ -181,6 +183,13 @@ export function GalaxyBrowserLightTableView({
                       {isLastViewed && (
                         <div className="absolute top-0.5 right-0.5 z-10 w-2.5 h-2.5 rounded-full bg-purple-500 border border-white dark:border-gray-900 shadow" title="Last viewed in Quick Review" />
                       )}
+                      <button
+                        type="button"
+                        onClick={() => onOpenReviewAtIndex(index, galaxy.id)}
+                        className="absolute inset-0 z-20 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        title={`Open quick review for galaxy ${galaxy.id}`}
+                        aria-label={`Open quick review for galaxy ${galaxy.id}`}
+                      />
                       <ImageViewer
                         imageUrl={getImageUrl(galaxy.id, previewImageName, {
                           quality: effectiveImageQuality,

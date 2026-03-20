@@ -10,6 +10,7 @@ interface GalaxyBrowserMobileCardsProps {
   userPrefs: any;
   effectiveImageQuality: "high" | "medium" | "low";
   previewImageName: string;
+  onOpenReviewAtIndex: (pageIndex: number, galaxyId: string) => void;
   /** Galaxy id last viewed in Quick Review — highlighted with a visual indicator */
   lastViewedGalaxyId?: string;
 }
@@ -19,6 +20,7 @@ export function GalaxyBrowserMobileCards({
   userPrefs,
   effectiveImageQuality,
   previewImageName,
+  onOpenReviewAtIndex,
   lastViewedGalaxyId,
 }: GalaxyBrowserMobileCardsProps) {
   if (!galaxyData) {
@@ -36,7 +38,7 @@ export function GalaxyBrowserMobileCards({
 
   return (
     <div className="space-y-4">
-      {galaxies.map((galaxy: any) => {
+      {galaxies.map((galaxy: any, index: number) => {
         const isLastViewed = lastViewedGalaxyId === galaxy.id;
         return (
         <div
@@ -48,7 +50,14 @@ export function GalaxyBrowserMobileCards({
           }`}
         >
           <div className="flex flex-col sm:flex-row sm:items-start sm:space-x-4 space-y-4 sm:space-y-0">
-            <div className="flex-shrink-0 w-full sm:w-1/3 max-w-64 max-h-64 aspect-square mx-auto sm:mx-0">
+            <div className="relative flex-shrink-0 w-full sm:w-1/3 max-w-64 max-h-64 aspect-square mx-auto sm:mx-0">
+              <button
+                type="button"
+                onClick={() => onOpenReviewAtIndex(index, galaxy.id)}
+                className="absolute inset-0 z-20 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                title={`Open quick review for galaxy ${galaxy.id}`}
+                aria-label={`Open quick review for galaxy ${galaxy.id}`}
+              />
               <ImageViewer
                 imageUrl={getImageUrl(galaxy.id, previewImageName, { quality: effectiveImageQuality })}
                 alt={`Galaxy ${galaxy.id}`}
