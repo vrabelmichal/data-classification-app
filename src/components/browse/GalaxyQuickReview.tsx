@@ -20,6 +20,31 @@ const REVIEW_DEFAULT_ZOOM: DefaultZoomOptions = {
 interface ImageOption {
   key: string;
   label: string;
+  allowEllipse: boolean;
+}
+
+function findImageOptionMetadata(key: string): Pick<ImageOption, "label" | "allowEllipse"> | null {
+  const settings = loadImageDisplaySettings();
+
+  for (const group of settings.classification.contrastGroups) {
+    for (const entry of group) {
+      if (entry.key === key) {
+        return {
+          label: (entry.label ?? entry.key).replace(/\n/g, " "),
+          allowEllipse: entry.allowEllipse !== false,
+        };
+      }
+
+      if (entry.key_masked === key) {
+        return {
+          label: (entry.label_masked ?? entry.key_masked).replace(/\n/g, " "),
+          allowEllipse: entry.allowEllipse !== false,
+        };
+      }
+    }
+  }
+
+  return null;
 }
 
 function buildImageOptions(): ImageOption[] {
@@ -31,7 +56,12 @@ function buildImageOptions(): ImageOption[] {
   const previewKey = settings.previewImageName;
   if (!seen.has(previewKey)) {
     seen.add(previewKey);
-    options.push({ key: previewKey, label: "Preview (default)" });
+    const previewMetadata = findImageOptionMetadata(previewKey);
+    options.push({
+      key: previewKey,
+      label: previewMetadata?.label ?? "Preview (default)",
+      allowEllipse: previewMetadata?.allowEllipse !== false,
+    });
   }
 
   for (const group of settings.classification.contrastGroups) {
@@ -40,13 +70,21 @@ function buildImageOptions(): ImageOption[] {
       if (!seen.has(entry.key)) {
         seen.add(entry.key);
         const rawLabel = entry.label ?? entry.key;
-        options.push({ key: entry.key, label: rawLabel.replace(/\n/g, " ") });
+        options.push({
+          key: entry.key,
+          label: rawLabel.replace(/\n/g, " "),
+          allowEllipse: entry.allowEllipse !== false,
+        });
       }
       // Masked key (if different)
       if (entry.key_masked && !seen.has(entry.key_masked)) {
         seen.add(entry.key_masked);
         const rawLabel = entry.label_masked ?? entry.key_masked;
-        options.push({ key: entry.key_masked, label: rawLabel.replace(/\n/g, " ") });
+        options.push({
+          key: entry.key_masked,
+          label: rawLabel.replace(/\n/g, " "),
+          allowEllipse: entry.allowEllipse !== false,
+        });
       }
     }
   }
@@ -199,6 +237,8 @@ export function GalaxyQuickReview({
   const [nextCursor, setNextCursor] = useState<string | null | undefined>(undefined);
   const [isAtEnd, setIsAtEnd] = useState(false);
   const processedCursors = useRef<Set<string>>(new Set());
+  const selectedImageOption = IMAGE_OPTIONS.find((option) => option.key === selectedImageKey);
+  const ellipseAllowed = selectedImageOption?.allowEllipse !== false;
 
   useEffect(() => {
     try {
@@ -207,6 +247,12 @@ export function GalaxyQuickReview({
       // Ignore storage failures and continue with in-memory state.
     }
   }, [selectedImageKey]);
+
+  useEffect(() => {
+    if (!ellipseAllowed && showEllipse) {
+      setShowEllipse(false);
+    }
+  }, [ellipseAllowed, showEllipse]);
 
 
 
@@ -300,7 +346,10 @@ export function GalaxyQuickReview({
   const goFirst = useCallback(() => setCurrentIndex(0), []);
 
   // Keyboard
-  const toggleEllipse = useCallback(() => setShowEllipse((v) => !v), []);
+  const toggleEllipse = useCallback(() => {
+    if (!ellipseAllowed) return;
+    setShowEllipse((v) => !v);
+  }, [ellipseAllowed]);
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -373,10 +422,15 @@ export function GalaxyQuickReview({
 
         {/* Reff ellipse toggle */}
         <button
-          onClick={() => setShowEllipse((v) => !v)}
-          title="Toggle Reff ellipse overlay"
+          onClick={toggleEllipse}
+          disabled={!ellipseAllowed}
+          title={ellipseAllowed
+            ? "Toggle Reff ellipse overlay"
+            : "r_eff overlay is not available for this image type"}
           className={`flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded text-xs font-medium border transition-colors
-            ${showEllipse ? "bg-blue-600 border-blue-500 text-white" : "bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700"}`}
+            ${ellipseAllowed
+              ? (showEllipse ? "bg-blue-600 border-blue-500 text-white" : "bg-gray-800 border-gray-600 text-gray-300 hover:bg-gray-700")
+              : "bg-gray-900 border-gray-700 text-gray-500 cursor-not-allowed opacity-60"}`}
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <ellipse cx="12" cy="12" rx="10" ry="6" />
@@ -429,7 +483,7 @@ export function GalaxyQuickReview({
                     alt={`Galaxy ${currentGalaxy.id}`}
                     preferences={userPrefs}
                     defaultZoomOptions={REVIEW_DEFAULT_ZOOM}
-                    {...(showEllipse && currentGalaxy.reff_pixels != null
+                    {...(ellipseAllowed && showEllipse && currentGalaxy.reff_pixels != null
                       ? { reff: currentGalaxy.reff_pixels, pa: currentGalaxy.pa, q: currentGalaxy.q, x: currentGalaxy.x, y: currentGalaxy.y }
                       : {})}
                   />
@@ -465,7 +519,7 @@ export function GalaxyQuickReview({
       <div className="flex-shrink-0 flex flex-wrap items-center justify-center gap-3 sm:gap-6 px-4 py-1.5 bg-gray-900 border-t border-gray-800 text-xs text-gray-600">
         <span>← / p — prev</span>
         <span>→ / n — next</span>
-        <span>Shift+R — toggle Reff</span>
+        <span>{ellipseAllowed ? "Shift+R — toggle Reff" : "Shift+R — Reff unavailable for this image"}</span>
       </div>
     </div>
   );
