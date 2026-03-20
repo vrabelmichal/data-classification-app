@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { toast } from "sonner";
 import { ImageViewer, type DefaultZoomOptions } from "../classification/ImageViewer";
+import { CachePurgeIcon } from "../classification/icons";
 import { getImageUrl } from "../../images";
 import { loadImageDisplaySettings } from "../../images/displaySettings";
+import { useAdminCloudflareCachePurgeAvailability } from "../../hooks/useAdminCloudflareCachePurgeAvailability";
 import type { FilterType, SortField, SortOrder } from "./GalaxyBrowser";
 
 // 2× zoom applied on first load for each galaxy
@@ -224,6 +227,7 @@ export function GalaxyQuickReview({
   // Image + overlay state
   const [selectedImageKey, setSelectedImageKey] = useState<string>(getInitialSelectedImageKey);
   const [showEllipse, setShowEllipse] = useState(false);
+  const [isPurgingImageCache, setIsPurgingImageCache] = useState(false);
 
   // Navigation
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -239,6 +243,8 @@ export function GalaxyQuickReview({
   const processedCursors = useRef<Set<string>>(new Set());
   const selectedImageOption = IMAGE_OPTIONS.find((option) => option.key === selectedImageKey);
   const ellipseAllowed = selectedImageOption?.allowEllipse !== false;
+  const purgeImageUrls = useAction(api.cloudflareCache.purgeImageUrls);
+  const { isAvailable: isCloudflareCachePurgeAvailable } = useAdminCloudflareCachePurgeAvailability();
 
   useEffect(() => {
     try {
@@ -306,6 +312,9 @@ export function GalaxyQuickReview({
   // Guard: don't fire until initialIndex has been applied so we never
   // briefly report index 0 on remount (which would desync the browser page).
   const currentGalaxy = galaxies[currentIndex] ?? null;
+  const currentImageUrl = currentGalaxy
+    ? getImageUrl(currentGalaxy.id, selectedImageKey, { quality: effectiveImageQuality })
+    : "";
   useEffect(() => {
     if (!initialIndexApplied.current) return;
     if (currentGalaxy?.id) onGalaxyChange(currentGalaxy.id, currentIndex);
@@ -344,6 +353,33 @@ export function GalaxyQuickReview({
   }, []);
 
   const goFirst = useCallback(() => setCurrentIndex(0), []);
+
+  const handlePurgeCurrentImage = useCallback(async () => {
+    if (!isCloudflareCachePurgeAvailable) {
+      return;
+    }
+    if (!currentImageUrl || !currentGalaxy?.id) {
+      toast.error("No image URL available to invalidate");
+      return;
+    }
+
+    setIsPurgingImageCache(true);
+
+    try {
+      const result = await purgeImageUrls({ urls: [currentImageUrl] });
+
+      if (result.success) {
+        toast.success(`Cache invalidation submitted for ${currentGalaxy.id}`);
+      } else {
+        const message = result.errors[0] ?? "Cloudflare rejected the purge request";
+        toast.error(`Cache invalidation was only partially accepted. ${message}`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to invalidate Cloudflare cache");
+    } finally {
+      setIsPurgingImageCache(false);
+    }
+  }, [currentGalaxy?.id, currentImageUrl, isCloudflareCachePurgeAvailable, purgeImageUrls]);
 
   // Keyboard
   const toggleEllipse = useCallback(() => {
@@ -403,6 +439,23 @@ export function GalaxyQuickReview({
               </svg>
               <span className="hidden sm:inline">Classify</span>
             </Link>
+            {isCloudflareCachePurgeAvailable && (
+              <button
+                type="button"
+                onClick={handlePurgeCurrentImage}
+                disabled={isPurgingImageCache || !currentImageUrl}
+                className="flex-shrink-0 inline-flex items-center gap-1 px-1.5 py-1 sm:px-2.5 rounded-md bg-amber-500 hover:bg-amber-400 disabled:bg-amber-500/60 text-white text-xs font-semibold transition-colors shadow disabled:cursor-not-allowed"
+                title="Invalidate Cloudflare cache for the currently displayed image"
+                aria-label={`Invalidate image cache for galaxy ${currentGalaxy.id}`}
+              >
+                {isPurgingImageCache ? (
+                  <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                ) : (
+                  <CachePurgeIcon className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">Purge cache</span>
+              </button>
+            )}
           </>
         )}
 
@@ -479,7 +532,7 @@ export function GalaxyQuickReview({
                   {/* key forces ImageViewer to remount (reset zoom) each time the galaxy changes */}
                   <ImageViewer
                     key={`${currentGalaxy.id}-${selectedImageKey}`}
-                    imageUrl={getImageUrl(currentGalaxy.id, selectedImageKey, { quality: effectiveImageQuality })}
+                    imageUrl={currentImageUrl}
                     alt={`Galaxy ${currentGalaxy.id}`}
                     preferences={userPrefs}
                     defaultZoomOptions={REVIEW_DEFAULT_ZOOM}

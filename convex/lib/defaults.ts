@@ -37,6 +37,9 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   overviewDefaultPaper: null as string | null,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
   userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
+  cloudflareCachePurgeEnabled: false,
+  cloudflareZoneId: "",
+  cloudflareApiToken: "",
   // Maintenance mode flag
   maintenanceDisableClassifications: false,
 };

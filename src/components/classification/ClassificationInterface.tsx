@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { cn } from "../../lib/utils";
@@ -24,11 +24,12 @@ import { CommentsField } from "./CommentsField";
 // Mobile-specific components
 import { MobileImageSlider, type MobileImageSliderControlsRenderProps } from "./MobileImageSlider";
 import { MobileSliderControls } from "./MobileSliderControls";
-import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon, MaskIcon, BugIcon } from "./icons";
+import { EyeIcon, AladinLogo, EllipseIcon, SettingsIcon, MaskIcon, BugIcon, CachePurgeIcon } from "./icons";
 import { ReportIssueModal } from "../ReportIssueModal";
 import { MobileClassificationForm } from "./MobileClassificationForm";
 import { CommentsModal } from "./CommentsModal";
 import { ImageUrlsModal } from "./ImageUrlsModal";
+import { useAdminCloudflareCachePurgeAvailability } from "../../hooks/useAdminCloudflareCachePurgeAvailability";
 
 // Hooks
 import { useClassificationForm } from "./useClassificationForm";
@@ -115,6 +116,7 @@ export function ClassificationInterface() {
   const [mobileSliderIndex, setMobileSliderIndex] = useState(0);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showImageUrlsModal, setShowImageUrlsModal] = useState(false);
+  const [isPurgingContrastGroupCache, setIsPurgingContrastGroupCache] = useState(false);
 
   // Report issue modal state (shared via context so ClassificationInterface can observe
   // when the modal is opened from the Navigation as well)
@@ -160,6 +162,8 @@ export function ClassificationInterface() {
   const getNextGalaxyMutation = useMutation(api.galaxies.navigation.getNextGalaxyToClassifyMutation);
   const updatePreferences = useMutation(api.users.updatePreferences);
   const submitQuickTapReport = useMutation(api.issueReports.submitQuickTapReport);
+  const purgeImageUrls = useAction(api.cloudflareCache.purgeImageUrls);
+  const { isAvailable: isCloudflareCachePurgeAvailable } = useAdminCloudflareCachePurgeAvailability();
 
   // Display galaxy
   const displayGalaxy = currentGalaxy || galaxy;
@@ -236,6 +240,10 @@ export function ClassificationInterface() {
     (a, b) => getImagePriority(a.key, numColumns, defaultPreviewImageName) -
       getImagePriority(b.key, numColumns, defaultPreviewImageName)
   );
+
+  const currentContrastGroupUrls = imageTypes
+    .map((image) => image.url)
+    .filter((url): url is string => typeof url === "string" && url.length > 0);
 
   // Mobile image order: use defaultMobileOrder if provided, otherwise use original order
   const mobileImageTypes = defaultMobileOrder
@@ -523,6 +531,37 @@ export function ClassificationInterface() {
       toast.info(`Contrast Group: ${nextGroup + 1} of ${imageContrastGroups.length}`);
       return nextGroup;
     });
+  };
+
+  const handlePurgeCurrentContrastGroup = async () => {
+    if (!isCloudflareCachePurgeAvailable) {
+      return;
+    }
+    if (!isOnline) {
+      toast.error("Cannot invalidate cache while offline");
+      return;
+    }
+    if (currentContrastGroupUrls.length === 0) {
+      toast.error("No visible image URLs available to invalidate");
+      return;
+    }
+
+    setIsPurgingContrastGroupCache(true);
+
+    try {
+      const result = await purgeImageUrls({ urls: currentContrastGroupUrls });
+
+      if (result.success) {
+        toast.success(`Cache invalidation submitted for ${result.submittedCount} image${result.submittedCount === 1 ? "" : "s"}`);
+      } else {
+        const message = result.errors[0] ?? "Cloudflare rejected part of the purge request";
+        toast.error(`Cache invalidation only submitted for ${result.submittedCount}/${result.uniqueUrlCount} image URLs. ${message}`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to invalidate Cloudflare cache");
+    } finally {
+      setIsPurgingContrastGroupCache(false);
+    }
   };
 
   // Quick input key handler
@@ -938,6 +977,43 @@ export function ClassificationInterface() {
     </div>
   );
 
+  const renderCachePurgeControl = (showLabel = isMobile) => {
+    if (!isCloudflareCachePurgeAvailable) {
+      return null;
+    }
+
+    return (
+      <div className={cn("relative inline-block text-left", isMobile && "w-full")}>
+        <div className={cn(
+          "flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700",
+          isMobile ? "p-1 w-full" : "p-0.5"
+        )}>
+          <button
+            onClick={handlePurgeCurrentContrastGroup}
+            disabled={isPurgingContrastGroupCache || currentContrastGroupUrls.length === 0}
+            className={cn(
+              "relative flex items-center justify-center rounded-md transition-all duration-200 font-medium",
+              isMobile ? "flex-1 py-2.5" : "px-2 py-1",
+              showLabel ? "gap-2" : "gap-0",
+              isPurgingContrastGroupCache
+                ? "bg-amber-500 text-white"
+                : "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/40 dark:text-amber-300 dark:hover:bg-amber-900/60",
+              currentContrastGroupUrls.length === 0 && "cursor-not-allowed opacity-60"
+            )}
+            title="Invalidate Cloudflare cache for all images in the current contrast group"
+          >
+            {isPurgingContrastGroupCache ? (
+              <span className="inline-block h-4 w-4 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+            ) : (
+              <CachePurgeIcon className="w-4 h-5" />
+            )}
+            {showLabel && <span className="text-sm">Purge cache</span>}
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   // Loading state - check if the relevant galaxy query is still loading
   // When routeGalaxyId exists, we use galaxyByExternalId; otherwise we use galaxy
   const isGalaxyQueryLoading = routeGalaxyId
@@ -1111,9 +1187,9 @@ export function ClassificationInterface() {
 
       {/* Display Options */}
       <div className="w-full">
-        <div className="flex gap-2">
-          <div className="flex-1">{renderMaskControl()}</div>
-          <div className="flex-1">{renderEllipseControl()}</div>
+        <div className="grid gap-2 grid-cols-2">
+          <div>{renderMaskControl()}</div>
+          <div>{renderEllipseControl()}</div>
         </div>
       </div>
 
@@ -1251,6 +1327,7 @@ export function ClassificationInterface() {
             <div className="flex items-center space-x-2">
               {renderMaskControl()}
               {renderEllipseControl()}
+              {renderCachePurgeControl(false)}
               <div className="flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0.5">
                 <button
                   onClick={() => setShowKeyboardHelp(true)}
@@ -1271,8 +1348,9 @@ export function ClassificationInterface() {
           {progress && <ProgressBar progress={progress} />}
         </div>
         {isMobile && (
-          <div className="mt-4 w-full">
+          <div className="mt-4 w-full space-y-3">
             {renderReportButton(true)}
+            {renderCachePurgeControl(true)}
           </div>
         )}
 

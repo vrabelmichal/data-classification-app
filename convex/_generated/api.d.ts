@@ -15,6 +15,7 @@ import type * as classification from "../classification.js";
 import type * as classifications_export from "../classifications/export.js";
 import type * as classifications_maintenance from "../classifications/maintenance.js";
 import type * as classifications_userCounterStats from "../classifications/userCounterStats.js";
+import type * as cloudflareCache from "../cloudflareCache.js";
 import type * as crons from "../crons.js";
 import type * as emailSettings from "../emailSettings.js";
 import type * as export_database from "../export_database.js";
@@ -80,6 +81,7 @@ declare const fullApi: ApiFromModules<{
   "classifications/export": typeof classifications_export;
   "classifications/maintenance": typeof classifications_maintenance;
   "classifications/userCounterStats": typeof classifications_userCounterStats;
+  cloudflareCache: typeof cloudflareCache;
   crons: typeof crons;
   emailSettings: typeof emailSettings;
   export_database: typeof export_database;

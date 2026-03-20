@@ -205,3 +205,37 @@ export function BugIcon({ className }: IconProps) {
     </svg>
   );
 }
+
+export function CachePurgeIcon({ className }: IconProps) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+      strokeWidth={2.5} // Slightly thicker makes it look more premium
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* 
+          The "Bubbly" Cloud 
+          Shifted right by 1.5 units to prevent left-side cropping 
+      */}
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        opacity="0.4"
+        d="M18.5 19c2.5 0 4.5-2 4.5-4.5 0-2.3-1.7-4.2-3.9-4.5C18.6 6.5 15.1 4 11 4 7.7 4 4.9 6.2 4.1 9.2 2.3 10.1 1 12 1 14.2 1 16.8 3.2 19 5.8 19h12.7z"
+      />
+
+      {/* 
+          The Larger X 
+          Span increased to make it much more prominent 
+      */}
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M7.5 8.5l9 9M16.5 8.5l-9 9"
+      />
+    </svg>
+  );
+}

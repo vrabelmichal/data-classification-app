@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import {
@@ -17,6 +17,9 @@ import {
   DEFAULT_IMAGE_QUALITY,
   DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
   DEFAULT_ALLOW_PUBLIC_OVERVIEW,
+  DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
+  DEFAULT_CLOUDFLARE_ZONE_ID,
+  DEFAULT_CLOUDFLARE_API_TOKEN,
   DEFAULT_USER_EXPORT_LIMIT,
   DEFAULT_OVERVIEW_DEFAULT_PAPER,
 } from "../../lib/defaults";
@@ -27,6 +30,7 @@ interface SettingsTabProps {
 
 export function SettingsTab({ systemSettings }: SettingsTabProps) {
   const updateSystemSettings = useMutation(api.system_settings.updateSystemSettings);
+  const cloudflareCachePurgeStatus = useQuery(api.cloudflareCache.getAdminPurgeStatus, {});
   
   const [localSettings, setLocalSettings] = useState<{
     allowAnonymous: boolean;
@@ -45,6 +49,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     availablePapers: string[];
     userExportLimit: number;
     overviewDefaultPaper: string | null;
+    cloudflareCachePurgeEnabled: boolean;
+    cloudflareZoneId: string;
+    cloudflareApiToken: string;
   }>({
     allowAnonymous: systemSettings.allowAnonymous ?? DEFAULT_ALLOW_ANONYMOUS,
     emailFrom: systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM,
@@ -62,6 +69,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     availablePapers: systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS,
     userExportLimit: systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT,
     overviewDefaultPaper: systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER,
+    cloudflareCachePurgeEnabled: systemSettings.cloudflareCachePurgeEnabled ?? DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
+    cloudflareZoneId: systemSettings.cloudflareZoneId ?? DEFAULT_CLOUDFLARE_ZONE_ID,
+    cloudflareApiToken: systemSettings.cloudflareApiToken ?? DEFAULT_CLOUDFLARE_API_TOKEN,
   });
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -86,6 +96,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       availablePapers: systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS,
       userExportLimit: systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT,
       overviewDefaultPaper: systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER,
+      cloudflareCachePurgeEnabled: systemSettings.cloudflareCachePurgeEnabled ?? DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
+      cloudflareZoneId: systemSettings.cloudflareZoneId ?? DEFAULT_CLOUDFLARE_ZONE_ID,
+      cloudflareApiToken: systemSettings.cloudflareApiToken ?? DEFAULT_CLOUDFLARE_API_TOKEN,
     });
     setHasChanges(false);
   }, [systemSettings]);
@@ -108,6 +121,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
     const originalAvailablePapers = systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS;
     const originalUserExportLimit = systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT;
     const originalOverviewDefaultPaper = systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER;
+    const originalCloudflareCachePurgeEnabled = systemSettings.cloudflareCachePurgeEnabled ?? DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED;
+    const originalCloudflareZoneId = systemSettings.cloudflareZoneId ?? DEFAULT_CLOUDFLARE_ZONE_ID;
+    const originalCloudflareApiToken = systemSettings.cloudflareApiToken ?? DEFAULT_CLOUDFLARE_API_TOKEN;
     const papersChanged = JSON.stringify(localSettings.availablePapers) !== JSON.stringify(originalAvailablePapers);
     setHasChanges(
       localSettings.allowAnonymous !== originalAllowAnonymous ||
@@ -125,6 +141,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
       localSettings.galaxyBrowserImageQuality !== originalGalaxyBrowserImageQuality ||
       localSettings.userExportLimit !== originalUserExportLimit ||
       localSettings.overviewDefaultPaper !== originalOverviewDefaultPaper ||
+      localSettings.cloudflareCachePurgeEnabled !== originalCloudflareCachePurgeEnabled ||
+      localSettings.cloudflareZoneId !== originalCloudflareZoneId ||
+      localSettings.cloudflareApiToken !== originalCloudflareApiToken ||
       papersChanged
     );
   }, [localSettings, systemSettings]);
@@ -156,6 +175,9 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         availablePapers: localSettings.availablePapers,
         userExportLimit: localSettings.userExportLimit,
         overviewDefaultPaper: localSettings.overviewDefaultPaper,
+        cloudflareCachePurgeEnabled: localSettings.cloudflareCachePurgeEnabled,
+        cloudflareZoneId: localSettings.cloudflareZoneId,
+        cloudflareApiToken: localSettings.cloudflareApiToken,
       });
       toast.success("Settings updated successfully");
       setHasChanges(false);
@@ -285,6 +307,130 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
             placeholder="e.g. 1.0.0"
           />
         </label>
+
+
+        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
+            Available Papers (misc.paper values)
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Configure the list of paper values that can be used when generating balanced sequences.
+            These correspond to the <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">misc.paper</code> field in the galaxy data.
+          </p>
+
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-2">
+              {localSettings.availablePapers.map((paper, index) => (
+                <div
+                  key={index}
+                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm"
+                >
+                  <span>{paper === "" ? '(empty string)' : paper}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocalSettings(prev => ({
+                        ...prev,
+                        availablePapers: prev.availablePapers.filter((_, i) => i !== index),
+                      }));
+                    }}
+                    className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newPaperInput}
+                onChange={(e) => setNewPaperInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const trimmed = newPaperInput.trim();
+                    if (!localSettings.availablePapers.includes(trimmed)) {
+                      setLocalSettings(prev => ({
+                        ...prev,
+                        availablePapers: [...prev.availablePapers, trimmed],
+                      }));
+                      setNewPaperInput("");
+                    }
+                  }
+                }}
+                placeholder="Add new paper value..."
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const trimmed = newPaperInput.trim();
+                  if (!localSettings.availablePapers.includes(trimmed)) {
+                    setLocalSettings(prev => ({
+                      ...prev,
+                      availablePapers: [...prev.availablePapers, trimmed],
+                    }));
+                    setNewPaperInput("");
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
+              >
+                Add
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!localSettings.availablePapers.includes("")) {
+                    setLocalSettings(prev => ({
+                      ...prev,
+                      availablePapers: [...prev.availablePapers, ""],
+                    }));
+                  }
+                }}
+                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md text-sm font-medium"
+                title="Add empty string value"
+              >
+                Add Empty
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Press Enter to add. Use "Add Empty" to add an empty string value for galaxies without a paper assigned.
+            </p>
+          </div>
+
+          {/* Default paper pre-selected in the Overview tab */}
+          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+            <label className="block">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Default Paper Filter for Overview Tab
+              </span>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+                Pre-select a paper in the Overview statistics tab when the page is opened without a URL parameter.
+                Users can always switch to a different paper or "All" using the filter buttons on that page.
+              </p>
+              <select
+                value={localSettings.overviewDefaultPaper === null ? "__none__" : localSettings.overviewDefaultPaper}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setLocalSettings(prev => ({
+                    ...prev,
+                    overviewDefaultPaper: val === "__none__" ? null : val,
+                  }));
+                }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+              >
+                <option value="__none__">None — show all papers by default</option>
+                {localSettings.availablePapers.map((paper, i) => (
+                  <option key={i} value={paper}>
+                    {paper === "" ? "(empty — unassigned galaxies)" : paper}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
 
         <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
           <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
@@ -464,128 +610,101 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
           </label>
         </div>
 
+
         <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
           <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-            Available Papers (misc.paper values)
+            Cloudflare Cache Invalidation
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Configure the list of paper values that can be used when generating balanced sequences.
-            These correspond to the <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">misc.paper</code> field in the galaxy data.
+            Show admin-only buttons that can invalidate Cloudflare cache for the currently viewed image in Quick Review and for the current contrast group in Classification.
           </p>
 
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {localSettings.availablePapers.map((paper, index) => (
-                <div
-                  key={index}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm"
-                >
-                  <span>{paper === "" ? '(empty string)' : paper}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLocalSettings(prev => ({
-                        ...prev,
-                        availablePapers: prev.availablePapers.filter((_, i) => i !== index),
-                      }));
-                    }}
-                    className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
+          <label className="flex items-center justify-between">
+            <div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Enable admin cache invalidation buttons
+              </span>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                When disabled, the purge buttons stay hidden even if the Cloudflare credentials are configured.
+              </p>
             </div>
+            <input
+              type="checkbox"
+              checked={localSettings.cloudflareCachePurgeEnabled}
+              onChange={(e) => handleSettingChange("cloudflareCachePurgeEnabled", e.target.checked)}
+              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+            />
+          </label>
 
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newPaperInput}
-                onChange={(e) => setNewPaperInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const trimmed = newPaperInput.trim();
-                    if (!localSettings.availablePapers.includes(trimmed)) {
-                      setLocalSettings(prev => ({
-                        ...prev,
-                        availablePapers: [...prev.availablePapers, trimmed],
-                      }));
-                      setNewPaperInput("");
-                    }
-                  }
-                }}
-                placeholder="Add new paper value..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const trimmed = newPaperInput.trim();
-                  if (!localSettings.availablePapers.includes(trimmed)) {
-                    setLocalSettings(prev => ({
-                      ...prev,
-                      availablePapers: [...prev.availablePapers, trimmed],
-                    }));
-                    setNewPaperInput("");
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!localSettings.availablePapers.includes("")) {
-                    setLocalSettings(prev => ({
-                      ...prev,
-                      availablePapers: [...prev.availablePapers, ""],
-                    }));
-                  }
-                }}
-                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md text-sm font-medium"
-                title="Add empty string value"
-              >
-                Add Empty
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Press Enter to add. Use "Add Empty" to add an empty string value for galaxies without a paper assigned.
-            </p>
-          </div>
-
-          {/* Default paper pre-selected in the Overview tab */}
-          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
+          <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4 space-y-2">
             <label className="block">
               <span className="text-sm font-medium text-gray-900 dark:text-white">
-                Default Paper Filter for Overview Tab
+                Cloudflare Zone ID
               </span>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                Pre-select a paper in the Overview statistics tab when the page is opened without a URL parameter.
-                Users can always switch to a different paper or "All" using the filter buttons on that page.
-              </p>
-              <select
-                value={localSettings.overviewDefaultPaper === null ? "__none__" : localSettings.overviewDefaultPaper}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setLocalSettings(prev => ({
-                    ...prev,
-                    overviewDefaultPaper: val === "__none__" ? null : val,
-                  }));
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              >
-                <option value="__none__">None — show all papers by default</option>
-                {localSettings.availablePapers.map((paper, i) => (
-                  <option key={i} value={paper}>
-                    {paper === "" ? "(empty — unassigned galaxies)" : paper}
-                  </option>
-                ))}
-              </select>
+              <input
+                type="text"
+                value={localSettings.cloudflareZoneId}
+                onChange={(e) => handleSettingChange("cloudflareZoneId", e.target.value)}
+                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                placeholder="e.g. 0123456789abcdef0123456789abcdef"
+                autoComplete="off"
+                spellCheck={false}
+              />
             </label>
+
+            <label className="block">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Cloudflare API Token
+              </span>
+              <input
+                type="password"
+                value={localSettings.cloudflareApiToken}
+                onChange={(e) => handleSettingChange("cloudflareApiToken", e.target.value)}
+                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                placeholder="Paste a token limited to cache purge for this zone"
+                autoComplete="new-password"
+                spellCheck={false}
+              />
+            </label>
+
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Stored credential status
+              </span>
+              {cloudflareCachePurgeStatus === undefined ? (
+                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  Checking...
+                </span>
+              ) : cloudflareCachePurgeStatus.hasCredentials ? (
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                  Credentials configured
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
+                  Credentials missing
+                </span>
+              )}
+            </div>
+
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+              Warning: this token is stored in the application database for admin use. Create a token limited to cache purge on the specific zone only.
+            </div>
+
+            {cloudflareCachePurgeStatus && !cloudflareCachePurgeStatus.hasCredentials && (
+              <p className="text-sm text-rose-700 dark:text-rose-300">
+                Missing: {cloudflareCachePurgeStatus.missingCredentials.join(", ")}
+              </p>
+            )}
+
+            {cloudflareCachePurgeStatus && cloudflareCachePurgeStatus.available && (
+              <p className="text-sm text-emerald-700 dark:text-emerald-300">
+                Admin purge buttons are currently available in Quick Review and Classification.
+              </p>
+            )}
           </div>
+
         </div>
+
       </div>
       
       {hasChanges && (

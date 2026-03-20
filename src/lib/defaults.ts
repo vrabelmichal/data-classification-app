@@ -91,6 +91,21 @@ export const DEFAULT_MAINTENANCE_DISABLE_NEW_CLASSIFICATIONS = false;
  */
 export const DEFAULT_USER_EXPORT_LIMIT = 1000;
 
+/**
+ * Default state for admin-triggered Cloudflare image cache invalidation
+ */
+export const DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED = false;
+
+/**
+ * Default Cloudflare Zone ID for admin-triggered cache invalidation
+ */
+export const DEFAULT_CLOUDFLARE_ZONE_ID = "";
+
+/**
+ * Default Cloudflare API token for admin-triggered cache invalidation
+ */
+export const DEFAULT_CLOUDFLARE_API_TOKEN = "";
+
 // ============================================================================
 // Combined Default System Settings
 // ============================================================================
@@ -115,4 +130,7 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   overviewDefaultPaper: DEFAULT_OVERVIEW_DEFAULT_PAPER,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
   userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
+  cloudflareCachePurgeEnabled: DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
+  cloudflareZoneId: DEFAULT_CLOUDFLARE_ZONE_ID,
+  cloudflareApiToken: DEFAULT_CLOUDFLARE_API_TOKEN,
 };

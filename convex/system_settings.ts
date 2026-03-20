@@ -47,6 +47,7 @@ export const getPublicSystemSettings = query({
     galaxyBrowserImageQuality: v.union(v.literal("high"), v.literal("low")),
     allowPublicOverview: v.boolean(),
     userExportLimit: v.number(),
+    cloudflareCachePurgeEnabled: v.boolean(),
     maintenanceDisableClassifications: v.boolean(),
     overviewDefaultPaper: v.union(v.string(), v.null()),
   }),
@@ -69,6 +70,7 @@ export const getPublicSystemSettings = query({
       galaxyBrowserImageQuality: mergedSettings.galaxyBrowserImageQuality,
       allowPublicOverview: mergedSettings.allowPublicOverview,
       userExportLimit: mergedSettings.userExportLimit,
+      cloudflareCachePurgeEnabled: mergedSettings.cloudflareCachePurgeEnabled,
       maintenanceDisableClassifications: mergedSettings.maintenanceDisableClassifications,
       overviewDefaultPaper: mergedSettings.overviewDefaultPaper,
     };
@@ -96,6 +98,9 @@ export const updateSystemSettings = mutation({
     availablePapers: v.optional(v.array(v.string())),
     overviewDefaultPaper: v.optional(v.union(v.string(), v.null())),
     userExportLimit: v.optional(v.number()),
+    cloudflareCachePurgeEnabled: v.optional(v.boolean()),
+    cloudflareZoneId: v.optional(v.string()),
+    cloudflareApiToken: v.optional(v.string()),
     // Maintenance mode flags
     maintenanceDisableClassifications: v.optional(v.boolean()),
   },
@@ -338,6 +343,54 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "userExportLimit",
           value: args.userExportLimit,
+        });
+      }
+    }
+
+    if (args.cloudflareCachePurgeEnabled !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "cloudflareCachePurgeEnabled"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.cloudflareCachePurgeEnabled });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "cloudflareCachePurgeEnabled",
+          value: args.cloudflareCachePurgeEnabled,
+        });
+      }
+    }
+
+    if (args.cloudflareZoneId !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "cloudflareZoneId"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.cloudflareZoneId });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "cloudflareZoneId",
+          value: args.cloudflareZoneId,
+        });
+      }
+    }
+
+    if (args.cloudflareApiToken !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "cloudflareApiToken"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.cloudflareApiToken });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "cloudflareApiToken",
+          value: args.cloudflareApiToken,
         });
       }
     }
