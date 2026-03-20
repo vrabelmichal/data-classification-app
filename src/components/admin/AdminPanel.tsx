@@ -28,7 +28,7 @@ export function AdminPanel() {
       if (path === "/admin" || path === "/admin/") return "Admin";
       if (path.startsWith("/admin/users")) return "Users";
       if (path.startsWith("/admin/galaxies")) return ""; // Managed by subpages
-      if (path.startsWith("/admin/settings")) return "Settings";
+      if (path.startsWith("/admin/settings")) return ""; // Managed by subpages
       if (path.startsWith("/admin/maintenance")) return ""; // Managed by subpages
       if (path.startsWith("/admin/system")) return "System";
       return "Admin";
@@ -118,7 +118,7 @@ export function AdminPanel() {
         />
         <Route path="notifications/*" element={<Navigate to="/notifications/create" replace />} />
         <Route
-          path="settings"
+          path="settings/*"
           element={
             <Suspense fallback={<AdminTabLoading />}>
               <SettingsTab systemSettings={systemSettings} />

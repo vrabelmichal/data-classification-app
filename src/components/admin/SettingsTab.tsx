@@ -1,155 +1,76 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "convex/react";
-import { api } from "../../../convex/_generated/api";
+import { Routes, Route, Link, Navigate, useLocation } from "react-router";
 import { toast } from "sonner";
-import {
-  DEFAULT_AVAILABLE_PAPERS,
-  DEFAULT_ALLOW_ANONYMOUS,
-  DEFAULT_EMAIL_FROM,
-  DEFAULT_APP_NAME,
-  DEFAULT_DEBUG_ADMIN_MODE,
-  DEFAULT_APP_VERSION,
-  DEFAULT_FAILED_FITTING_MODE,
-  DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS,
-  DEFAULT_SHOW_AWESOME_FLAG,
-  DEFAULT_SHOW_VALID_REDSHIFT,
-  DEFAULT_SHOW_VISIBLE_NUCLEUS,
-  DEFAULT_IMAGE_QUALITY,
-  DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
-  DEFAULT_ALLOW_PUBLIC_OVERVIEW,
-  DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
-  DEFAULT_CLOUDFLARE_ZONE_ID,
-  DEFAULT_CLOUDFLARE_API_TOKEN,
-  DEFAULT_USER_EXPORT_LIMIT,
-  DEFAULT_OVERVIEW_DEFAULT_PAPER,
-} from "../../lib/defaults";
+import { api } from "../../../convex/_generated/api";
+import { cn } from "../../lib/utils";
+import { createSettingsFormState, hasSettingsChanges } from "./settings/helpers";
+import { GeneralSettingsPage } from "./settings/GeneralSettingsPage";
+import { PapersOverviewSettingsPage } from "./settings/PapersOverviewSettingsPage";
+import { ClassificationSettingsPage } from "./settings/ClassificationSettingsPage";
+import { OperationsSettingsPage } from "./settings/OperationsSettingsPage";
+import { CloudflareSettingsPage } from "./settings/CloudflareSettingsPage";
+import type { HandleSettingChange, SettingsTabProps } from "./settings/types";
 
-interface SettingsTabProps {
-  systemSettings: any;
-}
+const settingsSubTabs = [
+  {
+    id: "general",
+    label: "General",
+    icon: "⚙️",
+    path: "/admin/settings/general",
+  },
+  {
+    id: "papers",
+    label: "Papers & Overview",
+    icon: "🗂️",
+    path: "/admin/settings/papers",
+  },
+  {
+    id: "classification",
+    label: "Classification",
+    icon: "🧪",
+    path: "/admin/settings/classification",
+  },
+  {
+    id: "operations",
+    label: "Exports",
+    icon: "📤",
+    path: "/admin/settings/operations",
+  },
+  {
+    id: "cloudflare",
+    label: "Cloudflare",
+    icon: "☁️",
+    path: "/admin/settings/cloudflare",
+  },
+] as const;
 
 export function SettingsTab({ systemSettings }: SettingsTabProps) {
+  const location = useLocation();
   const updateSystemSettings = useMutation(api.system_settings.updateSystemSettings);
-  const cloudflareCachePurgeStatus = useQuery(api.cloudflareCache.getAdminPurgeStatus, {});
-  
-  const [localSettings, setLocalSettings] = useState<{
-    allowAnonymous: boolean;
-    emailFrom: string;
-    appName: string;
-    debugAdminMode: boolean;
-    allowPublicOverview: boolean;
-    appVersion: string;
-    failedFittingMode: string;
-    failedFittingFallbackLsbClass: number;
-    showAwesomeFlag: boolean;
-    showValidRedshift: boolean;
-    showVisibleNucleus: boolean;
-    defaultImageQuality: string;
-    galaxyBrowserImageQuality: string;
-    availablePapers: string[];
-    userExportLimit: number;
-    overviewDefaultPaper: string | null;
-    cloudflareCachePurgeEnabled: boolean;
-    cloudflareZoneId: string;
-    cloudflareApiToken: string;
-  }>({
-    allowAnonymous: systemSettings.allowAnonymous ?? DEFAULT_ALLOW_ANONYMOUS,
-    emailFrom: systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM,
-    appName: systemSettings.appName ?? DEFAULT_APP_NAME,
-    debugAdminMode: systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE,
-    allowPublicOverview: systemSettings.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW,
-    appVersion: systemSettings.appVersion ?? DEFAULT_APP_VERSION,
-    failedFittingMode: systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE,
-    failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS,
-    showAwesomeFlag: systemSettings.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG,
-    showValidRedshift: systemSettings.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT,
-    showVisibleNucleus: systemSettings.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS,
-    defaultImageQuality: systemSettings.defaultImageQuality ?? DEFAULT_IMAGE_QUALITY,
-    galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality ?? DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
-    availablePapers: systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS,
-    userExportLimit: systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT,
-    overviewDefaultPaper: systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER,
-    cloudflareCachePurgeEnabled: systemSettings.cloudflareCachePurgeEnabled ?? DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
-    cloudflareZoneId: systemSettings.cloudflareZoneId ?? DEFAULT_CLOUDFLARE_ZONE_ID,
-    cloudflareApiToken: systemSettings.cloudflareApiToken ?? DEFAULT_CLOUDFLARE_API_TOKEN,
-  });
+  const cloudflareCachePurgeStatus = useQuery(
+    api.cloudflareCache.getAdminPurgeStatus,
+    {},
+  );
+
+  const [localSettings, setLocalSettings] = useState(() =>
+    createSettingsFormState(systemSettings),
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [newPaperInput, setNewPaperInput] = useState("");
 
-  // Update local settings when systemSettings prop changes
   useEffect(() => {
-    setLocalSettings({
-      allowAnonymous: systemSettings.allowAnonymous ?? DEFAULT_ALLOW_ANONYMOUS,
-      emailFrom: systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM,
-      appName: systemSettings.appName ?? DEFAULT_APP_NAME,
-      debugAdminMode: systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE,
-      allowPublicOverview: systemSettings.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW,
-      appVersion: systemSettings.appVersion ?? DEFAULT_APP_VERSION,
-      failedFittingMode: systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE,
-      failedFittingFallbackLsbClass: systemSettings.failedFittingFallbackLsbClass ?? DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS,
-      showAwesomeFlag: systemSettings.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG,
-      showValidRedshift: systemSettings.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT,
-      showVisibleNucleus: systemSettings.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS,
-      defaultImageQuality: systemSettings.defaultImageQuality ?? DEFAULT_IMAGE_QUALITY,
-      galaxyBrowserImageQuality: systemSettings.galaxyBrowserImageQuality ?? DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
-      availablePapers: systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS,
-      userExportLimit: systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT,
-      overviewDefaultPaper: systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER,
-      cloudflareCachePurgeEnabled: systemSettings.cloudflareCachePurgeEnabled ?? DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
-      cloudflareZoneId: systemSettings.cloudflareZoneId ?? DEFAULT_CLOUDFLARE_ZONE_ID,
-      cloudflareApiToken: systemSettings.cloudflareApiToken ?? DEFAULT_CLOUDFLARE_API_TOKEN,
-    });
+    setLocalSettings(createSettingsFormState(systemSettings));
     setHasChanges(false);
   }, [systemSettings]);
 
-  // Check for changes
   useEffect(() => {
-    const originalAllowAnonymous = systemSettings.allowAnonymous ?? DEFAULT_ALLOW_ANONYMOUS;
-    const originalEmailFrom = systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM;
-    const originalAppName = systemSettings.appName ?? DEFAULT_APP_NAME;
-    const originalDebugAdminMode = systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE;
-    const originalAllowPublicOverview = systemSettings.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW;
-    const originalAppVersion = systemSettings.appVersion ?? DEFAULT_APP_VERSION;
-    const originalFailedFittingMode = systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE;
-    const originalFailedFittingFallbackLsbClass = systemSettings.failedFittingFallbackLsbClass ?? DEFAULT_FAILED_FITTING_FALLBACK_LSB_CLASS;
-    const originalShowAwesomeFlag = systemSettings.showAwesomeFlag ?? DEFAULT_SHOW_AWESOME_FLAG;
-    const originalShowValidRedshift = systemSettings.showValidRedshift ?? DEFAULT_SHOW_VALID_REDSHIFT;
-    const originalShowVisibleNucleus = systemSettings.showVisibleNucleus ?? DEFAULT_SHOW_VISIBLE_NUCLEUS;
-    const originalDefaultImageQuality = systemSettings.defaultImageQuality ?? DEFAULT_IMAGE_QUALITY;
-    const originalGalaxyBrowserImageQuality = systemSettings.galaxyBrowserImageQuality ?? DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY;
-    const originalAvailablePapers = systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS;
-    const originalUserExportLimit = systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT;
-    const originalOverviewDefaultPaper = systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER;
-    const originalCloudflareCachePurgeEnabled = systemSettings.cloudflareCachePurgeEnabled ?? DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED;
-    const originalCloudflareZoneId = systemSettings.cloudflareZoneId ?? DEFAULT_CLOUDFLARE_ZONE_ID;
-    const originalCloudflareApiToken = systemSettings.cloudflareApiToken ?? DEFAULT_CLOUDFLARE_API_TOKEN;
-    const papersChanged = JSON.stringify(localSettings.availablePapers) !== JSON.stringify(originalAvailablePapers);
-    setHasChanges(
-      localSettings.allowAnonymous !== originalAllowAnonymous ||
-      localSettings.emailFrom !== originalEmailFrom ||
-      localSettings.appName !== originalAppName ||
-      localSettings.debugAdminMode !== originalDebugAdminMode ||
-      localSettings.allowPublicOverview !== originalAllowPublicOverview ||
-      localSettings.appVersion !== originalAppVersion ||
-      localSettings.failedFittingMode !== originalFailedFittingMode ||
-      localSettings.failedFittingFallbackLsbClass !== originalFailedFittingFallbackLsbClass ||
-      localSettings.showAwesomeFlag !== originalShowAwesomeFlag ||
-      localSettings.showValidRedshift !== originalShowValidRedshift ||
-      localSettings.showVisibleNucleus !== originalShowVisibleNucleus ||
-      localSettings.defaultImageQuality !== originalDefaultImageQuality ||
-      localSettings.galaxyBrowserImageQuality !== originalGalaxyBrowserImageQuality ||
-      localSettings.userExportLimit !== originalUserExportLimit ||
-      localSettings.overviewDefaultPaper !== originalOverviewDefaultPaper ||
-      localSettings.cloudflareCachePurgeEnabled !== originalCloudflareCachePurgeEnabled ||
-      localSettings.cloudflareZoneId !== originalCloudflareZoneId ||
-      localSettings.cloudflareApiToken !== originalCloudflareApiToken ||
-      papersChanged
-    );
+    setHasChanges(hasSettingsChanges(localSettings, systemSettings));
   }, [localSettings, systemSettings]);
 
-  const handleSettingChange = (key: string, value: boolean | string | number) => {
-    setLocalSettings(prev => ({
+  const handleSettingChange: HandleSettingChange = (key, value) => {
+    setLocalSettings((prev) => ({
       ...prev,
       [key]: value,
     }));
@@ -158,20 +79,21 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateSystemSettings({ 
+      await updateSystemSettings({
         allowAnonymous: localSettings.allowAnonymous,
         emailFrom: localSettings.emailFrom,
         appName: localSettings.appName,
         debugAdminMode: localSettings.debugAdminMode,
         allowPublicOverview: localSettings.allowPublicOverview,
         appVersion: localSettings.appVersion,
-        failedFittingMode: localSettings.failedFittingMode as "checkbox" | "legacy",
-        failedFittingFallbackLsbClass: localSettings.failedFittingFallbackLsbClass,
+        failedFittingMode: localSettings.failedFittingMode,
+        failedFittingFallbackLsbClass:
+          localSettings.failedFittingFallbackLsbClass,
         showAwesomeFlag: localSettings.showAwesomeFlag,
         showValidRedshift: localSettings.showValidRedshift,
         showVisibleNucleus: localSettings.showVisibleNucleus,
-        defaultImageQuality: localSettings.defaultImageQuality as "high" | "low",
-        galaxyBrowserImageQuality: localSettings.galaxyBrowserImageQuality as "high" | "low",
+        defaultImageQuality: localSettings.defaultImageQuality,
+        galaxyBrowserImageQuality: localSettings.galaxyBrowserImageQuality,
         availablePapers: localSettings.availablePapers,
         userExportLimit: localSettings.userExportLimit,
         overviewDefaultPaper: localSettings.overviewDefaultPaper,
@@ -190,530 +112,127 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-          System Settings
-        </h2>
-        <button
-          onClick={handleSave}
-          disabled={!hasChanges || isSaving}
-          className={`px-4 py-2 rounded-md font-medium transition-colors ${
-            hasChanges && !isSaving
-              ? "bg-blue-600 hover:bg-blue-700 text-white"
-              : "bg-gray-300 dark:bg-gray-600 text-gray-500 dark:text-gray-400 cursor-not-allowed"
-          }`}
-        >
-          {isSaving ? "Saving..." : "Save"}
-        </button>
+    <div className="space-y-6">
+      <div className="flex flex-col gap-3 md:hidden">
+        <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+          <button
+            onClick={handleSave}
+            disabled={!hasChanges || isSaving}
+            className={cn(
+              "rounded-lg px-5 py-2.5 text-sm font-medium transition-colors",
+              hasChanges && !isSaving
+                ? "bg-amber-500 text-white hover:bg-amber-600"
+                : "cursor-not-allowed bg-gray-300 text-gray-500 dark:bg-gray-700 dark:text-gray-400",
+            )}
+          >
+            {isSaving
+              ? "Saving..."
+              : hasChanges
+                ? "Save Changes *"
+                : "Save Settings"}
+          </button>
+        </div>
       </div>
-      
-      <div className="space-y-4">
-        <label className="block">
-          <span className="text-sm font-medium text-gray-900 dark:text-white">
-            App Name
-          </span>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            The name of the application displayed in emails and UI
-          </p>
-          <input
-            type="text"
-            value={localSettings.appName}
-            onChange={(e) => handleSettingChange("appName", e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            placeholder="Galaxy Classification App"
-          />
-        </label>
 
-        <label className="flex items-center justify-between">
-          <div>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              Make cached overview visible to confirmed users
-            </span>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              When enabled, confirmed non-admin users can open the cached overview page at /statistics/overview. The live overview stays admin-only at /statistics/overview-live.
-            </p>
-          </div>
-          <input
-            type="checkbox"
-            checked={localSettings.allowPublicOverview}
-            onChange={(e) => handleSettingChange("allowPublicOverview", e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-          />
-        </label>
-
-        <label className="flex items-center justify-between">
-          <div>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              Allow Anonymous Users
-            </span>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Allow users to classify galaxies without admin confirmation
-            </p>
-          </div>
-          <input
-            type="checkbox"
-            checked={localSettings.allowAnonymous}
-            onChange={(e) => handleSettingChange("allowAnonymous", e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-          />
-        </label>
-
-        <label className="flex items-center justify-between">
-          <div>
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              Allow anybody to become admin (Debugging Admin Mode) 
-            </span>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Allow users to become admins via a button in the navigation (development only)
-            </p>
-          </div>
-          <input
-            type="checkbox"
-            checked={localSettings.debugAdminMode}
-            onChange={(e) => handleSettingChange("debugAdminMode", e.target.checked)}
-            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-medium text-gray-900 dark:text-white">
-            Email From Address
-          </span>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            The email address used as the sender for password reset emails
-          </p>
-          <input
-            type="email"
-            value={localSettings.emailFrom}
-            onChange={(e) => handleSettingChange("emailFrom", e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            placeholder="noreply@galaxies.michalvrabel.sk"
-          />
-        </label>
-
-        <label className="block">
-          <span className="text-sm font-medium text-gray-900 dark:text-white">
-            Application Version
-          </span>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-            Current version of the application. Leave empty for no version checking.
-          </p>
-          <input
-            type="text"
-            value={localSettings.appVersion}
-            onChange={(e) => handleSettingChange("appVersion", e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            placeholder="e.g. 1.0.0"
-          />
-        </label>
-
-
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-            Available Papers (misc.paper values)
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Configure the list of paper values that can be used when generating balanced sequences.
-            These correspond to the <code className="bg-gray-100 dark:bg-gray-700 px-1 rounded">misc.paper</code> field in the galaxy data.
-          </p>
-
-          <div className="space-y-3">
-            <div className="flex flex-wrap gap-2">
-              {localSettings.availablePapers.map((paper, index) => (
-                <div
-                  key={index}
-                  className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full text-sm"
-                >
-                  <span>{paper === "" ? '(empty string)' : paper}</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLocalSettings(prev => ({
-                        ...prev,
-                        availablePapers: prev.availablePapers.filter((_, i) => i !== index),
-                      }));
-                    }}
-                    className="ml-1 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200"
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={newPaperInput}
-                onChange={(e) => setNewPaperInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    e.preventDefault();
-                    const trimmed = newPaperInput.trim();
-                    if (!localSettings.availablePapers.includes(trimmed)) {
-                      setLocalSettings(prev => ({
-                        ...prev,
-                        availablePapers: [...prev.availablePapers, trimmed],
-                      }));
-                      setNewPaperInput("");
-                    }
-                  }
-                }}
-                placeholder="Add new paper value..."
-                className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const trimmed = newPaperInput.trim();
-                  if (!localSettings.availablePapers.includes(trimmed)) {
-                    setLocalSettings(prev => ({
-                      ...prev,
-                      availablePapers: [...prev.availablePapers, trimmed],
-                    }));
-                    setNewPaperInput("");
-                  }
-                }}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium"
+      <div className="border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-end justify-between gap-6">
+          <nav className="-mb-px flex flex-1 space-x-6 overflow-x-auto">
+            {settingsSubTabs.map((tab) => (
+              <Link
+                key={tab.id}
+                to={tab.path}
+                className={cn(
+                  "flex items-center space-x-2 whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium transition-colors",
+                  location.pathname === tab.path
+                    ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300",
+                )}
               >
-                Add
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!localSettings.availablePapers.includes("")) {
-                    setLocalSettings(prev => ({
-                      ...prev,
-                      availablePapers: [...prev.availablePapers, ""],
-                    }));
-                  }
-                }}
-                className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-md text-sm font-medium"
-                title="Add empty string value"
-              >
-                Add Empty
-              </button>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Press Enter to add. Use "Add Empty" to add an empty string value for galaxies without a paper assigned.
-            </p>
-          </div>
+                <span>{tab.icon}</span>
+                <span>{tab.label}</span>
+              </Link>
+            ))}
+          </nav>
 
-          {/* Default paper pre-selected in the Overview tab */}
-          <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700/50">
-            <label className="block">
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                Default Paper Filter for Overview Tab
-              </span>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                Pre-select a paper in the Overview statistics tab when the page is opened without a URL parameter.
-                Users can always switch to a different paper or "All" using the filter buttons on that page.
-              </p>
-              <select
-                value={localSettings.overviewDefaultPaper === null ? "__none__" : localSettings.overviewDefaultPaper}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setLocalSettings(prev => ({
-                    ...prev,
-                    overviewDefaultPaper: val === "__none__" ? null : val,
-                  }));
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              >
-                <option value="__none__">None — show all papers by default</option>
-                {localSettings.availablePapers.map((paper, i) => (
-                  <option key={i} value={paper}>
-                    {paper === "" ? "(empty — unassigned galaxies)" : paper}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </div>
-
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-            Failed Fitting Configuration
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Configure how users report galaxies with failed fitting analysis.
-          </p>
-
-          <label className="block mb-4">
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              Failed Fitting Mode
-            </span>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              Choose how users indicate failed fitting: separate checkbox (recommended) or legacy "-" option
-            </p>
-            <select
-              value={localSettings.failedFittingMode}
-              onChange={(e) => handleSettingChange("failedFittingMode", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            >
-              <option value="checkbox">Checkbox Mode (Separate checkbox for failed fitting)</option>
-              <option value="legacy">Legacy Mode (Use "-" option in LSB classification)</option>
-            </select>
-          </label>
-
-          {localSettings.failedFittingMode === "legacy" && (
-            <label className="block">
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                Failed Fitting Fallback LSB Classification
-              </span>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-                In legacy mode, when user selects "-" (failed fitting), this LSB classification will be stored
-              </p>
-              <select
-                value={localSettings.failedFittingFallbackLsbClass}
-                onChange={(e) => handleSettingChange("failedFittingFallbackLsbClass", parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              >
-                <option value={-1}>Failed Fitting (-1)</option>
-                <option value={0}>Non-LSB (0)</option>
-                <option value={1}>LSB (1)</option>
-              </select>
-            </label>
-          )}
-        </div>
-
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-            Classification Checkbox Visibility
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Control which checkboxes are visible in the classification interface.
-          </p>
-
-          <div className="space-y-3">
-            <label className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  Show "Awesome" Checkbox
-                </span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Allow users to flag galaxies as awesome
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                checked={localSettings.showAwesomeFlag}
-                onChange={(e) => handleSettingChange("showAwesomeFlag", e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-              />
-            </label>
-
-            <label className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  Show "Valid Redshift" Checkbox
-                </span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Allow users to mark if the galaxy has a valid redshift
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                checked={localSettings.showValidRedshift}
-                onChange={(e) => handleSettingChange("showValidRedshift", e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-              />
-            </label>
-
-            <label className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  Show "Visible Nucleus" Checkbox
-                </span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Allow users to mark if a visible nucleus is present
-                </p>
-              </div>
-              <input
-                type="checkbox"
-                checked={localSettings.showVisibleNucleus}
-                onChange={(e) => handleSettingChange("showVisibleNucleus", e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-              />
-            </label>
-          </div>
-        </div>
-
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-            Image Quality Settings
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Configure the default image quality for classification. Users can override this in their personal settings.
-          </p>
-
-          <label className="block mb-4">
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              Default Image Quality
-            </span>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              The default image quality used when users haven't set their preference
-            </p>
-            <select
-              value={localSettings.defaultImageQuality}
-              onChange={(e) => handleSettingChange("defaultImageQuality", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            >
-              <option value="high">High Quality (Better image quality, larger file sizes)</option>
-              <option value="low">Low Quality (Faster loading, smaller file sizes)</option>
-            </select>
-          </label>
-
-          <label className="block">
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              Galaxy Browser Image Quality
-            </span>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              Image quality specifically for the Galaxy Browser. This setting is <strong>independent</strong> from the default image quality and user preferences. Currently set to: <strong className="text-blue-600 dark:text-blue-400">{localSettings.galaxyBrowserImageQuality === "high" ? "High Quality" : "Low Quality (AVIF)"}</strong>
-            </p>
-            <select
-              value={localSettings.galaxyBrowserImageQuality}
-              onChange={(e) => handleSettingChange("galaxyBrowserImageQuality", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-            >
-              <option value="high">High Quality (Better image quality, larger file sizes)</option>
-              <option value="low">Low Quality / AVIF (Faster loading, smaller file sizes - Recommended)</option>
-            </select>
-          </label>
-        </div>
-
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-            Export Settings
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Configure export limits for the Galaxy Browser.
-          </p>
-
-          <label className="block">
-            <span className="text-sm font-medium text-gray-900 dark:text-white">
-              User Export Limit
-            </span>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-              Maximum number of entries a regular (non-admin) user can export at once from the Galaxy Browser. 
-              Set to 0 to disable export for non-admin users. Admins can always export unlimited entries.
-            </p>
-            <input
-              type="number"
-              min="0"
-              value={localSettings.userExportLimit}
-              onChange={(e) => handleSettingChange("userExportLimit", Math.max(0, parseInt(e.target.value) || 0))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              placeholder="1000"
-            />
-          </label>
-        </div>
-
-
-        <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-          <h3 className="text-md font-semibold text-gray-900 dark:text-white mb-3">
-            Cloudflare Cache Invalidation
-          </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            Show admin-only buttons that can invalidate Cloudflare cache for the currently viewed image in Quick Review and for the current contrast group in Classification.
-          </p>
-
-          <label className="flex items-center justify-between">
-            <div>
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                Enable admin cache invalidation buttons
-              </span>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                When disabled, the purge buttons stay hidden even if the Cloudflare credentials are configured.
-              </p>
-            </div>
-            <input
-              type="checkbox"
-              checked={localSettings.cloudflareCachePurgeEnabled}
-              onChange={(e) => handleSettingChange("cloudflareCachePurgeEnabled", e.target.checked)}
-              className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-            />
-          </label>
-
-          <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-4 space-y-2">
-            <label className="block">
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                Cloudflare Zone ID
-              </span>
-              <input
-                type="text"
-                value={localSettings.cloudflareZoneId}
-                onChange={(e) => handleSettingChange("cloudflareZoneId", e.target.value)}
-                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                placeholder="e.g. 0123456789abcdef0123456789abcdef"
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </label>
-
-            <label className="block">
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                Cloudflare API Token
-              </span>
-              <input
-                type="password"
-                value={localSettings.cloudflareApiToken}
-                onChange={(e) => handleSettingChange("cloudflareApiToken", e.target.value)}
-                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                placeholder="Paste a token limited to cache purge for this zone"
-                autoComplete="new-password"
-                spellCheck={false}
-              />
-            </label>
-
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                Stored credential status
-              </span>
-              {cloudflareCachePurgeStatus === undefined ? (
-                <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  Checking...
-                </span>
-              ) : cloudflareCachePurgeStatus.hasCredentials ? (
-                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                  Credentials configured
-                </span>
-              ) : (
-                <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-medium text-rose-700 dark:bg-rose-900/40 dark:text-rose-300">
-                  Credentials missing
-                </span>
+          <div className="mb-2 hidden items-center gap-3 md:flex">
+            <button
+              onClick={handleSave}
+              disabled={!hasChanges || isSaving}
+              className={cn(
+                "rounded-lg px-5 py-2.5 text-sm font-medium transition-colors",
+                hasChanges && !isSaving
+                  ? "bg-amber-500 text-white hover:bg-amber-600"
+                  : "cursor-not-allowed bg-gray-300 text-gray-500 dark:bg-gray-700 dark:text-gray-400",
               )}
-            </div>
-
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
-              Warning: this token is stored in the application database for admin use. Create a token limited to cache purge on the specific zone only.
-            </div>
-
-            {cloudflareCachePurgeStatus && !cloudflareCachePurgeStatus.hasCredentials && (
-              <p className="text-sm text-rose-700 dark:text-rose-300">
-                Missing: {cloudflareCachePurgeStatus.missingCredentials.join(", ")}
-              </p>
-            )}
-
-            {cloudflareCachePurgeStatus && cloudflareCachePurgeStatus.available && (
-              <p className="text-sm text-emerald-700 dark:text-emerald-300">
-                Admin purge buttons are currently available in Quick Review and Classification.
-              </p>
-            )}
+            >
+              {isSaving
+                ? "Saving..."
+                : hasChanges
+                  ? "Save Changes *"
+                  : "Save Settings"}
+            </button>
           </div>
-
         </div>
-
       </div>
-      
+
       {hasChanges && (
-        <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-md">
-          <p className="text-sm text-yellow-800 dark:text-yellow-200">
-            You have unsaved changes. Click Save to apply them.
-          </p>
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+          You changed one or more settings. Press Save Changes to apply them.
         </div>
       )}
+
+      <Routes>
+        <Route index element={<Navigate to="general" replace />} />
+        <Route
+          path="general"
+          element={
+            <GeneralSettingsPage
+              localSettings={localSettings}
+              handleSettingChange={handleSettingChange}
+            />
+          }
+        />
+        <Route
+          path="papers"
+          element={
+            <PapersOverviewSettingsPage
+              localSettings={localSettings}
+              handleSettingChange={handleSettingChange}
+              setLocalSettings={setLocalSettings}
+              newPaperInput={newPaperInput}
+              setNewPaperInput={setNewPaperInput}
+            />
+          }
+        />
+        <Route
+          path="classification"
+          element={
+            <ClassificationSettingsPage
+              localSettings={localSettings}
+              handleSettingChange={handleSettingChange}
+            />
+          }
+        />
+        <Route
+          path="operations"
+          element={
+            <OperationsSettingsPage
+              localSettings={localSettings}
+              handleSettingChange={handleSettingChange}
+            />
+          }
+        />
+        <Route
+          path="cloudflare"
+          element={
+            <CloudflareSettingsPage
+              localSettings={localSettings}
+              handleSettingChange={handleSettingChange}
+              cloudflareCachePurgeStatus={cloudflareCachePurgeStatus}
+            />
+          }
+        />
+      </Routes>
     </div>
   );
 }
