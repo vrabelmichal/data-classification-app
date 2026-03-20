@@ -554,7 +554,7 @@ export function ClassificationInterface() {
       if (result.success) {
         toast.success(`Cache invalidation submitted for ${result.submittedCount} image${result.submittedCount === 1 ? "" : "s"}`);
       } else {
-        const message = result.errors[0] ?? "Cloudflare rejected part of the purge request";
+        const message = result.errors?.[0] ?? "Cloudflare rejected part of the purge request";
         toast.error(`Cache invalidation only submitted for ${result.submittedCount}/${result.uniqueUrlCount} image URLs. ${message}`);
       }
     } catch (error) {
