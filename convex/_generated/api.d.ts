@@ -29,6 +29,7 @@ import type * as galaxies_browser_handlers from "../galaxies/browser/handlers.js
 import type * as galaxies_browser_queryBuilder from "../galaxies/browser/queryBuilder.js";
 import type * as galaxies_browser_shared from "../galaxies/browser/shared.js";
 import type * as galaxies_browser_specialFilters from "../galaxies/browser/specialFilters.js";
+import type * as galaxies_browser_viewState from "../galaxies/browser/viewState.js";
 import type * as galaxies_core from "../galaxies/core.js";
 import type * as galaxies_count from "../galaxies/count.js";
 import type * as galaxies_countDiagnostics from "../galaxies/countDiagnostics.js";
@@ -41,6 +42,7 @@ import type * as galaxies_navigation_deprecated from "../galaxies/navigation_dep
 import type * as galaxies_paperStats from "../galaxies/paperStats.js";
 import type * as galaxies_sequence from "../galaxies/sequence.js";
 import type * as galaxies_skipped from "../galaxies/skipped.js";
+import type * as galaxies_viewState from "../galaxies/viewState.js";
 import type * as galaxyBlacklist from "../galaxyBlacklist.js";
 import type * as generateBalancedUserSequence from "../generateBalancedUserSequence.js";
 import type * as http from "../http.js";
@@ -95,6 +97,7 @@ declare const fullApi: ApiFromModules<{
   "galaxies/browser/queryBuilder": typeof galaxies_browser_queryBuilder;
   "galaxies/browser/shared": typeof galaxies_browser_shared;
   "galaxies/browser/specialFilters": typeof galaxies_browser_specialFilters;
+  "galaxies/browser/viewState": typeof galaxies_browser_viewState;
   "galaxies/core": typeof galaxies_core;
   "galaxies/count": typeof galaxies_count;
   "galaxies/countDiagnostics": typeof galaxies_countDiagnostics;
@@ -107,6 +110,7 @@ declare const fullApi: ApiFromModules<{
   "galaxies/paperStats": typeof galaxies_paperStats;
   "galaxies/sequence": typeof galaxies_sequence;
   "galaxies/skipped": typeof galaxies_skipped;
+  "galaxies/viewState": typeof galaxies_viewState;
   galaxyBlacklist: typeof galaxyBlacklist;
   generateBalancedUserSequence: typeof generateBalancedUserSequence;
   http: typeof http;
