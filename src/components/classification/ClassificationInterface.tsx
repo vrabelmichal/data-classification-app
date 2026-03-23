@@ -87,6 +87,19 @@ function flattenImageLabel(label: string): string {
   return label.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim();
 }
 
+const REPORT_BUTTON_ACTION_WINDOW_MS = 500;
+const REPORT_BUTTON_REFRESH_CLICK_COUNT = 2;
+const REPORT_BUTTON_QUICK_REPORT_CLICK_COUNT = 4;
+
+function appendCacheBustParam(url: string, cacheBustToken: number): string {
+  if (!url || cacheBustToken <= 0) {
+    return url;
+  }
+
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}reload=${cacheBustToken}`;
+}
+
 export function ClassificationInterface() {
   // Route and navigation
   const { galaxyId: routeGalaxyId } = useParams<{ galaxyId: string }>();
@@ -116,6 +129,7 @@ export function ClassificationInterface() {
   const [mobileSliderIndex, setMobileSliderIndex] = useState(0);
   const [showCommentsModal, setShowCommentsModal] = useState(false);
   const [showImageUrlsModal, setShowImageUrlsModal] = useState(false);
+  const [contrastGroupReloadToken, setContrastGroupReloadToken] = useState(0);
   const [isPurgingContrastGroupCache, setIsPurgingContrastGroupCache] = useState(false);
 
   // Report issue modal state (shared via context so ClassificationInterface can observe
@@ -123,8 +137,8 @@ export function ClassificationInterface() {
   const { isOpen: showReportIssueModal, open: openReportIssueModal } = useReportIssueModal();
 
   // Quick-tap / 4-tap issue reporting state
-  const quickTapCountRef = useRef(0);
-  const quickTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const reportTapCountRef = useRef(0);
+  const reportTapTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const submitInFlightRef = useRef(false);
 
   // Online status
@@ -209,6 +223,9 @@ export function ClassificationInterface() {
     const resolvedEntry = resolveContrastGroupEntry(entry, showMasks);
     const { key, label, configKey } = resolvedEntry;
     const { showEllipse, rectangle, allowEllipse } = entry;
+    const baseUrl = resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, {
+      quality: effectiveImageQuality
+    }) : null;
 
     // Determine effective showEllipse based on user preferences and mode
     // In 'position' mode, use index as key; in 'key' mode, use actual image key
@@ -222,9 +239,7 @@ export function ClassificationInterface() {
       configKey,
       name: label,
       displayName: processImageLabel(label),
-      url: resolvedGalaxyId ? getImageUrl(resolvedGalaxyId, key, {
-        quality: effectiveImageQuality
-      }) : null,
+      url: baseUrl ? appendCacheBustParam(baseUrl, contrastGroupReloadToken) : null,
       showEllipse: effectiveShowEllipse,
       rectangle,
       // Pass original static config for settings UI
@@ -241,8 +256,17 @@ export function ClassificationInterface() {
       getImagePriority(b.key, numColumns, defaultPreviewImageName)
   );
 
-  const currentContrastGroupUrls = imageTypes
-    .map((image) => image.url)
+  const currentContrastGroupUrls = currentImageGroup
+    .map((entry) => {
+      if (!resolvedGalaxyId) {
+        return null;
+      }
+
+      const resolvedEntry = resolveContrastGroupEntry(entry, showMasks);
+      return getImageUrl(resolvedGalaxyId, resolvedEntry.key, {
+        quality: effectiveImageQuality,
+      });
+    })
     .filter((url): url is string => typeof url === "string" && url.length > 0);
 
   // Mobile image order: use defaultMobileOrder if provided, otherwise use original order
@@ -375,6 +399,20 @@ export function ClassificationInterface() {
     setLoadingDetails(false);
     setShowImageUrlsModal(false);
   }, [displayGalaxy?.id]);
+
+  useEffect(() => {
+    setContrastGroupReloadToken(0);
+  }, [displayGalaxy?.id, currentContrastGroup, showMasks, effectiveImageQuality]);
+
+  useEffect(() => {
+    return () => {
+      reportTapCountRef.current = 0;
+      if (reportTapTimeoutRef.current) {
+        clearTimeout(reportTapTimeoutRef.current);
+        reportTapTimeoutRef.current = null;
+      }
+    };
+  }, []);
 
   // Handlers
   const handleToggleDetails = async () => {
@@ -563,6 +601,25 @@ export function ClassificationInterface() {
       setIsPurgingContrastGroupCache(false);
     }
   };
+
+  const handleForceRefreshCurrentContrastGroup = useCallback(() => {
+    if (!isOnline) {
+      toast.error("Cannot refresh images while offline");
+      return;
+    }
+
+    if (currentContrastGroupUrls.length === 0) {
+      toast.error("No visible image URLs available to refresh");
+      return;
+    }
+
+    setContrastGroupReloadToken((token) => {
+      const nextToken = Date.now();
+      return nextToken > token ? nextToken : token + 1;
+    });
+
+    toast.success(`Requested fresh copies of ${currentContrastGroupUrls.length} visible image${currentContrastGroupUrls.length === 1 ? "" : "s"}`);
+  }, [currentContrastGroupUrls.length, isOnline]);
 
   // Quick input key handler
   const handleQuickInputKeyDown = (e: React.KeyboardEvent) => {
@@ -894,57 +951,91 @@ export function ClassificationInterface() {
     </div>
   );
 
-  // Handle report button click with 4-tap quick-report logic
-  const handleReportButtonClick = () => {
+  const resetReportTapState = useCallback(() => {
+    reportTapCountRef.current = 0;
+    if (reportTapTimeoutRef.current) {
+      clearTimeout(reportTapTimeoutRef.current);
+      reportTapTimeoutRef.current = null;
+    }
+  }, []);
+
+  const handleSubmitQuickReport = useCallback(async () => {
     if (!currentGalaxy) {
       openReportIssueModal();
       return;
     }
 
-    quickTapCountRef.current += 1;
-
-    // If 4 taps reached within the window — auto-submit immediately
-    if (quickTapCountRef.current >= 4) {
-      quickTapCountRef.current = 0;
-      if (quickTapTimeoutRef.current) clearTimeout(quickTapTimeoutRef.current);
-      quickTapTimeoutRef.current = null;
-      // Auto-create quick-tap issue
-      submitQuickTapReport({
+    try {
+      await submitQuickTapReport({
         galaxyExternalId: currentGalaxy.id,
         url: typeof window !== "undefined" ? window.location.href : undefined,
-      })
-        .then(() => {
-          toast.success("Quick issue report created for this galaxy!");
-        })
-        .catch(() => {
-          toast.error("Failed to create quick issue report");
-        });
+      });
+      toast.success("Quick issue report created for this galaxy!");
+    } catch {
+      toast.error("Failed to create quick issue report");
+    }
+  }, [currentGalaxy, openReportIssueModal, submitQuickTapReport]);
+
+  const resolveReportTapAction = useCallback(() => {
+    const tapCount = reportTapCountRef.current;
+    resetReportTapState();
+
+    if (tapCount >= REPORT_BUTTON_QUICK_REPORT_CLICK_COUNT) {
+      void handleSubmitQuickReport();
       return;
     }
 
-    // Otherwise wait 500 ms; if no more taps arrive, open the normal report modal
-    if (quickTapTimeoutRef.current) clearTimeout(quickTapTimeoutRef.current);
-    quickTapTimeoutRef.current = setTimeout(() => {
-      quickTapCountRef.current = 0;
-      quickTapTimeoutRef.current = null;
-      openReportIssueModal();
-    }, 500);
-  };
+    if (tapCount === REPORT_BUTTON_REFRESH_CLICK_COUNT) {
+      handleForceRefreshCurrentContrastGroup();
+      return;
+    }
+
+    openReportIssueModal();
+  }, [handleForceRefreshCurrentContrastGroup, handleSubmitQuickReport, openReportIssueModal, resetReportTapState]);
+
+  const handleReportButtonClick = useCallback(() => {
+    reportTapCountRef.current += 1;
+
+    if (reportTapCountRef.current >= REPORT_BUTTON_QUICK_REPORT_CLICK_COUNT) {
+      resetReportTapState();
+      void handleSubmitQuickReport();
+      return;
+    }
+
+    if (reportTapTimeoutRef.current) {
+      clearTimeout(reportTapTimeoutRef.current);
+    }
+
+    reportTapTimeoutRef.current = setTimeout(() => {
+      resolveReportTapAction();
+    }, REPORT_BUTTON_ACTION_WINDOW_MS);
+  }, [handleSubmitQuickReport, resetReportTapState, resolveReportTapAction]);
+
+  useEffect(() => {
+    resetReportTapState();
+  }, [displayGalaxy?.id, currentContrastGroup, showMasks, effectiveImageQuality, resetReportTapState]);
 
   const renderReportButton = (mobileStyle = false) => (
-    <div className={cn("flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700", mobileStyle ? "p-1 w-full" : "p-0.5")}>
-      <button
-        onClick={handleReportButtonClick}
-        className={cn(
-          "rounded-md transition-colors flex items-center justify-center gap-2 font-medium",
-          mobileStyle ? "flex-1 py-2.5 px-3" : "p-1.5",
-          "text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
-        )}
-        title="Report an issue — click 4× quickly to auto-report this galaxy without a description"
-      >
-        <BugIcon className="w-4 h-4" />
-        {mobileStyle && <span className="text-sm">Report Issue</span>}
-      </button>
+    <div className={cn("space-y-1", mobileStyle && "w-full")}>
+      <div className={cn("flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700", mobileStyle ? "p-1 w-full" : "p-0.5")}>
+        <button
+          onClick={handleReportButtonClick}
+          className={cn(
+            "rounded-md transition-colors flex items-center justify-center gap-2 font-medium",
+            mobileStyle ? "flex-1 py-2.5 px-3" : "p-1.5",
+            "text-gray-500 hover:bg-red-50 hover:text-red-600 dark:text-gray-400 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+          )}
+          title="Report issue: 1x opens, 2x reloads images, 4x quick-reports."
+        >
+          <BugIcon className="w-4 h-4" />
+          {mobileStyle && <span className="text-sm">Report Issue</span>}
+        </button>
+      </div>
+      {mobileStyle && (
+        <p className="px-1 text-[11px] leading-4 text-gray-500 dark:text-gray-400">
+          1x opens the form. 2x reloads images. 4x sends a quick report.
+        </p>
+      )}
     </div>
   );
 
