@@ -81,6 +81,7 @@ export interface ParsedGalaxyQuickReviewUrlState {
   reviewGalaxyId: string | null;
   imageKey: string | null;
   showEllipse: boolean;
+  hasExplicitPosition: boolean;
   signature: string;
 }
 
@@ -187,6 +188,9 @@ export function parseGalaxyBrowserUrlState(searchParams: URLSearchParams): Parse
 
 export function parseGalaxyQuickReviewUrlState(searchParams: URLSearchParams): ParsedGalaxyQuickReviewUrlState {
   const isOpen = parseBooleanParam(searchParams.get("review"));
+  const hasExplicitReviewIndex = searchParams.has("reviewIndex");
+  const hasExplicitReviewGalaxyId = searchParams.has("reviewGalaxyId");
+  const hasExplicitPosition = hasExplicitReviewIndex || hasExplicitReviewGalaxyId;
   const reviewIndex = parsePositiveInteger(searchParams.get("reviewIndex"), 1) - 1;
   const reviewGalaxyId = searchParams.get("reviewGalaxyId");
   const imageKey = searchParams.get("reviewImage");
@@ -198,12 +202,14 @@ export function parseGalaxyQuickReviewUrlState(searchParams: URLSearchParams): P
     reviewGalaxyId: reviewGalaxyId && reviewGalaxyId.trim() ? reviewGalaxyId.trim() : null,
     imageKey: imageKey && imageKey.trim() ? imageKey.trim() : null,
     showEllipse,
+    hasExplicitPosition,
     signature: JSON.stringify({
       isOpen,
       reviewIndex: Math.max(reviewIndex, 0),
       reviewGalaxyId: reviewGalaxyId && reviewGalaxyId.trim() ? reviewGalaxyId.trim() : null,
       imageKey: imageKey && imageKey.trim() ? imageKey.trim() : null,
       showEllipse,
+      hasExplicitPosition,
     }),
   };
 }

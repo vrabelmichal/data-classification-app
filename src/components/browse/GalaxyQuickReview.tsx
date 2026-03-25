@@ -248,8 +248,7 @@ export function GalaxyQuickReview({
   const [showEllipse, setShowEllipse] = useState(initialShowEllipse === true);
 
   // Navigation
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const initialIndexApplied = useRef(false);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
 
   // Galaxy buffer
   const [galaxies, setGalaxies] = useState<any[]>([]);
@@ -309,18 +308,6 @@ export function GalaxyQuickReview({
     }
   }, [batchResult, fetchCursor]);
 
-  // Apply initialIndex once we have enough data
-  useEffect(() => {
-    if (initialIndexApplied.current) return;
-    if (initialIndex === 0) { initialIndexApplied.current = true; return; }
-    if (galaxies.length > initialIndex) {
-      setCurrentIndex(initialIndex);
-      initialIndexApplied.current = true;
-    } else if (!isAtEnd && nextCursor !== undefined && nextCursor !== null) {
-      if (!processedCursors.current.has(nextCursor)) setFetchCursor(nextCursor);
-    }
-  }, [galaxies.length, initialIndex, isAtEnd, nextCursor]);
-
   // Prefetch next batch when approaching the end of the current buffer
   const PREFETCH_THRESHOLD = 10;
   useEffect(() => {
@@ -334,14 +321,12 @@ export function GalaxyQuickReview({
   }, [currentIndex, galaxies.length, isAtEnd, nextCursor]);
 
   // Notify parent of current galaxy.
-  // Guard: don't fire until initialIndex has been applied so we never
-  // briefly report index 0 on remount (which would desync the browser page).
   const currentGalaxy = galaxies[currentIndex] ?? null;
   useEffect(() => {
-    if (!initialIndexApplied.current) return;
-    if (currentGalaxy?.id) onGalaxyChange(currentGalaxy.id, currentIndex);
+    if (!currentGalaxy?.id) return;
+    onGalaxyChange(currentGalaxy.id, currentIndex);
     onReviewStateChange?.({
-      galaxyId: currentGalaxy?.id ?? null,
+      galaxyId: currentGalaxy.id,
       index: currentIndex,
       selectedImageKey,
       showEllipse,

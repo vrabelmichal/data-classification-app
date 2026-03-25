@@ -10,7 +10,7 @@ import { GalaxyBrowserLightTableView } from "./GalaxyBrowserLightTableView";
 import { GalaxyBrowserMobileCards } from "./GalaxyBrowserMobileCards";
 import { GalaxyExport } from "./GalaxyExport";
 import { GalaxyQuickReview, type GalaxyQuickReviewFilters } from "./GalaxyQuickReview";
-import { parseGalaxyQuickReviewUrlState } from "./galaxyBrowserUrlState";
+import { parseGalaxyBrowserUrlState, parseGalaxyQuickReviewUrlState } from "./galaxyBrowserUrlState";
 // Cursor-based pagination handled in controls; standalone pagination removed
 
 export type SortField =
@@ -154,7 +154,22 @@ export function GalaxyBrowser() {
     setIsSearchFormCollapsed,
     // cursor-based navigation handled in controls
   } = useGalaxyBrowser();
+  const parsedBrowserUrlState = useMemo(() => parseGalaxyBrowserUrlState(searchParams), [searchParams]);
   const parsedReviewUrlState = useMemo(() => parseGalaxyQuickReviewUrlState(searchParams), [searchParams]);
+  const initialReviewIndexFromUrl = useMemo(() => {
+    if (parsedReviewUrlState.hasExplicitPosition) {
+      return parsedReviewUrlState.reviewIndex;
+    }
+
+    if (!parsedReviewUrlState.isOpen) {
+      return 0;
+    }
+
+    const initialPage = Math.max(1, parsedBrowserUrlState.page);
+    const initialPageSize = parsedBrowserUrlState.pageSize ?? pageSize;
+    return Math.max(0, (initialPage - 1) * initialPageSize);
+  }, [pageSize, parsedBrowserUrlState.page, parsedBrowserUrlState.pageSize, parsedReviewUrlState.hasExplicitPosition, parsedReviewUrlState.isOpen, parsedReviewUrlState.reviewIndex]);
+  const derivedReviewIndexFromPage = Math.max(0, (page - 1) * pageSize);
 
   useEffect(() => {
     if (isViewUnavailable) {
@@ -186,10 +201,10 @@ export function GalaxyBrowser() {
 
   // Quick review mode
   const [isReviewMode, setIsReviewMode] = useState(false);
-  const [lastViewedGalaxyId, setLastViewedGalaxyId] = useState<string | null>(null);
-  const [lastReviewIndex, setLastReviewIndex] = useState(0);
-  const [reviewSelectedImageKey, setReviewSelectedImageKey] = useState<string | null>(null);
-  const [reviewShowEllipse, setReviewShowEllipse] = useState(false);
+  const [lastViewedGalaxyId, setLastViewedGalaxyId] = useState<string | null>(parsedReviewUrlState.reviewGalaxyId);
+  const [lastReviewIndex, setLastReviewIndex] = useState(initialReviewIndexFromUrl);
+  const [reviewSelectedImageKey, setReviewSelectedImageKey] = useState<string | null>(parsedReviewUrlState.imageKey);
+  const [reviewShowEllipse, setReviewShowEllipse] = useState(parsedReviewUrlState.showEllipse);
   const [isReviewUrlReady, setIsReviewUrlReady] = useState(false);
   const lastAppliedReviewUrlSignatureRef = useRef<string | null>(null);
   const lastWrittenReviewUrlSignatureRef = useRef<string | null>(null);
@@ -236,19 +251,25 @@ export function GalaxyBrowser() {
     pendingNavRef.current = 0;
     lastProcessedGalaxyDataRef.current = null;
     setIsSyncingPage(false);
+    const nextReviewIndex = parsedReviewUrlState.hasExplicitPosition
+      ? parsedReviewUrlState.reviewIndex
+      : parsedReviewUrlState.isOpen
+        ? derivedReviewIndexFromPage
+        : parsedReviewUrlState.reviewIndex;
     console.log("[GalaxyBrowserDebug] applying review URL state", {
       parsedReviewUrlState,
+      nextReviewIndex,
       page,
       isReviewMode,
       isViewUnavailable,
     });
     setLastViewedGalaxyId(parsedReviewUrlState.reviewGalaxyId);
-    setLastReviewIndex(parsedReviewUrlState.reviewIndex);
+    setLastReviewIndex(nextReviewIndex);
     setReviewSelectedImageKey(parsedReviewUrlState.imageKey);
     setReviewShowEllipse(parsedReviewUrlState.showEllipse);
     setIsReviewMode(parsedReviewUrlState.isOpen && !isViewUnavailable);
     setIsReviewUrlReady(true);
-  }, [isReviewMode, isReviewUrlReady, isUrlStateReady, isViewUnavailable, parsedReviewUrlState]);
+  }, [derivedReviewIndexFromPage, isReviewMode, isReviewUrlReady, isUrlStateReady, isViewUnavailable, parsedReviewUrlState]);
 
   useEffect(() => {
     if (!isUrlStateReady || !isReviewUrlReady) return;
@@ -434,6 +455,9 @@ export function GalaxyBrowser() {
   const lastQuickReviewResetKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!isUrlStateReady) {
+      return;
+    }
     if (lastQuickReviewResetKeyRef.current === null) {
       lastQuickReviewResetKeyRef.current = quickReviewResetKey;
       return;
@@ -446,7 +470,7 @@ export function GalaxyBrowser() {
     setIsSyncingPage(false);
     setLastViewedGalaxyId(null);
     setLastReviewIndex(0);
-  }, [quickReviewResetKey]);
+  }, [isUrlStateReady, quickReviewResetKey]);
 
   useEffect(() => {
     if (lastPageRef.current === page) return;
@@ -459,16 +483,7 @@ export function GalaxyBrowser() {
       lastReviewIndex,
     });
     lastPageRef.current = page;
-    if (isSyncingPage) return;
-
-    console.log("[GalaxyBrowserDebug] clearing remembered review state because page changed outside sync", {
-      page,
-      lastViewedGalaxyId,
-      lastReviewIndex,
-    });
-    setLastViewedGalaxyId(null);
-    setLastReviewIndex(0);
-  }, [isSyncingPage, page]);
+  }, [isSyncingPage, lastReviewIndex, lastViewedGalaxyId, page]);
 
   const handleOpenReview = () => {
     isClosingReviewRef.current = false;
