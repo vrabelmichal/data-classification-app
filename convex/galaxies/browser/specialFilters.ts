@@ -75,6 +75,7 @@ interface SpecialFilterOptions {
   ctx: any;
   userId: string;
   cursor: string | null;
+  offset?: number;
   numItems: number;
   sortOrder: "asc" | "desc";
   requestedSort: Sortable;
@@ -137,8 +138,8 @@ const scanMembershipFilteredGalaxies = async (options: ScanMembershipFilteredOpt
 };
 
 export const handleClassifiedGalaxies = async (options: ClassifiedFilterOptions) => {
-  const { ctx, userId, cursor, numItems, sortOrder, requestedSort, filterType, filters } = options;
-  const parsedCursor = parseClassifiedCursor(cursor);
+  const { ctx, userId, cursor, offset = 0, numItems, sortOrder, requestedSort, filterType, filters } = options;
+  const parsedCursor = cursor ? parseClassifiedCursor(cursor) : { offset: Math.max(offset, 0), galaxyCursor: null };
 
   const classifiedRecords = await ctx.db
     .query("userGalaxyClassifications")
@@ -177,8 +178,8 @@ export const handleClassifiedGalaxies = async (options: ClassifiedFilterOptions)
 };
 
 export const handleSkippedGalaxies = async (options: SpecialFilterOptions) => {
-  const { ctx, userId, cursor, numItems, sortOrder, requestedSort, filters } = options;
-  const initialOffset = parseSkippedCursor(cursor);
+  const { ctx, userId, cursor, offset = 0, numItems, sortOrder, requestedSort, filters } = options;
+  const initialOffset = cursor ? parseSkippedCursor(cursor) : Math.max(offset, 0);
 
   const skippedRecords = await ctx.db
     .query("skippedGalaxies")
@@ -221,8 +222,8 @@ export const handleSkippedGalaxies = async (options: SpecialFilterOptions) => {
 };
 
 export const handleMySequenceGalaxies = async (options: SpecialFilterOptions) => {
-  const { ctx, userId, cursor, numItems, sortOrder, requestedSort, filters } = options;
-  const initialOffset = parseSequenceCursor(cursor);
+  const { ctx, userId, cursor, offset = 0, numItems, sortOrder, requestedSort, filters } = options;
+  const initialOffset = cursor ? parseSequenceCursor(cursor) : Math.max(offset, 0);
 
   const userSequence = await ctx.db
     .query("galaxySequences")

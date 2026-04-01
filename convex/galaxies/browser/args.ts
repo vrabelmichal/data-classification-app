@@ -1,34 +1,17 @@
 import { v } from "convex/values";
+import {
+  galaxyBrowserFilterValidator,
+  galaxyBrowserSortFieldValidator,
+  galaxyBrowserSortOrderValidator,
+} from "./viewState";
 
 export const browseGalaxiesArgs = {
   offset: v.number(),
   numItems: v.number(),
   cursor: v.optional(v.string()),
-  sortBy: v.optional(v.union(
-    v.literal("id"),
-    v.literal("ra"),
-    v.literal("dec"),
-    v.literal("reff"),
-    v.literal("q"),
-    v.literal("pa"),
-    v.literal("mag"),
-    v.literal("mean_mue"),
-    v.literal("nucleus"),
-    v.literal("numericId"),
-    v.literal("totalClassifications"),
-    v.literal("numVisibleNucleus"),
-    v.literal("numAwesomeFlag"),
-    v.literal("numFailedFitting"),
-    v.literal("totalAssigned")
-  )),
-  sortOrder: v.optional(v.union(v.literal("asc"), v.literal("desc"))),
-  filter: v.optional(v.union(
-    v.literal("all"),
-    v.literal("my_sequence"),
-    v.literal("classified"),
-    v.literal("unclassified"),
-    v.literal("skipped")
-  )),
+  sortBy: v.optional(galaxyBrowserSortFieldValidator),
+  sortOrder: v.optional(galaxyBrowserSortOrderValidator),
+  filter: v.optional(galaxyBrowserFilterValidator),
   searchTerm: v.optional(v.string()),
   searchId: v.optional(v.string()),
   searchRaMin: v.optional(v.string()),

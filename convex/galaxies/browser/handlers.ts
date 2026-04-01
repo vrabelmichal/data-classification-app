@@ -28,6 +28,37 @@ import {
   handleSkippedGalaxies,
 } from "./specialFilters";
 
+const scanBrowsePageByOffset = async (query: any, offset: number, numItems: number) => {
+  const pageItems: any[] = [];
+  let index = 0;
+  let hasMore = false;
+
+  for await (const galaxy of query) {
+    if (index < offset) {
+      index++;
+      continue;
+    }
+
+    if (pageItems.length >= numItems) {
+      hasMore = true;
+      break;
+    }
+
+    pageItems.push(galaxy);
+    index++;
+  }
+
+  return {
+    galaxies: pageItems,
+    hasNext: hasMore,
+    hasPrevious: offset > 0,
+    aggregatesPopulated: false,
+    cursor: null,
+    isDone: !hasMore,
+    currentBounds: computeBounds(pageItems),
+  };
+};
+
 const CLASSIFICATION_SEARCH_OPTIONS = {
   lsbClasses: [-1, 0, 1],
   morphologies: [-1, 0, 1, 2],
@@ -69,6 +100,7 @@ export const browseGalaxiesHandler = async (ctx: any, args: any) => {
   }
 
   const {
+    offset = 0,
     cursor = null,
     numItems = 100,
     sortBy = "numericId",
@@ -87,6 +119,7 @@ export const browseGalaxiesHandler = async (ctx: any, args: any) => {
       ctx,
       userId,
       cursor,
+      offset,
       numItems,
       sortOrder: normalizedSortOrder,
       requestedSort,
@@ -99,6 +132,7 @@ export const browseGalaxiesHandler = async (ctx: any, args: any) => {
       ctx,
       userId,
       cursor,
+      offset,
       numItems,
       sortOrder: normalizedSortOrder,
       requestedSort,
@@ -111,6 +145,7 @@ export const browseGalaxiesHandler = async (ctx: any, args: any) => {
       ctx,
       userId,
       cursor,
+      offset,
       numItems,
       sortOrder: normalizedSortOrder,
       requestedSort,
@@ -120,6 +155,10 @@ export const browseGalaxiesHandler = async (ctx: any, args: any) => {
   }
 
   const q = buildGalaxyBrowseQuery(ctx, requestedSort, normalizedSortOrder, filters);
+  if (!cursor && offset > 0) {
+    return scanBrowsePageByOffset(q, Math.max(offset, 0), numItems);
+  }
+
   const { page, isDone, continueCursor } = await q.paginate({ numItems, cursor: cursor || null });
   const galaxies: any[] = page;
 

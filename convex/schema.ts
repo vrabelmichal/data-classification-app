@@ -8,6 +8,10 @@ import {
   totalsValidator,
   recencyStatsValidator,
 } from "./statistics/labelingOverview/cacheValidators";
+import {
+  galaxyBrowserViewScopeValidator,
+  galaxyBrowserViewStateValidator,
+} from "./galaxies/browser/viewState";
 
 
 // Core galaxy schema (after splitting large nested photometry & thuruthipilly tables)
@@ -508,6 +512,19 @@ const applicationTables = {
     classificationBuckets: v.array(v.number()),
     updatedAt: v.number(),
   }).index("by_scope_key", ["scopeKey"]),
+
+  galaxyBrowserViews: defineTable({
+    viewKey: v.string(),
+    scope: galaxyBrowserViewScopeValidator,
+    ownerUserId: v.optional(v.id("users")),
+    ownerScopeKey: v.string(),
+    stateHash: v.string(),
+    state: galaxyBrowserViewStateValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_view_key", ["viewKey"])
+    .index("by_owner_scope_hash", ["ownerScopeKey", "stateHash"]),
 
   // Notifications - messages sent from admins to users
   notifications: defineTable({

@@ -147,6 +147,7 @@ export function GalaxyBrowserControls({
         {/* Pagination buttons — icon-auto + equal Prev/Next on mobile, compact row on desktop */}
         <div className="grid grid-cols-[auto_1fr_1fr] gap-2 sm:flex sm:items-center sm:gap-0 sm:space-x-2">
           <button
+            type="button"
             onClick={goFirst}
             disabled={!hasPrevious}
             className="flex items-center justify-center py-2.5 sm:py-1 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -157,6 +158,7 @@ export function GalaxyBrowserControls({
             </svg>
           </button>
           <button
+            type="button"
             onClick={goPrev}
             disabled={!hasPrevious}
             className="flex items-center justify-center py-2.5 sm:py-1 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -164,6 +166,7 @@ export function GalaxyBrowserControls({
             Previous
           </button>
           <button
+            type="button"
             onClick={goNext}
             disabled={!hasNext}
             className="flex items-center justify-center py-2.5 sm:py-1 px-3 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -177,6 +180,7 @@ export function GalaxyBrowserControls({
           {onComputeTotal && (
             <div className="flex sm:inline-flex items-center rounded-md border border-blue-300 dark:border-blue-600 overflow-hidden text-sm">
               <button
+                type="button"
                 onClick={onComputeTotal}
                 disabled={isComputingTotal}
                 className="flex items-center gap-2 flex-1 sm:flex-none px-3 py-2.5 sm:py-1 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
@@ -206,6 +210,7 @@ export function GalaxyBrowserControls({
 
           {onEnterReviewMode && (
             <button
+              type="button"
               onClick={onEnterReviewMode}
               className="flex sm:inline-flex items-center gap-2 px-3 py-2.5 sm:py-1 text-sm border border-purple-300 dark:border-purple-600 rounded-md bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
               title="Review galaxies one by one in full-screen mode"

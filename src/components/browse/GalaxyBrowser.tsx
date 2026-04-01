@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "convex/react";
+import { useSearchParams } from "react-router";
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { useGalaxyBrowser } from "./useGalaxyBrowser";
@@ -9,6 +10,7 @@ import { GalaxyBrowserLightTableView } from "./GalaxyBrowserLightTableView";
 import { GalaxyBrowserMobileCards } from "./GalaxyBrowserMobileCards";
 import { GalaxyExport } from "./GalaxyExport";
 import { GalaxyQuickReview, type GalaxyQuickReviewFilters } from "./GalaxyQuickReview";
+import { parseGalaxyBrowserUrlState, parseGalaxyQuickReviewUrlState } from "./galaxyBrowserUrlState";
 // Cursor-based pagination handled in controls; standalone pagination removed
 
 export type SortField =
@@ -32,6 +34,8 @@ export type FilterType = "all" | "my_sequence" | "classified" | "unclassified" |
 
 export function GalaxyBrowser() {
   usePageTitle("Browse Galaxies");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const retainedGalaxyDataRef = useRef<any | null>(null);
 
   // Load system settings to determine which fields to show
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
@@ -59,6 +63,7 @@ export function GalaxyBrowser() {
 
     // Handlers
     handleSort,
+    jumpToPage,
     goPrev,
     goNext,
     goFirst,
@@ -126,6 +131,10 @@ export function GalaxyBrowser() {
     isSearchActive,
     hasPendingChanges,
     hasAnySearchValues,
+    isUrlStateReady,
+    isViewUnavailable,
+    viewStateIssue,
+    currentViewKey,
     applySearch,
     clearSearch,
     getPlaceholderText,
@@ -145,13 +154,46 @@ export function GalaxyBrowser() {
     setIsSearchFormCollapsed,
     // cursor-based navigation handled in controls
   } = useGalaxyBrowser();
+  const parsedBrowserUrlState = useMemo(() => parseGalaxyBrowserUrlState(searchParams), [searchParams]);
+  const parsedReviewUrlState = useMemo(() => parseGalaxyQuickReviewUrlState(searchParams), [searchParams]);
+  const initialReviewIndexFromUrl = useMemo(() => {
+    if (parsedReviewUrlState.hasExplicitPosition) {
+      return parsedReviewUrlState.reviewIndex;
+    }
 
-  const hasResults = (galaxyData?.galaxies?.length ?? 0) > 0;
+    if (!parsedReviewUrlState.isOpen) {
+      return 0;
+    }
+
+    const initialPage = Math.max(1, parsedBrowserUrlState.page);
+    const initialPageSize = parsedBrowserUrlState.pageSize ?? pageSize;
+    return Math.max(0, (initialPage - 1) * initialPageSize);
+  }, [pageSize, parsedBrowserUrlState.page, parsedBrowserUrlState.pageSize, parsedReviewUrlState.hasExplicitPosition, parsedReviewUrlState.isOpen, parsedReviewUrlState.reviewIndex]);
+  const derivedReviewIndexFromPage = Math.max(0, (page - 1) * pageSize);
+
+  useEffect(() => {
+    if (isViewUnavailable) {
+      retainedGalaxyDataRef.current = null;
+      return;
+    }
+
+    if (galaxyData) {
+      retainedGalaxyDataRef.current = galaxyData;
+    }
+  }, [galaxyData, isViewUnavailable]);
+
+  const displayGalaxyData = galaxyData ?? retainedGalaxyDataRef.current;
+  const isRefreshingResults = !galaxyData && !!displayGalaxyData && !isViewUnavailable;
+  const hasResults = (displayGalaxyData?.galaxies?.length ?? 0) > 0;
   const startIndex = hasResults ? ((page - 1) * pageSize) + 1 : 0;
-  const endIndex = hasResults && galaxyData?.galaxies
-    ? ((page - 1) * pageSize) + galaxyData.galaxies.length
+  const endIndex = hasResults && displayGalaxyData?.galaxies
+    ? ((page - 1) * pageSize) + displayGalaxyData.galaxies.length
     : 0;
-  const statusText = galaxyData
+  const statusText = viewStateIssue?.kind === "unavailable"
+    ? viewStateIssue.message
+    : isRefreshingResults
+    ? "Updating results..."
+    : displayGalaxyData
     ? (hasResults
       ? `Showing ${startIndex} to ${endIndex}`
       : "No galaxies match your filters.")
@@ -159,26 +201,187 @@ export function GalaxyBrowser() {
 
   // Quick review mode
   const [isReviewMode, setIsReviewMode] = useState(false);
-  const [lastViewedGalaxyId, setLastViewedGalaxyId] = useState<string | null>(null);
-  const [lastReviewIndex, setLastReviewIndex] = useState(0);
+  const [lastViewedGalaxyId, setLastViewedGalaxyId] = useState<string | null>(parsedReviewUrlState.reviewGalaxyId);
+  const [lastReviewIndex, setLastReviewIndex] = useState(initialReviewIndexFromUrl);
+  const [reviewSelectedImageKey, setReviewSelectedImageKey] = useState<string | null>(parsedReviewUrlState.imageKey);
+  const [reviewShowEllipse, setReviewShowEllipse] = useState(parsedReviewUrlState.showEllipse);
+  const [isReviewUrlReady, setIsReviewUrlReady] = useState(false);
+  const lastAppliedReviewUrlSignatureRef = useRef<string | null>(null);
+  const lastWrittenReviewUrlSignatureRef = useRef<string | null>(null);
+  const isClosingReviewRef = useRef(false);
 
-  // Sequential page navigator used *after* closing QR: steps forward/backward
-  // one browser page at a time, gated on each fresh galaxyData response so we
-  // never use a stale cursor.
-  // pendingNavRef > 0  → need to advance (goNext)
-  // pendingNavRef < 0  → need to go back   (goPrev)
+  // Close-time page sync waits until the destination page data has loaded
+  // before showing the browser again.
   const pendingNavRef = useRef(0);
   const lastProcessedGalaxyDataRef = useRef<unknown>(null);
   const lastPageRef = useRef(page);
-  // True while post-close page-stepping hasn't finished yet (hides the table).
+  // True while post-close page sync hasn't finished yet (hides the table).
   const [isSyncingPage, setIsSyncingPage] = useState(false);
 
   useEffect(() => {
-    if (pendingNavRef.current === 0) {
-      if (isSyncingPage) setIsSyncingPage(false);
+    if (!isUrlStateReady) return;
+    if (isClosingReviewRef.current && parsedReviewUrlState.isOpen) {
+      console.log("[GalaxyBrowserDebug] ignoring stale open review URL state while closing", {
+        parsedReviewUrlState,
+        page,
+        lastReviewIndex,
+      });
       return;
     }
-    if (!galaxyData) return; // still loading – wait
+    if (isClosingReviewRef.current && !parsedReviewUrlState.isOpen) {
+      console.log("[GalaxyBrowserDebug] review close confirmed by URL state", {
+        parsedReviewUrlState,
+        page,
+        lastReviewIndex,
+      });
+      isClosingReviewRef.current = false;
+    }
+    if (isReviewMode && parsedReviewUrlState.isOpen) {
+      return;
+    }
+    if (parsedReviewUrlState.signature === lastWrittenReviewUrlSignatureRef.current) {
+      if (!isReviewUrlReady) setIsReviewUrlReady(true);
+      return;
+    }
+    if (lastAppliedReviewUrlSignatureRef.current === parsedReviewUrlState.signature && isReviewUrlReady) {
+      return;
+    }
+
+    lastAppliedReviewUrlSignatureRef.current = parsedReviewUrlState.signature;
+    pendingNavRef.current = 0;
+    lastProcessedGalaxyDataRef.current = null;
+    setIsSyncingPage(false);
+    const nextReviewIndex = parsedReviewUrlState.hasExplicitPosition
+      ? parsedReviewUrlState.reviewIndex
+      : parsedReviewUrlState.isOpen
+        ? derivedReviewIndexFromPage
+        : parsedReviewUrlState.reviewIndex;
+    console.log("[GalaxyBrowserDebug] applying review URL state", {
+      parsedReviewUrlState,
+      nextReviewIndex,
+      page,
+      isReviewMode,
+      isViewUnavailable,
+    });
+    setLastViewedGalaxyId(parsedReviewUrlState.reviewGalaxyId);
+    setLastReviewIndex(nextReviewIndex);
+    setReviewSelectedImageKey(parsedReviewUrlState.imageKey);
+    setReviewShowEllipse(parsedReviewUrlState.showEllipse);
+    setIsReviewMode(parsedReviewUrlState.isOpen && !isViewUnavailable);
+    setIsReviewUrlReady(true);
+  }, [derivedReviewIndexFromPage, isReviewMode, isReviewUrlReady, isUrlStateReady, isViewUnavailable, parsedReviewUrlState]);
+
+  useEffect(() => {
+    if (!isUrlStateReady || !isReviewUrlReady) return;
+    if (isViewUnavailable) return;
+    if (isClosingReviewRef.current && isSyncingPage) {
+      console.log("[GalaxyBrowserDebug] delaying review URL write until page sync completes", {
+        page,
+        pageSize,
+        lastReviewIndex,
+        lastViewedGalaxyId,
+      });
+      return;
+    }
+
+    const hasPersistedReviewState =
+      lastViewedGalaxyId !== null ||
+      lastReviewIndex > 0 ||
+      reviewSelectedImageKey !== null ||
+      reviewShowEllipse;
+
+    const nextSignature = JSON.stringify({
+      isOpen: isReviewMode,
+      reviewIndex: lastReviewIndex,
+      reviewGalaxyId: lastViewedGalaxyId,
+      imageKey: reviewSelectedImageKey,
+      showEllipse: reviewShowEllipse,
+    });
+    if (nextSignature === lastWrittenReviewUrlSignatureRef.current) return;
+
+    lastWrittenReviewUrlSignatureRef.current = nextSignature;
+    console.log("[GalaxyBrowserDebug] writing review URL state", {
+      isReviewMode,
+      lastReviewIndex,
+      lastViewedGalaxyId,
+      reviewSelectedImageKey,
+      reviewShowEllipse,
+      page,
+    });
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (currentViewKey) {
+        next.set("view", currentViewKey);
+      }
+      next.set("page", String(page));
+      next.set("pageSize", String(pageSize));
+      if (isReviewMode) {
+        next.set("review", "1");
+      } else {
+        next.delete("review");
+      }
+
+      if (hasPersistedReviewState) {
+        next.set("reviewIndex", String(lastReviewIndex + 1));
+        if (lastViewedGalaxyId) {
+          next.set("reviewGalaxyId", lastViewedGalaxyId);
+        } else {
+          next.delete("reviewGalaxyId");
+        }
+        if (reviewSelectedImageKey) {
+          next.set("reviewImage", reviewSelectedImageKey);
+        } else {
+          next.delete("reviewImage");
+        }
+        if (reviewShowEllipse) {
+          next.set("reviewEllipse", "1");
+        } else {
+          next.delete("reviewEllipse");
+        }
+      } else {
+        next.delete("reviewIndex");
+        next.delete("reviewGalaxyId");
+        next.delete("reviewImage");
+        next.delete("reviewEllipse");
+      }
+      return next;
+    }, { replace: true, preventScrollReset: true });
+  }, [
+    isReviewMode,
+    isReviewUrlReady,
+    isUrlStateReady,
+    isViewUnavailable,
+    lastReviewIndex,
+    lastViewedGalaxyId,
+    currentViewKey,
+    page,
+    pageSize,
+    isSyncingPage,
+    reviewSelectedImageKey,
+    reviewShowEllipse,
+    setSearchParams,
+  ]);
+
+  useEffect(() => {
+    if (!isSyncingPage) return;
+    if (!galaxyData) return;
+
+    console.log("[GalaxyBrowserDebug] syncing browser page after review close", {
+      page,
+      isSyncingPage,
+      pendingNav: pendingNavRef.current,
+      hasGalaxyData: !!galaxyData,
+      firstGalaxyId: galaxyData?.galaxies?.[0]?.id ?? null,
+    });
+
+    if (pendingNavRef.current === 0) {
+      console.log("[GalaxyBrowserDebug] page sync complete", {
+        page,
+        firstGalaxyId: galaxyData?.galaxies?.[0]?.id ?? null,
+      });
+      setIsSyncingPage(false);
+      return;
+    }
     if (galaxyData === lastProcessedGalaxyDataRef.current) return;
     lastProcessedGalaxyDataRef.current = galaxyData;
     if (pendingNavRef.current > 0) {
@@ -199,12 +402,10 @@ export function GalaxyBrowser() {
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [galaxyData]);
+  }, [galaxyData, isSyncingPage]);
 
-  // NOTE: We intentionally do NOT step the browser while QR is open.
-  // Calling goNext()/goPrev() while QR is visible makes galaxyData go undefined,
-  // which switches the render branch and unmounts QR, resetting all its state.
-  // Instead, we sync the page only after the overlay is closed (see handleCloseReview).
+  // NOTE: We intentionally do NOT change the browser page while QR is open.
+  // Instead, we sync the browser page after the overlay closes.
 
   // Search inputs are stored as strings in useGalaxyBrowser. Blank inputs should
   // become undefined so the backend treats them as "no filter", while a user-
@@ -254,6 +455,9 @@ export function GalaxyBrowser() {
   const lastQuickReviewResetKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (!isUrlStateReady) {
+      return;
+    }
     if (lastQuickReviewResetKeyRef.current === null) {
       lastQuickReviewResetKeyRef.current = quickReviewResetKey;
       return;
@@ -266,24 +470,29 @@ export function GalaxyBrowser() {
     setIsSyncingPage(false);
     setLastViewedGalaxyId(null);
     setLastReviewIndex(0);
-  }, [quickReviewResetKey]);
+  }, [isUrlStateReady, quickReviewResetKey]);
 
   useEffect(() => {
     if (lastPageRef.current === page) return;
 
+    console.log("[GalaxyBrowserDebug] observed browser page change", {
+      previousPage: lastPageRef.current,
+      nextPage: page,
+      isSyncingPage,
+      lastViewedGalaxyId,
+      lastReviewIndex,
+    });
     lastPageRef.current = page;
-    if (isSyncingPage) return;
-
-    setLastViewedGalaxyId(null);
-    setLastReviewIndex(0);
-  }, [isSyncingPage, page]);
+  }, [isSyncingPage, lastReviewIndex, lastViewedGalaxyId, page]);
 
   const handleOpenReview = () => {
+    isClosingReviewRef.current = false;
     pendingNavRef.current = 0; // cancel any in-flight navigation
     setIsReviewMode(true);
   };
 
   const handleOpenReviewAtIndex = (pageIndex: number, galaxyId: string) => {
+    isClosingReviewRef.current = false;
     pendingNavRef.current = 0;
     setLastViewedGalaxyId(galaxyId);
     setLastReviewIndex(((page - 1) * pageSize) + pageIndex);
@@ -298,23 +507,52 @@ export function GalaxyBrowser() {
     setLastReviewIndex(index);
   };
 
-  // On close: compute which browser page matches the last QR position and
-  // start stepping toward it.  isSyncingPage hides the table while we navigate
-  // so the user only sees the final page (no intermediate flashing).
-  const handleCloseReview = () => {
+  const handleReviewStateChange = (state: {
+    galaxyId: string | null;
+    index: number;
+    selectedImageKey: string;
+    showEllipse: boolean;
+  }) => {
+    setLastViewedGalaxyId(state.galaxyId);
+    setLastReviewIndex(state.index);
+    setReviewSelectedImageKey(state.selectedImageKey);
+    setReviewShowEllipse(state.showEllipse);
+  };
+
+  // On close: compute which browser page matches the last QR position and jump
+  // directly to it. isSyncingPage hides the table until the destination page loads.
+  const handleCloseReview = (state: {
+    galaxyId: string | null;
+    index: number;
+    selectedImageKey: string;
+    showEllipse: boolean;
+  }) => {
+    isClosingReviewRef.current = true;
+    const targetPage = Math.floor(state.index / pageSize) + 1; // 1-based
+    console.log("[GalaxyBrowserDebug] closing review", {
+      closeState: state,
+      currentPage: page,
+      targetPage,
+      pageSize,
+      lastViewedGalaxyId,
+      lastReviewIndex,
+    });
+    setLastViewedGalaxyId(state.galaxyId);
+    setLastReviewIndex(state.index);
+    setReviewSelectedImageKey(state.selectedImageKey);
+    setReviewShowEllipse(state.showEllipse);
     setIsReviewMode(false);
-    const targetPage = Math.floor(lastReviewIndex / pageSize) + 1; // 1-based
-    const delta = targetPage - page;
-    if (delta === 0) return; // already on the right page
+    if (targetPage === page) return; // already on the right page
+    pendingNavRef.current = 0;
     setIsSyncingPage(true);
     lastProcessedGalaxyDataRef.current = null; // let current galaxyData trigger effect
-    if (delta > 0) {
-      pendingNavRef.current = delta - 1; // first step fires immediately below
-      goNext();
-    } else {
-      pendingNavRef.current = delta + 1;
-      goPrev();
-    }
+    console.log("[GalaxyBrowserDebug] jumping browser page after review close", {
+      fromPage: page,
+      toPage: targetPage,
+      reviewIndex: state.index,
+      reviewGalaxyId: state.galaxyId,
+    });
+    jumpToPage(targetPage);
   };
 
   // Computed total state
@@ -362,269 +600,162 @@ export function GalaxyBrowser() {
     setComputedTotal(null);
   }, [quickReviewResetKey]);
 
+  const viewStateBanner = viewStateIssue ? (
+    <div
+      className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
+        viewStateIssue.kind === "unavailable"
+          ? "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100"
+          : "border-blue-300 bg-blue-50 text-blue-900 dark:border-blue-700 dark:bg-blue-950/40 dark:text-blue-100"
+      }`}
+      role="alert"
+    >
+      {viewStateIssue.message}
+    </div>
+  ) : null;
+
   // ── QR overlay ──
   // Rendered BEFORE the if (!galaxyData) early returns so it stays mounted
   // during background page transitions (galaxyData temporarily undefined).
-  const quickReviewOverlay = isReviewMode ? (
+  const quickReviewOverlay = isReviewMode && !isViewUnavailable ? (
     <GalaxyQuickReview
       filters={quickReviewFilters}
       effectiveImageQuality={effectiveImageQuality}
       userPrefs={userPrefs}
       initialIndex={reviewInitialIndex}
+      initialSelectedImageKey={reviewSelectedImageKey ?? undefined}
+      initialShowEllipse={reviewShowEllipse}
       onGalaxyChange={handleReviewGalaxyChange}
+      onReviewStateChange={handleReviewStateChange}
       onClose={handleCloseReview}
     />
   ) : null;
 
-  if (!galaxyData) {
-    if (hasPrevious) {
-      // We have previous data but current query is loading - show loading state in table area
-      return (
-        <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Galaxy Browser</h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">
-              Browse and explore all galaxies in the database
-            </p>
-          </div>
-
-          {/* Controls */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-            <GalaxyBrowserSearchForm
-              searchId={searchId}
-              setSearchId={setSearchId}
-              searchRaMin={searchRaMin}
-              setSearchRaMin={setSearchRaMin}
-              searchRaMax={searchRaMax}
-              setSearchRaMax={setSearchRaMax}
-              searchDecMin={searchDecMin}
-              setSearchDecMin={setSearchDecMin}
-              searchDecMax={searchDecMax}
-              setSearchDecMax={setSearchDecMax}
-              searchReffMin={searchReffMin}
-              setSearchReffMin={setSearchReffMin}
-              searchReffMax={searchReffMax}
-              setSearchReffMax={setSearchReffMax}
-              searchQMin={searchQMin}
-              setSearchQMin={setSearchQMin}
-              searchQMax={searchQMax}
-              setSearchQMax={setSearchQMax}
-              searchPaMin={searchPaMin}
-              setSearchPaMin={setSearchPaMin}
-              searchPaMax={searchPaMax}
-              setSearchPaMax={setSearchPaMax}
-              searchMagMin={searchMagMin}
-              setSearchMagMin={setSearchMagMin}
-              searchMagMax={searchMagMax}
-              setSearchMagMax={setSearchMagMax}
-              searchMeanMueMin={searchMeanMueMin}
-              setSearchMeanMueMin={setSearchMeanMueMin}
-              searchMeanMueMax={searchMeanMueMax}
-              setSearchMeanMueMax={setSearchMeanMueMax}
-              searchNucleus={searchNucleus}
-              setSearchNucleus={setSearchNucleus}
-              searchTotalClassificationsMin={searchTotalClassificationsMin}
-              setSearchTotalClassificationsMin={setSearchTotalClassificationsMin}
-              searchTotalClassificationsMax={searchTotalClassificationsMax}
-              setSearchTotalClassificationsMax={setSearchTotalClassificationsMax}
-              searchNumVisibleNucleusMin={searchNumVisibleNucleusMin}
-              setSearchNumVisibleNucleusMin={setSearchNumVisibleNucleusMin}
-              searchNumVisibleNucleusMax={searchNumVisibleNucleusMax}
-              setSearchNumVisibleNucleusMax={setSearchNumVisibleNucleusMax}
-              searchNumAwesomeFlagMin={searchNumAwesomeFlagMin}
-              setSearchNumAwesomeFlagMin={setSearchNumAwesomeFlagMin}
-              searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
-              setSearchNumAwesomeFlagMax={setSearchNumAwesomeFlagMax}
-              searchNumFailedFittingMin={searchNumFailedFittingMin}
-              setSearchNumFailedFittingMin={setSearchNumFailedFittingMin}
-              searchNumFailedFittingMax={searchNumFailedFittingMax}
-              setSearchNumFailedFittingMax={setSearchNumFailedFittingMax}
-              searchTotalAssignedMin={searchTotalAssignedMin}
-              setSearchTotalAssignedMin={setSearchTotalAssignedMin}
-              searchTotalAssignedMax={searchTotalAssignedMax}
-              setSearchTotalAssignedMax={setSearchTotalAssignedMax}
-              searchAwesome={searchAwesome}
-              setSearchAwesome={setSearchAwesome}
-              searchValidRedshift={searchValidRedshift}
-              setSearchValidRedshift={setSearchValidRedshift}
-              searchVisibleNucleus={searchVisibleNucleus}
-              setSearchVisibleNucleus={setSearchVisibleNucleus}
-              isSearchActive={isSearchActive}
-              hasPendingChanges={hasPendingChanges}
-              hasAnySearchValues={hasAnySearchValues}
-              applySearch={applySearch}
-              clearSearch={clearSearch}
-              getPlaceholderText={getPlaceholderText}
-              getBounds={getBoundsForField}
-              getInputClass={getInputClass}
-              isCollapsed={isSearchFormCollapsed}
-              onToggleCollapsed={() => setIsSearchFormCollapsed((prev) => !prev)}
-            />
-
-            <GalaxyBrowserControls
-              filter={filter}
-              setFilter={setFilter}
-              sortBy={sortBy}
-              setSortBy={setSortBy}
-              sortOrder={sortOrder}
-              setSortOrder={setSortOrder}
-              pageSize={pageSize}
-              setPageSize={setPageSize}
-              page={page}
-              hasPrevious={hasPrevious}
-              hasNext={hasNext}
-              goPrev={goPrev}
-              goNext={goNext}
-              goFirst={goFirst}
-              galaxyData={galaxyData}
-              statusText={statusText}
-              onComputeTotal={handleComputeTotal}
-              isComputingTotal={isComputingTotal}
-              computedTotal={computedTotal}
-                accumulatedCount={accumulatedCount}
-          onEnterReviewMode={handleOpenReview}
-            />
-          </div>
-
-          {/* Loading state for table area when we have previous data */}
-          <div className="flex justify-center items-center py-16">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
-              <p className="text-sm text-gray-600 dark:text-gray-300">Updating results...</p>
-            </div>
-          </div>
-
-          {/* QR overlay stays mounted during page transitions */}
-          {quickReviewOverlay}
+  if (!displayGalaxyData) {
+    return (
+      <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Galaxy Browser</h1>
+          <p className="mt-2 text-gray-600 dark:text-gray-300">
+            Browse and explore all galaxies in the database
+          </p>
         </div>
-      );
-    } else {
-      // First load - show full loading state
-      return (
-        <div className="w-full mx-auto px-2 sm:px-6 lg:px-12 py-6 pb-20 md:pb-6" style={{ maxWidth: "1920px" }}>
-          {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Galaxy Browser</h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">
-              Browse and explore all galaxies in the database
-            </p>
-          </div>
 
-          {/* Controls */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
-            <GalaxyBrowserSearchForm
-              showAwesomeFlag={showAwesomeFlag}
-              showValidRedshift={showValidRedshift}
-              showVisibleNucleus={showVisibleNucleus}
-              searchId={searchId}
-              setSearchId={setSearchId}
-              searchRaMin={searchRaMin}
-              setSearchRaMin={setSearchRaMin}
-              searchRaMax={searchRaMax}
-              setSearchRaMax={setSearchRaMax}
-              searchDecMin={searchDecMin}
-              setSearchDecMin={setSearchDecMin}
-              searchDecMax={searchDecMax}
-              setSearchDecMax={setSearchDecMax}
-              searchReffMin={searchReffMin}
-              setSearchReffMin={setSearchReffMin}
-              searchReffMax={searchReffMax}
-              setSearchReffMax={setSearchReffMax}
-              searchQMin={searchQMin}
-              setSearchQMin={setSearchQMin}
-              searchQMax={searchQMax}
-              setSearchQMax={setSearchQMax}
-              searchPaMin={searchPaMin}
-              setSearchPaMin={setSearchPaMin}
-              searchPaMax={searchPaMax}
-              setSearchPaMax={setSearchPaMax}
-              searchMagMin={searchMagMin}
-              setSearchMagMin={setSearchMagMin}
-              searchMagMax={searchMagMax}
-              setSearchMagMax={setSearchMagMax}
-              searchMeanMueMin={searchMeanMueMin}
-              setSearchMeanMueMin={setSearchMeanMueMin}
-              searchMeanMueMax={searchMeanMueMax}
-              setSearchMeanMueMax={setSearchMeanMueMax}
-              searchNucleus={searchNucleus}
-              setSearchNucleus={setSearchNucleus}
-              searchTotalClassificationsMin={searchTotalClassificationsMin}
-              setSearchTotalClassificationsMin={setSearchTotalClassificationsMin}
-              searchTotalClassificationsMax={searchTotalClassificationsMax}
-              setSearchTotalClassificationsMax={setSearchTotalClassificationsMax}
-              searchNumVisibleNucleusMin={searchNumVisibleNucleusMin}
-              setSearchNumVisibleNucleusMin={setSearchNumVisibleNucleusMin}
-              searchNumVisibleNucleusMax={searchNumVisibleNucleusMax}
-              setSearchNumVisibleNucleusMax={setSearchNumVisibleNucleusMax}
-              searchNumAwesomeFlagMin={searchNumAwesomeFlagMin}
-              setSearchNumAwesomeFlagMin={setSearchNumAwesomeFlagMin}
-              searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
-              setSearchNumAwesomeFlagMax={setSearchNumAwesomeFlagMax}
-              searchNumFailedFittingMin={searchNumFailedFittingMin}
-              setSearchNumFailedFittingMin={setSearchNumFailedFittingMin}
-              searchNumFailedFittingMax={searchNumFailedFittingMax}
-              setSearchNumFailedFittingMax={setSearchNumFailedFittingMax}
-              searchTotalAssignedMin={searchTotalAssignedMin}
-              setSearchTotalAssignedMin={setSearchTotalAssignedMin}
-              searchTotalAssignedMax={searchTotalAssignedMax}
-              setSearchTotalAssignedMax={setSearchTotalAssignedMax}
-              searchAwesome={searchAwesome}
-              setSearchAwesome={setSearchAwesome}
-              searchValidRedshift={searchValidRedshift}
-              setSearchValidRedshift={setSearchValidRedshift}
-              searchVisibleNucleus={searchVisibleNucleus}
-              setSearchVisibleNucleus={setSearchVisibleNucleus}
-              isSearchActive={isSearchActive}
-              hasPendingChanges={hasPendingChanges}
-              hasAnySearchValues={hasAnySearchValues}
-              applySearch={applySearch}
-              clearSearch={clearSearch}
-              getPlaceholderText={getPlaceholderText}
-              getBounds={getBoundsForField}
-              getInputClass={getInputClass}
-              isCollapsed={isSearchFormCollapsed}
-              onToggleCollapsed={() => setIsSearchFormCollapsed((prev) => !prev)}
-            />
+        {viewStateBanner}
 
-            <GalaxyBrowserControls
-              filter={filter}
-              setFilter={setFilter}
-              sortBy={sortBy}
-              setSortBy={setSortBy}
-              sortOrder={sortOrder}
-              setSortOrder={setSortOrder}
-              pageSize={pageSize}
-              setPageSize={setPageSize}
-              page={page}
-              hasPrevious={hasPrevious}
-              hasNext={hasNext}
-              goPrev={goPrev}
-              goNext={goNext}
-              goFirst={goFirst}
-              galaxyData={galaxyData}
-              statusText={statusText}
-              onComputeTotal={handleComputeTotal}
-              isComputingTotal={isComputingTotal}
-              computedTotal={computedTotal}
-                accumulatedCount={accumulatedCount}
-              onEnterReviewMode={handleOpenReview}
-            />
-          </div>
+        {/* Controls */}
+        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
+          <GalaxyBrowserSearchForm
+            showAwesomeFlag={showAwesomeFlag}
+            showValidRedshift={showValidRedshift}
+            showVisibleNucleus={showVisibleNucleus}
+            searchId={searchId}
+            setSearchId={setSearchId}
+            searchRaMin={searchRaMin}
+            setSearchRaMin={setSearchRaMin}
+            searchRaMax={searchRaMax}
+            setSearchRaMax={setSearchRaMax}
+            searchDecMin={searchDecMin}
+            setSearchDecMin={setSearchDecMin}
+            searchDecMax={searchDecMax}
+            setSearchDecMax={setSearchDecMax}
+            searchReffMin={searchReffMin}
+            setSearchReffMin={setSearchReffMin}
+            searchReffMax={searchReffMax}
+            setSearchReffMax={setSearchReffMax}
+            searchQMin={searchQMin}
+            setSearchQMin={setSearchQMin}
+            searchQMax={searchQMax}
+            setSearchQMax={setSearchQMax}
+            searchPaMin={searchPaMin}
+            setSearchPaMin={setSearchPaMin}
+            searchPaMax={searchPaMax}
+            setSearchPaMax={setSearchPaMax}
+            searchMagMin={searchMagMin}
+            setSearchMagMin={setSearchMagMin}
+            searchMagMax={searchMagMax}
+            setSearchMagMax={setSearchMagMax}
+            searchMeanMueMin={searchMeanMueMin}
+            setSearchMeanMueMin={setSearchMeanMueMin}
+            searchMeanMueMax={searchMeanMueMax}
+            setSearchMeanMueMax={setSearchMeanMueMax}
+            searchNucleus={searchNucleus}
+            setSearchNucleus={setSearchNucleus}
+            searchTotalClassificationsMin={searchTotalClassificationsMin}
+            setSearchTotalClassificationsMin={setSearchTotalClassificationsMin}
+            searchTotalClassificationsMax={searchTotalClassificationsMax}
+            setSearchTotalClassificationsMax={setSearchTotalClassificationsMax}
+            searchNumVisibleNucleusMin={searchNumVisibleNucleusMin}
+            setSearchNumVisibleNucleusMin={setSearchNumVisibleNucleusMin}
+            searchNumVisibleNucleusMax={searchNumVisibleNucleusMax}
+            setSearchNumVisibleNucleusMax={setSearchNumVisibleNucleusMax}
+            searchNumAwesomeFlagMin={searchNumAwesomeFlagMin}
+            setSearchNumAwesomeFlagMin={setSearchNumAwesomeFlagMin}
+            searchNumAwesomeFlagMax={searchNumAwesomeFlagMax}
+            setSearchNumAwesomeFlagMax={setSearchNumAwesomeFlagMax}
+            searchNumFailedFittingMin={searchNumFailedFittingMin}
+            setSearchNumFailedFittingMin={setSearchNumFailedFittingMin}
+            searchNumFailedFittingMax={searchNumFailedFittingMax}
+            setSearchNumFailedFittingMax={setSearchNumFailedFittingMax}
+            searchTotalAssignedMin={searchTotalAssignedMin}
+            setSearchTotalAssignedMin={setSearchTotalAssignedMin}
+            searchTotalAssignedMax={searchTotalAssignedMax}
+            setSearchTotalAssignedMax={setSearchTotalAssignedMax}
+            searchAwesome={searchAwesome}
+            setSearchAwesome={setSearchAwesome}
+            searchValidRedshift={searchValidRedshift}
+            setSearchValidRedshift={setSearchValidRedshift}
+            searchVisibleNucleus={searchVisibleNucleus}
+            setSearchVisibleNucleus={setSearchVisibleNucleus}
+            isSearchActive={isSearchActive}
+            hasPendingChanges={hasPendingChanges}
+            hasAnySearchValues={hasAnySearchValues}
+            applySearch={applySearch}
+            clearSearch={clearSearch}
+            getPlaceholderText={getPlaceholderText}
+            getBounds={getBoundsForField}
+            getInputClass={getInputClass}
+            isCollapsed={isSearchFormCollapsed}
+            onToggleCollapsed={() => setIsSearchFormCollapsed((prev) => !prev)}
+          />
 
-          {/* Loading state for table area */}
-          <div className="flex justify-center items-center py-16">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600 dark:text-gray-300">Loading galaxies...</p>
-            </div>
-          </div>
-
-          {/* QR overlay stays mounted during first load too */}
-          {quickReviewOverlay}
+          <GalaxyBrowserControls
+            filter={filter}
+            setFilter={setFilter}
+            sortBy={sortBy}
+            setSortBy={setSortBy}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            pageSize={pageSize}
+            setPageSize={setPageSize}
+            page={page}
+            hasPrevious={hasPrevious}
+            hasNext={hasNext}
+            goPrev={goPrev}
+            goNext={goNext}
+            goFirst={goFirst}
+            galaxyData={galaxyData}
+            statusText={statusText}
+            onComputeTotal={handleComputeTotal}
+            isComputingTotal={isComputingTotal}
+            computedTotal={computedTotal}
+            accumulatedCount={accumulatedCount}
+            onEnterReviewMode={handleOpenReview}
+          />
         </div>
-      );
-    }
+
+        {/* Loading state for table area */}
+        <div className="flex justify-center items-center py-16">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-300">Loading galaxies...</p>
+          </div>
+        </div>
+
+        {/* QR overlay stays mounted during first load too */}
+        {quickReviewOverlay}
+      </div>
+    );
   }
 
   return (
@@ -636,6 +767,8 @@ export function GalaxyBrowser() {
           Browse and explore all galaxies in the database
         </p>
       </div>
+
+      {viewStateBanner}
 
       {/* Controls */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6">
@@ -728,7 +861,7 @@ export function GalaxyBrowser() {
           goPrev={goPrev}
           goNext={goNext}
           goFirst={goFirst}
-          galaxyData={galaxyData}
+          galaxyData={displayGalaxyData}
           statusText={statusText}
           onComputeTotal={handleComputeTotal}
           isComputingTotal={isComputingTotal}
@@ -754,7 +887,7 @@ export function GalaxyBrowser() {
         <>
           <div className="hidden lg:block w-full min-w-0 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-x-auto overflow-y-hidden">
             <GalaxyBrowserLightTableView
-              galaxyData={galaxyData}
+              galaxyData={displayGalaxyData}
               userPrefs={userPrefs}
               effectiveImageQuality={effectiveImageQuality}
               previewImageName={previewImageName}
@@ -769,7 +902,7 @@ export function GalaxyBrowser() {
           {/* Mobile Card View */}
           <div className="lg:hidden">
             <GalaxyBrowserMobileCards
-              galaxyData={galaxyData}
+              galaxyData={displayGalaxyData}
               userPrefs={userPrefs}
               effectiveImageQuality={effectiveImageQuality}
               previewImageName={previewImageName}
