@@ -5,7 +5,21 @@ export interface LocalStorageItemDescription {
   description: string;
   deleteEffect: string;
   known: boolean;
+  groupId: "global" | "classification" | "browse" | "notifications" | "statistics" | "data" | "admin" | "unknown";
+  groupLabel: string;
+  kind: "item" | "commentDraft";
 }
+
+export const LOCAL_STORAGE_GROUP_ORDER: Record<LocalStorageItemDescription["groupId"], number> = {
+  global: 0,
+  classification: 1,
+  browse: 2,
+  notifications: 3,
+  statistics: 4,
+  data: 5,
+  admin: 6,
+  unknown: 7,
+};
 
 function canUseLocalStorage(): boolean {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
@@ -130,6 +144,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Remembers whether this browser should use the light, dark, or system theme.",
       deleteEffect: "Deleting it may temporarily reset the theme until your saved account preference or browser preference is applied again.",
       known: true,
+      groupId: "global",
+      groupLabel: "Global",
+      kind: "item",
     };
   }
 
@@ -139,6 +156,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Remembers whether galaxy images show the ellipse overlay in the classification interface.",
       deleteEffect: "Deleting it resets that toggle to the app default the next time you open classification.",
       known: true,
+      groupId: "classification",
+      groupLabel: "Classification",
+      kind: "item",
     };
   }
 
@@ -148,6 +168,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Remembers whether masked galaxy images are shown in the classification interface.",
       deleteEffect: "Deleting it resets that toggle to the app default the next time you open classification.",
       known: true,
+      groupId: "classification",
+      groupLabel: "Classification",
+      kind: "item",
     };
   }
 
@@ -157,6 +180,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Stores your last-used galaxy browser filters, sorting, search values, and page options in this browser.",
       deleteEffect: "Deleting it clears those saved browser controls and the galaxy browser will open with default values again.",
       known: true,
+      groupId: "browse",
+      groupLabel: "Browse Galaxies",
+      kind: "item",
     };
   }
 
@@ -166,6 +192,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Remembers which image layer you last selected in galaxy quick review.",
       deleteEffect: "Deleting it resets quick review to its default image selection.",
       known: true,
+      groupId: "browse",
+      groupLabel: "Browse Galaxies",
+      kind: "item",
     };
   }
 
@@ -175,6 +204,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Remembers how notifications are displayed in this browser.",
       deleteEffect: "Deleting it resets the notifications page to its default view mode.",
       known: true,
+      groupId: "notifications",
+      groupLabel: "Notifications",
+      kind: "item",
     };
   }
 
@@ -184,6 +216,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Stores the recent log output from the balanced user sequence admin tool in this browser.",
       deleteEffect: "Deleting it only clears the saved browser copy of those logs.",
       known: true,
+      groupId: "admin",
+      groupLabel: "Admin",
+      kind: "item",
     };
   }
 
@@ -193,6 +228,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Stores the recent log output from the user sequence update admin tool in this browser.",
       deleteEffect: "Deleting it only clears the saved browser copy of those logs.",
       known: true,
+      groupId: "admin",
+      groupLabel: "Admin",
+      kind: "item",
     };
   }
 
@@ -202,16 +240,22 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Remembers which classification columns you selected for CSV export.",
       deleteEffect: "Deleting it resets the export column picker to its default selection.",
       known: true,
+      groupId: "data",
+      groupLabel: "Data",
+      kind: "item",
     };
   }
 
   const commentDraft = parseClassificationCommentDraftStorageKey(key);
   if (commentDraft) {
     return {
-      title: `Unfinished comment draft for galaxy ${commentDraft.galaxyId}`,
+      title: `Galaxy ${commentDraft.galaxyId}`,
       description: "Stores a comment you started writing for one galaxy so it can be restored if you leave and come back before submitting a classification.",
       deleteEffect: "Deleting it removes that unfinished comment draft from this browser only. Submitted classifications are not affected.",
       known: true,
+      groupId: "classification",
+      groupLabel: "Classification",
+      kind: "commentDraft",
     };
   }
 
@@ -223,6 +267,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Remembers which columns are visible in a table on this site.",
       deleteEffect: "Deleting it resets that table's visible columns to the default layout.",
       known: true,
+      groupId: prefix === "usersStats" ? "statistics" : prefix === "data.classifications" ? "data" : "unknown",
+      groupLabel: prefix === "usersStats" ? "Statistics" : prefix === "data.classifications" ? "Data" : "Unknown or legacy",
+      kind: "item",
     };
   }
 
@@ -234,6 +281,9 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
       description: "Remembers the last sorting choice for a table on this site.",
       deleteEffect: "Deleting it resets that table's sorting to the default order.",
       known: true,
+      groupId: prefix === "usersStats" ? "statistics" : prefix === "data.classifications" ? "data" : "unknown",
+      groupLabel: prefix === "usersStats" ? "Statistics" : prefix === "data.classifications" ? "Data" : "Unknown or legacy",
+      kind: "item",
     };
   }
 
@@ -242,5 +292,8 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
     description: "This is a value saved by this site in your browser. It may come from a current feature, an older version of the app, or a page you visited earlier.",
     deleteEffect: "Deleting it only affects this browser. If the feature still uses it, the app may recreate it later.",
     known: false,
+    groupId: "unknown",
+    groupLabel: "Unknown or legacy",
+    kind: "item",
   };
 }

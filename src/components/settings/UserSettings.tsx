@@ -1,15 +1,37 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router";
 import { toast } from "sonner";
 import { cn } from "../../lib/utils";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { useTheme } from "../../hooks/useTheme";
 import { DEFAULT_IMAGE_QUALITY } from "../../lib/defaults";
 import { LocalStorageSection } from "./LocalStorageSection";
+import { UserSettingsAccountPage } from "./UserSettingsAccountPage";
+import { UserSettingsGeneralPage } from "./UserSettingsGeneralPage";
+
+const settingsSubPages = [
+  {
+    id: "general",
+    label: "General",
+    path: "/settings/general",
+  },
+  {
+    id: "storage",
+    label: "Local storage",
+    path: "/settings/storage",
+  },
+  {
+    id: "account",
+    label: "Account details",
+    path: "/settings/account",
+  },
+] as const;
 
 export function UserSettings() {
   usePageTitle("Settings");
+  const location = useLocation();
   const userPrefs = useQuery(api.users.getUserPreferences);
   const updatePreferences = useMutation(api.users.updatePreferences);
   const updateUserName = useMutation(api.users.updateUserName);
@@ -134,311 +156,110 @@ export function UserSettings() {
   const displayName = authUser?.name ?? "";
   const displayEmail = authUser?.email ?? "";
   const displayRole = profile?.role ?? "user";
+  const activeSubPage = settingsSubPages.find((page) => location.pathname === page.path) ?? settingsSubPages[0];
+  const isGeneralSubPage = activeSubPage.id === "general";
+  const contentWidthClass = activeSubPage.id === "storage" ? "max-w-6xl" : "max-w-4xl";
 
   return (
-    <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
-      {/* Top: main user info */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between">
-          <div>
+    <div className="px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-8">
+          <div className="min-w-0">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">Customize your classification experience</p>
+            <p className="mt-2 text-gray-600 dark:text-gray-300">Customize your classification experience.</p>
           </div>
-          <div className="flex items-center space-x-4">
-            {/* Avatar (if available) */}
-            {authUser?.image ? (
-              <img src={authUser.image} alt={displayName || "user avatar"} className="h-12 w-12 rounded-full object-cover" />
-            ) : (
-              <div className="h-12 w-12 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300">{(displayName || displayEmail || "?").charAt(0).toUpperCase()}</div>
-            )}
-            <div className="text-right">
-              <div className="text-lg font-semibold text-gray-900 dark:text-white">{displayName || "-"}</div>
-              <div className="text-sm text-gray-500 dark:text-gray-400">{displayEmail}</div>
-              <div className="text-sm mt-1 inline-block px-2 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded">Role: {displayRole}</div>
-            </div>
-          </div>
+        </div>
+
+        <div className="mb-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 px-4 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">Sections</div>
+          <nav className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+            {settingsSubPages.map((page) => {
+              const isActive = location.pathname === page.path;
+
+              return (
+                <Link
+                  key={page.id}
+                  to={page.path}
+                  className={cn(
+                    "text-sm transition-colors",
+                    isActive
+                      ? "text-gray-900 dark:text-white font-medium"
+                      : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  )}
+                >
+                  {page.label}
+                </Link>
+              );
+            })}
+          </nav>
         </div>
       </div>
 
-      <div className="space-y-6">
-        
-        {/* User Name */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Profile</h2>
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="userName" className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                Name
-              </label>
-              <input
-                type="text"
-                id="userName"
-                value={userName}
-                onChange={(e) => setUserName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-                placeholder="Enter your name"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Image Quality */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Image Quality</h2>
-          {userPrefs?.imageQuality === "medium" && (
-            <div className="mb-3 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-amber-800 dark:text-amber-200 text-sm">
-              Medium quality is no longer supported. We will use
-              <span className="font-semibold"> {normalizedEffectiveImageQuality.toUpperCase()} </span>
-              for classification by default. Please choose a supported option and save.
-            </div>
-          )}
-          <div className="space-y-3">
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="imageQuality"
-                value="high"
-                checked={displayedImageQuality === "high"}
-                onChange={(e) => {
-                  const val = e.target.value as "high" | "medium" | "low";
-                  dlog("Radio change: imageQuality", { from: imageQuality, to: val });
-                  setImageQuality(val);
-                }}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-              />
-              <div className="ml-3">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">High Quality</span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Better image quality, larger file sizes</p>
-              </div>
-            </label>
-            <label className="flex items-center">
-              <input
-                type="radio"
-                name="imageQuality"
-                value="low"
-                checked={displayedImageQuality === "low"}
-                onChange={(e) => {
-                  const val = e.target.value as "high" | "medium" | "low";
-                  dlog("Radio change: imageQuality", { from: imageQuality, to: val });
-                  setImageQuality(val);
-                }}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-              />
-              <div className="ml-3">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">Low Quality</span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Faster loading, smaller file sizes</p>
-              </div>
-            </label>
-          </div>
-        </div>
-
-        {/* Interface Options */}
-        {/* <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Interface Options</h2>
-          <div className="space-y-4">
-            <label className="flex items-center justify-between">
+      <div className={cn("mx-auto", contentWidthClass)}>
+        {isGeneralSubPage && (
+          <div className="sticky top-0 z-30 mb-6 rounded-xl bg-gray-50/95 px-1 py-3 shadow-sm backdrop-blur dark:bg-gray-900/95">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <span className="text-sm font-medium text-gray-900 dark:text-white">Show Keyboard Hints</span>
-                <p className="text-sm text-gray-500 dark:text-gray-400">Display keyboard shortcuts on classification buttons</p>
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">General settings</h2>
+                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                  Update the preferences that affect your day-to-day classification workflow.
+                </p>
+                {hasUnsavedChanges && (
+                  <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+                    You have unsaved changes.
+                  </p>
+                )}
               </div>
-              <input
-                type="checkbox"
-                checked={showKeyboardHints}
-                onChange={(e) => setShowKeyboardHints(e.target.checked)}
-                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-              />
-            </label>
-          </div>
-        </div> */}
 
-        {/* Theme - Appearance */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Appearance</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Choose how the application looks. Changes are applied immediately.</p>
-          <div className="space-y-3">
-            {[
-              { 
-                value: "light", 
-                label: "Light", 
-                description: "Use a light background with dark text. Best for well-lit environments.",
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                  </svg>
-                )
-              },
-              { 
-                value: "dark", 
-                label: "Dark", 
-                description: "Use a dark background with light text. Reduces eye strain in low-light conditions.",
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-                  </svg>
-                )
-              },
-              { 
-                value: "auto", 
-                label: "System", 
-                description: "Automatically match your operating system's theme preference.",
-                icon: (
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                )
-              },
-            ].map((option) => (
-              <label 
-                key={option.value} 
+              <button
+                type="button"
+                onClick={handleSave}
                 className={cn(
-                  "flex items-start p-3 rounded-lg border-2 cursor-pointer transition-colors",
-                  theme === option.value
-                    ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
-                    : "border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500"
+                  "rounded-lg px-5 py-2.5 text-sm font-medium transition-colors shadow-sm",
+                  hasUnsavedChanges
+                    ? "bg-amber-500 text-white hover:bg-amber-600"
+                    : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300"
                 )}
               >
-                <input
-                  type="radio"
-                  name="theme"
-                  value={option.value}
-                  checked={theme === option.value}
-                  onChange={(e) => setTheme(e.target.value as "light" | "dark" | "auto")}
-                  className="sr-only"
-                />
-                <div className={cn(
-                  "flex-shrink-0 mr-3 mt-0.5",
-                  theme === option.value 
-                    ? "text-blue-600 dark:text-blue-400" 
-                    : "text-gray-400 dark:text-gray-500"
-                )}>
-                  {option.icon}
-                </div>
-                <div className="flex-1">
-                  <span className={cn(
-                    "text-sm font-medium",
-                    theme === option.value 
-                      ? "text-blue-700 dark:text-blue-300" 
-                      : "text-gray-900 dark:text-white"
-                  )}>{option.label}</span>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{option.description}</p>
-                </div>
-                {theme === option.value && (
-                  <div className="flex-shrink-0 ml-2">
-                    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                )}
-              </label>
-            ))}
-          </div>
-        </div>
-
-
-        {/* Save Button */}
-        <div className="flex justify-end">
-          <button
-            onClick={handleSave}
-            className={cn(
-              "font-medium py-2 px-6 rounded-lg transition-all",
-              hasUnsavedChanges
-                ? "bg-amber-500 hover:bg-amber-600 text-white shadow-md"
-                : "bg-blue-600 hover:bg-blue-700 text-white"
-            )}
-          >
-            {hasUnsavedChanges ? "Save Changes *" : "Save Settings"}
-          </button>
-        </div>
-
-        {/* Details section with additional user/profile fields */}
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account Details</h2>
-
-          <div className="grid grid-cols-1 gap-3 text-sm text-gray-700 dark:text-gray-300">
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Name</div>
-              <div className="font-medium">{displayName || "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Email</div>
-              <div className="font-medium">{displayEmail || "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Role</div>
-              <div className="font-medium">{displayRole}</div>
-            </div>
-
-            {/* Other profile fields (all columns) */}
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Profile ID</div>
-              <div className="font-medium">{profile?._id ?? "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">User ID (ref)</div>
-              <div className="font-medium">{profile?.userId ?? "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Active</div>
-              <div className="font-medium">{profile?.isActive ? "Yes" : "No"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Confirmed</div>
-              <div className="font-medium">{profile?.isConfirmed ? "Yes" : "No"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Classifications</div>
-              <div className="font-medium">{profile?.classificationsCount ?? 0}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Joined</div>
-              <div className="font-medium">{profile?.joinedAt ? new Date(profile.joinedAt).toLocaleString() : "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Last Active</div>
-              <div className="font-medium">{profile?.lastActiveAt ? new Date(profile.lastActiveAt).toLocaleString() : "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Sequence Generated</div>
-              <div className="font-medium">{profile?.sequenceGenerated ? "Yes" : "No"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Profile Created</div>
-              <div className="font-medium">{profile?._creationTime ? new Date(profile._creationTime).toLocaleString() : "-"}</div>
-            </div>
-
-            {/* Auth users table fields */}
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Email Verified</div>
-              <div className="font-medium">{authUser?.emailVerificationTime ? new Date(authUser.emailVerificationTime).toLocaleString() : "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">User doc ID</div>
-              <div className="font-medium">{authUser?._id ?? "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">User Created</div>
-              <div className="font-medium">{authUser?._creationTime ? new Date(authUser._creationTime).toLocaleString() : "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Phone</div>
-              <div className="font-medium">{authUser?.phone ?? "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Phone Verified</div>
-              <div className="font-medium">{authUser?.phoneVerificationTime ? new Date(authUser.phoneVerificationTime).toLocaleString() : "-"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Anonymous</div>
-              <div className="font-medium">{authUser?.isAnonymous ? "Yes" : "No"}</div>
-            </div>
-            <div>
-              <div className="text-xs text-gray-500 dark:text-gray-400">Image URL</div>
-              <div className="font-medium">{authUser?.image ?? "-"}</div>
+                {hasUnsavedChanges ? "Save Changes" : "Saved"}
+              </button>
             </div>
           </div>
-        </div>
+        )}
 
-        <LocalStorageSection />
+        <Routes>
+          <Route index element={<Navigate to="general" replace />} />
+          <Route
+            path="general"
+            element={
+              <UserSettingsGeneralPage
+                userName={userName}
+                setUserName={setUserName}
+                displayedImageQuality={displayedImageQuality}
+                normalizedEffectiveImageQuality={normalizedEffectiveImageQuality}
+                userPrefsImageQuality={userPrefs?.imageQuality}
+                setImageQuality={setImageQuality}
+                theme={theme}
+                setTheme={setTheme}
+                dlog={dlog}
+              />
+            }
+          />
+          <Route path="storage" element={<LocalStorageSection />} />
+          <Route
+            path="account"
+            element={
+              <UserSettingsAccountPage
+                displayName={displayName}
+                displayEmail={displayEmail}
+                displayRole={displayRole}
+                profile={profile}
+                authUser={authUser}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to="general" replace />} />
+        </Routes>
       </div>
     </div>
   );
