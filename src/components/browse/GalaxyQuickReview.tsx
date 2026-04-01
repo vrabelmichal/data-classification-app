@@ -1,10 +1,14 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { toast } from "sonner";
 import { ImageViewer, type DefaultZoomOptions } from "../classification/ImageViewer";
+import { CachePurgeIcon } from "../classification/icons";
 import { getImageUrl } from "../../images";
 import { loadImageDisplaySettings } from "../../images/displaySettings";
+import { useAdminCloudflareCachePurgeAvailability } from "../../hooks/useAdminCloudflareCachePurgeAvailability";
+import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import type { FilterType, SortField, SortOrder } from "./GalaxyBrowser";
 
 function shouldKeepQuickReviewOpenOnClick(event: React.MouseEvent<HTMLAnchorElement>): boolean {
@@ -98,6 +102,7 @@ function buildImageOptions(): ImageOption[] {
 
 const IMAGE_OPTIONS = buildImageOptions();
 const QUICK_REVIEW_IMAGE_STORAGE_KEY = "galaxyQuickReview:selectedImageKey";
+const PURGE_RELOAD_DELAY_MS = 6000;
 
 function isKnownImageOption(key: string | null | undefined): key is string {
   return !!key && IMAGE_OPTIONS.some((option) => option.key === key);
@@ -227,6 +232,15 @@ function buildQueryArgs(filters: GalaxyQuickReviewFilters, cursor: string | unde
   };
 }
 
+function appendCacheBustParam(url: string, cacheBustToken: number): string {
+  if (!url || cacheBustToken <= 0) {
+    return url;
+  }
+
+  const separator = url.includes("?") ? "&" : "?";
+  return `${url}${separator}reload=${cacheBustToken}`;
+}
+
 // ─────────────────────────────────────────────────────────────
 // Main component
 // ─────────────────────────────────────────────────────────────
@@ -246,9 +260,12 @@ export function GalaxyQuickReview({
     isKnownImageOption(initialSelectedImageKey) ? initialSelectedImageKey : getInitialSelectedImageKey()
   ));
   const [showEllipse, setShowEllipse] = useState(initialShowEllipse === true);
+  const [imageReloadToken, setImageReloadToken] = useState(0);
+  const [isPurgingImageCache, setIsPurgingImageCache] = useState(false);
 
   // Navigation
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const purgeReloadTimeoutRef = useRef<number | null>(null);
 
   // Galaxy buffer
   const [galaxies, setGalaxies] = useState<any[]>([]);
@@ -260,6 +277,9 @@ export function GalaxyQuickReview({
   const processedCursors = useRef<Set<string>>(new Set());
   const selectedImageOption = IMAGE_OPTIONS.find((option) => option.key === selectedImageKey);
   const ellipseAllowed = selectedImageOption?.allowEllipse !== false;
+  const purgeImageUrls = useAction(api.cloudflareCache.purgeImageUrls);
+  const { isAvailable: isCloudflareCachePurgeAvailable } = useAdminCloudflareCachePurgeAvailability();
+  const isOnline = useOnlineStatus();
 
   useEffect(() => {
     try {
@@ -322,6 +342,30 @@ export function GalaxyQuickReview({
 
   // Notify parent of current galaxy.
   const currentGalaxy = galaxies[currentIndex] ?? null;
+  const currentBaseImageUrl = currentGalaxy
+    ? getImageUrl(currentGalaxy.id, selectedImageKey, { quality: effectiveImageQuality })
+    : "";
+  const currentImageUrl = appendCacheBustParam(currentBaseImageUrl, imageReloadToken);
+
+  useEffect(() => {
+    setImageReloadToken(0);
+  }, [currentGalaxy?.id, selectedImageKey, effectiveImageQuality]);
+
+  useEffect(() => {
+    if (purgeReloadTimeoutRef.current !== null) {
+      window.clearTimeout(purgeReloadTimeoutRef.current);
+      purgeReloadTimeoutRef.current = null;
+    }
+  }, [currentGalaxy?.id, selectedImageKey, effectiveImageQuality]);
+
+  useEffect(() => {
+    return () => {
+      if (purgeReloadTimeoutRef.current !== null) {
+        window.clearTimeout(purgeReloadTimeoutRef.current);
+      }
+    };
+  }, []);
+
   useEffect(() => {
     if (!currentGalaxy?.id) return;
     onGalaxyChange(currentGalaxy.id, currentIndex);
@@ -366,6 +410,72 @@ export function GalaxyQuickReview({
   }, []);
 
   const goFirst = useCallback(() => setCurrentIndex(0), []);
+
+  const triggerImageReload = useCallback(() => {
+    setImageReloadToken((token) => {
+      const nextToken = Date.now();
+      return nextToken > token ? nextToken : token + 1;
+    });
+  }, []);
+
+  const schedulePurgedImageReload = useCallback(() => {
+    if (purgeReloadTimeoutRef.current !== null) {
+      window.clearTimeout(purgeReloadTimeoutRef.current);
+    }
+
+    purgeReloadTimeoutRef.current = window.setTimeout(() => {
+      purgeReloadTimeoutRef.current = null;
+      triggerImageReload();
+    }, PURGE_RELOAD_DELAY_MS);
+  }, [triggerImageReload]);
+
+  const handleReloadCurrentImage = useCallback(() => {
+    if (!isOnline) {
+      toast.error("Cannot refresh images while offline");
+      return;
+    }
+
+    if (!currentBaseImageUrl) {
+      toast.error("No image URL available to reload");
+      return;
+    }
+
+    triggerImageReload();
+    toast.success("Requested a fresh copy of the current image");
+  }, [currentBaseImageUrl, isOnline, triggerImageReload]);
+
+  const handlePurgeCurrentImage = useCallback(async () => {
+    if (!isCloudflareCachePurgeAvailable) {
+      return;
+    }
+    if (!isOnline) {
+      toast.error("Cannot invalidate cache while offline");
+      return;
+    }
+    if (!currentBaseImageUrl || !currentGalaxy?.id) {
+      toast.error("No image URL available to invalidate");
+      return;
+    }
+
+    setIsPurgingImageCache(true);
+
+    try {
+      const result = await purgeImageUrls({ urls: [currentBaseImageUrl] });
+
+      schedulePurgedImageReload();
+
+      if (result.success) {
+        toast.success(`Cache invalidation submitted for ${currentGalaxy.id}. The image will refresh in about 6 seconds.`);
+      } else {
+        const message = result.errors?.[0] ?? "Cloudflare rejected the purge request";
+        toast.error(`Cache invalidation was only partially accepted. ${message} The image will still refresh in about 6 seconds.`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to invalidate Cloudflare cache");
+    } finally {
+      setIsPurgingImageCache(false);
+    }
+  }, [currentBaseImageUrl, currentGalaxy?.id, isCloudflareCachePurgeAvailable, isOnline, purgeImageUrls, schedulePurgedImageReload]);
 
   const handleClassifyClick = useCallback((event: React.MouseEvent<HTMLAnchorElement>) => {
     if (shouldKeepQuickReviewOpenOnClick(event)) {
@@ -440,6 +550,37 @@ export function GalaxyQuickReview({
               </svg>
               <span className="hidden sm:inline">Classify</span>
             </Link>
+            <button
+              type="button"
+              onClick={handleReloadCurrentImage}
+              disabled={!currentBaseImageUrl}
+              className="flex-shrink-0 inline-flex items-center gap-1 rounded-md border border-sky-200/15 bg-sky-200/10 px-2 py-1 text-xs font-medium text-sky-100 transition-colors hover:bg-sky-200/20 disabled:cursor-not-allowed disabled:opacity-40"
+              title="Reload this image from a fresh URL and bypass the current browser cache"
+              aria-label={`Reload image for galaxy ${currentGalaxy.id}`}
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h5M20 20v-5h-5" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.8 17.2A8 8 0 003.97 12C3.97 7.58 7.55 4 11.97 4c2.32 0 4.41.99 5.87 2.58L20 9M4 15l2.1 2.1M17.2 6.8A8 8 0 0120.03 12c0 4.42-3.58 8-8 8-2.32 0-4.41-.99-5.87-2.58L4 15" />
+              </svg>
+              <span className="hidden sm:inline">Reload image</span>
+            </button>
+            {isCloudflareCachePurgeAvailable && (
+              <button
+                type="button"
+                onClick={handlePurgeCurrentImage}
+                disabled={isPurgingImageCache || !currentBaseImageUrl}
+                className="flex-shrink-0 inline-flex items-center gap-1 rounded-md bg-amber-500 px-2 py-1 text-xs font-semibold text-white shadow transition-colors hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-amber-500/60"
+                title="Invalidate Cloudflare cache for the currently displayed image"
+                aria-label={`Invalidate image cache for galaxy ${currentGalaxy.id}`}
+              >
+                {isPurgingImageCache ? (
+                  <span className="inline-block h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />
+                ) : (
+                  <CachePurgeIcon className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">Purge cache</span>
+              </button>
+            )}
           </>
         )}
 
@@ -516,8 +657,8 @@ export function GalaxyQuickReview({
                 <div className="w-full" style={{ maxWidth: "min(90vw, 70vh, 640px)" }}>
                   {/* key forces ImageViewer to remount (reset zoom) each time the galaxy changes */}
                   <ImageViewer
-                    key={`${currentGalaxy.id}-${selectedImageKey}`}
-                    imageUrl={getImageUrl(currentGalaxy.id, selectedImageKey, { quality: effectiveImageQuality })}
+                    key={`${currentGalaxy.id}-${selectedImageKey}-${imageReloadToken}`}
+                    imageUrl={currentImageUrl}
                     alt={`Galaxy ${currentGalaxy.id}`}
                     preferences={userPrefs}
                     defaultZoomOptions={REVIEW_DEFAULT_ZOOM}
