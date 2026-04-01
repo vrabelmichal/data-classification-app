@@ -275,51 +275,54 @@ export function UserSettings() {
     <div
       ref={barRef}
       className={cn(
-        "mx-auto max-w-4xl border-b border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95",
-        pinned && "relative before:pointer-events-none before:absolute before:-inset-x-1 before:inset-y-0 before:-z-10 before:bg-gray-50/95 dark:before:bg-gray-900/95",
+        "mx-auto w-full bg-gray-50/95 backdrop-blur dark:bg-gray-900/95",
         hidden && "invisible pointer-events-none"
       )}
       aria-hidden={hidden}
     >
-      <div className="flex min-h-[3.75rem] items-end justify-between gap-4">
-        <nav className="-mb-px flex flex-1 self-end space-x-8 overflow-x-auto">
-          {settingsSubPages.map((page) => {
-            const isActive = location.pathname === page.path;
+      <div className={cn("mx-auto", contentWidthClass, pinned && "px-1") }>
+        <div className="mx-auto max-w-4xl border-b border-gray-200 dark:border-gray-700">
+          <div className="flex min-h-[3.75rem] items-end justify-between gap-4">
+            <nav className="-mb-px flex flex-1 self-end space-x-8 overflow-x-auto">
+              {settingsSubPages.map((page) => {
+                const isActive = location.pathname === page.path;
 
-            return (
-              <Link
-                key={page.id}
-                to={page.path}
+                return (
+                  <Link
+                    key={page.id}
+                    to={page.path}
+                    className={cn(
+                      "whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium transition-colors",
+                      isActive
+                        ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                        : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                    )}
+                  >
+                    {page.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            <div className="flex h-12 w-[7.5rem] shrink-0 items-end justify-end pb-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!isGeneralSubPage || !hasUnsavedChanges}
+                tabIndex={isGeneralSubPage ? 0 : -1}
+                aria-hidden={!isGeneralSubPage}
                 className={cn(
-                  "whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                  "rounded-lg px-5 py-2 text-sm font-medium shadow-sm transition-colors",
+                  isGeneralSubPage ? "visible" : "invisible pointer-events-none",
+                  hasUnsavedChanges
+                    ? "bg-amber-500 text-white hover:bg-amber-600"
+                    : "cursor-not-allowed bg-gray-200 text-gray-500 shadow-none dark:bg-gray-700 dark:text-gray-400"
                 )}
               >
-                {page.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="flex h-12 w-[7.5rem] shrink-0 items-end justify-end pb-2">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={!isGeneralSubPage || !hasUnsavedChanges}
-            tabIndex={isGeneralSubPage ? 0 : -1}
-            aria-hidden={!isGeneralSubPage}
-            className={cn(
-              "rounded-lg px-5 py-2 text-sm font-medium shadow-sm transition-colors",
-              isGeneralSubPage ? "visible" : "invisible pointer-events-none",
-              hasUnsavedChanges
-                ? "bg-amber-500 text-white hover:bg-amber-600"
-                : "cursor-not-allowed bg-gray-200 text-gray-500 shadow-none dark:bg-gray-700 dark:text-gray-400"
-            )}
-          >
-            Save
-          </button>
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
