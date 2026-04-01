@@ -166,16 +166,16 @@ export function UserSettings() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
-      <div className={cn("mx-auto", contentWidthClass)}>
-        <div className="mb-6">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-3">
           <div className="min-w-0">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
           </div>
         </div>
 
-        <div className="sticky top-0 z-30 mb-6 border-b border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-6">
-            <nav className="-mb-px flex flex-1 space-x-8 overflow-x-auto">
+        <div className="sticky top-0 z-30 mb-5 border-b border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
+          <div className="flex min-h-[3.75rem] items-end justify-between gap-4">
+            <nav className="-mb-px flex flex-1 self-end space-x-8 overflow-x-auto">
               {settingsSubPages.map((page) => {
                 const isActive = location.pathname === page.path;
 
@@ -196,26 +196,30 @@ export function UserSettings() {
               })}
             </nav>
 
-            {isGeneralSubPage && (
-              <div className="flex shrink-0 pb-3 md:mb-2 md:pb-0">
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={!hasUnsavedChanges}
-                  className={cn(
-                    "w-full rounded-lg px-5 py-2.5 text-sm font-medium transition-colors md:w-auto",
-                    hasUnsavedChanges
-                      ? "bg-amber-500 text-white hover:bg-amber-600"
-                      : "cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
-                  )}
-                >
-                  Save
-                </button>
-              </div>
-            )}
+            <div className="flex h-12 w-[7.5rem] shrink-0 items-end justify-end pb-2">
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!isGeneralSubPage || !hasUnsavedChanges}
+                tabIndex={isGeneralSubPage ? 0 : -1}
+                aria-hidden={!isGeneralSubPage}
+                className={cn(
+                  "rounded-lg px-5 py-2 text-sm font-medium shadow-sm transition-colors",
+                  isGeneralSubPage ? "visible" : "invisible pointer-events-none",
+                  hasUnsavedChanges
+                    ? "bg-amber-500 text-white hover:bg-amber-600"
+                    : "cursor-not-allowed bg-gray-200 text-gray-500 shadow-none dark:bg-gray-700 dark:text-gray-400"
+                )}
+              >
+                Save
+              </button>
+            </div>
           </div>
         </div>
 
+      </div>
+
+      <div className={cn("mx-auto", contentWidthClass)}>
         <Routes>
           <Route index element={<Navigate to="general" replace />} />
           <Route
