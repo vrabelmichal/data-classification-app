@@ -248,6 +248,7 @@ const applicationTables = {
     joinedAt: v.number(),
     lastActiveAt: v.number(),
     sequenceGenerated: v.optional(v.boolean()), // Legacy field
+    // TODO: All these stats fields should be moved to a separate userStats table that can be updated more frequently without touching the core user profile data
     awesomeCount: v.optional(v.number()),
     visibleNucleusCount: v.optional(v.number()),
     failedFittingCount: v.optional(v.number()),
