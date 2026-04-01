@@ -30,6 +30,7 @@ import { MobileClassificationForm } from "./MobileClassificationForm";
 import { CommentsModal } from "./CommentsModal";
 import { ImageUrlsModal } from "./ImageUrlsModal";
 import { useAdminCloudflareCachePurgeAvailability } from "../../hooks/useAdminCloudflareCachePurgeAvailability";
+import { clearClassificationCommentDraft } from "../../lib/browserStorage";
 
 // Hooks
 import { useClassificationForm } from "./useClassificationForm";
@@ -198,6 +199,7 @@ export function ClassificationInterface() {
 
   const formState = useClassificationForm(
     currentGalaxy,
+    userProfile?.userId ?? userProfile?.user?._id ?? null,
     existingClassification,
     formLocked,
     failedFittingMode,
@@ -468,6 +470,7 @@ export function ClassificationInterface() {
         sky_bkg: undefined,
         timeSpent
       });
+      clearClassificationCommentDraft(userProfile?.userId ?? userProfile?.user?._id ?? null, currentGalaxy.id);
       toast.success("Classification submitted successfully!");
       // Get next unprocessed galaxy (skipping skipped and classified ones)
       const nextGalaxy = await getNextGalaxyMutation();
@@ -484,7 +487,7 @@ export function ClassificationInterface() {
       submitInFlightRef.current = false;
       setIsSubmittingClassification(false);
     }
-  }, [currentGalaxy, formState, startTime, submitClassification, getNextGalaxyMutation, navigate, isOnline, maintenanceDisableClassifications]);
+  }, [currentGalaxy, formState, startTime, submitClassification, getNextGalaxyMutation, navigate, isOnline, maintenanceDisableClassifications, userProfile?.userId, userProfile?.user?._id]);
 
   const handleSkip = useCallback(async () => {
     if (submitInFlightRef.current) {

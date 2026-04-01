@@ -1,9 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import { buildQuickInputString, parseQuickInput, filterQuickInput } from "./helpers";
+import {
+  clearClassificationCommentDraft,
+  getClassificationCommentDraft,
+  setClassificationCommentDraft,
+} from "../../lib/browserStorage";
 import type { ClassificationFormState } from "./types";
 
 export function useClassificationForm(
   currentGalaxy: any,
+  currentUserStorageId: string | null,
   existingClassification: any,
   formLocked: boolean,
   failedFittingMode: "legacy" | "checkbox" = "checkbox",
@@ -36,6 +42,19 @@ export function useClassificationForm(
     lastAppliedClassificationId.current = null;
   }, [currentGalaxy?._id]);
 
+  useEffect(() => {
+    if (!currentGalaxy?.id) return;
+    if (existingClassification === undefined) return;
+
+    const hasExistingClassificationForCurrentGalaxy =
+      existingClassification &&
+      String(existingClassification.galaxyExternalId) === String(currentGalaxy.id);
+
+    if (hasExistingClassificationForCurrentGalaxy) return;
+
+    setComments(getClassificationCommentDraft(currentUserStorageId, currentGalaxy.id));
+  }, [currentGalaxy?.id, currentUserStorageId, existingClassification]);
+
   // Apply existing classification once it becomes available
   useEffect(() => {
     if (!currentGalaxy || !existingClassification) return;
@@ -64,8 +83,25 @@ export function useClassificationForm(
         showVisibleNucleus
       )
     );
+    clearClassificationCommentDraft(currentUserStorageId, currentGalaxy.id);
     lastAppliedClassificationId.current = existingClassification._id;
-  }, [existingClassification?._id, currentGalaxy?._id, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus]);
+  }, [existingClassification?._id, currentGalaxy?._id, currentGalaxy?.id, currentUserStorageId, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus]);
+
+  useEffect(() => {
+    if (!currentGalaxy?.id) return;
+    if (existingClassification === undefined) return;
+
+    const hasExistingClassificationForCurrentGalaxy =
+      existingClassification &&
+      String(existingClassification.galaxyExternalId) === String(currentGalaxy.id);
+
+    if (hasExistingClassificationForCurrentGalaxy) {
+      clearClassificationCommentDraft(currentUserStorageId, currentGalaxy.id);
+      return;
+    }
+
+    setClassificationCommentDraft(currentUserStorageId, currentGalaxy.id, comments);
+  }, [comments, currentGalaxy?.id, currentUserStorageId, existingClassification]);
 
   const handleQuickInputChange = (value: string) => {
     const filteredValue = filterQuickInput(value, failedFittingMode, showAwesomeFlag, showValidRedshift, showVisibleNucleus);

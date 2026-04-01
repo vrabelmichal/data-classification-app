@@ -200,7 +200,7 @@ function App() {
       activeWhenPathStartsWith: ["/data"],
     },
     { id: "notifications", label: "Notifications", icon: "🔔", path: "/notifications", element: notificationsRoute },
-    { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: settingsRoute },
+    { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: settingsRoute, activeWhenPathStartsWith: ["/settings"] },
     { id: "help", label: "Help", icon: "❓", path: "/help", element: helpRoute },
     { id: "reports", label: "Issue Reports", icon: "📋", path: "/reports", element: issueReportsRoute, adminOnly: true },
     { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: adminPanelRoute, adminOnly: true },
@@ -293,7 +293,7 @@ function App() {
                         {navigationItems.filter((item) => item.id !== "admin").map((item) => (
                           <Route
                             key={item.id}
-                            path={item.id === "statistics" || item.id === "help" || item.id === "notifications" || item.id === "data" ? `${item.path}/*` : item.path}
+                            path={item.id === "statistics" || item.id === "help" || item.id === "notifications" || item.id === "data" || item.id === "settings" ? `${item.path}/*` : item.path}
                             element={item.element}
                           />
                         ))}
