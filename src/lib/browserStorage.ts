@@ -134,6 +134,10 @@ function getTableSettingsLabel(prefix: string): string {
     return "Classification export table";
   }
 
+  if (prefix === "adminData.classifications") {
+    return "Admin classifications table";
+  }
+
   return "Saved table view";
 }
 
@@ -246,6 +250,30 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
     };
   }
 
+  if (key.startsWith("__convexAuthJWT_")) {
+    return {
+      title: "Convex sign-in session",
+      description: "Keeps you signed in to this app by storing a short-lived authentication token for Convex.",
+      deleteEffect: "Deleting it will usually sign you out in this browser or force the app to re-authenticate.",
+      known: true,
+      groupId: "global",
+      groupLabel: "Global",
+      kind: "item",
+    };
+  }
+
+  if (key.startsWith("__convexAuthRefreshToken_")) {
+    return {
+      title: "Convex sign-in refresh token",
+      description: "Helps keep your sign-in session active in this browser without asking you to log in again too often.",
+      deleteEffect: "Deleting it will usually sign you out in this browser or shorten how long your current session lasts.",
+      known: true,
+      groupId: "global",
+      groupLabel: "Global",
+      kind: "item",
+    };
+  }
+
   const commentDraft = parseClassificationCommentDraftStorageKey(key);
   if (commentDraft) {
     return {
@@ -262,13 +290,30 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
   const visibleColumnsMatch = key.match(/^(.*)\.visibleColumns\.v1$/);
   if (visibleColumnsMatch) {
     const prefix = visibleColumnsMatch[1];
+    const groupId =
+      prefix === "usersStats"
+        ? "statistics"
+        : prefix === "data.classifications"
+          ? "data"
+          : prefix === "adminData.classifications"
+            ? "admin"
+            : "unknown";
+    const groupLabel =
+      groupId === "statistics"
+        ? "Statistics"
+        : groupId === "data"
+          ? "Data"
+          : groupId === "admin"
+            ? "Admin"
+            : "Unknown or legacy";
+
     return {
       title: `${getTableSettingsLabel(prefix)} columns`,
       description: "Remembers which columns are visible in a table on this site.",
       deleteEffect: "Deleting it resets that table's visible columns to the default layout.",
       known: true,
-      groupId: prefix === "usersStats" ? "statistics" : prefix === "data.classifications" ? "data" : "unknown",
-      groupLabel: prefix === "usersStats" ? "Statistics" : prefix === "data.classifications" ? "Data" : "Unknown or legacy",
+      groupId,
+      groupLabel,
       kind: "item",
     };
   }
@@ -276,13 +321,30 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
   const sortMatch = key.match(/^(.*)\.sort\.v1$/);
   if (sortMatch) {
     const prefix = sortMatch[1];
+    const groupId =
+      prefix === "usersStats"
+        ? "statistics"
+        : prefix === "data.classifications"
+          ? "data"
+          : prefix === "adminData.classifications"
+            ? "admin"
+            : "unknown";
+    const groupLabel =
+      groupId === "statistics"
+        ? "Statistics"
+        : groupId === "data"
+          ? "Data"
+          : groupId === "admin"
+            ? "Admin"
+            : "Unknown or legacy";
+
     return {
       title: `${getTableSettingsLabel(prefix)} sorting`,
       description: "Remembers the last sorting choice for a table on this site.",
       deleteEffect: "Deleting it resets that table's sorting to the default order.",
       known: true,
-      groupId: prefix === "usersStats" ? "statistics" : prefix === "data.classifications" ? "data" : "unknown",
-      groupLabel: prefix === "usersStats" ? "Statistics" : prefix === "data.classifications" ? "Data" : "Unknown or legacy",
+      groupId,
+      groupLabel,
       kind: "item",
     };
   }
