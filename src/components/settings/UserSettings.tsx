@@ -61,7 +61,7 @@ export function UserSettings() {
   // }
 
   // Use the theme hook for immediate theme changes
-  const { theme: liveTheme, setTheme: setLiveTheme } = useTheme();
+  const { setTheme: setLiveTheme } = useTheme();
 
   // Determine the effective image quality: user preference > system default > hardcoded default
   // Note: historical values may include "medium" which is no longer supported.
@@ -121,6 +121,10 @@ export function UserSettings() {
   );
 
   const handleSave = async () => {
+    if (!hasUnsavedChanges) {
+      return;
+    }
+
     try {
       dlog("Saving preferences", {
         payload: { imageQuality: displayedImageQuality, theme },
@@ -162,70 +166,55 @@ export function UserSettings() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-8">
+      <div className={cn("mx-auto", contentWidthClass)}>
+        <div className="mb-6">
           <div className="min-w-0">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-            <p className="mt-2 text-gray-600 dark:text-gray-300">Customize your classification experience.</p>
           </div>
         </div>
 
-        <div className="mb-8 rounded-lg border border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-800/80 px-4 py-3">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">Sections</div>
-          <nav className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
-            {settingsSubPages.map((page) => {
-              const isActive = location.pathname === page.path;
+        <div className="sticky top-0 z-30 mb-6 border-b border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
+          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between md:gap-6">
+            <nav className="-mb-px flex flex-1 space-x-8 overflow-x-auto">
+              {settingsSubPages.map((page) => {
+                const isActive = location.pathname === page.path;
 
-              return (
-                <Link
-                  key={page.id}
-                  to={page.path}
+                return (
+                  <Link
+                    key={page.id}
+                    to={page.path}
+                    className={cn(
+                      "whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium transition-colors",
+                      isActive
+                        ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                        : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+                    )}
+                  >
+                    {page.label}
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {isGeneralSubPage && (
+              <div className="flex shrink-0 pb-3 md:mb-2 md:pb-0">
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={!hasUnsavedChanges}
                   className={cn(
-                    "text-sm transition-colors",
-                    isActive
-                      ? "text-gray-900 dark:text-white font-medium"
-                      : "text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                    "w-full rounded-lg px-5 py-2.5 text-sm font-medium transition-colors md:w-auto",
+                    hasUnsavedChanges
+                      ? "bg-amber-500 text-white hover:bg-amber-600"
+                      : "cursor-not-allowed bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400"
                   )}
                 >
-                  {page.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-      </div>
-
-      <div className={cn("mx-auto", contentWidthClass)}>
-        {isGeneralSubPage && (
-          <div className="sticky top-0 z-30 mb-6 rounded-xl bg-gray-50/95 px-1 py-3 shadow-sm backdrop-blur dark:bg-gray-900/95">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">General settings</h2>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Update the preferences that affect your day-to-day classification workflow.
-                </p>
-                {hasUnsavedChanges && (
-                  <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
-                    You have unsaved changes.
-                  </p>
-                )}
+                  Save
+                </button>
               </div>
-
-              <button
-                type="button"
-                onClick={handleSave}
-                className={cn(
-                  "rounded-lg px-5 py-2.5 text-sm font-medium transition-colors shadow-sm",
-                  hasUnsavedChanges
-                    ? "bg-amber-500 text-white hover:bg-amber-600"
-                    : "bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300"
-                )}
-              >
-                {hasUnsavedChanges ? "Save Changes" : "Saved"}
-              </button>
-            </div>
+            )}
           </div>
-        )}
+        </div>
 
         <Routes>
           <Route index element={<Navigate to="general" replace />} />
