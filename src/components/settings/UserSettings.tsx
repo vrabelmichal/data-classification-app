@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { type Ref, useEffect, useRef, useState } from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router";
@@ -28,6 +28,34 @@ const settingsSubPages = [
     path: "/settings/account",
   },
 ] as const;
+
+interface FixedBarMetrics {
+  isPinned: boolean;
+  left: number;
+  top: number;
+  width: number;
+}
+
+function getNearestScrollContainer(element: HTMLElement | null): HTMLElement | null {
+  if (!element || typeof window === "undefined") {
+    return null;
+  }
+
+  let current: HTMLElement | null = element.parentElement;
+
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+
+    if (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return null;
+}
 
 export function UserSettings() {
   usePageTitle("Settings");
@@ -84,6 +112,14 @@ export function UserSettings() {
   const [imageQuality, setImageQuality] = useState<"high" | "medium" | "low" | undefined>(undefined);
   const [userName, setUserName] = useState("");
   const [theme, setTheme] = useState<"light" | "dark" | "auto">("auto");
+  const navBarRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLElement | null>(null);
+  const [fixedBarMetrics, setFixedBarMetrics] = useState<FixedBarMetrics>({
+    isPinned: false,
+    left: 0,
+    top: 0,
+    width: 0,
+  });
 
   // Update state when data loads or changes
   useEffect(() => {
@@ -164,95 +200,194 @@ export function UserSettings() {
   const isGeneralSubPage = activeSubPage.id === "general";
   const contentWidthClass = activeSubPage.id === "storage" ? "max-w-6xl" : "max-w-4xl";
 
-  return (
-    <div className="px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
-      <div className="mx-auto max-w-4xl">
-        <div className="mb-3">
-          <div className="min-w-0">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-          </div>
-        </div>
+  useEffect(() => {
+    const navBarElement = navBarRef.current;
+    if (!navBarElement || typeof window === "undefined") {
+      return;
+    }
 
-        <div className="sticky top-0 z-30 mb-5 border-b border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95">
-          <div className="flex min-h-[3.75rem] items-end justify-between gap-4">
-            <nav className="-mb-px flex flex-1 self-end space-x-8 overflow-x-auto">
-              {settingsSubPages.map((page) => {
-                const isActive = location.pathname === page.path;
+    const scrollContainer = getNearestScrollContainer(navBarElement);
+    scrollContainerRef.current = scrollContainer;
 
-                return (
-                  <Link
-                    key={page.id}
-                    to={page.path}
-                    className={cn(
-                      "whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium transition-colors",
-                      isActive
-                        ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                        : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-                    )}
-                  >
-                    {page.label}
-                  </Link>
-                );
-              })}
-            </nav>
+    const updateFixedBarMetrics = () => {
+      const currentNavBarElement = navBarRef.current;
+      if (!currentNavBarElement) {
+        return;
+      }
 
-            <div className="flex h-12 w-[7.5rem] shrink-0 items-end justify-end pb-2">
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={!isGeneralSubPage || !hasUnsavedChanges}
-                tabIndex={isGeneralSubPage ? 0 : -1}
-                aria-hidden={!isGeneralSubPage}
+      const navBarRect = currentNavBarElement.getBoundingClientRect();
+      const scrollContainerElement = scrollContainerRef.current;
+      const containerRect = scrollContainerElement?.getBoundingClientRect() ?? null;
+      const topAnchor = Math.max(containerRect?.top ?? 0, 0);
+      const nextMetrics = {
+        isPinned: navBarRect.top <= topAnchor,
+        left: navBarRect.left,
+        top: topAnchor,
+        width: navBarRect.width,
+      };
+
+      setFixedBarMetrics((current) => {
+        if (
+          current.isPinned === nextMetrics.isPinned &&
+          current.left === nextMetrics.left &&
+          current.top === nextMetrics.top &&
+          current.width === nextMetrics.width
+        ) {
+          return current;
+        }
+
+        return nextMetrics;
+      });
+    };
+
+    updateFixedBarMetrics();
+
+    const scrollContainerElement = scrollContainerRef.current;
+    const resizeObserver = new ResizeObserver(updateFixedBarMetrics);
+
+    const handleScrollContainerScroll = () => {
+      updateFixedBarMetrics();
+    };
+
+    resizeObserver.observe(navBarElement);
+    if (scrollContainerElement) {
+      resizeObserver.observe(scrollContainerElement);
+      scrollContainerElement.addEventListener("scroll", handleScrollContainerScroll, { passive: true });
+    }
+
+    const handleWindowScroll = () => updateFixedBarMetrics();
+    const handleWindowResize = () => updateFixedBarMetrics();
+
+    window.addEventListener("scroll", handleWindowScroll, { passive: true });
+    window.addEventListener("resize", handleWindowResize);
+
+    return () => {
+      resizeObserver.disconnect();
+      if (scrollContainerElement) {
+        scrollContainerElement.removeEventListener("scroll", handleScrollContainerScroll);
+      }
+      window.removeEventListener("scroll", handleWindowScroll);
+      window.removeEventListener("resize", handleWindowResize);
+    };
+  }, [location.pathname]);
+
+  const renderSettingsNavigationBar = (barRef?: Ref<HTMLDivElement>, hidden = false, pinned = false) => (
+    <div
+      ref={barRef}
+      className={cn(
+        "mx-auto max-w-4xl border-b border-gray-200 bg-gray-50/95 backdrop-blur dark:border-gray-700 dark:bg-gray-900/95",
+        pinned && "relative before:pointer-events-none before:absolute before:-inset-x-1 before:inset-y-0 before:-z-10 before:bg-gray-50/95 dark:before:bg-gray-900/95",
+        hidden && "invisible pointer-events-none"
+      )}
+      aria-hidden={hidden}
+    >
+      <div className="flex min-h-[3.75rem] items-end justify-between gap-4">
+        <nav className="-mb-px flex flex-1 self-end space-x-8 overflow-x-auto">
+          {settingsSubPages.map((page) => {
+            const isActive = location.pathname === page.path;
+
+            return (
+              <Link
+                key={page.id}
+                to={page.path}
                 className={cn(
-                  "rounded-lg px-5 py-2 text-sm font-medium shadow-sm transition-colors",
-                  isGeneralSubPage ? "visible" : "invisible pointer-events-none",
-                  hasUnsavedChanges
-                    ? "bg-amber-500 text-white hover:bg-amber-600"
-                    : "cursor-not-allowed bg-gray-200 text-gray-500 shadow-none dark:bg-gray-700 dark:text-gray-400"
+                  "whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                    : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
                 )}
               >
-                Save
-              </button>
+                {page.label}
+              </Link>
+            );
+          })}
+        </nav>
+
+        <div className="flex h-12 w-[7.5rem] shrink-0 items-end justify-end pb-2">
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!isGeneralSubPage || !hasUnsavedChanges}
+            tabIndex={isGeneralSubPage ? 0 : -1}
+            aria-hidden={!isGeneralSubPage}
+            className={cn(
+              "rounded-lg px-5 py-2 text-sm font-medium shadow-sm transition-colors",
+              isGeneralSubPage ? "visible" : "invisible pointer-events-none",
+              hasUnsavedChanges
+                ? "bg-amber-500 text-white hover:bg-amber-600"
+                : "cursor-not-allowed bg-gray-200 text-gray-500 shadow-none dark:bg-gray-700 dark:text-gray-400"
+            )}
+          >
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
+      <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-4xl">
+          <div className="mb-3">
+            <div className="min-w-0">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
             </div>
           </div>
         </div>
 
-      </div>
+        <div className="mb-5">
+          {renderSettingsNavigationBar(navBarRef, fixedBarMetrics.isPinned)}
+        </div>
 
-      <div className={cn("mx-auto", contentWidthClass)}>
-        <Routes>
-          <Route index element={<Navigate to="general" replace />} />
-          <Route
-            path="general"
-            element={
-              <UserSettingsGeneralPage
-                userName={userName}
-                setUserName={setUserName}
-                displayedImageQuality={displayedImageQuality}
-                normalizedEffectiveImageQuality={normalizedEffectiveImageQuality}
-                userPrefsImageQuality={userPrefs?.imageQuality}
-                setImageQuality={setImageQuality}
-                theme={theme}
-                setTheme={setTheme}
-                dlog={dlog}
-              />
-            }
-          />
-          <Route path="storage" element={<LocalStorageSection />} />
-          <Route
-            path="account"
-            element={
-              <UserSettingsAccountPage
-                displayName={displayName}
-                displayEmail={displayEmail}
-                displayRole={displayRole}
-                profile={profile}
-                authUser={authUser}
-              />
-            }
-          />
-          <Route path="*" element={<Navigate to="general" replace />} />
-        </Routes>
+        {fixedBarMetrics.isPinned && fixedBarMetrics.width > 0 && (
+          <div
+            className="fixed z-40"
+            style={{
+              left: fixedBarMetrics.left,
+              top: fixedBarMetrics.top,
+              width: fixedBarMetrics.width,
+            }}
+          >
+            {renderSettingsNavigationBar(undefined, false, true)}
+          </div>
+        )}
+
+        <div className={cn("mx-auto", contentWidthClass)}>
+          <Routes>
+            <Route index element={<Navigate to="general" replace />} />
+            <Route
+              path="general"
+              element={
+                <UserSettingsGeneralPage
+                  userName={userName}
+                  setUserName={setUserName}
+                  displayedImageQuality={displayedImageQuality}
+                  normalizedEffectiveImageQuality={normalizedEffectiveImageQuality}
+                  userPrefsImageQuality={userPrefs?.imageQuality}
+                  setImageQuality={setImageQuality}
+                  theme={theme}
+                  setTheme={setTheme}
+                  dlog={dlog}
+                />
+              }
+            />
+            <Route path="storage" element={<LocalStorageSection />} />
+            <Route
+              path="account"
+              element={
+                <UserSettingsAccountPage
+                  displayName={displayName}
+                  displayEmail={displayEmail}
+                  displayRole={displayRole}
+                  profile={profile}
+                  authUser={authUser}
+                />
+              }
+            />
+            <Route path="*" element={<Navigate to="general" replace />} />
+          </Routes>
+        </div>
       </div>
     </div>
   );
