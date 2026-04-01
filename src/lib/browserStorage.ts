@@ -1,0 +1,246 @@
+export const CLASSIFICATION_COMMENT_DRAFT_STORAGE_PREFIX = "classification.commentDraft.v1:";
+
+export interface LocalStorageItemDescription {
+  title: string;
+  description: string;
+  deleteEffect: string;
+  known: boolean;
+}
+
+function canUseLocalStorage(): boolean {
+  return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
+}
+
+function readLocalStorageValue(key: string): string | null {
+  if (!canUseLocalStorage()) {
+    return null;
+  }
+
+  try {
+    return window.localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeLocalStorageValue(key: string, value: string): void {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Ignore localStorage write failures.
+  }
+}
+
+function removeLocalStorageValue(key: string): void {
+  if (!canUseLocalStorage()) {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Ignore localStorage removal failures.
+  }
+}
+
+export function buildClassificationCommentDraftStorageKey(userId: string | null | undefined, galaxyId: string | null | undefined): string | null {
+  if (!userId || !galaxyId) {
+    return null;
+  }
+
+  return `${CLASSIFICATION_COMMENT_DRAFT_STORAGE_PREFIX}${encodeURIComponent(userId)}:${encodeURIComponent(galaxyId)}`;
+}
+
+export function parseClassificationCommentDraftStorageKey(key: string): { userId: string; galaxyId: string } | null {
+  if (!key.startsWith(CLASSIFICATION_COMMENT_DRAFT_STORAGE_PREFIX)) {
+    return null;
+  }
+
+  const suffix = key.slice(CLASSIFICATION_COMMENT_DRAFT_STORAGE_PREFIX.length);
+  const separatorIndex = suffix.indexOf(":");
+  if (separatorIndex === -1) {
+    return null;
+  }
+
+  const encodedUserId = suffix.slice(0, separatorIndex);
+  const encodedGalaxyId = suffix.slice(separatorIndex + 1);
+
+  try {
+    return {
+      userId: decodeURIComponent(encodedUserId),
+      galaxyId: decodeURIComponent(encodedGalaxyId),
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function getClassificationCommentDraft(userId: string | null | undefined, galaxyId: string | null | undefined): string {
+  const key = buildClassificationCommentDraftStorageKey(userId, galaxyId);
+  if (!key) {
+    return "";
+  }
+
+  return readLocalStorageValue(key) ?? "";
+}
+
+export function setClassificationCommentDraft(userId: string | null | undefined, galaxyId: string | null | undefined, comment: string): void {
+  const key = buildClassificationCommentDraftStorageKey(userId, galaxyId);
+  if (!key) {
+    return;
+  }
+
+  if (!comment.trim()) {
+    removeLocalStorageValue(key);
+    return;
+  }
+
+  writeLocalStorageValue(key, comment);
+}
+
+export function clearClassificationCommentDraft(userId: string | null | undefined, galaxyId: string | null | undefined): void {
+  const key = buildClassificationCommentDraftStorageKey(userId, galaxyId);
+  if (!key) {
+    return;
+  }
+
+  removeLocalStorageValue(key);
+}
+
+function getTableSettingsLabel(prefix: string): string {
+  if (prefix === "usersStats") {
+    return "Per-user statistics table";
+  }
+
+  if (prefix === "data.classifications") {
+    return "Classification export table";
+  }
+
+  return "Saved table view";
+}
+
+export function describeLocalStorageItem(key: string): LocalStorageItemDescription {
+  if (key === "theme") {
+    return {
+      title: "Appearance theme",
+      description: "Remembers whether this browser should use the light, dark, or system theme.",
+      deleteEffect: "Deleting it may temporarily reset the theme until your saved account preference or browser preference is applied again.",
+      known: true,
+    };
+  }
+
+  if (key === "showEllipseOverlay") {
+    return {
+      title: "Ellipse overlay toggle",
+      description: "Remembers whether galaxy images show the ellipse overlay in the classification interface.",
+      deleteEffect: "Deleting it resets that toggle to the app default the next time you open classification.",
+      known: true,
+    };
+  }
+
+  if (key === "showMasks") {
+    return {
+      title: "Mask overlay toggle",
+      description: "Remembers whether masked galaxy images are shown in the classification interface.",
+      deleteEffect: "Deleting it resets that toggle to the app default the next time you open classification.",
+      known: true,
+    };
+  }
+
+  if (key === "galaxyBrowserSettings") {
+    return {
+      title: "Galaxy browser filters",
+      description: "Stores your last-used galaxy browser filters, sorting, search values, and page options in this browser.",
+      deleteEffect: "Deleting it clears those saved browser controls and the galaxy browser will open with default values again.",
+      known: true,
+    };
+  }
+
+  if (key === "galaxyQuickReview:selectedImageKey") {
+    return {
+      title: "Quick review image choice",
+      description: "Remembers which image layer you last selected in galaxy quick review.",
+      deleteEffect: "Deleting it resets quick review to its default image selection.",
+      known: true,
+    };
+  }
+
+  if (key === "notifications_view_mode") {
+    return {
+      title: "Notifications layout",
+      description: "Remembers how notifications are displayed in this browser.",
+      deleteEffect: "Deleting it resets the notifications page to its default view mode.",
+      known: true,
+    };
+  }
+
+  if (key === "generateBalancedUserSequenceLogs") {
+    return {
+      title: "Admin sequence generation logs",
+      description: "Stores the recent log output from the balanced user sequence admin tool in this browser.",
+      deleteEffect: "Deleting it only clears the saved browser copy of those logs.",
+      known: true,
+    };
+  }
+
+  if (key === "updateUserSequenceLogs") {
+    return {
+      title: "Admin sequence update logs",
+      description: "Stores the recent log output from the user sequence update admin tool in this browser.",
+      deleteEffect: "Deleting it only clears the saved browser copy of those logs.",
+      known: true,
+    };
+  }
+
+  if (key === "data.classifications.exportColumns.v1") {
+    return {
+      title: "Classification export columns",
+      description: "Remembers which classification columns you selected for CSV export.",
+      deleteEffect: "Deleting it resets the export column picker to its default selection.",
+      known: true,
+    };
+  }
+
+  const commentDraft = parseClassificationCommentDraftStorageKey(key);
+  if (commentDraft) {
+    return {
+      title: `Unfinished comment draft for galaxy ${commentDraft.galaxyId}`,
+      description: "Stores a comment you started writing for one galaxy so it can be restored if you leave and come back before submitting a classification.",
+      deleteEffect: "Deleting it removes that unfinished comment draft from this browser only. Submitted classifications are not affected.",
+      known: true,
+    };
+  }
+
+  const visibleColumnsMatch = key.match(/^(.*)\.visibleColumns\.v1$/);
+  if (visibleColumnsMatch) {
+    const prefix = visibleColumnsMatch[1];
+    return {
+      title: `${getTableSettingsLabel(prefix)} columns`,
+      description: "Remembers which columns are visible in a table on this site.",
+      deleteEffect: "Deleting it resets that table's visible columns to the default layout.",
+      known: true,
+    };
+  }
+
+  const sortMatch = key.match(/^(.*)\.sort\.v1$/);
+  if (sortMatch) {
+    const prefix = sortMatch[1];
+    return {
+      title: `${getTableSettingsLabel(prefix)} sorting`,
+      description: "Remembers the last sorting choice for a table on this site.",
+      deleteEffect: "Deleting it resets that table's sorting to the default order.",
+      known: true,
+    };
+  }
+
+  return {
+    title: "Saved browser item",
+    description: "This is a value saved by this site in your browser. It may come from a current feature, an older version of the app, or a page you visited earlier.",
+    deleteEffect: "Deleting it only affects this browser. If the feature still uses it, the app may recreate it later.",
+    known: false,
+  };
+}

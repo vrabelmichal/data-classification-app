@@ -6,6 +6,7 @@ import { cn } from "../../lib/utils";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { useTheme } from "../../hooks/useTheme";
 import { DEFAULT_IMAGE_QUALITY } from "../../lib/defaults";
+import { LocalStorageSection } from "./LocalStorageSection";
 
 export function UserSettings() {
   usePageTitle("Settings");
@@ -436,6 +437,8 @@ export function UserSettings() {
             </div>
           </div>
         </div>
+
+        <LocalStorageSection />
       </div>
     </div>
   );
