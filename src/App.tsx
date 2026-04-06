@@ -1,4 +1,4 @@
-import { Authenticated, Unauthenticated, useQuery } from "convex/react";
+import { useConvexAuth, useConvexConnectionState, useQuery } from "convex/react";
 import { BrowserRouter, Routes, Route, Link, Navigate } from "react-router";
 import { api } from "../convex/_generated/api";
 import { SignInForm } from "./SignInForm";
@@ -9,8 +9,19 @@ import { Toaster } from "sonner";
 import { Navigation } from "./components/layout/Navigation";
 import { ClassificationInterface } from "./components/classification/ClassificationInterface";
 import { useState, useEffect, lazy, Suspense, type ReactNode } from "react";
-import { DEFAULT_ALLOW_PUBLIC_OVERVIEW } from "./lib/defaults";
 import { ChunkLoadBoundary } from "./components/ChunkLoadBoundary";
+import { useOnlineStatus } from "./hooks/useOnlineStatus";
+
+const LOADING_RECOVERY_DELAY_MS = 15000;
+const STALLED_REQUEST_DELAY_MS = 30000;
+
+type RuntimeIssueKind = "network" | "stalled-request";
+
+interface RuntimeIssue {
+  kind: RuntimeIssueKind;
+  title: string;
+  message: string;
+}
 
 const LazyPasswordReset = lazy(() =>
   import("./PasswordReset").then((module) => ({ default: module.PasswordReset }))
@@ -66,6 +77,129 @@ function LazyPage({ children }: { children: ReactNode }) {
   return <Suspense fallback={<LoadingScreen />}>{children}</Suspense>;
 }
 
+function getRuntimeErrorMessage(error: unknown): string {
+  if (typeof error === "string") {
+    return error;
+  }
+
+  if (!error || typeof error !== "object") {
+    return "";
+  }
+
+  const name = "name" in error && typeof error.name === "string" ? error.name : "";
+  const message = "message" in error && typeof error.message === "string" ? error.message : "";
+  const cause = "cause" in error ? getRuntimeErrorMessage(error.cause) : "";
+
+  return [name, message, cause].filter(Boolean).join(" ");
+}
+
+function isRecoverableNetworkError(error: unknown): boolean {
+  const message = getRuntimeErrorMessage(error);
+
+  if (!message) {
+    return false;
+  }
+
+  return [
+    /Failed to fetch/i,
+    /NetworkError/i,
+    /Load failed/i,
+    /ERR_QUIC_PROTOCOL_ERROR/i,
+    /ERR_ECH_FALLBACK_CERTIFICATE_INVALID/i,
+    /fetch.*failed/i,
+  ].some((pattern) => pattern.test(message));
+}
+
+function RuntimeRecoveryBanner({
+  issue,
+  onDismiss,
+  onRefresh,
+}: {
+  issue: RuntimeIssue;
+  onDismiss: () => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="bg-amber-600 text-white px-4 py-2 flex items-center justify-between gap-3 shadow-lg">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{issue.title}</p>
+        <p className="text-xs text-amber-100">{issue.message}</p>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={onDismiss}
+          className="text-amber-100 hover:text-white text-sm underline"
+        >
+          Dismiss
+        </button>
+        <button
+          onClick={onRefresh}
+          className="bg-white text-amber-700 px-3 py-1 rounded-md text-sm font-medium hover:bg-amber-50 transition-colors"
+        >
+          Refresh
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RecoverableLoadingScreen({
+  isOnline,
+  message,
+  showRecovery,
+  onRefresh,
+}: {
+  isOnline: boolean;
+  message: string;
+  showRecovery: boolean;
+  onRefresh: () => void;
+}) {
+  if (!showRecovery) {
+    return (
+      <div className="flex items-center justify-center min-h-screen px-4">
+        <div className="text-center max-w-md">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-3"></div>
+          <p className="text-gray-600 dark:text-gray-300">{message}</p>
+          {!isOnline && (
+            <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+              The browser is offline. The app will resume once the connection returns.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="w-full max-w-xl rounded-2xl border border-amber-200 bg-white p-8 shadow-xl dark:border-amber-800 dark:bg-gray-800">
+        <p className="text-sm font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-300">
+          Connection recovery
+        </p>
+        <h1 className="mt-3 text-2xl font-bold text-gray-900 dark:text-white">
+          This session needs to reconnect.
+        </h1>
+        <p className="mt-4 text-sm leading-6 text-gray-600 dark:text-gray-300">
+          {isOnline
+            ? "This tab has been open for a while and the app is still waiting for the backend. Refresh once to restore a clean connection."
+            : "The browser is offline, so the app cannot finish loading yet. Reconnect to the internet, then refresh if the page does not recover on its own."}
+        </p>
+        <div className="mt-6 flex flex-wrap items-center gap-3">
+          <button
+            onClick={onRefresh}
+            className="inline-flex items-center justify-center rounded-md bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700"
+          >
+            Refresh app
+          </button>
+        </div>
+        <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+          Status: {isOnline ? "browser online" : "browser offline"}. {message}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function AccessDenied({ message }: { message?: string }) {
   return (
     <div className="flex justify-center items-center min-h-screen">
@@ -83,14 +217,17 @@ function AccessDenied({ message }: { message?: string }) {
 function App() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const userProfile = useQuery(api.users.getUserProfile);
+  const { isAuthenticated, isLoading: authIsLoading } = useConvexAuth();
+  const connectionState = useConvexConnectionState();
+  const isOnline = useOnlineStatus();
   const appName = String(systemSettings?.appName ?? "Galaxy Classification App");
   const isAdmin = userProfile?.role === "admin";
-  const allowPublicOverview = systemSettings?.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW;
-  const canAccessOverview = Boolean(isAdmin || allowPublicOverview);
   
   // Version checking state
   const [currentVersion, setCurrentVersion] = useState<string | null>(null);
   const [showVersionUpdate, setShowVersionUpdate] = useState(false);
+  const [runtimeIssue, setRuntimeIssue] = useState<RuntimeIssue | null>(null);
+  const [showLoadingRecovery, setShowLoadingRecovery] = useState(false);
   
   // Check for version updates
   useEffect(() => {
@@ -111,11 +248,99 @@ function App() {
     window.location.reload();
   };
 
+  const dismissRuntimeIssue = () => {
+    setRuntimeIssue(null);
+  };
+
   const dismissVersionUpdate = () => {
     setShowVersionUpdate(false);
     const appVersionRaw = systemSettings?.appVersion;
     setCurrentVersion(appVersionRaw !== undefined && appVersionRaw !== null ? String(appVersionRaw) : null);
   };
+
+  const reportRuntimeIssue = (issue: RuntimeIssue) => {
+    setRuntimeIssue((current) => {
+      if (current?.kind === issue.kind && current.message === issue.message) {
+        return current;
+      }
+
+      return issue;
+    });
+  };
+
+  const isAuthOrProfileLoading = authIsLoading || (isAuthenticated && userProfile === undefined);
+
+  useEffect(() => {
+    if (!isAuthOrProfileLoading) {
+      setShowLoadingRecovery(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setShowLoadingRecovery(true);
+    }, LOADING_RECOVERY_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [isAuthOrProfileLoading]);
+
+  useEffect(() => {
+    if (!connectionState.hasInflightRequests || connectionState.timeOfOldestInflightRequest === null) {
+      return;
+    }
+
+    const requestAgeMs = Date.now() - connectionState.timeOfOldestInflightRequest.getTime();
+    const delayMs = Math.max(0, STALLED_REQUEST_DELAY_MS - requestAgeMs);
+    const timeout = window.setTimeout(() => {
+      reportRuntimeIssue({
+        kind: "stalled-request",
+        title: "A backend request is taking unusually long",
+        message:
+          "If this tab was left open for a long time or the network changed, refresh the app to re-establish a clean session.",
+      });
+    }, delayMs);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [connectionState.hasInflightRequests, connectionState.timeOfOldestInflightRequest]);
+
+  useEffect(() => {
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (!isRecoverableNetworkError(event.reason)) {
+        return;
+      }
+
+      reportRuntimeIssue({
+        kind: "network",
+        title: "The connection to the backend failed",
+        message:
+          "A request could not reach Convex. This usually happens after the tab has been open for a long time or the network path changed. Refresh the app to recover.",
+      });
+    };
+
+    const handleWindowError = (event: ErrorEvent) => {
+      if (!isRecoverableNetworkError(event.error ?? event.message)) {
+        return;
+      }
+
+      reportRuntimeIssue({
+        kind: "network",
+        title: "The connection to the backend failed",
+        message:
+          "A request could not reach Convex. This usually happens after the tab has been open for a long time or the network path changed. Refresh the app to recover.",
+      });
+    };
+
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+    window.addEventListener("error", handleWindowError);
+
+    return () => {
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
+      window.removeEventListener("error", handleWindowError);
+    };
+  }, []);
 
   const browseRoute = (
     <LazyPage>
@@ -185,6 +410,9 @@ function App() {
     </LazyPage>
   );
 
+  const activeBannerCount = Number(runtimeIssue !== null) + Number(showVersionUpdate);
+  const bannerOffsetClass = activeBannerCount === 0 ? "" : activeBannerCount === 1 ? "pt-10" : "pt-20";
+
   const navigationItems = [
     { id: "classify", label: "Classify", icon: "🔬", path: "/classify", element: <ClassificationInterface /> },
     { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: browseRoute },
@@ -207,35 +435,52 @@ function App() {
   ];
 
   return (
-    <main className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Version Update Bar */}
-      {showVersionUpdate && (
-        <div className="fixed top-0 left-0 right-0 z-50 bg-blue-600 text-white px-4 py-2 flex items-center justify-between shadow-lg">
-          <div className="flex items-center space-x-2">
-            <span className="text-sm font-medium">
-              A new version of the app is available. Please refresh to update.
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={dismissVersionUpdate}
-              className="text-blue-200 hover:text-white text-sm underline"
-            >
-              Dismiss
-            </button>
-            <button
-              onClick={handleRefresh}
-              className="bg-white text-blue-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-50 transition-colors"
-            >
-              Refresh
-            </button>
-          </div>
+    <main className={`min-h-screen bg-gray-50 dark:bg-gray-900 ${bannerOffsetClass}`}>
+      {(runtimeIssue !== null || showVersionUpdate) && (
+        <div className="fixed top-0 left-0 right-0 z-50 flex flex-col shadow-lg">
+          {runtimeIssue !== null && (
+            <RuntimeRecoveryBanner
+              issue={runtimeIssue}
+              onDismiss={dismissRuntimeIssue}
+              onRefresh={handleRefresh}
+            />
+          )}
+          {showVersionUpdate && (
+            <div className="bg-blue-600 text-white px-4 py-2 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <span className="text-sm font-medium">
+                  A new version of the app is available. Please refresh to update.
+                </span>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={dismissVersionUpdate}
+                  className="text-blue-200 hover:text-white text-sm underline"
+                >
+                  Dismiss
+                </button>
+                <button
+                  onClick={handleRefresh}
+                  className="bg-white text-blue-600 px-3 py-1 rounded-md text-sm font-medium hover:bg-blue-50 transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
-      
+
       <ChunkLoadBoundary>
         <BrowserRouter>
-          <Unauthenticated>
+          {authIsLoading ? (
+            <RecoverableLoadingScreen
+              isOnline={isOnline}
+              message="Restoring your session..."
+              showRecovery={showLoadingRecovery}
+              onRefresh={handleRefresh}
+            />
+          ) : !isAuthenticated ? (
             <div className="flex items-center justify-center min-h-screen">
               <div className="max-w-md w-full mx-4">
                 <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
@@ -269,43 +514,41 @@ function App() {
                 </div>
               </div>
             </div>
-          </Unauthenticated>
-          <Authenticated>
-            {userProfile === undefined ? (
-              <div className="flex items-center justify-center min-h-screen">
-                <div className="text-center">
-                  <p className="text-gray-600 dark:text-gray-300">Loading...</p>
-                </div>
-              </div>
-            ) : !userProfile?.isConfirmed ? (
-              <AccountPendingConfirmation />
-            ) : (
-              <ReportIssueModalProvider>
-                <GlobalReportIssueModal />
-                <div className={`flex flex-col custom-lg:flex-row min-h-screen overflow-x-hidden ${showVersionUpdate ? 'pt-10' : ''}`}>
-                  <Navigation navigationItems={navigationItems} appName={appName} />
-                  <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64 min-w-0">
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
-                      <Routes>
-                        <Route index element={<ClassificationInterface />} />
-                        <Route path="/reset" element={<Navigate to="/settings" replace />} />
-                        <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
-                        {navigationItems.filter((item) => item.id !== "admin").map((item) => (
-                          <Route
-                            key={item.id}
-                            path={item.id === "statistics" || item.id === "help" || item.id === "notifications" || item.id === "data" || item.id === "settings" ? `${item.path}/*` : item.path}
-                            element={item.element}
-                          />
-                        ))}
-                        <Route path="/admin/*" element={adminPanelRoute} />
-                        <Route path="*" element={notFoundRoute} />
-                      </Routes>
-                    </div>
+          ) : userProfile === undefined ? (
+            <RecoverableLoadingScreen
+              isOnline={isOnline}
+              message="Loading your account..."
+              showRecovery={showLoadingRecovery}
+              onRefresh={handleRefresh}
+            />
+          ) : !userProfile?.isConfirmed ? (
+            <AccountPendingConfirmation />
+          ) : (
+            <ReportIssueModalProvider>
+              <GlobalReportIssueModal />
+              <div className="flex flex-col custom-lg:flex-row min-h-screen overflow-x-hidden">
+                <Navigation navigationItems={navigationItems} appName={appName} />
+                <div className="custom-lg:flex custom-lg:flex-1 custom-lg:flex-col custom-lg:ml-64 min-w-0">
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
+                    <Routes>
+                      <Route index element={<ClassificationInterface />} />
+                      <Route path="/reset" element={<Navigate to="/settings" replace />} />
+                      <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
+                      {navigationItems.filter((item) => item.id !== "admin").map((item) => (
+                        <Route
+                          key={item.id}
+                          path={item.id === "statistics" || item.id === "help" || item.id === "notifications" || item.id === "data" || item.id === "settings" ? `${item.path}/*` : item.path}
+                          element={item.element}
+                        />
+                      ))}
+                      <Route path="/admin/*" element={adminPanelRoute} />
+                      <Route path="*" element={notFoundRoute} />
+                    </Routes>
                   </div>
                 </div>
-              </ReportIssueModalProvider>
-            )}
-          </Authenticated>
+              </div>
+            </ReportIssueModalProvider>
+          )}
           <Toaster position="top-center" />
         </BrowserRouter>
       </ChunkLoadBoundary>
