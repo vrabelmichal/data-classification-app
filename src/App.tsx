@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { useConvexAuth, useConvexConnectionState, useQuery } from "convex/react";
 import { BrowserRouter } from "react-router";
 import { api } from "../convex/_generated/api";
@@ -12,11 +13,13 @@ import { adminPanelRoute, getAppNavigationItems, notFoundRoute, passwordResetRou
 import { useAppRuntimeRecovery } from "./hooks/app/useAppRuntimeRecovery";
 
 function App() {
+  const bannerContainerRef = useRef<HTMLDivElement | null>(null);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const userProfile = useQuery(api.users.getUserProfile);
   const { isAuthenticated, isLoading: authIsLoading } = useConvexAuth();
   const connectionState = useConvexConnectionState();
   const isOnline = useOnlineStatus();
+  const [bannerOffset, setBannerOffset] = useState(0);
   const appName = String(systemSettings?.appName ?? "Galaxy Classification App");
   const isAdmin = userProfile?.role === "admin";
   const navigationItems = getAppNavigationItems(isAdmin);
@@ -38,13 +41,32 @@ function App() {
     window.location.reload();
   };
 
-  const activeBannerCount = Number(runtimeIssue !== null) + Number(showVersionUpdate);
-  const bannerOffsetClass = activeBannerCount === 0 ? "" : activeBannerCount === 1 ? "pt-10" : "pt-20";
+  useLayoutEffect(() => {
+    const element = bannerContainerRef.current;
+
+    if (!element) {
+      setBannerOffset(0);
+      return;
+    }
+
+    const updateOffset = () => {
+      setBannerOffset(element.getBoundingClientRect().height);
+    };
+
+    updateOffset();
+
+    const observer = new ResizeObserver(updateOffset);
+    observer.observe(element);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [runtimeIssue, showVersionUpdate]);
 
   return (
-    <main className={`min-h-screen bg-gray-50 dark:bg-gray-900 ${bannerOffsetClass}`}>
+    <main className="min-h-screen bg-gray-50 dark:bg-gray-900" style={{ paddingTop: bannerOffset }}>
       {(runtimeIssue !== null || showVersionUpdate) && (
-        <div className="fixed top-0 left-0 right-0 z-50 flex flex-col shadow-lg">
+        <div ref={bannerContainerRef} className="fixed top-0 left-0 right-0 z-50 flex flex-col shadow-lg">
           {runtimeIssue !== null && (
             <RuntimeRecoveryBanner
               issue={runtimeIssue}

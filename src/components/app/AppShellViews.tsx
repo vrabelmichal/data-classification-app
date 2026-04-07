@@ -12,13 +12,12 @@ function GlobalReportIssueModal() {
 }
 
 function getNavigationRoutePath(item: AppNavigationItem) {
-  return item.id === "statistics" || item.id === "help" || item.id === "notifications" || item.id === "data" || item.id === "settings"
-    ? `${item.path}/*`
-    : item.path;
+  return item.hasNestedRoutes ? `${item.path}/*` : item.path;
 }
 
 interface UnauthenticatedAppViewProps {
   appName: string;
+  appDescription?: string;
   passwordResetRoute: React.ReactNode;
 }
 
@@ -29,7 +28,11 @@ interface AuthenticatedAppViewProps {
   notFoundRoute: React.ReactNode;
 }
 
-export function UnauthenticatedAppView({ appName, passwordResetRoute }: UnauthenticatedAppViewProps) {
+export function UnauthenticatedAppView({
+  appName,
+  appDescription = "Help classify galaxies for scientific research",
+  passwordResetRoute,
+}: UnauthenticatedAppViewProps) {
   return (
     <div className="flex items-center justify-center min-h-screen">
       <div className="max-w-md w-full mx-4">
@@ -39,7 +42,7 @@ export function UnauthenticatedAppView({ appName, passwordResetRoute }: Unauthen
               {appName}
             </h1>
             <p className="text-gray-600 dark:text-gray-300">
-              Help classify galaxies for scientific research
+              {appDescription}
             </p>
           </div>
           <Routes>
@@ -84,7 +87,7 @@ export function AuthenticatedAppView({
               <Route index element={<ClassificationInterface />} />
               <Route path="/reset" element={<Navigate to="/settings" replace />} />
               <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
-              {navigationItems.filter((item) => item.id !== "admin").map((item) => (
+              {navigationItems.filter((item) => !item.isExternallyRouted).map((item) => (
                 <Route
                   key={item.id}
                   path={getNavigationRoutePath(item)}

@@ -60,6 +60,10 @@ function isRecoverableNetworkError(error: unknown): boolean {
     /Load failed/i,
     /ERR_QUIC_PROTOCOL_ERROR/i,
     /ERR_ECH_FALLBACK_CERTIFICATE_INVALID/i,
+    /ERR_CONNECTION_REFUSED/i,
+    /ECONNREFUSED/i,
+    /ETIMEDOUT/i,
+    /ERR_CONNECTION_TIMED_OUT/i,
     /fetch.*failed/i,
   ].some((pattern) => pattern.test(message));
 }
@@ -130,6 +134,7 @@ export function useAppRuntimeRecovery({
 
   useEffect(() => {
     if (!connectionState.hasInflightRequests || connectionState.timeOfOldestInflightRequest === null) {
+      setRuntimeIssue((current) => (current?.kind === "stalled-request" ? null : current));
       return;
     }
 

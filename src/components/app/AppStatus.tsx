@@ -5,11 +5,20 @@ interface RecoverableLoadingScreenProps {
   onRefresh: () => void;
 }
 
+function LoadingSpinner() {
+  return (
+    <div
+      className="mx-auto mb-3 h-12 w-12 animate-spin rounded-full border-b-2 border-blue-600"
+      aria-hidden="true"
+    />
+  );
+}
+
 export function LoadingScreen() {
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-3"></div>
+      <div className="text-center" role="status" aria-live="polite">
+        <LoadingSpinner />
         <p className="text-gray-600 dark:text-gray-300">Loading...</p>
       </div>
     </div>
@@ -25,8 +34,8 @@ export function RecoverableLoadingScreen({
   if (!showRecovery) {
     return (
       <div className="flex items-center justify-center min-h-screen px-4">
-        <div className="text-center max-w-md">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-3"></div>
+        <div className="text-center max-w-md" role="status" aria-live="polite">
+          <LoadingSpinner />
           <p className="text-gray-600 dark:text-gray-300">{message}</p>
           {!isOnline && (
             <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">

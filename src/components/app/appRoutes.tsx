@@ -9,6 +9,8 @@ export interface AppNavigationItem {
   path: string;
   element: ReactNode;
   adminOnly?: boolean;
+  hasNestedRoutes?: boolean;
+  isExternallyRouted?: boolean;
   activeWhenPathStartsWith?: string[];
   inactiveWhenPathStartsWith?: string[];
 }
@@ -124,7 +126,7 @@ export function getAppNavigationItems(isAdmin: boolean): AppNavigationItem[] {
     { id: "classify", label: "Classify", icon: "🔬", path: "/classify", element: <ClassificationInterface /> },
     { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: browseRoute },
     { id: "skipped", label: "Skipped", icon: "⏭️", path: "/skipped", element: skippedRoute },
-    { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: statisticsRoute },
+    { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: statisticsRoute, hasNestedRoutes: true },
     {
       id: "data",
       label: "Data",
@@ -132,13 +134,14 @@ export function getAppNavigationItems(isAdmin: boolean): AppNavigationItem[] {
       path: "/data",
       element: dataRoute,
       adminOnly: true,
+      hasNestedRoutes: true,
       activeWhenPathStartsWith: ["/data"],
     },
-    { id: "notifications", label: "Notifications", icon: "🔔", path: "/notifications", element: notificationsRoute },
-    { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: settingsRoute, activeWhenPathStartsWith: ["/settings"] },
-    { id: "help", label: "Help", icon: "❓", path: "/help", element: helpRoute },
+    { id: "notifications", label: "Notifications", icon: "🔔", path: "/notifications", element: notificationsRoute, hasNestedRoutes: true },
+    { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: settingsRoute, hasNestedRoutes: true, activeWhenPathStartsWith: ["/settings"] },
+    { id: "help", label: "Help", icon: "❓", path: "/help", element: helpRoute, hasNestedRoutes: true },
     { id: "reports", label: "Issue Reports", icon: "📋", path: "/reports", element: issueReportsRoute, adminOnly: true },
-    { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: adminPanelRoute, adminOnly: true },
+    { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: adminPanelRoute, adminOnly: true, isExternallyRouted: true },
   ];
 }
 
