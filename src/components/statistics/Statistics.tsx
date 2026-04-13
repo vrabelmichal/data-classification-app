@@ -14,6 +14,12 @@ const AssignmentStatsTab = lazy(() =>
   }))
 );
 
+const DataAnalysisTab = lazy(() =>
+  import("./DataAnalysisTab").then((module) => ({
+    default: module.DataAnalysisTab,
+  }))
+);
+
 function StatisticsTabLoading() {
   return (
     <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
@@ -30,9 +36,12 @@ export function Statistics() {
   const isOverview = location.pathname.startsWith("/statistics/overview");
   const isUsersStatistics = location.pathname.startsWith("/statistics/users");
   const isAssignmentStats = location.pathname.startsWith("/statistics/assignment-stats");
+  const isDataAnalysis = location.pathname.startsWith("/statistics/analysis");
   usePageTitle(
     isAssignmentStats
       ? "Assignment Statistics"
+      : isDataAnalysis
+        ? "Classification Data Analysis"
       : isLiveOverview
         ? "Overview Statistics (Live)"
         : isOverview
@@ -44,13 +53,17 @@ export function Statistics() {
 
   const isAdmin = userProfile?.role === "admin";
   const allowPublicOverview = systemSettings?.allowPublicOverview ?? false;
+  const allowPublicDataAnalysis = systemSettings?.allowPublicDataAnalysis ?? false;
   const canAccessOverview = Boolean(isAdmin || allowPublicOverview);
   const canAccessUsersStatistics = Boolean(isAdmin);
   const canAccessAssignmentStats = Boolean(isAdmin);
   const canAccessLiveOverview = Boolean(isAdmin);
+  const canAccessDataAnalysis = Boolean(isAdmin || allowPublicDataAnalysis);
   const restrictedTabRedirect = canAccessOverview ? "/statistics/overview" : "/statistics";
   const headerDescription = isAssignmentStats
     ? "Assignment coverage and sequence planning across the full dataset"
+    : isDataAnalysis
+      ? "Local, interactive analysis of per-galaxy classification outcomes"
     : isLiveOverview
       ? "Live classification progress and performance overview"
     : canAccessOverview
@@ -63,6 +76,9 @@ export function Statistics() {
       : []),
     ...(canAccessUsersStatistics
       ? [{ id: "users", label: "Users", icon: "👥", path: "/statistics/users" }]
+      : []),
+    ...(canAccessDataAnalysis
+      ? [{ id: "analysis", label: "Data Analysis", icon: "🧭", path: "/statistics/analysis" }]
       : []),
     ...(canAccessAssignmentStats
       ? [{ id: "assignment-stats", label: "Assignment Stats", icon: "🧮", path: "/statistics/assignment-stats" }]
@@ -130,6 +146,18 @@ export function Statistics() {
           element={
             canAccessUsersStatistics ? (
               <UsersStatisticsTab />
+            ) : (
+              <Navigate to={restrictedTabRedirect} replace />
+            )
+          }
+        />
+        <Route
+          path="analysis"
+          element={
+            canAccessDataAnalysis ? (
+              <Suspense fallback={<StatisticsTabLoading />}>
+                <DataAnalysisTab systemSettings={systemSettings} />
+              </Suspense>
             ) : (
               <Navigate to={restrictedTabRedirect} replace />
             )

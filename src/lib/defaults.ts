@@ -36,6 +36,11 @@ export const DEFAULT_DEBUG_ADMIN_MODE = false;
 export const DEFAULT_ALLOW_PUBLIC_OVERVIEW = false;
 
 /**
+ * Default state for exposing the client-side classification analysis page to regular users
+ */
+export const DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS = false;
+
+/**
  * Default failed fitting mode: "checkbox" or "legacy"
  */
 export const DEFAULT_FAILED_FITTING_MODE = "checkbox" as const;
@@ -129,6 +134,7 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
   overviewDefaultPaper: DEFAULT_OVERVIEW_DEFAULT_PAPER,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
+  allowPublicDataAnalysis: DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS,
   userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
   cloudflareCachePurgeEnabled: DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
   cloudflareZoneId: DEFAULT_CLOUDFLARE_ZONE_ID,

@@ -85,6 +85,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         appName: localSettings.appName,
         debugAdminMode: localSettings.debugAdminMode,
         allowPublicOverview: localSettings.allowPublicOverview,
+        allowPublicDataAnalysis: localSettings.allowPublicDataAnalysis,
         appVersion: localSettings.appVersion,
         failedFittingMode: localSettings.failedFittingMode,
         failedFittingFallbackLsbClass:

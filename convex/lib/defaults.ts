@@ -13,6 +13,11 @@ export const DEFAULT_AVAILABLE_PAPERS = ["", "new", "old"];
 export const DEFAULT_ALLOW_PUBLIC_OVERVIEW = false;
 
 /**
+ * Default state for exposing the data analysis page to regular users
+ */
+export const DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS = false;
+
+/**
  * Default system settings values
  */
 /**
@@ -36,6 +41,7 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
   overviewDefaultPaper: null as string | null,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
+  allowPublicDataAnalysis: DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS,
   userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
   cloudflareCachePurgeEnabled: false,
   cloudflareZoneId: "",

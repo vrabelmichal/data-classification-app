@@ -53,6 +53,7 @@ export const getPublicSystemSettings = query({
     defaultImageQuality: v.union(v.literal("high"), v.literal("low")),
     galaxyBrowserImageQuality: v.union(v.literal("high"), v.literal("low")),
     allowPublicOverview: v.boolean(),
+    allowPublicDataAnalysis: v.boolean(),
     userExportLimit: v.number(),
     cloudflareCachePurgeEnabled: v.boolean(),
     maintenanceDisableClassifications: v.boolean(),
@@ -76,6 +77,7 @@ export const getPublicSystemSettings = query({
       defaultImageQuality: mergedSettings.defaultImageQuality,
       galaxyBrowserImageQuality: mergedSettings.galaxyBrowserImageQuality,
       allowPublicOverview: mergedSettings.allowPublicOverview,
+      allowPublicDataAnalysis: mergedSettings.allowPublicDataAnalysis,
       userExportLimit: mergedSettings.userExportLimit,
       cloudflareCachePurgeEnabled: mergedSettings.cloudflareCachePurgeEnabled,
       maintenanceDisableClassifications: mergedSettings.maintenanceDisableClassifications,
@@ -94,6 +96,7 @@ export const updateSystemSettings = mutation({
     appName: v.optional(v.string()),
     debugAdminMode: v.optional(v.boolean()),
     allowPublicOverview: v.optional(v.boolean()),
+    allowPublicDataAnalysis: v.optional(v.boolean()),
     appVersion: v.optional(v.string()),
     failedFittingMode: v.optional(v.union(v.literal("checkbox"), v.literal("legacy"))),
     failedFittingFallbackLsbClass: v.optional(v.number()),
@@ -190,6 +193,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "allowPublicOverview",
           value: args.allowPublicOverview,
+        });
+      }
+    }
+
+    if (args.allowPublicDataAnalysis !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "allowPublicDataAnalysis"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.allowPublicDataAnalysis });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "allowPublicDataAnalysis",
+          value: args.allowPublicDataAnalysis,
         });
       }
     }

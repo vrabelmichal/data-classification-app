@@ -56,6 +56,7 @@ import type * as lib_settings from "../lib/settings.js";
 import type * as notifications from "../notifications.js";
 import type * as router from "../router.js";
 import type * as seedGalaxyAssignmentStats from "../seedGalaxyAssignmentStats.js";
+import type * as statistics_classificationAnalysis from "../statistics/classificationAnalysis.js";
 import type * as statistics_labelingEffortStats from "../statistics/labelingEffortStats.js";
 import type * as statistics_labelingOverview_cache from "../statistics/labelingOverview/cache.js";
 import type * as statistics_labelingOverview_cacheValidators from "../statistics/labelingOverview/cacheValidators.js";
@@ -124,6 +125,7 @@ declare const fullApi: ApiFromModules<{
   notifications: typeof notifications;
   router: typeof router;
   seedGalaxyAssignmentStats: typeof seedGalaxyAssignmentStats;
+  "statistics/classificationAnalysis": typeof statistics_classificationAnalysis;
   "statistics/labelingEffortStats": typeof statistics_labelingEffortStats;
   "statistics/labelingOverview/cache": typeof statistics_labelingOverview_cache;
   "statistics/labelingOverview/cacheValidators": typeof statistics_labelingOverview_cacheValidators;

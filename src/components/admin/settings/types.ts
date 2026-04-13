@@ -6,6 +6,7 @@ export interface SettingsFormState {
   appName: string;
   debugAdminMode: boolean;
   allowPublicOverview: boolean;
+  allowPublicDataAnalysis: boolean;
   appVersion: string;
   failedFittingMode: "checkbox" | "legacy";
   failedFittingFallbackLsbClass: number;

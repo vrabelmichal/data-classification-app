@@ -13,6 +13,7 @@ import {
   DEFAULT_IMAGE_QUALITY,
   DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
   DEFAULT_ALLOW_PUBLIC_OVERVIEW,
+  DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS,
   DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
   DEFAULT_CLOUDFLARE_ZONE_ID,
   DEFAULT_CLOUDFLARE_API_TOKEN,
@@ -29,6 +30,9 @@ export function createSettingsFormState(systemSettings: any): SettingsFormState 
     debugAdminMode: systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE,
     allowPublicOverview:
       systemSettings.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW,
+    allowPublicDataAnalysis:
+      systemSettings.allowPublicDataAnalysis ??
+      DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS,
     appVersion: systemSettings.appVersion ?? DEFAULT_APP_VERSION,
     failedFittingMode:
       systemSettings.failedFittingMode ?? DEFAULT_FAILED_FITTING_MODE,
@@ -70,6 +74,8 @@ export function hasSettingsChanges(
     localSettings.appName !== originalSettings.appName ||
     localSettings.debugAdminMode !== originalSettings.debugAdminMode ||
     localSettings.allowPublicOverview !== originalSettings.allowPublicOverview ||
+    localSettings.allowPublicDataAnalysis !==
+      originalSettings.allowPublicDataAnalysis ||
     localSettings.appVersion !== originalSettings.appVersion ||
     localSettings.failedFittingMode !== originalSettings.failedFittingMode ||
     localSettings.failedFittingFallbackLsbClass !==
