@@ -33,7 +33,7 @@ export type DataLoadState = {
 
 export type ZeroBucketState = {
   awesomeVotes: boolean;
-  visibleNucleusVotes: boolean;
+  visibleNucleusAgreementCount: boolean;
   failedFittingVotes: boolean;
 };
 

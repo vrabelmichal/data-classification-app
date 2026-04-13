@@ -14,6 +14,7 @@ import {
   catalogNucleusOptions,
   clampPreviewLimit,
   createAnalysisCondition,
+  dominantLsbOptions,
   duplicateAnalysisQuery,
   formatPaperLabel,
   getMetricLabel,
@@ -202,6 +203,30 @@ function VotePreviewRow({
   );
 }
 
+function formatAgreementSummary(
+  summary: Pick<AnalysisRecord["lsb"], "agreementCount" | "agreementRate" | "comparableVotes" | "label">
+) {
+  if (summary.agreementRate === null || summary.comparableVotes <= 0) {
+    return summary.label;
+  }
+
+  return `${summary.agreementCount}/${summary.comparableVotes} (${formatPercent(summary.agreementRate)})`;
+}
+
+function formatAnsweredVoteSummary(yesVotes: number, comparableVotes: number) {
+  if (comparableVotes <= 0) {
+    return "-";
+  }
+
+  return `${yesVotes}/${comparableVotes}`;
+}
+
+function formatDominantLsbBreakdown(
+  breakdown: AnalysisQueryResult["dominantLsbBreakdown"]
+) {
+  return `LSB ${breakdown.lsb.toLocaleString()} • Non-LSB ${breakdown.nonLsb.toLocaleString()} • Split ${breakdown.split.toLocaleString()} • No Is-LSB ${breakdown.noComparableVotes.toLocaleString()}`;
+}
+
 function AnalysisGalaxyCard({
   record,
   imageQuality,
@@ -260,14 +285,16 @@ function AnalysisGalaxyCard({
           </div>
 
           <div className="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
-            {formatPercent(record.agreement.overall)} agreement
+            {record.lsb.agreementRate === null
+              ? "No Is-LSB votes"
+              : `${record.lsb.label} • ${record.lsb.agreementCount}/${record.lsb.comparableVotes}`}
           </div>
         </div>
 
         <div className="grid gap-2 text-sm text-gray-700 dark:text-gray-200 sm:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/30">
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Dominant LSB
+              Dominant Is-LSB
             </div>
             <div className="mt-1 font-medium">{record.dominantLsbLabel}</div>
           </div>
@@ -287,26 +314,26 @@ function AnalysisGalaxyCard({
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/30">
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Votes snapshot
+              Is-LSB agreement
             </div>
             <div className="mt-1 font-medium">
-              LSB {aggregate.lsbVotes} / ETG {aggregate.etgVotes}
+              {formatAgreementSummary(record.lsb)}
             </div>
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/30">
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Flags
+              Morphology agreement
             </div>
             <div className="mt-1 font-medium">
-              Awesome {aggregate.awesomeVotes} / Nucleus {aggregate.visibleNucleusVotes}
+              {formatAgreementSummary(record.morphology)}
             </div>
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/30">
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-              Nucleus confirmation
+              Visible nucleus agreement
             </div>
             <div className="mt-1 font-medium">
-              {formatPercent(record.nucleusConfirmationRate)}
+              {formatAgreementSummary(record.visibleNucleus)}
             </div>
           </div>
         </div>
@@ -344,7 +371,16 @@ function AnalysisGalaxyCard({
             View classifications
           </button>
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            Disagreement {formatPercent(record.disagreement)}
+            Awesome {aggregate.awesomeVotes.toLocaleString()}
+          </span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Failed fitting yes {formatAnsweredVoteSummary(
+              aggregate.failedFittingVotes,
+              record.failedFitting.comparableVotes
+            )}
+          </span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Nucleus confirmation {formatPercent(record.nucleusConfirmationRate)}
           </span>
         </div>
       </div>
@@ -408,7 +444,7 @@ export function DataAnalysisQueryCard({
                 {result.matchedCount.toLocaleString()} matches
               </span>
               <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                Avg agreement {formatPercent(result.averageAgreement)}
+                Avg Is-LSB agreement {formatPercent(result.averageLsbAgreementRate)}
               </span>
               <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
                 {result.totalMatchingClassifications.toLocaleString()} classifications
@@ -530,6 +566,28 @@ export function DataAnalysisQueryCard({
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 >
                   {catalogNucleusOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Dominant Is-LSB
+                </span>
+                <select
+                  value={query.dominantLsb}
+                  onChange={(event) =>
+                    onUpdateQuery(query.id, (currentQuery) => ({
+                      ...currentQuery,
+                      dominantLsb: event.target.value as AnalysisQueryConfig["dominantLsb"],
+                    }))
+                  }
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                >
+                  {dominantLsbOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -696,10 +754,34 @@ export function DataAnalysisQueryCard({
                   </div>
                   <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Average agreement
+                      Avg Is-LSB agreement
                     </div>
                     <div className="mt-1 font-medium">
-                      {formatPercent(result.averageAgreement)}
+                      {formatPercent(result.averageLsbAgreementRate)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Avg morphology agreement
+                    </div>
+                    <div className="mt-1 font-medium">
+                      {formatPercent(result.averageMorphologyAgreementRate)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Avg visible-nucleus agreement
+                    </div>
+                    <div className="mt-1 font-medium">
+                      {formatPercent(result.averageVisibleNucleusAgreementRate)}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Dominant Is-LSB breakdown
+                    </div>
+                    <div className="mt-1 font-medium">
+                      {formatDominantLsbBreakdown(result.dominantLsbBreakdown)}
                     </div>
                   </div>
                   <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">

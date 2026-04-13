@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 
-import type { AnalysisRecord } from "./helpers";
+import {
+  getLsbVoteLabel,
+  getMorphologyVoteLabel,
+  type AnalysisRecord,
+} from "./helpers";
 
 type ClassificationDetailsModalProps = {
   isOpen: boolean;
@@ -18,7 +22,11 @@ function formatDate(timestamp: number) {
   return dateFormatter.format(new Date(timestamp));
 }
 
-function formatBooleanLabel(value: boolean) {
+function formatBooleanLabel(value: boolean | undefined) {
+  if (value === undefined) {
+    return "-";
+  }
+
   return value ? "Yes" : "No";
 }
 
@@ -69,7 +77,7 @@ export function ClassificationDetailsModal({
               Individual classifications for {record.galaxy.id}
             </h2>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-              {record.classificationCount} classifications. Dominant LSB: {record.lsb.label}. Dominant morphology: {record.morphology.label}.
+              {record.aggregate.totalClassifications} classifications. Dominant Is-LSB: {record.dominantLsbLabel}. Dominant morphology: {record.dominantMorphologyLabel}.
             </p>
           </div>
 
@@ -112,12 +120,17 @@ export function ClassificationDetailsModal({
                     <td className="px-3 py-3 font-mono text-xs">{vote.userId}</td>
                     <td className="px-3 py-3 font-mono text-xs">{vote._id}</td>
                     <td className="px-3 py-3 whitespace-nowrap">{formatDate(vote._creationTime)}</td>
-                    <td className="px-3 py-3">{vote.lsbLabel}</td>
-                    <td className="px-3 py-3">{vote.morphologyLabel}</td>
-                    <td className="px-3 py-3">{formatBooleanLabel(vote.awesome)}</td>
-                    <td className="px-3 py-3">{formatBooleanLabel(vote.validRedshift)}</td>
-                    <td className="px-3 py-3">{formatBooleanLabel(vote.visibleNucleus)}</td>
-                    <td className="px-3 py-3">{formatBooleanLabel(vote.failedFitting)}</td>
+                    <td className="px-3 py-3">{getLsbVoteLabel(vote)}</td>
+                    <td className="px-3 py-3">{getMorphologyVoteLabel(vote.morphology)}</td>
+                    <td className="px-3 py-3">{formatBooleanLabel(vote.awesome_flag)}</td>
+                    <td className="px-3 py-3">{formatBooleanLabel(vote.valid_redshift)}</td>
+                    <td className="px-3 py-3">{formatBooleanLabel(vote.visible_nucleus)}</td>
+                    <td className="px-3 py-3">
+                      {formatBooleanLabel(
+                        vote.failed_fitting ??
+                          (vote.lsb_class === -1 ? true : undefined)
+                      )}
+                    </td>
                   </tr>
                 );
               })}

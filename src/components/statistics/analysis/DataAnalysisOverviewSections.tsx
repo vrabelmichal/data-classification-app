@@ -293,9 +293,10 @@ export function AnalysisGlobalHistogramSection({
   onToggleZeroBucket,
 }: {
   histograms: {
-    agreement: HistogramDatum[];
+    lsbAgreementCount: HistogramDatum[];
+    morphologyAgreementCount: HistogramDatum[];
+    visibleNucleusAgreementCount: HistogramDatum[];
     awesomeVotes: HistogramDatum[];
-    visibleNucleusVotes: HistogramDatum[];
     failedFittingVotes: HistogramDatum[];
     nucleusConfirmation: HistogramDatum[];
   };
@@ -305,9 +306,21 @@ export function AnalysisGlobalHistogramSection({
   return (
     <div className="grid gap-6 xl:grid-cols-2 2xl:grid-cols-3">
       <HistogramCard
-        title="Agreement distribution"
-        description="How concentrated the votes are across the classified catalog."
-        data={histograms.agreement}
+        title="Is-LSB agreement counts"
+        description="For each classified galaxy, how many comparable Is-LSB votes landed in the dominant LSB or Non-LSB branch."
+        data={histograms.lsbAgreementCount}
+      />
+      <HistogramCard
+        title="Morphology agreement counts inside LSB-majority galaxies"
+        description="After the top-level Is-LSB call lands on LSB, this shows how many morphology votes align on the dominant morphology."
+        data={histograms.morphologyAgreementCount}
+      />
+      <HistogramCard
+        title="Visible-nucleus agreement counts inside LSB-majority galaxies"
+        description="Agreement counts on the visible-nucleus question inside LSB-majority galaxies. The hidden zero bucket corresponds to galaxies with no visible-nucleus responses."
+        data={histograms.visibleNucleusAgreementCount}
+        zeroBucketHidden={hideZeroBuckets.visibleNucleusAgreementCount}
+        onToggleZeroBucket={() => onToggleZeroBucket("visibleNucleusAgreementCount")}
       />
       <HistogramCard
         title="Awesome-vote distribution"
@@ -317,15 +330,8 @@ export function AnalysisGlobalHistogramSection({
         onToggleZeroBucket={() => onToggleZeroBucket("awesomeVotes")}
       />
       <HistogramCard
-        title="Visible-nucleus vote distribution"
-        description="How many galaxies received repeated visible-nucleus confirmations. Zero is hidden by default."
-        data={histograms.visibleNucleusVotes}
-        zeroBucketHidden={hideZeroBuckets.visibleNucleusVotes}
-        onToggleZeroBucket={() => onToggleZeroBucket("visibleNucleusVotes")}
-      />
-      <HistogramCard
         title="Failed-fitting vote distribution"
-        description="How often galaxies accumulate failed-fitting classifications. Zero is hidden by default."
+        description="How often galaxies accumulate explicit failed-fitting responses. Zero is hidden by default."
         data={histograms.failedFittingVotes}
         zeroBucketHidden={hideZeroBuckets.failedFittingVotes}
         onToggleZeroBucket={() => onToggleZeroBucket("failedFittingVotes")}

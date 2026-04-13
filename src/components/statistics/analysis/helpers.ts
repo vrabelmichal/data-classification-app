@@ -1,21 +1,28 @@
 export type AnalysisConditionMetric =
   | "totalClassifications"
+  | "lsbComparableVotes"
   | "lsbVotes"
   | "nonLsbVotes"
   | "failedFittingVotes"
+  | "lsbAgreementCount"
   | "featurelessVotes"
   | "irregularVotes"
   | "ltgVotes"
   | "etgVotes"
+  | "morphologyAgreementCount"
   | "awesomeVotes"
   | "validRedshiftVotes"
-  | "visibleNucleusVotes";
+  | "visibleNucleusVotes"
+  | "visibleNucleusComparableVotes"
+  | "visibleNucleusAgreementCount"
+  | "failedFittingComparableVotes"
+  | "failedFittingAgreementCount";
 
 export type AnalysisRatioMetric =
-  | "agreementScore"
-  | "disagreementScore"
-  | "lsbAgreement"
-  | "morphologyAgreement"
+  | "lsbAgreementRate"
+  | "morphologyAgreementRate"
+  | "visibleNucleusAgreementRate"
+  | "failedFittingAgreementRate"
   | "nucleusConfirmationRate";
 
 export type AnalysisMetric = AnalysisConditionMetric | AnalysisRatioMetric;
@@ -23,6 +30,12 @@ export type AnalysisMetric = AnalysisConditionMetric | AnalysisRatioMetric;
 export type AnalysisOperator = "atLeast" | "atMost" | "exactly";
 export type QuerySortDirection = "desc" | "asc";
 export type CatalogNucleusFilter = "any" | "yes" | "no";
+export type DominantLsbFilter =
+  | "any"
+  | "lsb"
+  | "nonLsb"
+  | "split"
+  | "noComparableVotes";
 
 export interface AnalysisGalaxy {
   _id: string;
@@ -65,6 +78,7 @@ export interface AnalysisAggregate {
   lsbVotes: number;
   nonLsbVotes: number;
   failedFittingVotes: number;
+  failedFittingComparableVotes: number;
   featurelessVotes: number;
   irregularVotes: number;
   ltgVotes: number;
@@ -72,20 +86,27 @@ export interface AnalysisAggregate {
   awesomeVotes: number;
   validRedshiftVotes: number;
   visibleNucleusVotes: number;
+  visibleNucleusComparableVotes: number;
 }
 
-export interface AnalysisAgreement {
-  lsb: number;
-  morphology: number;
-  overall: number;
+export interface AnalysisDecisionSummary<State extends string = string> {
+  state: State;
+  label: string;
+  agreementCount: number;
+  agreementRate: number | null;
+  comparableVotes: number;
 }
 
 export interface AnalysisRecord {
   galaxy: AnalysisGalaxy;
   aggregate: AnalysisAggregate;
   votes: AnalysisClassificationVote[];
-  agreement: AnalysisAgreement;
-  disagreement: number;
+  lsb: AnalysisDecisionSummary<Exclude<DominantLsbFilter, "any">>;
+  morphology: AnalysisDecisionSummary<
+    "featureless" | "irregular" | "ltg" | "etg" | "split" | "noClassifications"
+  >;
+  visibleNucleus: AnalysisDecisionSummary<"yes" | "no" | "split" | "noResponses">;
+  failedFitting: AnalysisDecisionSummary<"yes" | "no" | "split" | "noResponses">;
   nucleusConfirmationRate: number | null;
   dominantLsbLabel: string;
   dominantMorphologyLabel: string;
@@ -104,6 +125,7 @@ export interface AnalysisQueryConfig {
   description: string;
   paper: string | "__any__";
   catalogNucleus: CatalogNucleusFilter;
+  dominantLsb: DominantLsbFilter;
   conditions: AnalysisQueryCondition[];
   sortBy: AnalysisMetric;
   sortDirection: QuerySortDirection;
@@ -111,12 +133,23 @@ export interface AnalysisQueryConfig {
   previewLimit: number;
 }
 
+export interface AnalysisDominantLsbBreakdown {
+  lsb: number;
+  nonLsb: number;
+  split: number;
+  noComparableVotes: number;
+}
+
 export interface AnalysisQueryResult {
   matchedCount: number;
   previewRecords: AnalysisRecord[];
   histogram: HistogramDatum[];
   totalMatchingClassifications: number;
-  averageAgreement: number | null;
+  averageLsbAgreementRate: number | null;
+  averageMorphologyAgreementRate: number | null;
+  averageVisibleNucleusAgreementRate: number | null;
+  averageFailedFittingAgreementRate: number | null;
+  dominantLsbBreakdown: AnalysisDominantLsbBreakdown;
 }
 
 export interface HistogramDatum {
@@ -144,6 +177,11 @@ const METRIC_META: Record<AnalysisMetric, MetricMeta> = {
     shortLabel: "Classifications",
     isRatio: false,
   },
+  lsbComparableVotes: {
+    label: "Comparable Is-LSB votes",
+    shortLabel: "Comparable Is-LSB",
+    isRatio: false,
+  },
   lsbVotes: {
     label: "LSB votes",
     shortLabel: "LSB",
@@ -155,8 +193,13 @@ const METRIC_META: Record<AnalysisMetric, MetricMeta> = {
     isRatio: false,
   },
   failedFittingVotes: {
-    label: "Failed-fitting votes",
+    label: "Failed-fitting yes votes",
     shortLabel: "Failed",
+    isRatio: false,
+  },
+  lsbAgreementCount: {
+    label: "Is-LSB agreement count",
+    shortLabel: "Is-LSB agree",
     isRatio: false,
   },
   featurelessVotes: {
@@ -179,6 +222,11 @@ const METRIC_META: Record<AnalysisMetric, MetricMeta> = {
     shortLabel: "ETG",
     isRatio: false,
   },
+  morphologyAgreementCount: {
+    label: "Morphology agreement count",
+    shortLabel: "Morph agree",
+    isRatio: false,
+  },
   awesomeVotes: {
     label: "Awesome votes",
     shortLabel: "Awesome",
@@ -190,28 +238,48 @@ const METRIC_META: Record<AnalysisMetric, MetricMeta> = {
     isRatio: false,
   },
   visibleNucleusVotes: {
-    label: "Visible-nucleus votes",
-    shortLabel: "Visible nucleus",
+    label: "Visible-nucleus yes votes",
+    shortLabel: "Visible yes",
     isRatio: false,
   },
-  agreementScore: {
-    label: "Overall agreement",
-    shortLabel: "Agreement",
+  visibleNucleusComparableVotes: {
+    label: "Visible-nucleus answered votes",
+    shortLabel: "Visible answered",
+    isRatio: false,
+  },
+  visibleNucleusAgreementCount: {
+    label: "Visible-nucleus agreement count",
+    shortLabel: "Visible agree",
+    isRatio: false,
+  },
+  failedFittingComparableVotes: {
+    label: "Failed-fitting answered votes",
+    shortLabel: "Failed answered",
+    isRatio: false,
+  },
+  failedFittingAgreementCount: {
+    label: "Failed-fitting agreement count",
+    shortLabel: "Failed agree",
+    isRatio: false,
+  },
+  lsbAgreementRate: {
+    label: "Is-LSB agreement rate",
+    shortLabel: "Is-LSB rate",
     isRatio: true,
   },
-  disagreementScore: {
-    label: "Overall disagreement",
-    shortLabel: "Disagreement",
+  morphologyAgreementRate: {
+    label: "Morphology agreement rate",
+    shortLabel: "Morph rate",
     isRatio: true,
   },
-  lsbAgreement: {
-    label: "LSB agreement",
-    shortLabel: "LSB agreement",
+  visibleNucleusAgreementRate: {
+    label: "Visible-nucleus agreement rate",
+    shortLabel: "Visible rate",
     isRatio: true,
   },
-  morphologyAgreement: {
-    label: "Morphology agreement",
-    shortLabel: "Morph agreement",
+  failedFittingAgreementRate: {
+    label: "Failed-fitting agreement rate",
+    shortLabel: "Failed rate",
     isRatio: true,
   },
   nucleusConfirmationRate: {
@@ -225,6 +293,8 @@ const LSB_LABELS = {
   failed: "Failed fitting",
   lsb: "LSB",
   nonLsb: "Non-LSB",
+  split: "Split LSB / Non-LSB",
+  noComparableVotes: "No comparable Is-LSB votes",
 } as const;
 
 const MORPHOLOGY_LABELS = {
@@ -232,35 +302,104 @@ const MORPHOLOGY_LABELS = {
   irregular: "Irr/other",
   ltg: "LTG (Sp)",
   etg: "ETG (Ell)",
+  split: "Split morphology",
+  noClassifications: "No classifications",
+} as const;
+
+const VISIBLE_NUCLEUS_LABELS = {
+  yes: "Visible nucleus",
+  no: "No visible nucleus",
+  split: "Split yes / no",
+  noResponses: "No visible-nucleus votes",
+} as const;
+
+const FAILED_FITTING_LABELS = {
+  yes: "Failed fitting",
+  no: "No failed fitting",
+  split: "Split yes / no",
+  noResponses: "No failed-fitting votes",
 } as const;
 
 export const analysisConditionMetricOptions: Array<
   SelectOption<AnalysisConditionMetric>
 > = [
   { value: "totalClassifications", label: "Total classifications" },
+  { value: "lsbComparableVotes", label: "Comparable Is-LSB votes" },
   { value: "lsbVotes", label: "LSB votes" },
   { value: "nonLsbVotes", label: "Non-LSB votes" },
-  { value: "failedFittingVotes", label: "Failed-fitting votes" },
+  { value: "failedFittingVotes", label: "Failed-fitting yes votes" },
+  { value: "lsbAgreementCount", label: "Is-LSB agreement count" },
+  { value: "featurelessVotes", label: "Featureless votes" },
+  { value: "irregularVotes", label: "Irr/other votes" },
+  { value: "ltgVotes", label: "LTG votes" },
+  { value: "etgVotes", label: "ETG votes" },
+  { value: "morphologyAgreementCount", label: "Morphology agreement count" },
+  { value: "awesomeVotes", label: "Awesome votes" },
+  { value: "validRedshiftVotes", label: "Valid-redshift votes" },
+  { value: "visibleNucleusVotes", label: "Visible-nucleus yes votes" },
+  {
+    value: "visibleNucleusComparableVotes",
+    label: "Visible-nucleus answered votes",
+  },
+  {
+    value: "visibleNucleusAgreementCount",
+    label: "Visible-nucleus agreement count",
+  },
+  {
+    value: "failedFittingComparableVotes",
+    label: "Failed-fitting answered votes",
+  },
+  {
+    value: "failedFittingAgreementCount",
+    label: "Failed-fitting agreement count",
+  },
+];
+
+export const analysisSortMetricOptions: Array<SelectOption<AnalysisMetric>> = [
+  { value: "totalClassifications", label: "Total classifications" },
+  { value: "lsbAgreementCount", label: "Is-LSB agreement count" },
+  { value: "lsbAgreementRate", label: "Is-LSB agreement rate" },
+  { value: "lsbComparableVotes", label: "Comparable Is-LSB votes" },
+  { value: "lsbVotes", label: "LSB votes" },
+  { value: "nonLsbVotes", label: "Non-LSB votes" },
+  { value: "morphologyAgreementCount", label: "Morphology agreement count" },
+  { value: "morphologyAgreementRate", label: "Morphology agreement rate" },
   { value: "featurelessVotes", label: "Featureless votes" },
   { value: "irregularVotes", label: "Irr/other votes" },
   { value: "ltgVotes", label: "LTG votes" },
   { value: "etgVotes", label: "ETG votes" },
   { value: "awesomeVotes", label: "Awesome votes" },
   { value: "validRedshiftVotes", label: "Valid-redshift votes" },
-  { value: "visibleNucleusVotes", label: "Visible-nucleus votes" },
-];
-
-export const analysisSortMetricOptions: Array<SelectOption<AnalysisMetric>> = [
-  { value: "agreementScore", label: "Overall agreement" },
-  { value: "disagreementScore", label: "Overall disagreement" },
-  { value: "totalClassifications", label: "Total classifications" },
-  { value: "awesomeVotes", label: "Awesome votes" },
-  { value: "visibleNucleusVotes", label: "Visible-nucleus votes" },
-  { value: "nucleusConfirmationRate", label: "Visible-nucleus confirmation rate" },
-  { value: "lsbVotes", label: "LSB votes" },
-  { value: "etgVotes", label: "ETG votes" },
-  { value: "lsbAgreement", label: "LSB agreement" },
-  { value: "morphologyAgreement", label: "Morphology agreement" },
+  { value: "visibleNucleusVotes", label: "Visible-nucleus yes votes" },
+  {
+    value: "visibleNucleusComparableVotes",
+    label: "Visible-nucleus answered votes",
+  },
+  {
+    value: "visibleNucleusAgreementCount",
+    label: "Visible-nucleus agreement count",
+  },
+  {
+    value: "visibleNucleusAgreementRate",
+    label: "Visible-nucleus agreement rate",
+  },
+  { value: "failedFittingVotes", label: "Failed-fitting yes votes" },
+  {
+    value: "failedFittingComparableVotes",
+    label: "Failed-fitting answered votes",
+  },
+  {
+    value: "failedFittingAgreementCount",
+    label: "Failed-fitting agreement count",
+  },
+  {
+    value: "failedFittingAgreementRate",
+    label: "Failed-fitting agreement rate",
+  },
+  {
+    value: "nucleusConfirmationRate",
+    label: "Visible-nucleus confirmation rate",
+  },
 ];
 
 export const analysisHistogramMetricOptions: Array<
@@ -279,6 +418,14 @@ export const catalogNucleusOptions: Array<
   { value: "any", label: "Any catalog nucleus state" },
   { value: "yes", label: "Catalog says nucleus" },
   { value: "no", label: "Catalog says no nucleus" },
+];
+
+export const dominantLsbOptions: Array<SelectOption<DominantLsbFilter>> = [
+  { value: "any", label: "Any Is-LSB outcome" },
+  { value: "lsb", label: "Dominant Is-LSB = LSB" },
+  { value: "nonLsb", label: "Dominant Is-LSB = Non-LSB" },
+  { value: "split", label: "Split Is-LSB votes" },
+  { value: "noComparableVotes", label: "No comparable Is-LSB votes" },
 ];
 
 export function createAnalysisLocalId() {
@@ -307,6 +454,7 @@ export function createBlankAnalysisQuery(): AnalysisQueryConfig {
     description: "",
     paper: "__any__",
     catalogNucleus: "any",
+    dominantLsb: "any",
     conditions: [createAnalysisCondition("totalClassifications", "atLeast", 1)],
     sortBy: "totalClassifications",
     sortDirection: "desc",
@@ -333,75 +481,95 @@ export function buildDefaultAnalysisQueries(): AnalysisQueryConfig[] {
   return [
     {
       id: createAnalysisLocalId(),
-      name: "Most agreed galaxies",
+      name: "Strongest Is-LSB consensus",
       description:
-        "Galaxies with at least three classifications, ranked by how strongly the votes line up across LSB, morphology, and the binary flags.",
+        "Galaxies with at least three comparable Is-LSB votes, ordered by the clearest top-level LSB vs Non-LSB consensus.",
       paper: "__any__",
       catalogNucleus: "any",
-      conditions: [createAnalysisCondition("totalClassifications", "atLeast", 3)],
-      sortBy: "agreementScore",
+      dominantLsb: "any",
+      conditions: [createAnalysisCondition("lsbComparableVotes", "atLeast", 3)],
+      sortBy: "lsbAgreementRate",
       sortDirection: "desc",
-      histogramMetric: "agreementScore",
+      histogramMetric: "lsbAgreementCount",
       previewLimit: 5,
     },
     {
       id: createAnalysisLocalId(),
-      name: "Most disputed galaxies",
+      name: "Split Is-LSB decisions",
       description:
-        "Galaxies where multiple users weighed in but the votes split the hardest.",
+        "Galaxies where the first decision in the tree, Is-LSB, is the most contested after requiring four comparable votes.",
       paper: "__any__",
       catalogNucleus: "any",
-      conditions: [createAnalysisCondition("totalClassifications", "atLeast", 4)],
-      sortBy: "disagreementScore",
-      sortDirection: "desc",
-      histogramMetric: "disagreementScore",
+      dominantLsb: "any",
+      conditions: [createAnalysisCondition("lsbComparableVotes", "atLeast", 4)],
+      sortBy: "lsbAgreementRate",
+      sortDirection: "asc",
+      histogramMetric: "lsbAgreementCount",
       previewLimit: 5,
     },
     {
       id: createAnalysisLocalId(),
-      name: "Awesome-flag standouts",
+      name: "LSB-majority morphology consensus",
       description:
-        "Targets that attracted repeated awesome flags, ordered by the strongest follow-up interest.",
+        "Among galaxies whose dominant Is-LSB outcome is LSB, surface the clearest morphology consensus.",
       paper: "__any__",
       catalogNucleus: "any",
-      conditions: [createAnalysisCondition("awesomeVotes", "atLeast", 2)],
-      sortBy: "awesomeVotes",
-      sortDirection: "desc",
-      histogramMetric: "awesomeVotes",
-      previewLimit: 5,
-    },
-    {
-      id: createAnalysisLocalId(),
-      name: "Catalog nucleus confirmations",
-      description:
-        "Catalog nuclei that users repeatedly confirmed with the visible-nucleus flag.",
-      paper: "__any__",
-      catalogNucleus: "yes",
+      dominantLsb: "lsb",
       conditions: [
-        createAnalysisCondition("visibleNucleusVotes", "atLeast", 2),
-        createAnalysisCondition("totalClassifications", "atLeast", 2),
+        createAnalysisCondition("lsbAgreementCount", "atLeast", 3),
+        createAnalysisCondition("totalClassifications", "atLeast", 3),
       ],
-      sortBy: "nucleusConfirmationRate",
+      sortBy: "morphologyAgreementRate",
       sortDirection: "desc",
-      histogramMetric: "visibleNucleusVotes",
+      histogramMetric: "morphologyAgreementCount",
+      previewLimit: 5,
+    },
+    {
+      id: createAnalysisLocalId(),
+      name: "Visible-nucleus agreement inside LSB-majority galaxies",
+      description:
+        "For galaxies considered LSB first, inspect how strongly the visible-nucleus answers align when that question was answered.",
+      paper: "__any__",
+      catalogNucleus: "any",
+      dominantLsb: "lsb",
+      conditions: [
+        createAnalysisCondition("lsbAgreementCount", "atLeast", 3),
+        createAnalysisCondition("visibleNucleusComparableVotes", "atLeast", 2),
+      ],
+      sortBy: "visibleNucleusAgreementRate",
+      sortDirection: "desc",
+      histogramMetric: "visibleNucleusAgreementCount",
       previewLimit: 10,
     },
     {
       id: createAnalysisLocalId(),
-      name: "LSB ETG nucleus candidates",
+      name: "Awesome-flag standouts with stable Is-LSB calls",
       description:
-        "A stronger composite question: galaxies called LSB by at least three people, ETG by at least two, with repeated visible-nucleus and awesome votes.",
+        "Targets that attracted repeated awesome flags after the top-level Is-LSB call already looks stable.",
       paper: "__any__",
       catalogNucleus: "any",
+      dominantLsb: "any",
       conditions: [
-        createAnalysisCondition("lsbVotes", "atLeast", 3),
-        createAnalysisCondition("etgVotes", "atLeast", 2),
-        createAnalysisCondition("visibleNucleusVotes", "atLeast", 2),
         createAnalysisCondition("awesomeVotes", "atLeast", 2),
+        createAnalysisCondition("lsbAgreementCount", "atLeast", 3),
       ],
-      sortBy: "agreementScore",
+      sortBy: "awesomeVotes",
       sortDirection: "desc",
       histogramMetric: "awesomeVotes",
+      previewLimit: 10,
+    },
+    {
+      id: createAnalysisLocalId(),
+      name: "Failed-fitting pileups",
+      description:
+        "Galaxies that accumulated repeated failed-fitting responses, kept separate from the Is-LSB decision itself.",
+      paper: "__any__",
+      catalogNucleus: "any",
+      dominantLsb: "any",
+      conditions: [createAnalysisCondition("failedFittingVotes", "atLeast", 2)],
+      sortBy: "failedFittingVotes",
+      sortDirection: "desc",
+      histogramMetric: "failedFittingVotes",
       previewLimit: 10,
     },
   ];
@@ -413,6 +581,7 @@ export function createEmptyAggregate(): AnalysisAggregate {
     lsbVotes: 0,
     nonLsbVotes: 0,
     failedFittingVotes: 0,
+    failedFittingComparableVotes: 0,
     featurelessVotes: 0,
     irregularVotes: 0,
     ltgVotes: 0,
@@ -420,6 +589,7 @@ export function createEmptyAggregate(): AnalysisAggregate {
     awesomeVotes: 0,
     validRedshiftVotes: 0,
     visibleNucleusVotes: 0,
+    visibleNucleusComparableVotes: 0,
   };
 }
 
@@ -429,12 +599,21 @@ export function accumulateClassificationVote(
 ) {
   aggregate.totalClassifications += 1;
 
-  const failedFittingVote = vote.failed_fitting === true || vote.lsb_class === -1;
+  const failedFittingComparableVote =
+    vote.failed_fitting !== undefined || vote.lsb_class === -1;
+  const failedFittingVote =
+    vote.failed_fitting === true || vote.lsb_class === -1;
+
+  if (failedFittingComparableVote) {
+    aggregate.failedFittingComparableVotes += 1;
+  }
   if (failedFittingVote) {
     aggregate.failedFittingVotes += 1;
-  } else if (vote.lsb_class === 1) {
+  }
+
+  if (vote.lsb_class === 1) {
     aggregate.lsbVotes += 1;
-  } else {
+  } else if (vote.lsb_class === 0) {
     aggregate.nonLsbVotes += 1;
   }
 
@@ -461,38 +640,75 @@ export function accumulateClassificationVote(
   if (vote.valid_redshift) {
     aggregate.validRedshiftVotes += 1;
   }
-  if (vote.visible_nucleus) {
-    aggregate.visibleNucleusVotes += 1;
+  if (vote.visible_nucleus !== undefined) {
+    aggregate.visibleNucleusComparableVotes += 1;
+    if (vote.visible_nucleus) {
+      aggregate.visibleNucleusVotes += 1;
+    }
   }
 }
 
-function getDominantLabel(
-  values: Array<{ label: string; count: number }>,
-  fallback: string
-) {
-  const dominant = values.reduce<{ label: string; count: number } | null>(
-    (current, candidate) => {
-      if (!current || candidate.count > current.count) {
-        return candidate;
-      }
-      return current;
-    },
-    null
+function buildDecisionSummary<State extends string>(
+  values: Array<{ state: State; label: string; count: number }>,
+  comparableVotes: number,
+  splitChoice: { state: State; label: string },
+  emptyChoice: { state: State; label: string }
+): AnalysisDecisionSummary<State> {
+  if (comparableVotes <= 0) {
+    return {
+      state: emptyChoice.state,
+      label: emptyChoice.label,
+      agreementCount: 0,
+      agreementRate: null,
+      comparableVotes: 0,
+    };
+  }
+
+  const maxCount = Math.max(...values.map((value) => value.count));
+  const winners = values.filter((value) => value.count === maxCount && value.count > 0);
+
+  if (winners.length !== 1) {
+    return {
+      state: splitChoice.state,
+      label: splitChoice.label,
+      agreementCount: maxCount,
+      agreementRate: maxCount / comparableVotes,
+      comparableVotes,
+    };
+  }
+
+  return {
+    state: winners[0].state,
+    label: winners[0].label,
+    agreementCount: maxCount,
+    agreementRate: maxCount / comparableVotes,
+    comparableVotes,
+  };
+}
+
+function buildBinaryDecisionSummary(
+  yesVotes: number,
+  comparableVotes: number,
+  labels: {
+    yes: string;
+    no: string;
+    split: string;
+    noResponses: string;
+  }
+): AnalysisDecisionSummary<"yes" | "no" | "split" | "noResponses"> {
+  return buildDecisionSummary(
+    [
+      { state: "yes", label: labels.yes, count: yesVotes },
+      {
+        state: "no",
+        label: labels.no,
+        count: Math.max(comparableVotes - yesVotes, 0),
+      },
+    ],
+    comparableVotes,
+    { state: "split", label: labels.split },
+    { state: "noResponses", label: labels.noResponses }
   );
-
-  if (!dominant || dominant.count <= 0) {
-    return fallback;
-  }
-
-  return dominant.label;
-}
-
-function calculateDominantShare(values: number[], total: number) {
-  if (total <= 0) {
-    return 0;
-  }
-
-  return Math.max(...values) / total;
 }
 
 export function getLsbVoteLabel(vote: Pick<AnalysisClassificationVote, "lsb_class" | "failed_fitting">) {
@@ -539,81 +755,70 @@ export function buildAnalysisRecord(
   const sortedVotes = [...votes].sort(
     (left, right) => left._creationTime - right._creationTime
   );
-  const lsbAgreement = calculateDominantShare(
-    [aggregate.failedFittingVotes, aggregate.nonLsbVotes, aggregate.lsbVotes],
-    total
-  );
-  const morphologyAgreement = calculateDominantShare(
+  const lsbComparableVotes = aggregate.lsbVotes + aggregate.nonLsbVotes;
+  const lsb = buildDecisionSummary(
     [
-      aggregate.featurelessVotes,
-      aggregate.irregularVotes,
-      aggregate.ltgVotes,
-      aggregate.etgVotes,
+      { state: "lsb", label: LSB_LABELS.lsb, count: aggregate.lsbVotes },
+      {
+        state: "nonLsb",
+        label: LSB_LABELS.nonLsb,
+        count: aggregate.nonLsbVotes,
+      },
     ],
-    total
+    lsbComparableVotes,
+    { state: "split", label: LSB_LABELS.split },
+    {
+      state: "noComparableVotes",
+      label: LSB_LABELS.noComparableVotes,
+    }
   );
-  const awesomeAgreement = calculateDominantShare(
-    [aggregate.awesomeVotes, Math.max(total - aggregate.awesomeVotes, 0)],
-    total
-  );
-  const validRedshiftAgreement = calculateDominantShare(
+  const morphology = buildDecisionSummary(
     [
-      aggregate.validRedshiftVotes,
-      Math.max(total - aggregate.validRedshiftVotes, 0),
+      {
+        state: "featureless",
+        label: MORPHOLOGY_LABELS.featureless,
+        count: aggregate.featurelessVotes,
+      },
+      {
+        state: "irregular",
+        label: MORPHOLOGY_LABELS.irregular,
+        count: aggregate.irregularVotes,
+      },
+      { state: "ltg", label: MORPHOLOGY_LABELS.ltg, count: aggregate.ltgVotes },
+      { state: "etg", label: MORPHOLOGY_LABELS.etg, count: aggregate.etgVotes },
     ],
-    total
+    total,
+    { state: "split", label: MORPHOLOGY_LABELS.split },
+    {
+      state: "noClassifications",
+      label: MORPHOLOGY_LABELS.noClassifications,
+    }
   );
-  const visibleNucleusAgreement = calculateDominantShare(
-    [
-      aggregate.visibleNucleusVotes,
-      Math.max(total - aggregate.visibleNucleusVotes, 0),
-    ],
-    total
+  const visibleNucleus = buildBinaryDecisionSummary(
+    aggregate.visibleNucleusVotes,
+    aggregate.visibleNucleusComparableVotes,
+    VISIBLE_NUCLEUS_LABELS
   );
-
-  const agreementValues = [
-    lsbAgreement,
-    morphologyAgreement,
-    awesomeAgreement,
-    validRedshiftAgreement,
-    visibleNucleusAgreement,
-  ];
-  const overallAgreement =
-    agreementValues.reduce((sum, value) => sum + value, 0) /
-    agreementValues.length;
+  const failedFitting = buildBinaryDecisionSummary(
+    aggregate.failedFittingVotes,
+    aggregate.failedFittingComparableVotes,
+    FAILED_FITTING_LABELS
+  );
 
   return {
     galaxy,
     aggregate,
     votes: sortedVotes,
-    agreement: {
-      lsb: lsbAgreement,
-      morphology: morphologyAgreement,
-      overall: total > 0 ? overallAgreement : 0,
-    },
-    disagreement: total > 0 ? 1 - overallAgreement : 0,
+    lsb,
+    morphology,
+    visibleNucleus,
+    failedFitting,
     nucleusConfirmationRate:
-      total > 0 ? aggregate.visibleNucleusVotes / total : null,
-    dominantLsbLabel: getDominantLabel(
-      [
-        { label: LSB_LABELS.failed, count: aggregate.failedFittingVotes },
-        { label: LSB_LABELS.nonLsb, count: aggregate.nonLsbVotes },
-        { label: LSB_LABELS.lsb, count: aggregate.lsbVotes },
-      ],
-      "No classifications"
-    ),
-    dominantMorphologyLabel: getDominantLabel(
-      [
-        {
-          label: MORPHOLOGY_LABELS.featureless,
-          count: aggregate.featurelessVotes,
-        },
-        { label: MORPHOLOGY_LABELS.irregular, count: aggregate.irregularVotes },
-        { label: MORPHOLOGY_LABELS.ltg, count: aggregate.ltgVotes },
-        { label: MORPHOLOGY_LABELS.etg, count: aggregate.etgVotes },
-      ],
-      "No classifications"
-    ),
+      aggregate.visibleNucleusComparableVotes > 0
+        ? aggregate.visibleNucleusVotes / aggregate.visibleNucleusComparableVotes
+        : null,
+    dominantLsbLabel: lsb.label,
+    dominantMorphologyLabel: morphology.label,
   };
 }
 
@@ -657,12 +862,16 @@ function getMetricValue(record: AnalysisRecord, metric: AnalysisMetric) {
   switch (metric) {
     case "totalClassifications":
       return record.aggregate.totalClassifications;
+    case "lsbComparableVotes":
+      return record.lsb.comparableVotes;
     case "lsbVotes":
       return record.aggregate.lsbVotes;
     case "nonLsbVotes":
       return record.aggregate.nonLsbVotes;
     case "failedFittingVotes":
       return record.aggregate.failedFittingVotes;
+    case "lsbAgreementCount":
+      return record.lsb.agreementCount;
     case "featurelessVotes":
       return record.aggregate.featurelessVotes;
     case "irregularVotes":
@@ -671,20 +880,30 @@ function getMetricValue(record: AnalysisRecord, metric: AnalysisMetric) {
       return record.aggregate.ltgVotes;
     case "etgVotes":
       return record.aggregate.etgVotes;
+    case "morphologyAgreementCount":
+      return record.morphology.agreementCount;
     case "awesomeVotes":
       return record.aggregate.awesomeVotes;
     case "validRedshiftVotes":
       return record.aggregate.validRedshiftVotes;
     case "visibleNucleusVotes":
       return record.aggregate.visibleNucleusVotes;
-    case "agreementScore":
-      return record.agreement.overall;
-    case "disagreementScore":
-      return record.disagreement;
-    case "lsbAgreement":
-      return record.agreement.lsb;
-    case "morphologyAgreement":
-      return record.agreement.morphology;
+    case "visibleNucleusComparableVotes":
+      return record.visibleNucleus.comparableVotes;
+    case "visibleNucleusAgreementCount":
+      return record.visibleNucleus.agreementCount;
+    case "failedFittingComparableVotes":
+      return record.failedFitting.comparableVotes;
+    case "failedFittingAgreementCount":
+      return record.failedFitting.agreementCount;
+    case "lsbAgreementRate":
+      return record.lsb.agreementRate ?? 0;
+    case "morphologyAgreementRate":
+      return record.morphology.agreementRate ?? 0;
+    case "visibleNucleusAgreementRate":
+      return record.visibleNucleus.agreementRate ?? 0;
+    case "failedFittingAgreementRate":
+      return record.failedFitting.agreementRate ?? 0;
     case "nucleusConfirmationRate":
       return record.nucleusConfirmationRate ?? 0;
   }
@@ -723,6 +942,21 @@ function compareNumbers(
   return left > right ? -1 : 1;
 }
 
+function getRateTieBreakMetric(metric: AnalysisMetric): AnalysisMetric | null {
+  switch (metric) {
+    case "lsbAgreementRate":
+      return "lsbAgreementCount";
+    case "morphologyAgreementRate":
+      return "morphologyAgreementCount";
+    case "visibleNucleusAgreementRate":
+      return "visibleNucleusAgreementCount";
+    case "failedFittingAgreementRate":
+      return "failedFittingAgreementCount";
+    default:
+      return null;
+  }
+}
+
 function compareRecords(
   left: AnalysisRecord,
   right: AnalysisRecord,
@@ -736,6 +970,18 @@ function compareRecords(
   );
   if (primary !== 0) {
     return primary;
+  }
+
+  const tieBreakMetric = getRateTieBreakMetric(sortBy);
+  if (tieBreakMetric) {
+    const secondary = compareNumbers(
+      getMetricValue(left, tieBreakMetric),
+      getMetricValue(right, tieBreakMetric),
+      "desc"
+    );
+    if (secondary !== 0) {
+      return secondary;
+    }
   }
 
   const totalClassifications = compareNumbers(
@@ -810,6 +1056,20 @@ export function buildHistogramData(
   }));
 }
 
+function averageDefined(values: Array<number | null>) {
+  const definedValues = values.filter(
+    (value): value is number => value !== null && Number.isFinite(value)
+  );
+
+  if (definedValues.length === 0) {
+    return null;
+  }
+
+  return (
+    definedValues.reduce((sum, value) => sum + value, 0) / definedValues.length
+  );
+}
+
 export function evaluateAnalysisQuery(
   records: AnalysisRecord[],
   query: AnalysisQueryConfig
@@ -829,6 +1089,10 @@ export function evaluateAnalysisQuery(
       return false;
     }
 
+    if (query.dominantLsb !== "any" && record.lsb.state !== query.dominantLsb) {
+      return false;
+    }
+
     return query.conditions.every((condition) => matchesCondition(record, condition));
   });
 
@@ -836,6 +1100,15 @@ export function evaluateAnalysisQuery(
     compareRecords(left, right, query.sortBy, query.sortDirection)
   );
   const previewLimit = clampPreviewLimit(query.previewLimit);
+  const dominantLsbBreakdown: AnalysisDominantLsbBreakdown = {
+    lsb: 0,
+    nonLsb: 0,
+    split: 0,
+    noComparableVotes: 0,
+  };
+  for (const record of sorted) {
+    dominantLsbBreakdown[record.lsb.state] += 1;
+  }
 
   return {
     matchedCount: sorted.length,
@@ -845,11 +1118,19 @@ export function evaluateAnalysisQuery(
       (sum, record) => sum + record.aggregate.totalClassifications,
       0
     ),
-    averageAgreement:
-      sorted.length > 0
-        ? sorted.reduce((sum, record) => sum + record.agreement.overall, 0) /
-          sorted.length
-        : null,
+    averageLsbAgreementRate: averageDefined(
+      sorted.map((record) => record.lsb.agreementRate)
+    ),
+    averageMorphologyAgreementRate: averageDefined(
+      sorted.map((record) => record.morphology.agreementRate)
+    ),
+    averageVisibleNucleusAgreementRate: averageDefined(
+      sorted.map((record) => record.visibleNucleus.agreementRate)
+    ),
+    averageFailedFittingAgreementRate: averageDefined(
+      sorted.map((record) => record.failedFitting.agreementRate)
+    ),
+    dominantLsbBreakdown,
   };
 }
 
@@ -857,14 +1138,21 @@ export function buildGlobalSummaryHistograms(records: AnalysisRecord[]) {
   const classifiedRecords = records.filter(
     (record) => record.aggregate.totalClassifications > 0
   );
+  const lsbMajorityRecords = classifiedRecords.filter(
+    (record) => record.lsb.state === "lsb"
+  );
 
   return {
-    agreement: buildHistogramData(classifiedRecords, "agreementScore"),
-    awesomeVotes: buildHistogramData(classifiedRecords, "awesomeVotes"),
-    visibleNucleusVotes: buildHistogramData(
-      classifiedRecords,
-      "visibleNucleusVotes"
+    lsbAgreementCount: buildHistogramData(classifiedRecords, "lsbAgreementCount"),
+    morphologyAgreementCount: buildHistogramData(
+      lsbMajorityRecords,
+      "morphologyAgreementCount"
     ),
+    visibleNucleusAgreementCount: buildHistogramData(
+      lsbMajorityRecords,
+      "visibleNucleusAgreementCount"
+    ),
+    awesomeVotes: buildHistogramData(classifiedRecords, "awesomeVotes"),
     failedFittingVotes: buildHistogramData(
       classifiedRecords,
       "failedFittingVotes"

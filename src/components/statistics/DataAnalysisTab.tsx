@@ -54,7 +54,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
   const [selectedRecord, setSelectedRecord] = useState<AnalysisRecord | null>(null);
   const [hideZeroBuckets, setHideZeroBuckets] = useState<ZeroBucketState>({
     awesomeVotes: true,
-    visibleNucleusVotes: true,
+    visibleNucleusAgreementCount: true,
     failedFittingVotes: true,
   });
 
@@ -156,14 +156,15 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
 
   const visibleGlobalHistograms = useMemo(
     () => ({
-      agreement: globalHistograms.agreement,
+      lsbAgreementCount: globalHistograms.lsbAgreementCount,
+      morphologyAgreementCount: globalHistograms.morphologyAgreementCount,
+      visibleNucleusAgreementCount: filterZeroCountHistogram(
+        globalHistograms.visibleNucleusAgreementCount,
+        hideZeroBuckets.visibleNucleusAgreementCount
+      ),
       awesomeVotes: filterZeroCountHistogram(
         globalHistograms.awesomeVotes,
         hideZeroBuckets.awesomeVotes
-      ),
-      visibleNucleusVotes: filterZeroCountHistogram(
-        globalHistograms.visibleNucleusVotes,
-        hideZeroBuckets.visibleNucleusVotes
       ),
       failedFittingVotes: filterZeroCountHistogram(
         globalHistograms.failedFittingVotes,
