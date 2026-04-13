@@ -171,18 +171,36 @@ export function GalaxyBrowserSearchForm({
     totalAssigned: getBounds('totalAssigned'),
   };
 
+  const deriveCountToggleValue = (minValue: string, maxValue: string): boolean | undefined => {
+    const trimmedMin = minValue.trim();
+    const trimmedMax = maxValue.trim();
+
+    if (trimmedMin === '' && trimmedMax === '') {
+      return undefined;
+    }
+
+    const parsedMin = trimmedMin === '' ? null : Number.parseInt(trimmedMin, 10);
+    const parsedMax = trimmedMax === '' ? null : Number.parseInt(trimmedMax, 10);
+
+    if ((parsedMin === null || parsedMin <= 0) && parsedMax === 0) {
+      return false;
+    }
+
+    if (parsedMin !== null && parsedMin > 0) {
+      return true;
+    }
+
+    return undefined;
+  };
+
   // User-assigned flags with counts (Yes = 1+, No = 0)
   const userFlagFilters = [
     ...(showAwesomeFlag ? [{
       key: 'searchAwesome',
       label: 'Awesome flagged',
       helper: '',
-      // Derive toggle value from count ranges
       get value(): boolean | undefined {
-        if (searchNumAwesomeFlagMin === '' && searchNumAwesomeFlagMax === '') return undefined;
-        if (searchNumAwesomeFlagMin === '1' && searchNumAwesomeFlagMax === '') return true;
-        if (searchNumAwesomeFlagMin === '' && searchNumAwesomeFlagMax === '0') return false;
-        return undefined; // custom range
+        return deriveCountToggleValue(searchNumAwesomeFlagMin, searchNumAwesomeFlagMax);
       },
       setter: setSearchAwesome,
       count: {
@@ -199,12 +217,8 @@ export function GalaxyBrowserSearchForm({
       key: 'searchVisibleNucleus',
       label: 'Visible nucleus flag',
       helper: '',
-      // Derive toggle value from count ranges
       get value(): boolean | undefined {
-        if (searchNumVisibleNucleusMin === '' && searchNumVisibleNucleusMax === '') return undefined;
-        if (searchNumVisibleNucleusMin === '1' && searchNumVisibleNucleusMax === '') return true;
-        if (searchNumVisibleNucleusMin === '' && searchNumVisibleNucleusMax === '0') return false;
-        return undefined; // custom range
+        return deriveCountToggleValue(searchNumVisibleNucleusMin, searchNumVisibleNucleusMax);
       },
       setter: setSearchVisibleNucleus,
       count: {
@@ -221,12 +235,8 @@ export function GalaxyBrowserSearchForm({
       key: 'searchFailedFitting',
       label: 'Failed fitting',
       helper: '',
-      // Derive toggle value from count ranges
       get value(): boolean | undefined {
-        if (searchNumFailedFittingMin === '' && searchNumFailedFittingMax === '') return undefined;
-        if (searchNumFailedFittingMin === '1' && searchNumFailedFittingMax === '') return true;
-        if (searchNumFailedFittingMin === '' && searchNumFailedFittingMax === '0') return false;
-        return undefined; // custom range
+        return deriveCountToggleValue(searchNumFailedFittingMin, searchNumFailedFittingMax);
       },
       setter: (val: boolean | undefined) => {
         if (val === undefined) {
@@ -271,12 +281,8 @@ export function GalaxyBrowserSearchForm({
       bounds: bounds.totalClassifications,
       minKey: 'searchTotalClassificationsMin',
       maxKey: 'searchTotalClassificationsMax',
-      // Derive toggle state from range values
       get toggleValue(): boolean | undefined {
-        if (searchTotalClassificationsMin === '' && searchTotalClassificationsMax === '') return undefined;
-        if (searchTotalClassificationsMin === '1' && searchTotalClassificationsMax === '') return true;
-        if (searchTotalClassificationsMin === '' && searchTotalClassificationsMax === '0') return false;
-        return undefined; // custom range
+        return deriveCountToggleValue(searchTotalClassificationsMin, searchTotalClassificationsMax);
       },
     },
     {
@@ -289,12 +295,8 @@ export function GalaxyBrowserSearchForm({
       bounds: bounds.totalAssigned,
       minKey: 'searchTotalAssignedMin',
       maxKey: 'searchTotalAssignedMax',
-      // Derive toggle state from range values
       get toggleValue(): boolean | undefined {
-        if (searchTotalAssignedMin === '' && searchTotalAssignedMax === '') return undefined;
-        if (searchTotalAssignedMin === '1' && searchTotalAssignedMax === '') return true;
-        if (searchTotalAssignedMin === '' && searchTotalAssignedMax === '0') return false;
-        return undefined; // custom range
+        return deriveCountToggleValue(searchTotalAssignedMin, searchTotalAssignedMax);
       },
     },
   ];
