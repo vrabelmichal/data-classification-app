@@ -125,12 +125,7 @@ export function ClassificationDetailsModal({
                     <td className="px-3 py-3">{formatBooleanLabel(vote.awesome_flag)}</td>
                     <td className="px-3 py-3">{formatBooleanLabel(vote.valid_redshift)}</td>
                     <td className="px-3 py-3">{formatBooleanLabel(vote.visible_nucleus)}</td>
-                    <td className="px-3 py-3">
-                      {formatBooleanLabel(
-                        vote.failed_fitting ??
-                          (vote.lsb_class === -1 ? true : undefined)
-                      )}
-                    </td>
+                    <td className="px-3 py-3">{formatBooleanLabel(vote.failed_fitting)}</td>
                   </tr>
                 );
               })}

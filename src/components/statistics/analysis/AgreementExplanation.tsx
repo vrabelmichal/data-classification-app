@@ -25,8 +25,7 @@ export function AgreementExplanation() {
 
       <div className="mt-4 space-y-4 text-sm leading-6 text-gray-700 dark:text-gray-200">
         <p>
-          This page now treats the classification as a decision tree instead of
-          collapsing everything into one blended agreement score. The first
+          This page treats the classification as a decision tree. The first
           question is always Is-LSB. Only after that top-level split becomes
           meaningful do the downstream morphology and flag summaries become easy
           to interpret.
@@ -44,8 +43,8 @@ export function AgreementExplanation() {
           <ul className="mt-2 list-disc space-y-1 pl-5">
             <li>
               Is-LSB agreement only compares explicit LSB vs Non-LSB votes.
-              Failed fitting is tracked separately and does not count as an
-              Is-LSB answer.
+              Failed fitting is tracked separately as its own flag, on the same
+              level as visible nucleus, and does not count as an Is-LSB answer.
             </li>
             <li>
               Morphology agreement is the dominant share among Featureless,
@@ -57,13 +56,12 @@ export function AgreementExplanation() {
             </li>
             <li>
               Failed-fitting agreement only uses classifications where the
-              failed-fitting state is available, including legacy rows where it
-              was encoded through the old LSB value.
+              failed-fitting flag is actually present.
             </li>
             <li>
-              There is no single overall agreement score on this page anymore.
-              The intent is to keep the first split, Is-LSB, separate from the
-              deeper parts of the tree.
+              Raw Is-LSB values other than 0 or 1 are excluded from Is-LSB
+              agreement and should be treated as unexpected data that merits
+              inspection.
             </li>
           </ul>
         </div>

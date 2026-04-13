@@ -290,7 +290,6 @@ const METRIC_META: Record<AnalysisMetric, MetricMeta> = {
 };
 
 const LSB_LABELS = {
-  failed: "Failed fitting",
   lsb: "LSB",
   nonLsb: "Non-LSB",
   split: "Split LSB / Non-LSB",
@@ -599,10 +598,8 @@ export function accumulateClassificationVote(
 ) {
   aggregate.totalClassifications += 1;
 
-  const failedFittingComparableVote =
-    vote.failed_fitting !== undefined || vote.lsb_class === -1;
-  const failedFittingVote =
-    vote.failed_fitting === true || vote.lsb_class === -1;
+  const failedFittingComparableVote = vote.failed_fitting !== undefined;
+  const failedFittingVote = vote.failed_fitting === true;
 
   if (failedFittingComparableVote) {
     aggregate.failedFittingComparableVotes += 1;
@@ -712,15 +709,15 @@ function buildBinaryDecisionSummary(
 }
 
 export function getLsbVoteLabel(vote: Pick<AnalysisClassificationVote, "lsb_class" | "failed_fitting">) {
-  if (vote.failed_fitting === true || vote.lsb_class === -1) {
-    return LSB_LABELS.failed;
-  }
-
   if (vote.lsb_class === 1) {
     return LSB_LABELS.lsb;
   }
 
-  return LSB_LABELS.nonLsb;
+  if (vote.lsb_class === 0) {
+    return LSB_LABELS.nonLsb;
+  }
+
+  return `Unexpected raw value (${vote.lsb_class})`;
 }
 
 export function getMorphologyVoteLabel(morphology: number) {
