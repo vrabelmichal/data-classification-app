@@ -1,8 +1,26 @@
+function ChevronIcon() {
+  return (
+    <svg
+      className="h-4 w-4 shrink-0 transition-transform duration-200 group-open:rotate-180"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 export function AgreementExplanation() {
   return (
-    <details className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm open:bg-blue-50/40 dark:border-gray-700 dark:bg-gray-800 dark:open:bg-blue-950/10">
-      <summary className="cursor-pointer list-none text-lg font-semibold text-gray-900 dark:text-white">
-        Agreement definition and examples
+    <details className="group rounded-xl border border-gray-200 bg-white p-5 shadow-sm open:bg-blue-50/40 dark:border-gray-700 dark:bg-gray-800 dark:open:bg-blue-950/10">
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
+        <ChevronIcon />
+        <span>Agreement definition and examples</span>
       </summary>
 
       <div className="mt-4 space-y-4 text-sm leading-6 text-gray-700 dark:text-gray-200">

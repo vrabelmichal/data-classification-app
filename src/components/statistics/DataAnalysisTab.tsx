@@ -8,6 +8,7 @@ import {
   useState,
 } from "react";
 import { useConvex, useQuery } from "convex/react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router";
 
 import { api } from "../../../convex/_generated/api";
@@ -97,24 +98,46 @@ const CLASSIFICATION_PAGE_SIZE = 2500;
 const EMPTY_RECORDS: AnalysisRecord[] = [];
 const PINNED_NAVIGATOR_MARGIN = 16;
 
-function findScrollableParent(element: HTMLElement | null) {
+function getScrollParents(element: HTMLElement | null) {
+  const scrollParents: Array<HTMLElement | Window> = [];
   let current: HTMLElement | null = element?.parentElement ?? null;
 
   while (current) {
     const computedStyle = window.getComputedStyle(current);
     const overflowY = computedStyle.overflowY;
-    const isScrollable =
-      (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
-      current.scrollHeight > current.clientHeight;
+    const isScrollableContainer =
+      overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay";
 
-    if (isScrollable) {
-      return current;
+    if (isScrollableContainer) {
+      scrollParents.push(current);
     }
 
     current = current.parentElement;
   }
 
-  return window;
+  scrollParents.push(window);
+
+  return scrollParents;
+}
+
+function describeScrollParent(scrollParent: HTMLElement | Window) {
+  if (scrollParent instanceof Window) {
+    return {
+      type: "window",
+      scrollTop: window.scrollY,
+      innerHeight: window.innerHeight,
+    };
+  }
+
+  return {
+    type: "element",
+    tagName: scrollParent.tagName,
+    className: scrollParent.className,
+    scrollTop: scrollParent.scrollTop,
+    clientHeight: scrollParent.clientHeight,
+    scrollHeight: scrollParent.scrollHeight,
+    rectTop: scrollParent.getBoundingClientRect().top,
+  };
 }
 
 function getErrorMessage(error: unknown) {
@@ -298,6 +321,105 @@ function ZeroBucketToggle({
     >
       {hideZeroBucket ? "Show 0 bucket" : "Hide 0 bucket"}
     </button>
+  );
+}
+
+function CollapseIcon({ collapsed }: { collapsed: boolean }) {
+  if (collapsed) {
+    return (
+      <svg
+        className="h-4 w-4"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M12 5v14" />
+        <path d="M5 12h14" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+function ExpandAllIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 5v14" />
+      <path d="M5 12h14" />
+      <path d="M6 19h4" />
+      <path d="M14 19h4" />
+      <path d="M6 5h4" />
+      <path d="M14 5h4" />
+    </svg>
+  );
+}
+
+function CollapseAllIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 12h14" />
+      <path d="M6 19h4" />
+      <path d="M14 19h4" />
+      <path d="M6 5h4" />
+      <path d="M14 5h4" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 6h18" />
+      <path d="M8 6V4.75A1.75 1.75 0 0 1 9.75 3h4.5A1.75 1.75 0 0 1 16 4.75V6" />
+      <path d="M6.5 6 7.25 19A2 2 0 0 0 9.24 21h5.52a2 2 0 0 0 1.99-2L17.5 6" />
+      <path d="M10 10.5v6" />
+      <path d="M14 10.5v6" />
+    </svg>
   );
 }
 
@@ -547,6 +669,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
   const [navigatorHeight, setNavigatorHeight] = useState(0);
   const [pinnedNavigatorStyle, setPinnedNavigatorStyle] = useState<PinnedNavigatorStyle | null>(null);
   const cancelLoadRef = useRef(false);
+  const navigatorDebugCountRef = useRef(0);
   const navigatorAnchorRef = useRef<HTMLDivElement | null>(null);
   const navigatorRef = useRef<HTMLDivElement | null>(null);
 
@@ -838,6 +961,44 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
   const loadedAtLabel = formatLoadedAt(dataset?.loadedAt ?? null);
   const loadedRecords = dataset?.records ?? EMPTY_RECORDS;
   const hasDataset = dataset !== null;
+  const pageReady = summary !== undefined;
+
+  const renderNavigatorContent = useCallback(
+    (isPinnedOverlay: boolean) => (
+      <div
+        className={
+          isPinnedOverlay
+            ? "rounded-xl border border-gray-200 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-gray-700 dark:bg-gray-900/95"
+            : "rounded-xl border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-gray-900/95"
+        }
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {queries.map((query) => {
+            const result = queryResults.get(query.id);
+
+            return (
+              <a
+                key={`nav-${query.id}`}
+                href={`#analysis-query-${query.id}`}
+                className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                <span>{query.name || "Untitled query"}</span>
+                {hasDataset && result ? (
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                    {result.matchedCount.toLocaleString()}
+                  </span>
+                ) : null}
+              </a>
+            );
+          })}
+        </div>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          Pinned navigator: jump directly to any query card while scrolling.
+        </p>
+      </div>
+    ),
+    [hasDataset, queries, queryResults]
+  );
 
   useEffect(() => {
     const anchorElement = navigatorAnchorRef.current;
@@ -847,58 +1008,102 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       return undefined;
     }
 
-    const scrollParent = findScrollableParent(anchorElement);
-    const resizeObserver = new ResizeObserver(() => {
-      setNavigatorHeight(navigatorElement.getBoundingClientRect().height);
+    const scrollParents = getScrollParents(anchorElement);
+    console.log("[DataAnalysisNavigator] effect setup", {
+      hasDataset,
+      pageReady,
+      queryCount: queries.length,
+      scrollParents: scrollParents.map(describeScrollParent),
     });
 
+    const resizeObserver = new ResizeObserver(() => {
+      const nextHeight = navigatorElement.getBoundingClientRect().height;
+      console.log("[DataAnalysisNavigator] resize", { nextHeight });
+      setNavigatorHeight(nextHeight);
+    });
+
+    let rafId = 0;
+
     const updatePinnedNavigator = () => {
+      rafId = 0;
+      navigatorDebugCountRef.current += 1;
       const nextHeight = navigatorElement.getBoundingClientRect().height;
       setNavigatorHeight(nextHeight);
 
       const anchorRect = anchorElement.getBoundingClientRect();
+      const nearestScrollParent = scrollParents[0] ?? window;
       const scrollParentTop =
-        scrollParent instanceof Window
+        nearestScrollParent instanceof Window
           ? 0
-          : scrollParent.getBoundingClientRect().top;
-      const targetTop = scrollParentTop + PINNED_NAVIGATOR_MARGIN;
+          : nearestScrollParent.getBoundingClientRect().top;
+    //   const targetTop = scrollParentTop + PINNED_NAVIGATOR_MARGIN;
+      const targetTop =  PINNED_NAVIGATOR_MARGIN;
       const shouldPin = anchorRect.top <= targetTop;
 
+      console.log("[DataAnalysisNavigator] update", {
+        count: navigatorDebugCountRef.current,
+        anchorTop: anchorRect.top,
+        anchorBottom: anchorRect.bottom,
+        anchorLeft: anchorRect.left,
+        anchorWidth: anchorRect.width,
+        navigatorHeight: nextHeight,
+        targetTop,
+        shouldPin,
+        isCurrentlyPinned: isNavigatorPinned,
+        nearestScrollParent: describeScrollParent(nearestScrollParent),
+        scrollParents: scrollParents.map(describeScrollParent),
+      });
+
       if (!shouldPin) {
+        console.log("[DataAnalysisNavigator] unpinned");
         setIsNavigatorPinned(false);
         setPinnedNavigatorStyle(null);
         return;
       }
 
-      setIsNavigatorPinned(true);
-      setPinnedNavigatorStyle({
+      const nextPinnedStyle = {
         left: anchorRect.left,
         top: targetTop,
         width: anchorRect.width,
-      });
+      };
+
+      console.log("[DataAnalysisNavigator] pinned", nextPinnedStyle);
+      setIsNavigatorPinned(true);
+      setPinnedNavigatorStyle(nextPinnedStyle);
+    };
+
+    const scheduleUpdatePinnedNavigator = () => {
+      if (rafId !== 0) {
+        return;
+      }
+
+      rafId = window.requestAnimationFrame(updatePinnedNavigator);
     };
 
     updatePinnedNavigator();
     resizeObserver.observe(navigatorElement);
     resizeObserver.observe(anchorElement);
 
-    if (scrollParent instanceof Window) {
-      window.addEventListener("scroll", updatePinnedNavigator, { passive: true });
-    } else {
-      scrollParent.addEventListener("scroll", updatePinnedNavigator, { passive: true });
+    for (const scrollParent of scrollParents) {
+      scrollParent.addEventListener("scroll", scheduleUpdatePinnedNavigator, {
+        passive: true,
+      });
     }
-    window.addEventListener("resize", updatePinnedNavigator, { passive: true });
+    window.addEventListener("resize", scheduleUpdatePinnedNavigator, { passive: true });
 
     return () => {
+      console.log("[DataAnalysisNavigator] cleanup");
       resizeObserver.disconnect();
-      if (scrollParent instanceof Window) {
-        window.removeEventListener("scroll", updatePinnedNavigator);
-      } else {
-        scrollParent.removeEventListener("scroll", updatePinnedNavigator);
+      if (rafId !== 0) {
+        window.cancelAnimationFrame(rafId);
       }
-      window.removeEventListener("resize", updatePinnedNavigator);
+
+      for (const scrollParent of scrollParents) {
+        scrollParent.removeEventListener("scroll", scheduleUpdatePinnedNavigator);
+      }
+      window.removeEventListener("resize", scheduleUpdatePinnedNavigator);
     };
-  }, [queries.length]);
+  }, [hasDataset, isNavigatorPinned, pageReady, queries.length]);
 
   if (summary === undefined) {
     return (
@@ -1141,16 +1346,20 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
           <button
             type="button"
             onClick={collapseAllQueries}
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            aria-label="Collapse all query cards"
+            title="Collapse all query cards"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           >
-            Collapse all
+            <CollapseAllIcon />
           </button>
           <button
             type="button"
             onClick={expandAllQueries}
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            aria-label="Expand all query cards"
+            title="Expand all query cards"
+            className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           >
-            Expand all
+            <ExpandAllIcon />
           </button>
         </div>
       </div>
@@ -1158,46 +1367,33 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       <div
         ref={navigatorAnchorRef}
         style={{ minHeight: navigatorHeight > 0 ? `${navigatorHeight}px` : undefined }}
+        className="relative z-20"
       >
         <div
           ref={navigatorRef}
-          className="z-20 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-gray-900/95"
-          style={
-            isNavigatorPinned && pinnedNavigatorStyle
-              ? {
-                  position: "fixed",
-                  left: pinnedNavigatorStyle.left,
-                  top: pinnedNavigatorStyle.top,
-                  width: pinnedNavigatorStyle.width,
-                }
-              : undefined
-          }
+          className={isNavigatorPinned ? "pointer-events-none opacity-0" : undefined}
+          aria-hidden={isNavigatorPinned}
         >
-          <div className="flex flex-wrap items-center gap-2">
-            {queries.map((query) => {
-              const result = queryResults.get(query.id);
-
-              return (
-                <a
-                  key={`nav-${query.id}`}
-                  href={`#analysis-query-${query.id}`}
-                  className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
-                >
-                  <span>{query.name || "Untitled query"}</span>
-                  {hasDataset && result ? (
-                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-200">
-                      {result.matchedCount.toLocaleString()}
-                    </span>
-                  ) : null}
-                </a>
-              );
-            })}
-          </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            Pinned navigator: jump directly to any query card while scrolling.
-          </p>
+          {renderNavigatorContent(false)}
         </div>
       </div>
+
+      {isNavigatorPinned && pinnedNavigatorStyle
+        ? createPortal(
+            <div
+              className="z-40"
+              style={{
+                position: "fixed",
+                left: pinnedNavigatorStyle.left,
+                top: pinnedNavigatorStyle.top,
+                width: pinnedNavigatorStyle.width,
+              }}
+            >
+              {renderNavigatorContent(true)}
+            </div>,
+            document.body
+          )
+        : null}
 
       <div className="space-y-6">
         {queries.map((query) => {
@@ -1242,8 +1438,13 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
                   <button
                     type="button"
                     onClick={() => toggleQueryCollapsed(query.id)}
+                    aria-label={isCollapsed ? "Expand query card" : "Collapse query card"}
+                    title={isCollapsed ? "Expand query card" : "Collapse query card"}
                     className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                   >
+                    <span className="mr-2">
+                      <CollapseIcon collapsed={isCollapsed} />
+                    </span>
                     {isCollapsed ? "Expand" : "Minimize"}
                   </button>
                   <button
@@ -1262,8 +1463,13 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
                     type="button"
                     onClick={() => removeQuery(query.id)}
                     disabled={queries.length === 1}
+                    aria-label="Remove query card"
+                    title="Remove query card"
                     className="inline-flex items-center justify-center rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-red-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
                   >
+                    <span className="mr-2">
+                      <TrashIcon />
+                    </span>
                     Remove
                   </button>
                 </div>
