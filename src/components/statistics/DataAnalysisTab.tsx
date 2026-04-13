@@ -641,6 +641,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
   const [isNavigatorPinned, setIsNavigatorPinned] = useState(false);
   const [navigatorHeight, setNavigatorHeight] = useState(0);
   const [pinnedNavigatorStyle, setPinnedNavigatorStyle] = useState<PinnedNavigatorStyle | null>(null);
+  const [activeQueryId, setActiveQueryId] = useState<string | null>(null);
   const cancelLoadRef = useRef(false);
   const navigatorDebugCountRef = useRef(0);
   const navigatorAnchorRef = useRef<HTMLDivElement | null>(null);
@@ -948,16 +949,23 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         <div className="flex flex-wrap items-center gap-2">
           {queries.map((query) => {
             const result = queryResults.get(query.id);
+            const isActive = activeQueryId === query.id;
 
             return (
               <a
                 key={`nav-${query.id}`}
                 href={`#analysis-query-${query.id}`}
-                className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                className={isActive
+                  ? "inline-flex items-center gap-2 rounded-full border-2 border-blue-500 bg-blue-50 px-3 py-1.5 text-sm font-medium text-blue-700 transition dark:border-blue-400 dark:bg-blue-950/30 dark:text-blue-300"
+                  : "inline-flex items-center gap-2 rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                }
               >
                 <span>{query.name || "Untitled query"}</span>
                 {hasDataset && result ? (
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                  <span className={isActive
+                    ? "rounded-full bg-blue-200 px-2 py-0.5 text-xs text-blue-700 dark:bg-blue-900 dark:text-blue-200"
+                    : "rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-200"
+                  }>
                     {result.matchedCount.toLocaleString()}
                   </span>
                 ) : null}
@@ -967,8 +975,55 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         </div>
       </div>
     ),
-    [hasDataset, queries, queryResults]
+    [activeQueryId, hasDataset, queries, queryResults]
   );
+
+  useEffect(() => {
+    if (queries.length === 0) {
+      return undefined;
+    }
+
+    const updateActiveQuery = () => {
+      let closestQueryId: string | null = null;
+      let closestDistance = Infinity;
+
+      for (const query of queries) {
+        const element = document.getElementById(`analysis-query-${query.id}`);
+        if (!element) continue;
+
+        const rect = element.getBoundingClientRect();
+        const distanceFromTop = Math.abs(rect.top);
+
+        if (rect.top < window.innerHeight && rect.bottom > 0) {
+          if (distanceFromTop < closestDistance) {
+            closestDistance = distanceFromTop;
+            closestQueryId = query.id;
+          }
+        }
+      }
+
+      if (closestQueryId) {
+        setActiveQueryId(closestQueryId);
+      }
+    };
+
+    const scrollParents = getScrollParents(navigatorAnchorRef.current);
+    updateActiveQuery();
+
+    const handleScroll = () => {
+      updateActiveQuery();
+    };
+
+    for (const scrollParent of scrollParents) {
+      scrollParent.addEventListener("scroll", handleScroll, { passive: true });
+    }
+
+    return () => {
+      for (const scrollParent of scrollParents) {
+        scrollParent.removeEventListener("scroll", handleScroll);
+      }
+    };
+  }, [queries]);
 
   useEffect(() => {
     const anchorElement = navigatorAnchorRef.current;
