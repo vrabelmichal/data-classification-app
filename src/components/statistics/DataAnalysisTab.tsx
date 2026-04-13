@@ -1,11 +1,25 @@
-import { startTransition, useCallback, useDeferredValue, useMemo, useRef, useState } from "react";
+import {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useConvex, useQuery } from "convex/react";
 import { Link } from "react-router";
+
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { getImageUrl } from "../../images";
 import { getPreviewImageName } from "../../images/displaySettings";
+import { SMALL_IMAGE_DEFAULT_ZOOM } from "../classification/GalaxyImages";
+import { ImageViewer } from "../classification/ImageViewer";
+import type { UserPreferences } from "../classification/types";
+import { AgreementExplanation } from "./analysis/AgreementExplanation";
 import { AnalysisHistogram } from "./analysis/AnalysisHistogram";
+import { ClassificationDetailsModal } from "./analysis/ClassificationDetailsModal";
 import {
   accumulateClassificationVote,
   analysisConditionMetricOptions,
@@ -22,11 +36,13 @@ import {
   createEmptyAggregate,
   duplicateAnalysisQuery,
   evaluateAnalysisQuery,
-  formatMetricValue,
+  filterZeroCountHistogram,
   formatPaperLabel,
   getMetricLabel,
   getMetricShortLabel,
+  getVotePreview,
   type AnalysisAggregate,
+  type AnalysisClassificationVote,
   type AnalysisGalaxy,
   type AnalysisQueryConfig,
   type AnalysisQueryCondition,
@@ -64,9 +80,42 @@ type DataLoadState = {
   cancelled: boolean;
 };
 
-const GALAXY_PAGE_SIZE = 400;
-const CLASSIFICATION_PAGE_SIZE = 1500;
+type ZeroBucketState = {
+  awesomeVotes: boolean;
+  visibleNucleusVotes: boolean;
+  failedFittingVotes: boolean;
+};
+
+type PinnedNavigatorStyle = {
+  left: number;
+  top: number;
+  width: number;
+};
+
+const GALAXY_PAGE_SIZE = 2500;
+const CLASSIFICATION_PAGE_SIZE = 2500;
 const EMPTY_RECORDS: AnalysisRecord[] = [];
+const PINNED_NAVIGATOR_MARGIN = 16;
+
+function findScrollableParent(element: HTMLElement | null) {
+  let current: HTMLElement | null = element?.parentElement ?? null;
+
+  while (current) {
+    const computedStyle = window.getComputedStyle(current);
+    const overflowY = computedStyle.overflowY;
+    const isScrollable =
+      (overflowY === "auto" || overflowY === "scroll" || overflowY === "overlay") &&
+      current.scrollHeight > current.clientHeight;
+
+    if (isScrollable) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return window;
+}
 
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message) {
@@ -234,26 +283,120 @@ function QueryConditionEditor({
   );
 }
 
+function ZeroBucketToggle({
+  hideZeroBucket,
+  onToggle,
+}: {
+  hideZeroBucket: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="rounded-full border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+    >
+      {hideZeroBucket ? "Show 0 bucket" : "Hide 0 bucket"}
+    </button>
+  );
+}
+
+function HistogramCard({
+  title,
+  description,
+  data,
+  zeroBucketHidden,
+  onToggleZeroBucket,
+}: {
+  title: string;
+  description: string;
+  data: Array<{ key: string; label: string; count: number; metricLabel: string }>;
+  zeroBucketHidden?: boolean;
+  onToggleZeroBucket?: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+      <div className="mb-4 flex items-start justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+        </div>
+        {onToggleZeroBucket && zeroBucketHidden !== undefined ? (
+          <ZeroBucketToggle
+            hideZeroBucket={zeroBucketHidden}
+            onToggle={onToggleZeroBucket}
+          />
+        ) : null}
+      </div>
+
+      <AnalysisHistogram data={data} />
+    </div>
+  );
+}
+
+function VotePreviewRow({
+  label,
+  values,
+}: {
+  label: string;
+  values: string[];
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        {label}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {values.length > 0 ? (
+          values.map((value, index) => (
+            <span
+              key={`${label}-${index}-${value}`}
+              className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-slate-700 dark:text-slate-100"
+            >
+              {index + 1}. {value}
+            </span>
+          ))
+        ) : (
+          <span className="text-sm text-gray-500 dark:text-gray-400">No votes loaded.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function AnalysisGalaxyCard({
   record,
   imageQuality,
   previewImageName,
+  userPreferences,
+  onOpenDetails,
 }: {
   record: AnalysisRecord;
-  imageQuality: "high" | "low";
+  imageQuality: "high" | "medium" | "low";
   previewImageName: string;
+  userPreferences: UserPreferences | null | undefined;
+  onOpenDetails: (record: AnalysisRecord) => void;
 }) {
   const { galaxy, aggregate } = record;
+  const lsbVotePreview = getVotePreview(record.votes, "lsb");
+  const morphologyVotePreview = getVotePreview(record.votes, "morphology");
 
   return (
-    <div className="grid gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:grid-cols-[160px_minmax(0,1fr)]">
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-100 dark:border-gray-700 dark:bg-gray-900/40">
-        <img
-          src={getImageUrl(galaxy.id, previewImageName, { quality: imageQuality })}
-          alt={`Preview of galaxy ${galaxy.id}`}
-          loading="lazy"
-          className="h-40 w-full object-cover"
-        />
+    <div className="grid gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:grid-cols-[180px_minmax(0,1fr)]">
+      <div className="rounded-lg border border-gray-200 bg-gray-100 p-2 dark:border-gray-700 dark:bg-gray-900/40">
+        <div className="overflow-hidden rounded-lg">
+          <ImageViewer
+            imageUrl={getImageUrl(galaxy.id, previewImageName, {
+              quality: imageQuality,
+            })}
+            alt={`Preview of galaxy ${galaxy.id}`}
+            preferences={userPreferences}
+            defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
+          />
+        </div>
+        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+          Click the preview to open the zoom viewer.
+        </p>
       </div>
 
       <div className="min-w-0 space-y-3">
@@ -262,6 +405,8 @@ function AnalysisGalaxyCard({
             <div className="flex flex-wrap items-center gap-2">
               <Link
                 to={`/classify/${galaxy.id}`}
+                target="_blank"
+                rel="noreferrer"
                 className="text-lg font-semibold text-blue-700 transition hover:text-blue-800 hover:underline dark:text-blue-300 dark:hover:text-blue-200"
               >
                 {galaxy.id}
@@ -329,6 +474,11 @@ function AnalysisGalaxyCard({
           </div>
         </div>
 
+        <div className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/20 lg:grid-cols-2">
+          <VotePreviewRow label="First 5 LSB votes" values={lsbVotePreview} />
+          <VotePreviewRow label="First 5 morphology votes" values={morphologyVotePreview} />
+        </div>
+
         <div className="flex flex-wrap gap-3 text-sm text-gray-500 dark:text-gray-400">
           <span>RA {galaxy.ra.toFixed(4)} deg</span>
           <span>Dec {galaxy.dec.toFixed(4)} deg</span>
@@ -340,13 +490,22 @@ function AnalysisGalaxyCard({
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Link
             to={`/classify/${galaxy.id}`}
+            target="_blank"
+            rel="noreferrer"
             className="inline-flex items-center rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
           >
-            Classify
+            Classify in new tab
           </Link>
+          <button
+            type="button"
+            onClick={() => onOpenDetails(record)}
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            View classifications
+          </button>
           <span className="text-sm text-gray-500 dark:text-gray-400">
             Disagreement {formatPercent(record.disagreement)}
           </span>
@@ -363,6 +522,8 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
   const summary = useQuery(
     api.statistics.classificationAnalysis.getDatasetSummary
   ) as DatasetSummary | undefined;
+  const userPrefs = useQuery(api.users.getUserPreferences);
+  const userDirectory = useQuery(api.statistics.classificationAnalysis.getUserDirectory);
   const [queries, setQueries] = useState<AnalysisQueryConfig[]>(() =>
     buildDefaultAnalysisQueries()
   );
@@ -375,12 +536,35 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     error: null,
     cancelled: false,
   });
+  const [collapsedQueries, setCollapsedQueries] = useState<Record<string, boolean>>({});
+  const [selectedRecord, setSelectedRecord] = useState<AnalysisRecord | null>(null);
+  const [hideZeroBuckets, setHideZeroBuckets] = useState<ZeroBucketState>({
+    awesomeVotes: true,
+    visibleNucleusVotes: true,
+    failedFittingVotes: true,
+  });
+  const [isNavigatorPinned, setIsNavigatorPinned] = useState(false);
+  const [navigatorHeight, setNavigatorHeight] = useState(0);
+  const [pinnedNavigatorStyle, setPinnedNavigatorStyle] = useState<PinnedNavigatorStyle | null>(null);
   const cancelLoadRef = useRef(false);
+  const navigatorAnchorRef = useRef<HTMLDivElement | null>(null);
+  const navigatorRef = useRef<HTMLDivElement | null>(null);
 
   const deferredQueries = useDeferredValue(queries);
   const deferredRecords = useDeferredValue(dataset?.records ?? EMPTY_RECORDS);
   const previewImageName = getPreviewImageName();
-  const imageQuality = systemSettings.galaxyBrowserImageQuality ?? "low";
+  const imageQuality =
+    (userPrefs?.imageQuality as "high" | "low" | undefined) ??
+    systemSettings.galaxyBrowserImageQuality ??
+    "low";
+
+  const userDisplayNames = useMemo(() => {
+    const entries = userDirectory ?? [];
+    return entries.reduce<Record<string, string>>((accumulator, entry) => {
+      accumulator[String(entry.userId)] = entry.displayName;
+      return accumulator;
+    }, {});
+  }, [userDirectory]);
 
   const updateQuery = useCallback(
     (queryId: string, updater: (query: AnalysisQueryConfig) => AnalysisQueryConfig) => {
@@ -397,6 +581,35 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     setQueries((currentQueries) =>
       currentQueries.filter((query) => query.id !== queryId)
     );
+    setCollapsedQueries((current) => {
+      const next = { ...current };
+      delete next[queryId];
+      return next;
+    });
+  }, []);
+
+  const toggleQueryCollapsed = useCallback((queryId: string) => {
+    setCollapsedQueries((current) => ({
+      ...current,
+      [queryId]: !current[queryId],
+    }));
+  }, []);
+
+  const collapseAllQueries = useCallback(() => {
+    setCollapsedQueries(
+      Object.fromEntries(queries.map((query) => [query.id, true]))
+    );
+  }, [queries]);
+
+  const expandAllQueries = useCallback(() => {
+    setCollapsedQueries({});
+  }, []);
+
+  const toggleZeroBucket = useCallback((key: keyof ZeroBucketState) => {
+    setHideZeroBuckets((current) => ({
+      ...current,
+      [key]: !current[key],
+    }));
   }, []);
 
   const handleLoadDataset = useCallback(async () => {
@@ -453,6 +666,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       }
 
       const aggregateMap = new Map<string, AnalysisAggregate>();
+      const votesByGalaxy = new Map<string, AnalysisClassificationVote[]>();
       let classificationCursor: string | undefined;
       let classificationRowsLoaded = 0;
 
@@ -480,11 +694,16 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
           }
         );
 
-        for (const vote of page.page) {
+        for (const rawVote of page.page) {
+          const vote = rawVote as AnalysisClassificationVote;
           const aggregate =
             aggregateMap.get(vote.galaxyExternalId) ?? createEmptyAggregate();
           accumulateClassificationVote(aggregate, vote);
           aggregateMap.set(vote.galaxyExternalId, aggregate);
+
+          const voteList = votesByGalaxy.get(vote.galaxyExternalId) ?? [];
+          voteList.push(vote);
+          votesByGalaxy.set(vote.galaxyExternalId, voteList);
         }
 
         classificationRowsLoaded += page.page.length;
@@ -529,7 +748,9 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         totalAwesomeVotes += aggregate.awesomeVotes;
         totalVisibleNucleusVotes += aggregate.visibleNucleusVotes;
         totalFailedFittingVotes += aggregate.failedFittingVotes;
-        records.push(buildAnalysisRecord(galaxy, aggregate));
+        records.push(
+          buildAnalysisRecord(galaxy, aggregate, votesByGalaxy.get(galaxy.id) ?? [])
+        );
       }
 
       let orphanedGalaxyCount = 0;
@@ -594,9 +815,90 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     [deferredRecords]
   );
 
+  const visibleGlobalHistograms = useMemo(
+    () => ({
+      agreement: globalHistograms.agreement,
+      awesomeVotes: filterZeroCountHistogram(
+        globalHistograms.awesomeVotes,
+        hideZeroBuckets.awesomeVotes
+      ),
+      visibleNucleusVotes: filterZeroCountHistogram(
+        globalHistograms.visibleNucleusVotes,
+        hideZeroBuckets.visibleNucleusVotes
+      ),
+      failedFittingVotes: filterZeroCountHistogram(
+        globalHistograms.failedFittingVotes,
+        hideZeroBuckets.failedFittingVotes
+      ),
+      nucleusConfirmation: globalHistograms.nucleusConfirmation,
+    }),
+    [globalHistograms, hideZeroBuckets]
+  );
+
   const loadedAtLabel = formatLoadedAt(dataset?.loadedAt ?? null);
   const loadedRecords = dataset?.records ?? EMPTY_RECORDS;
   const hasDataset = dataset !== null;
+
+  useEffect(() => {
+    const anchorElement = navigatorAnchorRef.current;
+    const navigatorElement = navigatorRef.current;
+
+    if (!anchorElement || !navigatorElement) {
+      return undefined;
+    }
+
+    const scrollParent = findScrollableParent(anchorElement);
+    const resizeObserver = new ResizeObserver(() => {
+      setNavigatorHeight(navigatorElement.getBoundingClientRect().height);
+    });
+
+    const updatePinnedNavigator = () => {
+      const nextHeight = navigatorElement.getBoundingClientRect().height;
+      setNavigatorHeight(nextHeight);
+
+      const anchorRect = anchorElement.getBoundingClientRect();
+      const scrollParentTop =
+        scrollParent instanceof Window
+          ? 0
+          : scrollParent.getBoundingClientRect().top;
+      const targetTop = scrollParentTop + PINNED_NAVIGATOR_MARGIN;
+      const shouldPin = anchorRect.top <= targetTop;
+
+      if (!shouldPin) {
+        setIsNavigatorPinned(false);
+        setPinnedNavigatorStyle(null);
+        return;
+      }
+
+      setIsNavigatorPinned(true);
+      setPinnedNavigatorStyle({
+        left: anchorRect.left,
+        top: targetTop,
+        width: anchorRect.width,
+      });
+    };
+
+    updatePinnedNavigator();
+    resizeObserver.observe(navigatorElement);
+    resizeObserver.observe(anchorElement);
+
+    if (scrollParent instanceof Window) {
+      window.addEventListener("scroll", updatePinnedNavigator, { passive: true });
+    } else {
+      scrollParent.addEventListener("scroll", updatePinnedNavigator, { passive: true });
+    }
+    window.addEventListener("resize", updatePinnedNavigator, { passive: true });
+
+    return () => {
+      resizeObserver.disconnect();
+      if (scrollParent instanceof Window) {
+        window.removeEventListener("scroll", updatePinnedNavigator);
+      } else {
+        scrollParent.removeEventListener("scroll", updatePinnedNavigator);
+      }
+      window.removeEventListener("resize", updatePinnedNavigator);
+    };
+  }, [queries.length]);
 
   if (summary === undefined) {
     return (
@@ -616,10 +918,11 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
                 Client-side classification analysis
               </h2>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
-                This workspace pulls the raw galaxy and classification data in pages,
-                then evaluates every histogram and query locally in your browser.
-                Nothing runs automatically: click the button to fetch the dataset,
-                then adjust or add as many query cards as you need.
+                This workspace pulls the raw galaxy and classification data in
+                pages of up to 2,500 rows, then evaluates every histogram and
+                query locally in your browser. Nothing runs automatically: click
+                the button to fetch the dataset, then adjust or add as many query
+                cards as you need.
               </p>
             </div>
 
@@ -657,7 +960,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
             <p className="mt-2 text-sm text-blue-800/90 dark:text-blue-200/90">
               {hasDataset
                 ? `Loaded ${loadedRecords.length.toLocaleString()} galaxies${loadedAtLabel ? ` at ${loadedAtLabel}` : ""}. Query edits now stay fully local.`
-                : "Fetching happens in paged requests so the page stays within Convex limits and avoids one huge query."}
+                : "Fetching happens in paged requests so the page stays within Convex limits while still pulling large client-side analysis batches."}
             </p>
 
             <div className="mt-4 flex flex-wrap gap-3">
@@ -670,8 +973,8 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
                 {loadState.status === "loading"
                   ? "Loading dataset..."
                   : hasDataset
-                  ? "Reload dataset"
-                  : "Load data and run analysis"}
+                    ? "Reload dataset"
+                    : "Load data and run analysis"}
               </button>
 
               {loadState.status === "loading" && (
@@ -724,6 +1027,8 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
           </div>
         )}
       </div>
+
+      <AgreementExplanation />
 
       {hasDataset && dataset && (
         <div className="grid gap-4 lg:grid-cols-5">
@@ -779,42 +1084,38 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       )}
 
       {hasDataset && (
-        <div className="grid gap-6 xl:grid-cols-3">
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Agreement distribution
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                How concentrated the votes are across the classified catalog.
-              </p>
-            </div>
-            <AnalysisHistogram data={globalHistograms.agreement} />
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Awesome-vote distribution
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Which part of the catalog is attracting repeated follow-up interest.
-              </p>
-            </div>
-            <AnalysisHistogram data={globalHistograms.awesomeVotes} />
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                Catalog nucleus confirmations
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Visible-nucleus confirmation rate for galaxies whose catalog row already says nucleus.
-              </p>
-            </div>
-            <AnalysisHistogram data={globalHistograms.nucleusConfirmation} />
-          </div>
+        <div className="grid gap-6 xl:grid-cols-2 2xl:grid-cols-3">
+          <HistogramCard
+            title="Agreement distribution"
+            description="How concentrated the votes are across the classified catalog."
+            data={visibleGlobalHistograms.agreement}
+          />
+          <HistogramCard
+            title="Awesome-vote distribution"
+            description="Which part of the catalog is attracting repeated follow-up interest. Zero is hidden by default so the tail is easier to inspect."
+            data={visibleGlobalHistograms.awesomeVotes}
+            zeroBucketHidden={hideZeroBuckets.awesomeVotes}
+            onToggleZeroBucket={() => toggleZeroBucket("awesomeVotes")}
+          />
+          <HistogramCard
+            title="Visible-nucleus vote distribution"
+            description="How many galaxies received repeated visible-nucleus confirmations. Zero is hidden by default."
+            data={visibleGlobalHistograms.visibleNucleusVotes}
+            zeroBucketHidden={hideZeroBuckets.visibleNucleusVotes}
+            onToggleZeroBucket={() => toggleZeroBucket("visibleNucleusVotes")}
+          />
+          <HistogramCard
+            title="Failed-fitting vote distribution"
+            description="How often galaxies accumulate failed-fitting classifications. Zero is hidden by default."
+            data={visibleGlobalHistograms.failedFittingVotes}
+            zeroBucketHidden={hideZeroBuckets.failedFittingVotes}
+            onToggleZeroBucket={() => toggleZeroBucket("failedFittingVotes")}
+          />
+          <HistogramCard
+            title="Catalog nucleus confirmations"
+            description="Visible-nucleus confirmation rate for galaxies whose catalog row already says nucleus."
+            data={visibleGlobalHistograms.nucleusConfirmation}
+          />
         </div>
       )}
 
@@ -829,186 +1130,122 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setQueries((currentQueries) => [...currentQueries, createBlankAnalysisQuery()])}
-          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setQueries((currentQueries) => [...currentQueries, createBlankAnalysisQuery()])}
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            Add query
+          </button>
+          <button
+            type="button"
+            onClick={collapseAllQueries}
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            Collapse all
+          </button>
+          <button
+            type="button"
+            onClick={expandAllQueries}
+            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            Expand all
+          </button>
+        </div>
+      </div>
+
+      <div
+        ref={navigatorAnchorRef}
+        style={{ minHeight: navigatorHeight > 0 ? `${navigatorHeight}px` : undefined }}
+      >
+        <div
+          ref={navigatorRef}
+          className="z-20 rounded-xl border border-gray-200 bg-white/95 p-3 shadow-sm backdrop-blur dark:border-gray-700 dark:bg-gray-900/95"
+          style={
+            isNavigatorPinned && pinnedNavigatorStyle
+              ? {
+                  position: "fixed",
+                  left: pinnedNavigatorStyle.left,
+                  top: pinnedNavigatorStyle.top,
+                  width: pinnedNavigatorStyle.width,
+                }
+              : undefined
+          }
         >
-          Add query
-        </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {queries.map((query) => {
+              const result = queryResults.get(query.id);
+
+              return (
+                <a
+                  key={`nav-${query.id}`}
+                  href={`#analysis-query-${query.id}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-800"
+                >
+                  <span>{query.name || "Untitled query"}</span>
+                  {hasDataset && result ? (
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                      {result.matchedCount.toLocaleString()}
+                    </span>
+                  ) : null}
+                </a>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            Pinned navigator: jump directly to any query card while scrolling.
+          </p>
+        </div>
       </div>
 
       <div className="space-y-6">
         {queries.map((query) => {
           const result = queryResults.get(query.id);
+          const isCollapsed = collapsedQueries[query.id] === true;
 
           return (
             <section
               key={query.id}
-              className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+              id={`analysis-query-${query.id}`}
+              className="scroll-mt-32 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800"
             >
-              <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                <div className="grid flex-1 gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-                  <label className="space-y-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Query name
+              <div className="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-700 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                      {query.name || "Untitled query"}
+                    </h3>
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-700 dark:text-gray-200">
+                      {isCollapsed ? "Collapsed" : "Expanded"}
                     </span>
-                    <input
-                      type="text"
-                      value={query.name}
-                      onChange={(event) =>
-                        updateQuery(query.id, (currentQuery) => ({
-                          ...currentQuery,
-                          name: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    />
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Paper filter
-                    </span>
-                    <select
-                      value={query.paper}
-                      onChange={(event) =>
-                        updateQuery(query.id, (currentQuery) => ({
-                          ...currentQuery,
-                          paper: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    >
-                      <option value="__any__">All papers</option>
-                      {summary.availablePapers.map((paper) => (
-                        <option key={paper || "__empty__"} value={paper}>
-                          {formatPaperLabel(paper)}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="space-y-1 lg:col-span-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Prompt
-                    </span>
-                    <textarea
-                      value={query.description}
-                      onChange={(event) =>
-                        updateQuery(query.id, (currentQuery) => ({
-                          ...currentQuery,
-                          description: event.target.value,
-                        }))
-                      }
-                      rows={2}
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    />
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Catalog nucleus filter
-                    </span>
-                    <select
-                      value={query.catalogNucleus}
-                      onChange={(event) =>
-                        updateQuery(query.id, (currentQuery) => ({
-                          ...currentQuery,
-                          catalogNucleus: event.target.value as AnalysisQueryConfig["catalogNucleus"],
-                        }))
-                      }
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    >
-                      {catalogNucleusOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Sort results by
-                    </span>
-                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
-                      <select
-                        value={query.sortBy}
-                        onChange={(event) =>
-                          updateQuery(query.id, (currentQuery) => ({
-                            ...currentQuery,
-                            sortBy: event.target.value as AnalysisQueryConfig["sortBy"],
-                          }))
-                        }
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                      >
-                        {analysisSortMetricOptions.map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <select
-                        value={query.sortDirection}
-                        onChange={(event) =>
-                          updateQuery(query.id, (currentQuery) => ({
-                            ...currentQuery,
-                            sortDirection: event.target.value as AnalysisQueryConfig["sortDirection"],
-                          }))
-                        }
-                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                      >
-                        <option value="desc">Highest first</option>
-                        <option value="asc">Lowest first</option>
-                      </select>
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    {query.description.trim() || "No description added yet."}
+                  </p>
+                  {hasDataset && result ? (
+                    <div className="flex flex-wrap gap-2 text-sm">
+                      <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
+                        {result.matchedCount.toLocaleString()} matches
+                      </span>
+                      <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                        Avg agreement {formatPercent(result.averageAgreement)}
+                      </span>
+                      <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                        {result.totalMatchingClassifications.toLocaleString()} classifications
+                      </span>
                     </div>
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Histogram metric
-                    </span>
-                    <select
-                      value={query.histogramMetric}
-                      onChange={(event) =>
-                        updateQuery(query.id, (currentQuery) => ({
-                          ...currentQuery,
-                          histogramMetric: event.target.value as AnalysisQueryConfig["histogramMetric"],
-                        }))
-                      }
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    >
-                      {analysisHistogramMetricOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <label className="space-y-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Preview rows
-                    </span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={10}
-                      step={1}
-                      value={query.previewLimit}
-                      onChange={(event) =>
-                        updateQuery(query.id, (currentQuery) => ({
-                          ...currentQuery,
-                          previewLimit: clampPreviewLimit(Number(event.target.value) || 0),
-                        }))
-                      }
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    />
-                  </label>
+                  ) : null}
                 </div>
 
-                <div className="flex shrink-0 gap-3 xl:flex-col">
+                <div className="flex shrink-0 flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleQueryCollapsed(query.id)}
+                    className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    {isCollapsed ? "Expand" : "Minimize"}
+                  </button>
                   <button
                     type="button"
                     onClick={() =>
@@ -1032,167 +1269,343 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
                 </div>
               </div>
 
-              <div className="mt-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Thresholds
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Each condition is an AND filter applied to the local per-galaxy aggregates.
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateQuery(query.id, (currentQuery) => ({
-                        ...currentQuery,
-                        conditions: [
-                          ...currentQuery.conditions,
-                          createAnalysisCondition(),
-                        ],
-                      }))
-                    }
-                    className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                  >
-                    Add condition
-                  </button>
-                </div>
+              {!isCollapsed ? (
+                <>
+                  <div className="mt-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="grid flex-1 gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Query name
+                        </span>
+                        <input
+                          type="text"
+                          value={query.name}
+                          onChange={(event) =>
+                            updateQuery(query.id, (currentQuery) => ({
+                              ...currentQuery,
+                              name: event.target.value,
+                            }))
+                          }
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        />
+                      </label>
 
-                <div className="space-y-3">
-                  {query.conditions.map((condition) => (
-                    <QueryConditionEditor
-                      key={condition.id}
-                      condition={condition}
-                      onChange={(nextCondition) =>
-                        updateQuery(query.id, (currentQuery) => ({
-                          ...currentQuery,
-                          conditions: currentQuery.conditions.map((candidate) =>
-                            candidate.id === nextCondition.id ? nextCondition : candidate
-                          ),
-                        }))
-                      }
-                      onRemove={() =>
-                        updateQuery(query.id, (currentQuery) => ({
-                          ...currentQuery,
-                          conditions:
-                            currentQuery.conditions.length > 1
-                              ? currentQuery.conditions.filter(
-                                  (candidate) => candidate.id !== condition.id
-                                )
-                              : currentQuery.conditions,
-                        }))
-                      }
-                    />
-                  ))}
-                </div>
-              </div>
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Paper filter
+                        </span>
+                        <select
+                          value={query.paper}
+                          onChange={(event) =>
+                            updateQuery(query.id, (currentQuery) => ({
+                              ...currentQuery,
+                              paper: event.target.value,
+                            }))
+                          }
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        >
+                          <option value="__any__">All papers</option>
+                          {summary.availablePapers.map((paper) => (
+                            <option key={paper || "__empty__"} value={paper}>
+                              {formatPaperLabel(paper)}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
 
-              <div className="mt-6 grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/30">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Result summary
-                  </div>
-                  {hasDataset && result ? (
-                    <div className="mt-3 space-y-3 text-sm text-gray-700 dark:text-gray-200">
-                      <div>
-                        <div className="text-3xl font-semibold text-gray-900 dark:text-white">
-                          {result.matchedCount.toLocaleString()}
+                      <label className="space-y-1 lg:col-span-2">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Description
+                        </span>
+                        <textarea
+                          value={query.description}
+                          onChange={(event) =>
+                            updateQuery(query.id, (currentQuery) => ({
+                              ...currentQuery,
+                              description: event.target.value,
+                            }))
+                          }
+                          rows={2}
+                          placeholder="Optional note about what this card is trying to surface."
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        />
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Catalog nucleus filter
+                        </span>
+                        <select
+                          value={query.catalogNucleus}
+                          onChange={(event) =>
+                            updateQuery(query.id, (currentQuery) => ({
+                              ...currentQuery,
+                              catalogNucleus: event.target.value as AnalysisQueryConfig["catalogNucleus"],
+                            }))
+                          }
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        >
+                          {catalogNucleusOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Sort results by
+                        </span>
+                        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
+                          <select
+                            value={query.sortBy}
+                            onChange={(event) =>
+                              updateQuery(query.id, (currentQuery) => ({
+                                ...currentQuery,
+                                sortBy: event.target.value as AnalysisQueryConfig["sortBy"],
+                              }))
+                            }
+                            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                          >
+                            {analysisSortMetricOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          <select
+                            value={query.sortDirection}
+                            onChange={(event) =>
+                              updateQuery(query.id, (currentQuery) => ({
+                                ...currentQuery,
+                                sortDirection: event.target.value as AnalysisQueryConfig["sortDirection"],
+                              }))
+                            }
+                            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                          >
+                            <option value="desc">Highest first</option>
+                            <option value="asc">Lowest first</option>
+                          </select>
                         </div>
-                        <p className="text-gray-500 dark:text-gray-400">
-                          Matching galaxies in the loaded dataset.
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Histogram metric
+                        </span>
+                        <select
+                          value={query.histogramMetric}
+                          onChange={(event) =>
+                            updateQuery(query.id, (currentQuery) => ({
+                              ...currentQuery,
+                              histogramMetric: event.target.value as AnalysisQueryConfig["histogramMetric"],
+                            }))
+                          }
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        >
+                          {analysisHistogramMetricOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+
+                      <label className="space-y-1">
+                        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Preview rows
+                        </span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={10}
+                          step={1}
+                          value={query.previewLimit}
+                          onChange={(event) =>
+                            updateQuery(query.id, (currentQuery) => ({
+                              ...currentQuery,
+                              previewLimit: clampPreviewLimit(Number(event.target.value) || 0),
+                            }))
+                          }
+                          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                        />
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                          Thresholds
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Each condition is an AND filter applied to the local per-galaxy aggregates.
                         </p>
                       </div>
-                      <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
-                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          Total classifications in matches
-                        </div>
-                        <div className="mt-1 font-medium">
-                          {result.totalMatchingClassifications.toLocaleString()}
-                        </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateQuery(query.id, (currentQuery) => ({
+                            ...currentQuery,
+                            conditions: [
+                              ...currentQuery.conditions,
+                              createAnalysisCondition(),
+                            ],
+                          }))
+                        }
+                        className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                      >
+                        Add condition
+                      </button>
+                    </div>
+
+                    <div className="space-y-3">
+                      {query.conditions.map((condition) => (
+                        <QueryConditionEditor
+                          key={condition.id}
+                          condition={condition}
+                          onChange={(nextCondition) =>
+                            updateQuery(query.id, (currentQuery) => ({
+                              ...currentQuery,
+                              conditions: currentQuery.conditions.map((candidate) =>
+                                candidate.id === nextCondition.id ? nextCondition : candidate
+                              ),
+                            }))
+                          }
+                          onRemove={() =>
+                            updateQuery(query.id, (currentQuery) => ({
+                              ...currentQuery,
+                              conditions:
+                                currentQuery.conditions.length > 1
+                                  ? currentQuery.conditions.filter(
+                                      (candidate) => candidate.id !== condition.id
+                                    )
+                                  : currentQuery.conditions,
+                            }))
+                          }
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="mt-6 grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/30">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Result summary
                       </div>
-                      <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
-                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          Average agreement
+                      {hasDataset && result ? (
+                        <div className="mt-3 space-y-3 text-sm text-gray-700 dark:text-gray-200">
+                          <div>
+                            <div className="text-3xl font-semibold text-gray-900 dark:text-white">
+                              {result.matchedCount.toLocaleString()}
+                            </div>
+                            <p className="text-gray-500 dark:text-gray-400">
+                              Matching galaxies in the loaded dataset.
+                            </p>
+                          </div>
+                          <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                              Total classifications in matches
+                            </div>
+                            <div className="mt-1 font-medium">
+                              {result.totalMatchingClassifications.toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                              Average agreement
+                            </div>
+                            <div className="mt-1 font-medium">
+                              {formatPercent(result.averageAgreement)}
+                            </div>
+                          </div>
+                          <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                              Sort metric
+                            </div>
+                            <div className="mt-1 font-medium">
+                              {getMetricLabel(query.sortBy)}
+                            </div>
+                          </div>
+                          <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                            <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                              Histogram metric
+                            </div>
+                            <div className="mt-1 font-medium">
+                              {getMetricLabel(query.histogramMetric)}
+                            </div>
+                          </div>
                         </div>
-                        <div className="mt-1 font-medium">
-                          {formatPercent(result.averageAgreement)}
-                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                          Load the dataset first to evaluate this query locally.
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
+                      <div className="mb-3">
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          {query.name || "Untitled query"}
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          {query.description.trim() || "No description added yet."}
+                        </p>
                       </div>
-                      <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
-                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          Sort metric
-                        </div>
-                        <div className="mt-1 font-medium">
-                          {getMetricLabel(query.sortBy)}
-                        </div>
-                      </div>
-                      <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
-                        <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                          Histogram metric
-                        </div>
-                        <div className="mt-1 font-medium">
-                          {getMetricLabel(query.histogramMetric)}
-                        </div>
+                      <AnalysisHistogram data={result?.histogram ?? []} />
+                    </div>
+                  </div>
+
+                  <div className="mt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                          Top matches
+                        </h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Showing up to {clampPreviewLimit(query.previewLimit)} galaxies ranked by {getMetricShortLabel(query.sortBy).toLowerCase()}.
+                        </p>
                       </div>
                     </div>
-                  ) : (
-                    <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                      Load the dataset first to evaluate this query locally.
-                    </p>
-                  )}
-                </div>
 
-                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
-                  <div className="mb-3">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      {query.name || "Untitled query"}
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {query.description}
-                    </p>
+                    {!hasDataset ? (
+                      <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                        Load the dataset to preview galaxies here.
+                      </div>
+                    ) : result && result.previewRecords.length > 0 ? (
+                      <div className="space-y-4">
+                        {result.previewRecords.map((record) => (
+                          <AnalysisGalaxyCard
+                            key={`${query.id}-${record.galaxy._id}`}
+                            record={record}
+                            imageQuality={imageQuality}
+                            previewImageName={previewImageName}
+                            userPreferences={userPrefs}
+                            onOpenDetails={setSelectedRecord}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                        No galaxies matched this query. Try relaxing one or more vote thresholds.
+                      </div>
+                    )}
                   </div>
-                  <AnalysisHistogram data={result?.histogram ?? []} />
-                </div>
-              </div>
-
-              <div className="mt-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                      Top matches
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Showing up to {clampPreviewLimit(query.previewLimit)} galaxies ranked by {getMetricShortLabel(query.sortBy).toLowerCase()}.
-                    </p>
-                  </div>
-                </div>
-
-                {!hasDataset ? (
-                  <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
-                    Load the dataset to preview galaxies here.
-                  </div>
-                ) : result && result.previewRecords.length > 0 ? (
-                  <div className="space-y-4">
-                    {result.previewRecords.map((record) => (
-                      <AnalysisGalaxyCard
-                        key={`${query.id}-${record.galaxy._id}`}
-                        record={record}
-                        imageQuality={imageQuality}
-                        previewImageName={previewImageName}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
-                    No galaxies matched this query. Try relaxing one or more vote thresholds.
-                  </div>
-                )}
-              </div>
+                </>
+              ) : null}
             </section>
           );
         })}
       </div>
+
+      <ClassificationDetailsModal
+        isOpen={selectedRecord !== null}
+        onClose={() => setSelectedRecord(null)}
+        record={selectedRecord}
+        userDisplayNames={userDisplayNames}
+      />
     </div>
   );
 }

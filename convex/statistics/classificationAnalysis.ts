@@ -8,10 +8,10 @@ import {
 import { requireUserProfile } from "../lib/auth";
 import { loadMergedSystemSettings } from "../system_settings";
 
-const DEFAULT_GALAXY_PAGE_SIZE = 400;
-const DEFAULT_CLASSIFICATION_PAGE_SIZE = 1500;
-const MAX_GALAXY_PAGE_SIZE = 800;
-const MAX_CLASSIFICATION_PAGE_SIZE = 3000;
+const DEFAULT_GALAXY_PAGE_SIZE = 2500;
+const DEFAULT_CLASSIFICATION_PAGE_SIZE = 2500;
+const MAX_GALAXY_PAGE_SIZE = 2500;
+const MAX_CLASSIFICATION_PAGE_SIZE = 2500;
 
 const analysisGalaxyValidator = v.object({
   _id: v.id("galaxies"),
@@ -32,6 +32,9 @@ const analysisGalaxyValidator = v.object({
 });
 
 const analysisClassificationValidator = v.object({
+  _id: v.id("classifications"),
+  _creationTime: v.number(),
+  userId: v.id("users"),
   galaxyExternalId: v.string(),
   lsb_class: v.number(),
   morphology: v.number(),
@@ -39,6 +42,11 @@ const analysisClassificationValidator = v.object({
   valid_redshift: v.boolean(),
   visible_nucleus: v.optional(v.boolean()),
   failed_fitting: v.optional(v.boolean()),
+});
+
+const analysisUserDirectoryEntryValidator = v.object({
+  userId: v.id("users"),
+  displayName: v.string(),
 });
 
 async function requireClassificationAnalysisAccess(
@@ -91,6 +99,27 @@ export const getDatasetSummary = query({
       catalogNucleusGalaxies,
       availablePapers: settings.availablePapers,
     };
+  },
+});
+
+export const getUserDirectory = query({
+  args: {},
+  returns: v.array(analysisUserDirectoryEntryValidator),
+  handler: async (ctx) => {
+    await requireClassificationAnalysisAccess(ctx);
+
+    const users = await ctx.db.query("users").collect();
+
+    return users
+      .map((user) => {
+        const rawName = typeof user.name === "string" ? user.name.trim() : "";
+        return {
+          userId: user._id,
+          displayName:
+            rawName.length > 0 ? rawName : `User ${String(user._id).slice(-6)}`,
+        };
+      })
+      .sort((left, right) => left.displayName.localeCompare(right.displayName));
   },
 });
 
@@ -172,6 +201,9 @@ export const getClassificationPage = query({
 
     return {
       page: page.page.map((classification) => ({
+        _id: classification._id,
+        _creationTime: classification._creationTime,
+        userId: classification.userId,
         galaxyExternalId: classification.galaxyExternalId,
         lsb_class: classification.lsb_class,
         morphology: classification.morphology,

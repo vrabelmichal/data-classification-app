@@ -43,6 +43,9 @@ export interface AnalysisGalaxy {
 }
 
 export interface AnalysisClassificationVote {
+  _id: string;
+  _creationTime: number;
+  userId: string;
   galaxyExternalId: string;
   lsb_class: number;
   morphology: number;
@@ -50,6 +53,11 @@ export interface AnalysisClassificationVote {
   valid_redshift: boolean;
   visible_nucleus?: boolean;
   failed_fitting?: boolean;
+}
+
+export interface AnalysisUserDirectoryEntry {
+  userId: string;
+  displayName: string;
 }
 
 export interface AnalysisAggregate {
@@ -75,6 +83,7 @@ export interface AnalysisAgreement {
 export interface AnalysisRecord {
   galaxy: AnalysisGalaxy;
   aggregate: AnalysisAggregate;
+  votes: AnalysisClassificationVote[];
   agreement: AnalysisAgreement;
   disagreement: number;
   nucleusConfirmationRate: number | null;
@@ -295,7 +304,7 @@ export function createBlankAnalysisQuery(): AnalysisQueryConfig {
   return {
     id: createAnalysisLocalId(),
     name: "Custom query",
-    description: "Filter galaxies by vote thresholds, then sort the matching set locally.",
+    description: "",
     paper: "__any__",
     catalogNucleus: "any",
     conditions: [createAnalysisCondition("totalClassifications", "atLeast", 1)],
@@ -486,11 +495,50 @@ function calculateDominantShare(values: number[], total: number) {
   return Math.max(...values) / total;
 }
 
+export function getLsbVoteLabel(vote: Pick<AnalysisClassificationVote, "lsb_class" | "failed_fitting">) {
+  if (vote.failed_fitting === true || vote.lsb_class === -1) {
+    return LSB_LABELS.failed;
+  }
+
+  if (vote.lsb_class === 1) {
+    return LSB_LABELS.lsb;
+  }
+
+  return LSB_LABELS.nonLsb;
+}
+
+export function getMorphologyVoteLabel(morphology: number) {
+  switch (morphology) {
+    case -1:
+      return MORPHOLOGY_LABELS.featureless;
+    case 1:
+      return MORPHOLOGY_LABELS.ltg;
+    case 2:
+      return MORPHOLOGY_LABELS.etg;
+    default:
+      return MORPHOLOGY_LABELS.irregular;
+  }
+}
+
+export function getVotePreview(
+  votes: AnalysisClassificationVote[],
+  metric: "lsb" | "morphology",
+  limit = 5
+) {
+  return votes.slice(0, limit).map((vote) =>
+    metric === "lsb" ? getLsbVoteLabel(vote) : getMorphologyVoteLabel(vote.morphology)
+  );
+}
+
 export function buildAnalysisRecord(
   galaxy: AnalysisGalaxy,
-  aggregate: AnalysisAggregate
+  aggregate: AnalysisAggregate,
+  votes: AnalysisClassificationVote[]
 ): AnalysisRecord {
   const total = aggregate.totalClassifications;
+  const sortedVotes = [...votes].sort(
+    (left, right) => left._creationTime - right._creationTime
+  );
   const lsbAgreement = calculateDominantShare(
     [aggregate.failedFittingVotes, aggregate.nonLsbVotes, aggregate.lsbVotes],
     total
@@ -537,6 +585,7 @@ export function buildAnalysisRecord(
   return {
     galaxy,
     aggregate,
+    votes: sortedVotes,
     agreement: {
       lsb: lsbAgreement,
       morphology: morphologyAgreement,
@@ -812,9 +861,28 @@ export function buildGlobalSummaryHistograms(records: AnalysisRecord[]) {
   return {
     agreement: buildHistogramData(classifiedRecords, "agreementScore"),
     awesomeVotes: buildHistogramData(classifiedRecords, "awesomeVotes"),
+    visibleNucleusVotes: buildHistogramData(
+      classifiedRecords,
+      "visibleNucleusVotes"
+    ),
+    failedFittingVotes: buildHistogramData(
+      classifiedRecords,
+      "failedFittingVotes"
+    ),
     nucleusConfirmation: buildHistogramData(
       classifiedRecords.filter((record) => record.galaxy.nucleus),
       "nucleusConfirmationRate"
     ),
   };
+}
+
+export function filterZeroCountHistogram(
+  data: HistogramDatum[],
+  hideZeroBucket: boolean
+) {
+  if (!hideZeroBucket) {
+    return data;
+  }
+
+  return data.filter((datum) => datum.label !== "0");
 }
