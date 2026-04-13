@@ -1,8 +1,29 @@
+import { v } from "convex/values";
 import { query } from "../_generated/server";
+import { galaxySchemaDefinition } from "../schema";
 import { loadMergedSystemSettings } from "../system_settings";
+
+const documentationExampleGalaxyValidator = v.object({
+  _id: v.id("galaxies"),
+  _creationTime: v.number(),
+  ...galaxySchemaDefinition,
+});
+
+const documentationExampleGalaxyResultValidator = v.object({
+  galaxy: v.union(documentationExampleGalaxyValidator, v.null()),
+  source: v.union(
+    v.literal("configured"),
+    v.literal("fallback_after_missing_configured"),
+    v.literal("automatic"),
+    v.literal("configured_missing"),
+    v.literal("none_available")
+  ),
+  configuredExternalId: v.union(v.string(), v.null()),
+});
 
 export const getDocumentationExampleGalaxy = query({
   args: {},
+  returns: documentationExampleGalaxyResultValidator,
   handler: async (ctx) => {
     const mergedSettings = await loadMergedSystemSettings(ctx);
     const configuredExternalId = String(mergedSettings.helpExamplesGalaxyExternalId ?? "").trim();
@@ -44,17 +65,6 @@ export const getDocumentationExampleGalaxy = query({
           configuredExternalId: configuredExternalId || null,
         } as const;
       }
-    }
-
-    const fallbackBatch = await ctx.db.query("galaxies").take(100);
-    const firstNonBlacklisted = fallbackBatch.find((galaxy) => !blacklistedIds.has(galaxy.id)) ?? null;
-
-    if (firstNonBlacklisted) {
-      return {
-        galaxy: firstNonBlacklisted,
-        source: configuredExternalId.length > 0 ? "fallback_after_missing_configured" : "automatic",
-        configuredExternalId: configuredExternalId || null,
-      } as const;
     }
 
     return {

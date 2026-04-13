@@ -617,7 +617,9 @@ export function ApplicationGuideSection({
       return null;
     }
 
-    const groups = imageDisplaySettings.classification.contrastGroups.map((group, groupIndex) => {
+    const contrastGroups = imageDisplaySettings.classification.contrastGroups || [];
+
+    const groups = contrastGroups.map((group, groupIndex) => {
       const label = imageDisplaySettings.classification.groupLabels?.[groupIndex] || `Group ${groupIndex + 1}`;
       const description =
         imageDisplaySettings.classification.groupDescriptions?.[groupIndex] ||
@@ -643,7 +645,12 @@ export function ApplicationGuideSection({
     });
 
     const defaultGroupIndex = imageDisplaySettings.classification.defaultGroupIndex;
-    const desktopImageTypes: ImageType[] = imageDisplaySettings.classification.contrastGroups[defaultGroupIndex].map((entry, index) => {
+    const safeIndex =
+      defaultGroupIndex >= 0 && defaultGroupIndex < contrastGroups.length
+        ? defaultGroupIndex
+        : 0;
+    const defaultContrastGroup = contrastGroups[safeIndex] ?? [];
+    const desktopImageTypes: ImageType[] = defaultContrastGroup.map((entry, index) => {
       const resolved = resolveContrastGroupEntry(entry, showMasks);
       return {
         key: resolved.key,
@@ -669,7 +676,7 @@ export function ApplicationGuideSection({
       contrastGroups: groups,
       desktopImageTypes,
       mobileImageTypes,
-      defaultGroupIndex,
+      defaultGroupIndex: safeIndex,
     };
   }, [defaultImageQuality, exampleGalaxyResult, imageDisplaySettings]);
 
