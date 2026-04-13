@@ -361,44 +361,17 @@ function CollapseIcon({ collapsed }: { collapsed: boolean }) {
 
 function ExpandAllIcon() {
   return (
-    <svg
-      className="h-4 w-4"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M12 5v14" />
-      <path d="M5 12h14" />
-      <path d="M6 19h4" />
-      <path d="M14 19h4" />
-      <path d="M6 5h4" />
-      <path d="M14 5h4" />
-    </svg>
+    <span className="inline-flex h-4 w-4 items-center justify-center text-base font-semibold" aria-hidden="true">
+      +
+    </span>
   );
 }
 
 function CollapseAllIcon() {
   return (
-    <svg
-      className="h-4 w-4"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M5 12h14" />
-      <path d="M6 19h4" />
-      <path d="M14 19h4" />
-      <path d="M6 5h4" />
-      <path d="M14 5h4" />
-    </svg>
+    <span className="inline-flex h-4 w-4 items-center justify-center text-base font-semibold" aria-hidden="true">
+      −
+    </span>
   );
 }
 
@@ -992,9 +965,6 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
             );
           })}
         </div>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-          Pinned navigator: jump directly to any query card while scrolling.
-        </p>
       </div>
     ),
     [hasDataset, queries, queryResults]
@@ -1010,17 +980,9 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
 
     const scrollParents = getScrollParents(anchorElement);
     const nearestScrollParent = scrollParents[0] ?? window;
-    console.log("[DataAnalysisNavigator] effect setup", {
-      hasDataset,
-      pageReady,
-      queryCount: queries.length,
-      nearestScrollParent: describeScrollParent(nearestScrollParent),
-      scrollParents: scrollParents.map(describeScrollParent),
-    });
 
     const resizeObserver = new ResizeObserver(() => {
       const nextHeight = navigatorElement.getBoundingClientRect().height;
-      console.log("[DataAnalysisNavigator] resize", { nextHeight });
       setNavigatorHeight(nextHeight);
     });
 
@@ -1036,22 +998,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       const targetTop = PINNED_NAVIGATOR_MARGIN;
       const shouldPin = anchorRect.top <= targetTop;
 
-      console.log("[DataAnalysisNavigator] update", {
-        count: navigatorDebugCountRef.current,
-        anchorTop: anchorRect.top,
-        anchorBottom: anchorRect.bottom,
-        anchorLeft: anchorRect.left,
-        anchorWidth: anchorRect.width,
-        navigatorHeight: nextHeight,
-        targetTop,
-        shouldPin,
-        isCurrentlyPinned: isNavigatorPinned,
-        nearestScrollParent: describeScrollParent(nearestScrollParent),
-        scrollParents: scrollParents.map(describeScrollParent),
-      });
-
       if (!shouldPin) {
-        console.log("[DataAnalysisNavigator] unpinned");
         setIsNavigatorPinned(false);
         setPinnedNavigatorStyle(null);
         return;
@@ -1063,7 +1010,6 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         width: anchorRect.width,
       };
 
-      console.log("[DataAnalysisNavigator] pinned", nextPinnedStyle);
       setIsNavigatorPinned(true);
       setPinnedNavigatorStyle(nextPinnedStyle);
     };
@@ -1088,7 +1034,6 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     window.addEventListener("resize", scheduleUpdatePinnedNavigator, { passive: true });
 
     return () => {
-      console.log("[DataAnalysisNavigator] cleanup");
       resizeObserver.disconnect();
       if (rafId !== 0) {
         window.cancelAnimationFrame(rafId);
