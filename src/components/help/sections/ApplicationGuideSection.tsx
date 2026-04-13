@@ -1,11 +1,11 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import {
   ActionButtons,
   ClassificationForm,
-  GalaxyImages,
   GalaxyInfo,
+  ImageViewer,
   MobileClassificationForm,
   MobileImageSlider,
   MobileSliderControls,
@@ -106,12 +106,16 @@ function StaticPreviewFrame({
   subtitle,
   children,
   maxHeightClass,
+  contentScale = 1,
 }: {
   title: string;
   subtitle: string;
   children: React.ReactNode;
   maxHeightClass: string;
+  contentScale?: number;
 }) {
+  const scaledWidthPercent = `${100 / contentScale}%`;
+
   return (
     <div className="rounded-3xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-900">
       <div className="border-b border-gray-200 px-5 py-4 dark:border-gray-700">
@@ -129,9 +133,60 @@ function StaticPreviewFrame({
         </div>
       </div>
       <div className={cn("relative overflow-hidden", maxHeightClass)}>
-        <div aria-hidden="true" className="pointer-events-none select-none">{children}</div>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none select-none origin-top-left"
+          style={{
+            transform: `scale(${contentScale})`,
+            width: scaledWidthPercent,
+          }}
+        >
+          {children}
+        </div>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-white via-white/95 to-transparent dark:from-gray-900 dark:via-gray-900/95" />
       </div>
+    </div>
+  );
+}
+
+function FixedDesktopGalaxyImages({
+  imageTypes,
+  galaxy,
+}: {
+  imageTypes: ImageType[];
+  galaxy: GalaxyData;
+}) {
+  return (
+    <div className="grid grid-cols-3 gap-4">
+      {imageTypes.map((imageType, index) => (
+        <div
+          key={imageType.url ?? `desktop-preview-slot-${index}`}
+          className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+        >
+          <h3 className="mb-3 text-center text-sm font-medium text-gray-900 dark:text-white">
+            {imageType.displayName}
+          </h3>
+          <div className="aspect-square">
+            {imageType.url ? (
+              <ImageViewer
+                imageUrl={imageType.url}
+                alt={`${galaxy.id} - ${imageType.name}`}
+                contrast={1}
+                reff={imageType.showEllipse ? galaxy.reff_pixels : undefined}
+                pa={imageType.showEllipse ? galaxy.pa : undefined}
+                q={imageType.showEllipse ? galaxy.q : undefined}
+                x={imageType.showEllipse ? galaxy.x : undefined}
+                y={imageType.showEllipse ? galaxy.y : undefined}
+                rectangle={imageType.rectangle}
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center rounded-lg bg-gray-100 text-xs text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+                No image
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -169,99 +224,114 @@ function DesktopClassificationPreview({
   );
 
   return (
-    <StaticPreviewFrame
-      title="Desktop Classification View"
-      subtitle={`${appName} example with galaxy ${galaxy.id}`}
-      maxHeightClass="max-h-[860px]"
-    >
-      <div className="min-h-[760px] bg-gray-50 px-4 py-4 dark:bg-gray-950">
-        <div className="mb-4 flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-          <div>
-            <div className="text-xs font-medium uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Classification</div>
-            <div className="text-lg font-semibold text-gray-900 dark:text-white">Galaxy {galaxy.id}</div>
+    <div className="overflow-x-auto pb-2">
+      <div className="w-[840px] min-w-[840px] max-w-none">
+        <StaticPreviewFrame
+          title="Desktop Classification View"
+          subtitle={`${appName} example with galaxy ${galaxy.id}`}
+          maxHeightClass="max-h-[860px]"
+          contentScale={0.8}
+        >
+          <div className="min-h-[760px] bg-gray-50 px-4 py-5 dark:bg-gray-950">
+            <div className="mb-6 flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                  Galaxy: {galaxy.id}
+                </h1>
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  Position: 12 of 48
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                  <button className="rounded-md px-3 py-1 text-sm text-gray-600 dark:text-gray-300">Mask</button>
+                </div>
+                <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                  <button className="rounded-md px-3 py-1 text-sm text-gray-600 dark:text-gray-300">r_eff</button>
+                </div>
+                <div className="flex items-center rounded-lg border border-gray-200 bg-white p-0.5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+                  <button className="rounded-md px-3 py-1 text-sm text-gray-600 dark:text-gray-300">?</button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-8">
+              <div className="col-span-2 space-y-6">
+                <FixedDesktopGalaxyImages
+                  imageTypes={imageTypes}
+                  galaxy={galaxy}
+                />
+                <div className="flex gap-4">
+                  <button className="flex-1 rounded-lg bg-blue-600 px-6 py-3 font-medium text-white">Open in Aladin</button>
+                  <button className="flex-1 rounded-lg bg-gray-600 px-6 py-3 font-medium text-white">View 1/5</button>
+                </div>
+                <GalaxyInfo
+                  displayGalaxy={galaxy}
+                  showAdditionalDetails={false}
+                  additionalDetails={null}
+                  loadingDetails={false}
+                  onToggleDetails={() => {}}
+                  onOpenImageUrls={() => {}}
+                />
+              </div>
+
+              <div className="space-y-6">
+                <QuickInput
+                  value={quickInput}
+                  onChange={() => {}}
+                  onKeyDown={() => {}}
+                  inputRef={inputRef}
+                  showAwesomeFlag={settings.showAwesomeFlag}
+                  showValidRedshift={settings.showValidRedshift}
+                  showVisibleNucleus={settings.showVisibleNucleus}
+                  failedFittingMode={settings.failedFittingMode}
+                />
+
+                <ClassificationForm
+                  lsbClass={lsbClass}
+                  morphology={morphology}
+                  awesomeFlag={awesomeFlag}
+                  validRedshift={validRedshift}
+                  visibleNucleus={visibleNucleus}
+                  failedFitting={failedFitting}
+                  comments={comments}
+                  formLocked={false}
+                  displayGalaxy={galaxy}
+                  failedFittingMode={settings.failedFittingMode}
+                  showAwesomeFlag={settings.showAwesomeFlag}
+                  showValidRedshift={settings.showValidRedshift}
+                  showVisibleNucleus={settings.showVisibleNucleus}
+                  onLsbClassChange={() => {}}
+                  onMorphologyChange={() => {}}
+                  onAwesomeFlagChange={() => {}}
+                  onValidRedshiftChange={() => {}}
+                  onVisibleNucleusChange={() => {}}
+                  onFailedFittingChange={() => {}}
+                  onCommentsChange={() => {}}
+                />
+
+                <ActionButtons
+                  canSubmit={true}
+                  formLocked={false}
+                  navigation={{ hasPrevious: true, hasNext: true, currentIndex: 11, totalGalaxies: 48 }}
+                  isOnline={true}
+                  onSubmit={() => {}}
+                  onSkip={() => {}}
+                  onPrevious={() => {}}
+                  onNext={() => {}}
+                />
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <ProgressBar
+                progress={{ total: 48, classified: 10, skipped: 2, remaining: 36 }}
+              />
+            </div>
           </div>
-          <div className="flex gap-2 text-xs text-gray-600 dark:text-gray-300">
-            <span className="rounded-full bg-gray-100 px-3 py-1 dark:bg-gray-700">Position 12 / 48</span>
-            <span className="rounded-full bg-gray-100 px-3 py-1 dark:bg-gray-700">Contrast Group 1</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-          <div className="space-y-4 xl:col-span-2">
-            <GalaxyImages
-              imageTypes={imageTypes}
-              displayGalaxy={galaxy}
-              userPrefs={null}
-              contrast={1}
-              showEllipseOverlay={true}
-              shouldShowEllipse={(showEllipse) => shouldShowEllipse(showEllipse, true)}
-            />
-            <GalaxyInfo
-              displayGalaxy={galaxy}
-              showAdditionalDetails={false}
-              additionalDetails={null}
-              loadingDetails={false}
-              onToggleDetails={() => {}}
-              showGalaxyHeader={true}
-              navigation={{ currentIndex: 11, totalGalaxies: 48 }}
-            />
-          </div>
-
-          <div className="space-y-4">
-            <QuickInput
-              value={quickInput}
-              onChange={() => {}}
-              onKeyDown={() => {}}
-              inputRef={inputRef}
-              showAwesomeFlag={settings.showAwesomeFlag}
-              showValidRedshift={settings.showValidRedshift}
-              showVisibleNucleus={settings.showVisibleNucleus}
-              failedFittingMode={settings.failedFittingMode}
-            />
-
-            <ClassificationForm
-              lsbClass={lsbClass}
-              morphology={morphology}
-              awesomeFlag={awesomeFlag}
-              validRedshift={validRedshift}
-              visibleNucleus={visibleNucleus}
-              failedFitting={failedFitting}
-              comments={comments}
-              formLocked={false}
-              displayGalaxy={galaxy}
-              failedFittingMode={settings.failedFittingMode}
-              showAwesomeFlag={settings.showAwesomeFlag}
-              showValidRedshift={settings.showValidRedshift}
-              showVisibleNucleus={settings.showVisibleNucleus}
-              onLsbClassChange={() => {}}
-              onMorphologyChange={() => {}}
-              onAwesomeFlagChange={() => {}}
-              onValidRedshiftChange={() => {}}
-              onVisibleNucleusChange={() => {}}
-              onFailedFittingChange={() => {}}
-              onCommentsChange={() => {}}
-            />
-
-            <ActionButtons
-              canSubmit={true}
-              formLocked={false}
-              navigation={{ hasPrevious: true, hasNext: true, currentIndex: 11, totalGalaxies: 48 }}
-              isOnline={true}
-              onSubmit={() => {}}
-              onSkip={() => {}}
-              onPrevious={() => {}}
-              onNext={() => {}}
-            />
-          </div>
-        </div>
-
-        <div className="mt-4">
-          <ProgressBar
-            progress={{ total: 48, classified: 10, skipped: 2, remaining: 36 }}
-          />
-        </div>
+        </StaticPreviewFrame>
       </div>
-    </StaticPreviewFrame>
+    </div>
   );
 }
 
@@ -289,15 +359,19 @@ function MobileClassificationPreview({
   const comments = "Compact note preview";
 
   return (
-    <div className="mx-auto max-w-[400px]">
+    <div className="mx-auto w-[440px] max-w-full">
       <StaticPreviewFrame
         title="Mobile Classification View"
         subtitle={`${appName} example with galaxy ${galaxy.id}`}
         maxHeightClass="max-h-[760px]"
+        contentScale={0.8}
       >
         <div className="bg-gray-950 p-3">
-          <div className="mx-auto max-w-[360px] rounded-[32px] bg-gray-950 p-2 shadow-2xl ring-1 ring-white/10">
-            <div className="overflow-hidden rounded-[26px] bg-gray-50 dark:bg-gray-900">
+          <div className="mx-auto w-[390px] rounded-[34px] bg-gray-950 p-2 shadow-2xl ring-1 ring-white/10">
+            <div
+              className="overflow-hidden rounded-[28px] bg-gray-50 dark:bg-gray-900"
+              style={{ aspectRatio: "9 / 19.5" }}
+            >
               <div className="border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
                 <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">Mobile</div>
                 <div className="mt-1 flex items-center justify-between">
@@ -307,6 +381,27 @@ function MobileClassificationPreview({
               </div>
 
               <div className="space-y-3 p-3">
+                <MobileImageSlider
+                  imageTypes={imageTypes}
+                  displayGalaxy={galaxy}
+                  userPrefs={null}
+                  contrast={1}
+                  shouldShowEllipse={(showEllipse) => shouldShowEllipse(showEllipse, true)}
+                  currentIndex={0}
+                  onIndexChange={() => {}}
+                  renderControls={({ goPrev, goNext }) => (
+                    <MobileSliderControls
+                      totalImages={imageTypes.length}
+                      currentContrastGroup={currentContrastGroup}
+                      totalContrastGroups={totalContrastGroups}
+                      onPrevImage={goPrev}
+                      onNextImage={goNext}
+                      onContrastClick={() => {}}
+                      onAladinClick={() => {}}
+                    />
+                  )}
+                />
+
                 <MobileClassificationForm
                   lsbClass={lsbClass}
                   morphology={morphology}
@@ -339,27 +434,6 @@ function MobileClassificationPreview({
                   onSkip={() => {}}
                   onPrevious={() => {}}
                   onNext={() => {}}
-                />
-
-                <MobileImageSlider
-                  imageTypes={imageTypes}
-                  displayGalaxy={galaxy}
-                  userPrefs={null}
-                  contrast={1}
-                  shouldShowEllipse={(showEllipse) => shouldShowEllipse(showEllipse, true)}
-                  currentIndex={0}
-                  onIndexChange={() => {}}
-                  renderControls={({ goPrev, goNext }) => (
-                    <MobileSliderControls
-                      totalImages={imageTypes.length}
-                      currentContrastGroup={currentContrastGroup}
-                      totalContrastGroups={totalContrastGroups}
-                      onPrevImage={goPrev}
-                      onNextImage={goNext}
-                      onContrastClick={() => {}}
-                      onAladinClick={() => {}}
-                    />
-                  )}
                 />
               </div>
             </div>
@@ -423,9 +497,91 @@ function MinorHeading({ children }: { children: React.ReactNode }) {
 }
 
 function RightSideAnchors({ items }: { items: AnchorItem[] }) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const [panelHeight, setPanelHeight] = useState<number>(0);
+  const [isPinned, setIsPinned] = useState(false);
+  const [fixedMetrics, setFixedMetrics] = useState<{ left: number; top: number; width: number }>({
+    left: 0,
+    top: 24,
+    width: 0,
+  });
+
+  useLayoutEffect(() => {
+    const container = containerRef.current;
+    const panel = panelRef.current;
+
+    if (!container || !panel || typeof window === "undefined") {
+      return;
+    }
+
+    const topOffset = 24;
+
+    const updatePosition = () => {
+      const nextPanelHeight = panel.offsetHeight;
+      const rect = container.getBoundingClientRect();
+      const shouldPin = window.innerWidth >= 1024 && rect.top <= topOffset;
+
+      setPanelHeight((current) => (current === nextPanelHeight ? current : nextPanelHeight));
+      setIsPinned((current) => (current === shouldPin ? current : shouldPin));
+
+      if (shouldPin) {
+        const nextMetrics = {
+          left: rect.left,
+          top: topOffset,
+          width: rect.width,
+        };
+
+        setFixedMetrics((current) => {
+          if (
+            current.left === nextMetrics.left &&
+            current.top === nextMetrics.top &&
+            current.width === nextMetrics.width
+          ) {
+            return current;
+          }
+
+          return nextMetrics;
+        });
+      }
+    };
+
+    updatePosition();
+
+    const handleScroll = () => updatePosition();
+    const handleResize = () => updatePosition();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", handleResize);
+
+    const resizeObserver = new ResizeObserver(() => updatePosition());
+    resizeObserver.observe(container);
+    resizeObserver.observe(panel);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", handleResize);
+      resizeObserver.disconnect();
+    };
+  }, [items]);
+
   return (
-    <aside className="hidden lg:block">
-      <div className="sticky top-24 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+    <aside className="hidden self-start lg:block">
+      <div ref={containerRef} className="relative" style={{ height: panelHeight || undefined }}>
+      <div
+        ref={panelRef}
+        className="max-h-[calc(100vh-1.5rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800"
+        style={
+          isPinned
+            ? {
+                position: "fixed",
+                top: fixedMetrics.top,
+                left: fixedMetrics.left,
+                width: fixedMetrics.width,
+                zIndex: 20,
+              }
+            : undefined
+        }
+      >
         <div className="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-gray-500 dark:text-gray-400">
           On This Page
         </div>
@@ -440,6 +596,7 @@ function RightSideAnchors({ items }: { items: AnchorItem[] }) {
             </a>
           ))}
         </nav>
+      </div>
       </div>
     </aside>
   );
