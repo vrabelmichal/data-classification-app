@@ -10,6 +10,7 @@ import {
   DEFAULT_SHOW_VISIBLE_NUCLEUS,
 } from "../../lib/defaults";
 import { HelpTabs } from "./HelpTabs";
+import { ApplicationGuideSection } from "./sections/ApplicationGuideSection";
 import { ClassificationSection } from "./sections/ClassificationSection";
 import { GettingStartedSection } from "./sections/GettingStartedSection";
 import { ImageDocumentationSection } from "./sections/ImageDocumentationSection";
@@ -28,6 +29,7 @@ export function Help() {
 
   // Determine page title based on current path
   const getPageTitle = () => {
+    if (location.pathname.includes("/help/app-guide")) return "Help - Application Guide";
     if (location.pathname.includes("/help/classification")) return "Help - Categories & Flags";
     if (location.pathname.includes("/help/shortcuts")) return "Help - Keyboard Shortcuts";
     if (location.pathname.includes("/help/image-docs")) return "Help - Image Documentation";
@@ -57,6 +59,16 @@ export function Help() {
 
         <Routes>
           <Route index element={<GettingStartedSection appName={appName} />} />
+          <Route
+            path="app-guide"
+            element={
+              <ApplicationGuideSection
+                appName={appName}
+                settings={featureFlags}
+                defaultImageQuality={systemSettings?.defaultImageQuality ?? "high"}
+              />
+            }
+          />
           <Route path="classification" element={<ClassificationSection settings={featureFlags} />} />
           <Route path="shortcuts" element={<KeyboardShortcutsSection settings={featureFlags} />} />
           <Route path="image-docs" element={<ImageDocumentationSection />} />

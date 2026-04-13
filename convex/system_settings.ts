@@ -94,6 +94,7 @@ export const updateSystemSettings = mutation({
     allowAnonymous: v.optional(v.boolean()),
     emailFrom: v.optional(v.string()),
     appName: v.optional(v.string()),
+    helpExamplesGalaxyExternalId: v.optional(v.string()),
     debugAdminMode: v.optional(v.boolean()),
     allowPublicOverview: v.optional(v.boolean()),
     allowPublicDataAnalysis: v.optional(v.boolean()),
@@ -161,6 +162,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "appName",
           value: args.appName,
+        });
+      }
+    }
+
+    if (args.helpExamplesGalaxyExternalId !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "helpExamplesGalaxyExternalId"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.helpExamplesGalaxyExternalId });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "helpExamplesGalaxyExternalId",
+          value: args.helpExamplesGalaxyExternalId,
         });
       }
     }

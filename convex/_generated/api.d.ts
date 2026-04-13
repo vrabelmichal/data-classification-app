@@ -35,6 +35,7 @@ import type * as galaxies_count from "../galaxies/count.js";
 import type * as galaxies_countDiagnostics from "../galaxies/countDiagnostics.js";
 import type * as galaxies_deprecated from "../galaxies/deprecated.js";
 import type * as galaxies_export from "../galaxies/export.js";
+import type * as galaxies_help from "../galaxies/help.js";
 import type * as galaxies_maintenance from "../galaxies/maintenance.js";
 import type * as galaxies_mock from "../galaxies/mock.js";
 import type * as galaxies_navigation from "../galaxies/navigation.js";
@@ -104,6 +105,7 @@ declare const fullApi: ApiFromModules<{
   "galaxies/countDiagnostics": typeof galaxies_countDiagnostics;
   "galaxies/deprecated": typeof galaxies_deprecated;
   "galaxies/export": typeof galaxies_export;
+  "galaxies/help": typeof galaxies_help;
   "galaxies/maintenance": typeof galaxies_maintenance;
   "galaxies/mock": typeof galaxies_mock;
   "galaxies/navigation": typeof galaxies_navigation;

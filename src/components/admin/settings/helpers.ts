@@ -3,6 +3,7 @@ import {
   DEFAULT_ALLOW_ANONYMOUS,
   DEFAULT_EMAIL_FROM,
   DEFAULT_APP_NAME,
+  DEFAULT_HELP_EXAMPLES_GALAXY_EXTERNAL_ID,
   DEFAULT_DEBUG_ADMIN_MODE,
   DEFAULT_APP_VERSION,
   DEFAULT_FAILED_FITTING_MODE,
@@ -27,6 +28,9 @@ export function createSettingsFormState(systemSettings: any): SettingsFormState 
     allowAnonymous: systemSettings.allowAnonymous ?? DEFAULT_ALLOW_ANONYMOUS,
     emailFrom: systemSettings.emailFrom ?? DEFAULT_EMAIL_FROM,
     appName: systemSettings.appName ?? DEFAULT_APP_NAME,
+    helpExamplesGalaxyExternalId:
+      systemSettings.helpExamplesGalaxyExternalId ??
+      DEFAULT_HELP_EXAMPLES_GALAXY_EXTERNAL_ID,
     debugAdminMode: systemSettings.debugAdminMode ?? DEFAULT_DEBUG_ADMIN_MODE,
     allowPublicOverview:
       systemSettings.allowPublicOverview ?? DEFAULT_ALLOW_PUBLIC_OVERVIEW,
@@ -72,6 +76,8 @@ export function hasSettingsChanges(
     localSettings.allowAnonymous !== originalSettings.allowAnonymous ||
     localSettings.emailFrom !== originalSettings.emailFrom ||
     localSettings.appName !== originalSettings.appName ||
+    localSettings.helpExamplesGalaxyExternalId !==
+      originalSettings.helpExamplesGalaxyExternalId ||
     localSettings.debugAdminMode !== originalSettings.debugAdminMode ||
     localSettings.allowPublicOverview !== originalSettings.allowPublicOverview ||
     localSettings.allowPublicDataAnalysis !==

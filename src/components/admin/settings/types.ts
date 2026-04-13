@@ -4,6 +4,7 @@ export interface SettingsFormState {
   allowAnonymous: boolean;
   emailFrom: string;
   appName: string;
+  helpExamplesGalaxyExternalId: string;
   debugAdminMode: boolean;
   allowPublicOverview: boolean;
   allowPublicDataAnalysis: boolean;

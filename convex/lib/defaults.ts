@@ -29,6 +29,7 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   allowAnonymous: false,
   emailFrom: "noreply@galaxies.michalvrabel.sk",
   appName: "Galaxy Classification App",
+  helpExamplesGalaxyExternalId: "",
   debugAdminMode: false,
   appVersion: "",
   failedFittingMode: "checkbox" as const,

@@ -83,6 +83,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         allowAnonymous: localSettings.allowAnonymous,
         emailFrom: localSettings.emailFrom,
         appName: localSettings.appName,
+        helpExamplesGalaxyExternalId: localSettings.helpExamplesGalaxyExternalId,
         debugAdminMode: localSettings.debugAdminMode,
         allowPublicOverview: localSettings.allowPublicOverview,
         allowPublicDataAnalysis: localSettings.allowPublicDataAnalysis,

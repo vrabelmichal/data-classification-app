@@ -92,6 +92,27 @@ export function GeneralSettingsPage({
               placeholder="e.g. 1.0.0"
             />
           </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              Help Documentation Example Galaxy
+            </span>
+            <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+              Optional external galaxy ID used in the Help page's static documentation examples. Leave empty to use the first non-blacklisted galaxy in the catalog.
+            </p>
+            <input
+              type="text"
+              value={localSettings.helpExamplesGalaxyExternalId}
+              onChange={(e) =>
+                handleSettingChange(
+                  "helpExamplesGalaxyExternalId",
+                  e.target.value,
+                )
+              }
+              className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+              placeholder="Leave empty for automatic selection"
+            />
+          </label>
         </div>
       </div>
 

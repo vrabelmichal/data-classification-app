@@ -3,6 +3,7 @@ import { HelpTab } from "./types";
 
 const tabs: Array<{ key: HelpTab; label: string; path: string }> = [
   { key: "getting-started", label: "Getting Started", path: "/help" },
+  { key: "app-guide", label: "App Guide", path: "/help/app-guide" },
   { key: "classification", label: "Categories & Flags", path: "/help/classification" },
   { key: "shortcuts", label: "Keyboard", path: "/help/shortcuts" },
   { key: "image-docs", label: "Image Documentation", path: "/help/image-docs" },

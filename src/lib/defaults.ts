@@ -16,6 +16,12 @@ export const DEFAULT_EMAIL_FROM = "noreply@galaxies.michalvrabel.sk";
 export const DEFAULT_APP_NAME = "Galaxy Classification App";
 
 /**
+ * Optional galaxy external ID used in help/documentation examples.
+ * Empty string means the app should fall back to the first non-blacklisted galaxy.
+ */
+export const DEFAULT_HELP_EXAMPLES_GALAXY_EXTERNAL_ID = "";
+
+/**
  * Default app version (empty string means no version checking)
  */
 export const DEFAULT_APP_VERSION = "";
@@ -122,6 +128,7 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   allowAnonymous: DEFAULT_ALLOW_ANONYMOUS,
   emailFrom: DEFAULT_EMAIL_FROM,
   appName: DEFAULT_APP_NAME,
+  helpExamplesGalaxyExternalId: DEFAULT_HELP_EXAMPLES_GALAXY_EXTERNAL_ID,
   debugAdminMode: DEFAULT_DEBUG_ADMIN_MODE,
   appVersion: DEFAULT_APP_VERSION,
   failedFittingMode: DEFAULT_FAILED_FITTING_MODE,
