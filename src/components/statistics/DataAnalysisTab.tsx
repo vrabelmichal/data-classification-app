@@ -1009,10 +1009,12 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     }
 
     const scrollParents = getScrollParents(anchorElement);
+    const nearestScrollParent = scrollParents[0] ?? window;
     console.log("[DataAnalysisNavigator] effect setup", {
       hasDataset,
       pageReady,
       queryCount: queries.length,
+      nearestScrollParent: describeScrollParent(nearestScrollParent),
       scrollParents: scrollParents.map(describeScrollParent),
     });
 
@@ -1031,13 +1033,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       setNavigatorHeight(nextHeight);
 
       const anchorRect = anchorElement.getBoundingClientRect();
-      const nearestScrollParent = scrollParents[0] ?? window;
-      const scrollParentTop =
-        nearestScrollParent instanceof Window
-          ? 0
-          : nearestScrollParent.getBoundingClientRect().top;
-    //   const targetTop = scrollParentTop + PINNED_NAVIGATOR_MARGIN;
-      const targetTop =  PINNED_NAVIGATOR_MARGIN;
+      const targetTop = PINNED_NAVIGATOR_MARGIN;
       const shouldPin = anchorRect.top <= targetTop;
 
       console.log("[DataAnalysisNavigator] update", {
@@ -1103,7 +1099,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       }
       window.removeEventListener("resize", scheduleUpdatePinnedNavigator);
     };
-  }, [hasDataset, isNavigatorPinned, pageReady, queries.length]);
+  }, [hasDataset, pageReady, queries.length]);
 
   if (summary === undefined) {
     return (
