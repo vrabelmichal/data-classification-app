@@ -528,7 +528,7 @@ export function AnalysisQueryToolbar({
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div>
+      <div className="min-w-0 flex-shrink">
         <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
           Interactive query cards
         </h2>
@@ -538,7 +538,7 @@ export function AnalysisQueryToolbar({
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex shrink-0 gap-2">
         <button
           type="button"
           onClick={onAddQuery}
