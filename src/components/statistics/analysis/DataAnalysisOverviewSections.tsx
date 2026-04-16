@@ -318,12 +318,39 @@ export function AnalysisDatasetStats({
   dataset: PreparedDataset;
   totalGalaxies: number;
 }) {
+  const unclassifiedGalaxies = Math.max(totalGalaxies - dataset.classifiedGalaxyCount, 0);
+
   return (
-    <div className="grid gap-4 lg:grid-cols-5">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
       <StatCard
         label="Classified galaxies"
         value={dataset.classifiedGalaxyCount.toLocaleString()}
         detail={`${formatPercent(dataset.classifiedGalaxyCount / Math.max(totalGalaxies, 1))} of the full catalog currently has at least one classification.`}
+      />
+      <StatCard
+        label="Unclassified galaxies"
+        value={unclassifiedGalaxies.toLocaleString()}
+        detail="Rows that still have zero classifications in the loaded dataset."
+      />
+      <StatCard
+        label="Max classifications on one item"
+        value={dataset.maxClassificationsPerGalaxy.toLocaleString()}
+        detail="Highest per-item classification count currently present in the local analysis dataset."
+      />
+      <StatCard
+        label="Classifications with comments"
+        value={dataset.totalCommentedClassifications.toLocaleString()}
+        detail="Submitted classifications that included a non-empty written comment."
+      />
+      <StatCard
+        label="Average comment length"
+        value={dataset.averageCommentLength === null ? "-" : dataset.averageCommentLength.toFixed(1)}
+        detail="Average number of characters across all non-empty classification comments."
+      />
+      <StatCard
+        label="Maximum comment length"
+        value={dataset.maxCommentLength.toLocaleString()}
+        detail="Longest written classification comment found in the loaded dataset."
       />
       <StatCard
         label="Awesome votes"
@@ -359,6 +386,7 @@ export function AnalysisGlobalHistogramSection({
   onToggleZeroBucket,
 }: {
   histograms: {
+    classificationCoverage: HistogramDatum[];
     lsbAgreementCount: HistogramDatum[];
     morphologyAgreementCount: HistogramDatum[];
     visibleNucleusAgreementCount: HistogramDatum[];
@@ -371,6 +399,11 @@ export function AnalysisGlobalHistogramSection({
 }) {
   return (
     <div className="grid gap-6 xl:grid-cols-2 2xl:grid-cols-3">
+      <HistogramCard
+        title="Classification coverage by item"
+        description="How many galaxies have exactly 1, 2, 3, and more classifications. This excludes the zero-classification rows, which are summarized above."
+        data={histograms.classificationCoverage}
+      />
       <HistogramCard
         title="Is-LSB agreement counts"
         description="For each classified galaxy, how many comparable Is-LSB votes landed in the dominant LSB or Non-LSB branch."

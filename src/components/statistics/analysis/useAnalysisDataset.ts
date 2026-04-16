@@ -155,18 +155,29 @@ export function useAnalysisDataset() {
 
       const records: AnalysisRecord[] = [];
       let classifiedGalaxyCount = 0;
+      let maxClassificationsPerGalaxy = 0;
       let totalAwesomeVotes = 0;
       let totalVisibleNucleusVotes = 0;
       let totalFailedFittingVotes = 0;
+      let totalCommentedClassifications = 0;
+      let totalCommentCharacters = 0;
+      let maxCommentLength = 0;
 
       for (const galaxy of sortedGalaxies) {
         const aggregate = aggregateMap.get(galaxy.id) ?? createEmptyAggregate();
         if (aggregate.totalClassifications > 0) {
           classifiedGalaxyCount += 1;
         }
+        maxClassificationsPerGalaxy = Math.max(
+          maxClassificationsPerGalaxy,
+          aggregate.totalClassifications
+        );
         totalAwesomeVotes += aggregate.awesomeVotes;
         totalVisibleNucleusVotes += aggregate.visibleNucleusVotes;
         totalFailedFittingVotes += aggregate.failedFittingVotes;
+        totalCommentedClassifications += aggregate.commentedClassifications;
+        totalCommentCharacters += aggregate.totalCommentLength;
+        maxCommentLength = Math.max(maxCommentLength, aggregate.maxCommentLength);
         records.push(
           buildAnalysisRecord(galaxy, aggregate, votesByGalaxy.get(galaxy.id) ?? [])
         );
@@ -186,9 +197,16 @@ export function useAnalysisDataset() {
           records,
           loadedAt: Date.now(),
           classifiedGalaxyCount,
+          maxClassificationsPerGalaxy,
           totalAwesomeVotes,
           totalVisibleNucleusVotes,
           totalFailedFittingVotes,
+          totalCommentedClassifications,
+          averageCommentLength:
+            totalCommentedClassifications > 0
+              ? totalCommentCharacters / totalCommentedClassifications
+              : null,
+          maxCommentLength,
           orphanedGalaxyCount,
           orphanedClassificationCount,
         });

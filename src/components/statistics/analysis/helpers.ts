@@ -12,6 +12,9 @@ export type AnalysisConditionMetric =
   | "morphologyAgreementCount"
   | "awesomeVotes"
   | "validRedshiftVotes"
+  | "commentedClassifications"
+  | "maxCommentLength"
+  | "averageCommentLength"
   | "visibleNucleusVotes"
   | "visibleNucleusComparableVotes"
   | "visibleNucleusAgreementCount"
@@ -36,6 +39,7 @@ export type DominantLsbFilter =
   | "nonLsb"
   | "split"
   | "noComparableVotes";
+export type AnalysisCommentRuleMode = "containsAny" | "notContainsAny";
 
 export interface AnalysisGalaxy {
   _id: string;
@@ -66,6 +70,7 @@ export interface AnalysisClassificationVote {
   valid_redshift: boolean;
   visible_nucleus?: boolean;
   failed_fitting?: boolean;
+  comments?: string;
 }
 
 export interface AnalysisUserDirectoryEntry {
@@ -85,6 +90,9 @@ export interface AnalysisAggregate {
   etgVotes: number;
   awesomeVotes: number;
   validRedshiftVotes: number;
+  commentedClassifications: number;
+  totalCommentLength: number;
+  maxCommentLength: number;
   visibleNucleusVotes: number;
   visibleNucleusComparableVotes: number;
 }
@@ -101,6 +109,8 @@ export interface AnalysisRecord {
   galaxy: AnalysisGalaxy;
   aggregate: AnalysisAggregate;
   votes: AnalysisClassificationVote[];
+  averageCommentLength: number | null;
+  commentSearchTexts: string[];
   lsb: AnalysisDecisionSummary<Exclude<DominantLsbFilter, "any">>;
   morphology: AnalysisDecisionSummary<
     "featureless" | "irregular" | "ltg" | "etg" | "split" | "noClassifications"
@@ -110,6 +120,12 @@ export interface AnalysisRecord {
   nucleusConfirmationRate: number | null;
   dominantLsbLabel: string;
   dominantMorphologyLabel: string;
+}
+
+export interface AnalysisCommentRule {
+  id: string;
+  mode: AnalysisCommentRuleMode;
+  terms: string;
 }
 
 export interface AnalysisQueryCondition {
@@ -127,6 +143,7 @@ export interface AnalysisQueryConfig {
   catalogNucleus: CatalogNucleusFilter;
   dominantLsb: DominantLsbFilter;
   conditions: AnalysisQueryCondition[];
+  commentRules: AnalysisCommentRule[];
   sortBy: AnalysisMetric;
   sortDirection: QuerySortDirection;
   histogramMetric: AnalysisMetric;
@@ -142,9 +159,13 @@ export interface AnalysisDominantLsbBreakdown {
 
 export interface AnalysisQueryResult {
   matchedCount: number;
+  matchedRecords: AnalysisRecord[];
   previewRecords: AnalysisRecord[];
   histogram: HistogramDatum[];
   totalMatchingClassifications: number;
+  totalMatchingCommentedClassifications: number;
+  averageMatchingCommentLength: number | null;
+  maxMatchingCommentLength: number;
   averageLsbAgreementRate: number | null;
   averageMorphologyAgreementRate: number | null;
   averageVisibleNucleusAgreementRate: number | null;
@@ -235,6 +256,21 @@ const METRIC_META: Record<AnalysisMetric, MetricMeta> = {
   validRedshiftVotes: {
     label: "Valid-redshift votes",
     shortLabel: "Valid z",
+    isRatio: false,
+  },
+  commentedClassifications: {
+    label: "Classifications with comments",
+    shortLabel: "Comments",
+    isRatio: false,
+  },
+  maxCommentLength: {
+    label: "Maximum comment length",
+    shortLabel: "Max comment",
+    isRatio: false,
+  },
+  averageCommentLength: {
+    label: "Average comment length",
+    shortLabel: "Avg comment",
     isRatio: false,
   },
   visibleNucleusVotes: {
@@ -335,6 +371,12 @@ export const analysisConditionMetricOptions: Array<
   { value: "morphologyAgreementCount", label: "Morphology agreement count" },
   { value: "awesomeVotes", label: "Awesome votes" },
   { value: "validRedshiftVotes", label: "Valid-redshift votes" },
+  {
+    value: "commentedClassifications",
+    label: "Classifications with comments",
+  },
+  { value: "maxCommentLength", label: "Maximum comment length" },
+  { value: "averageCommentLength", label: "Average comment length" },
   { value: "visibleNucleusVotes", label: "Visible-nucleus yes votes" },
   {
     value: "visibleNucleusComparableVotes",
@@ -369,6 +411,12 @@ export const analysisSortMetricOptions: Array<SelectOption<AnalysisMetric>> = [
   { value: "etgVotes", label: "ETG votes" },
   { value: "awesomeVotes", label: "Awesome votes" },
   { value: "validRedshiftVotes", label: "Valid-redshift votes" },
+  {
+    value: "commentedClassifications",
+    label: "Classifications with comments",
+  },
+  { value: "maxCommentLength", label: "Maximum comment length" },
+  { value: "averageCommentLength", label: "Average comment length" },
   { value: "visibleNucleusVotes", label: "Visible-nucleus yes votes" },
   {
     value: "visibleNucleusComparableVotes",
@@ -411,6 +459,13 @@ export const analysisOperatorOptions: Array<SelectOption<AnalysisOperator>> = [
   { value: "atMost", label: "At most" },
 ];
 
+export const analysisCommentRuleModeOptions: Array<
+  SelectOption<AnalysisCommentRuleMode>
+> = [
+  { value: "containsAny", label: "Contains any term" },
+  { value: "notContainsAny", label: "Does not contain any term" },
+];
+
 export const catalogNucleusOptions: Array<
   SelectOption<CatalogNucleusFilter>
 > = [
@@ -446,6 +501,17 @@ export function createAnalysisCondition(
   };
 }
 
+export function createAnalysisCommentRule(
+  mode: AnalysisCommentRuleMode = "containsAny",
+  terms = ""
+): AnalysisCommentRule {
+  return {
+    id: createAnalysisLocalId(),
+    mode,
+    terms,
+  };
+}
+
 export function createBlankAnalysisQuery(): AnalysisQueryConfig {
   return {
     id: createAnalysisLocalId(),
@@ -455,6 +521,7 @@ export function createBlankAnalysisQuery(): AnalysisQueryConfig {
     catalogNucleus: "any",
     dominantLsb: "any",
     conditions: [createAnalysisCondition("totalClassifications", "atLeast", 1)],
+    commentRules: [],
     sortBy: "totalClassifications",
     sortDirection: "desc",
     histogramMetric: "totalClassifications",
@@ -473,6 +540,10 @@ export function duplicateAnalysisQuery(
       ...condition,
       id: createAnalysisLocalId(),
     })),
+    commentRules: query.commentRules.map((rule) => ({
+      ...rule,
+      id: createAnalysisLocalId(),
+    })),
   };
 }
 
@@ -487,6 +558,7 @@ export function buildDefaultAnalysisQueries(): AnalysisQueryConfig[] {
       catalogNucleus: "any",
       dominantLsb: "any",
       conditions: [createAnalysisCondition("lsbComparableVotes", "atLeast", 3)],
+      commentRules: [],
       sortBy: "lsbAgreementRate",
       sortDirection: "desc",
       histogramMetric: "lsbAgreementCount",
@@ -496,11 +568,12 @@ export function buildDefaultAnalysisQueries(): AnalysisQueryConfig[] {
       id: createAnalysisLocalId(),
       name: "Split Is-LSB decisions",
       description:
-        "Galaxies where the first decision in the tree, Is-LSB, is the most contested after requiring four comparable votes.",
+        "Galaxies where the first decision in the tree, Is-LSB, is the most contested after requiring three comparable votes.",
       paper: "__any__",
       catalogNucleus: "any",
       dominantLsb: "any",
-      conditions: [createAnalysisCondition("lsbComparableVotes", "atLeast", 4)],
+      conditions: [createAnalysisCondition("lsbComparableVotes", "atLeast", 3)],
+      commentRules: [],
       sortBy: "lsbAgreementRate",
       sortDirection: "asc",
       histogramMetric: "lsbAgreementCount",
@@ -518,6 +591,7 @@ export function buildDefaultAnalysisQueries(): AnalysisQueryConfig[] {
         createAnalysisCondition("lsbAgreementCount", "atLeast", 3),
         createAnalysisCondition("totalClassifications", "atLeast", 3),
       ],
+      commentRules: [],
       sortBy: "morphologyAgreementRate",
       sortDirection: "desc",
       histogramMetric: "morphologyAgreementCount",
@@ -535,6 +609,7 @@ export function buildDefaultAnalysisQueries(): AnalysisQueryConfig[] {
         createAnalysisCondition("lsbAgreementCount", "atLeast", 3),
         createAnalysisCondition("visibleNucleusComparableVotes", "atLeast", 2),
       ],
+      commentRules: [],
       sortBy: "visibleNucleusAgreementRate",
       sortDirection: "desc",
       histogramMetric: "visibleNucleusAgreementCount",
@@ -552,6 +627,7 @@ export function buildDefaultAnalysisQueries(): AnalysisQueryConfig[] {
         createAnalysisCondition("awesomeVotes", "atLeast", 2),
         createAnalysisCondition("lsbAgreementCount", "atLeast", 3),
       ],
+      commentRules: [],
       sortBy: "awesomeVotes",
       sortDirection: "desc",
       histogramMetric: "awesomeVotes",
@@ -566,9 +642,57 @@ export function buildDefaultAnalysisQueries(): AnalysisQueryConfig[] {
       catalogNucleus: "any",
       dominantLsb: "any",
       conditions: [createAnalysisCondition("failedFittingVotes", "atLeast", 2)],
+      commentRules: [],
       sortBy: "failedFittingVotes",
       sortDirection: "desc",
       histogramMetric: "failedFittingVotes",
+      previewLimit: 10,
+    },
+    {
+      id: createAnalysisLocalId(),
+      name: "Highly commented targets",
+      description:
+        "Items that attracted multiple written comments, which can point to ambiguous or exceptional cases worth follow-up.",
+      paper: "__any__",
+      catalogNucleus: "any",
+      dominantLsb: "any",
+      conditions: [
+        createAnalysisCondition("commentedClassifications", "atLeast", 2),
+      ],
+      commentRules: [],
+      sortBy: "commentedClassifications",
+      sortDirection: "desc",
+      histogramMetric: "commentedClassifications",
+      previewLimit: 10,
+    },
+    {
+      id: createAnalysisLocalId(),
+      name: "Longest comment standouts",
+      description:
+        "Cases where at least one classifier left a long note, often a signal that the object looked unusual or difficult.",
+      paper: "__any__",
+      catalogNucleus: "any",
+      dominantLsb: "any",
+      conditions: [createAnalysisCondition("commentedClassifications", "atLeast", 1)],
+      commentRules: [],
+      sortBy: "maxCommentLength",
+      sortDirection: "desc",
+      histogramMetric: "maxCommentLength",
+      previewLimit: 10,
+    },
+    {
+      id: createAnalysisLocalId(),
+      name: "Consistently detailed comments",
+      description:
+        "Galaxies where the written comments were not just present, but consistently substantial across the commented classifications.",
+      paper: "__any__",
+      catalogNucleus: "any",
+      dominantLsb: "any",
+      conditions: [createAnalysisCondition("commentedClassifications", "atLeast", 2)],
+      commentRules: [],
+      sortBy: "averageCommentLength",
+      sortDirection: "desc",
+      histogramMetric: "averageCommentLength",
       previewLimit: 10,
     },
   ];
@@ -587,9 +711,17 @@ export function createEmptyAggregate(): AnalysisAggregate {
     etgVotes: 0,
     awesomeVotes: 0,
     validRedshiftVotes: 0,
+    commentedClassifications: 0,
+    totalCommentLength: 0,
+    maxCommentLength: 0,
     visibleNucleusVotes: 0,
     visibleNucleusComparableVotes: 0,
   };
+}
+
+export function getNormalizedComment(comment: string | undefined) {
+  const trimmedComment = comment?.trim();
+  return trimmedComment && trimmedComment.length > 0 ? trimmedComment : null;
 }
 
 export function accumulateClassificationVote(
@@ -597,6 +729,16 @@ export function accumulateClassificationVote(
   vote: AnalysisClassificationVote
 ) {
   aggregate.totalClassifications += 1;
+
+  const normalizedComment = getNormalizedComment(vote.comments);
+  if (normalizedComment) {
+    aggregate.commentedClassifications += 1;
+    aggregate.totalCommentLength += normalizedComment.length;
+    aggregate.maxCommentLength = Math.max(
+      aggregate.maxCommentLength,
+      normalizedComment.length
+    );
+  }
 
   const failedFittingComparableVote = vote.failed_fitting !== undefined;
   const failedFittingVote = vote.failed_fitting === true;
@@ -806,6 +948,13 @@ export function buildAnalysisRecord(
     galaxy,
     aggregate,
     votes: sortedVotes,
+    averageCommentLength:
+      aggregate.commentedClassifications > 0
+        ? aggregate.totalCommentLength / aggregate.commentedClassifications
+        : null,
+    commentSearchTexts: sortedVotes
+      .map((vote) => getNormalizedComment(vote.comments)?.toLowerCase() ?? null)
+      .filter((comment): comment is string => comment !== null),
     lsb,
     morphology,
     visibleNucleus,
@@ -883,6 +1032,12 @@ function getMetricValue(record: AnalysisRecord, metric: AnalysisMetric) {
       return record.aggregate.awesomeVotes;
     case "validRedshiftVotes":
       return record.aggregate.validRedshiftVotes;
+    case "commentedClassifications":
+      return record.aggregate.commentedClassifications;
+    case "maxCommentLength":
+      return record.aggregate.maxCommentLength;
+    case "averageCommentLength":
+      return record.averageCommentLength ?? 0;
     case "visibleNucleusVotes":
       return record.aggregate.visibleNucleusVotes;
     case "visibleNucleusComparableVotes":
@@ -921,6 +1076,26 @@ function matchesCondition(
     case "exactly":
       return value === threshold;
   }
+}
+
+function parseCommentTerms(input: string) {
+  return input
+    .split(/[\n,;]+/)
+    .map((term) => term.trim().toLowerCase())
+    .filter((term) => term.length > 0);
+}
+
+function matchesCommentRule(record: AnalysisRecord, rule: AnalysisCommentRule) {
+  const terms = parseCommentTerms(rule.terms);
+  if (terms.length === 0) {
+    return true;
+  }
+
+  const hasMatchingComment = record.commentSearchTexts.some((comment) =>
+    terms.some((term) => comment.includes(term))
+  );
+
+  return rule.mode === "containsAny" ? hasMatchingComment : !hasMatchingComment;
 }
 
 function compareNumbers(
@@ -1030,8 +1205,45 @@ export function buildHistogramData(
     });
   }
 
-  const values = records.map((record) => Math.max(0, Math.round(getMetricValue(record, metric))));
+  const values = records.map((record) =>
+    Math.max(0, Math.round(getMetricValue(record, metric)))
+  );
   const maxValue = Math.max(...values);
+
+  if (metric === "totalClassifications" || metric === "commentedClassifications") {
+    return Array.from({ length: maxValue + 1 }, (_, index) => ({
+      key: `${metric}-${index}`,
+      label: String(index),
+      count: values.filter((value) => value === index).length,
+      metricLabel,
+    }));
+  }
+
+  if (metric === "maxCommentLength" || metric === "averageCommentLength") {
+    const targetBucketCount = 8;
+    const stepCandidates = [10, 25, 50, 100, 250, 500, 1000];
+    const rawStep = Math.max(1, Math.ceil((maxValue + 1) / targetBucketCount));
+    const bucketSize =
+      stepCandidates.find((candidate) => candidate >= rawStep) ?? rawStep;
+    const bucketCount = Math.max(1, Math.ceil((maxValue + 1) / bucketSize));
+    const bucketValues = Array.from({ length: bucketCount }, () => 0);
+
+    for (const value of values) {
+      const index = Math.min(Math.floor(value / bucketSize), bucketCount - 1);
+      bucketValues[index] += 1;
+    }
+
+    return bucketValues.map((count, index) => {
+      const start = index * bucketSize;
+      const end = Math.min(maxValue, start + bucketSize - 1);
+      return {
+        key: `${metric}-${start}-${end}`,
+        label: `${start}-${end}`,
+        count,
+        metricLabel,
+      };
+    });
+  }
   const exactBucketMax = Math.min(maxValue, 12);
   const hasOverflowBucket = maxValue > 12;
   const bucketCount = hasOverflowBucket ? exactBucketMax + 1 : exactBucketMax + 1;
@@ -1090,7 +1302,10 @@ export function evaluateAnalysisQuery(
       return false;
     }
 
-    return query.conditions.every((condition) => matchesCondition(record, condition));
+    return (
+      query.conditions.every((condition) => matchesCondition(record, condition)) &&
+      query.commentRules.every((rule) => matchesCommentRule(record, rule))
+    );
   });
 
   const sorted = [...filtered].sort((left, right) =>
@@ -1109,10 +1324,34 @@ export function evaluateAnalysisQuery(
 
   return {
     matchedCount: sorted.length,
+    matchedRecords: sorted,
     previewRecords: sorted.slice(0, previewLimit),
     histogram: buildHistogramData(sorted, query.histogramMetric),
     totalMatchingClassifications: sorted.reduce(
       (sum, record) => sum + record.aggregate.totalClassifications,
+      0
+    ),
+    totalMatchingCommentedClassifications: sorted.reduce(
+      (sum, record) => sum + record.aggregate.commentedClassifications,
+      0
+    ),
+    averageMatchingCommentLength: (() => {
+      const totalCommentedClassifications = sorted.reduce(
+        (sum, record) => sum + record.aggregate.commentedClassifications,
+        0
+      );
+      if (totalCommentedClassifications <= 0) {
+        return null;
+      }
+
+      const totalCommentLength = sorted.reduce(
+        (sum, record) => sum + record.aggregate.totalCommentLength,
+        0
+      );
+      return totalCommentLength / totalCommentedClassifications;
+    })(),
+    maxMatchingCommentLength: sorted.reduce(
+      (maxLength, record) => Math.max(maxLength, record.aggregate.maxCommentLength),
       0
     ),
     averageLsbAgreementRate: averageDefined(
@@ -1140,6 +1379,7 @@ export function buildGlobalSummaryHistograms(records: AnalysisRecord[]) {
   );
 
   return {
+    classificationCoverage: buildHistogramData(classifiedRecords, "totalClassifications"),
     lsbAgreementCount: buildHistogramData(classifiedRecords, "lsbAgreementCount"),
     morphologyAgreementCount: buildHistogramData(
       lsbMajorityRecords,

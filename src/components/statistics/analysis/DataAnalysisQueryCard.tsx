@@ -8,19 +8,23 @@ import { ImageViewer } from "../../classification/ImageViewer";
 import type { UserPreferences } from "../../classification/types";
 import { AnalysisHistogram } from "./AnalysisHistogram";
 import {
+  analysisCommentRuleModeOptions,
   analysisConditionMetricOptions,
   analysisHistogramMetricOptions,
   analysisOperatorOptions,
   analysisSortMetricOptions,
   catalogNucleusOptions,
   clampPreviewLimit,
+  createAnalysisCommentRule,
   createAnalysisCondition,
   dominantLsbOptions,
   duplicateAnalysisQuery,
   formatPaperLabel,
+  getNormalizedComment,
   getMetricLabel,
   getMetricShortLabel,
   getVotePreview,
+  type AnalysisCommentRule,
   type AnalysisQueryConfig,
   type AnalysisQueryCondition,
   type AnalysisQueryResult,
@@ -110,6 +114,72 @@ function QueryConditionEditor({
           className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           aria-label="Remove condition"
           title="Remove condition"
+        >
+          x
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function CommentRuleEditor({
+  rule,
+  onChange,
+  onRemove,
+}: {
+  rule: AnalysisCommentRule;
+  onChange: (nextRule: AnalysisCommentRule) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/30 md:grid-cols-[180px_minmax(0,1fr)_44px]">
+      <label className="space-y-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Rule
+        </span>
+        <select
+          value={rule.mode}
+          onChange={(event) =>
+            onChange({
+              ...rule,
+              mode: event.target.value as AnalysisCommentRule["mode"],
+            })
+          }
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        >
+          {analysisCommentRuleModeOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="space-y-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+          Terms
+        </span>
+        <textarea
+          value={rule.terms}
+          onChange={(event) =>
+            onChange({
+              ...rule,
+              terms: event.target.value,
+            })
+          }
+          rows={2}
+          placeholder="One term per line, or separate multiple OR terms with commas."
+          className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+        />
+      </label>
+
+      <div className="flex items-end">
+        <button
+          type="button"
+          onClick={onRemove}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          aria-label="Remove comment rule"
+          title="Remove comment rule"
         >
           x
         </button>
@@ -477,6 +547,15 @@ function AnalysisGalaxyCard({
             )}
           </span>
           <span className="text-sm text-gray-500 dark:text-gray-400">
+            Comments {aggregate.commentedClassifications.toLocaleString()}
+          </span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Max comment {aggregate.maxCommentLength.toLocaleString()} chars
+          </span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Avg comment {record.averageCommentLength === null ? "-" : `${record.averageCommentLength.toFixed(1)} chars`}
+          </span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
             Nucleus confirmation {formatPercent(record.nucleusConfirmationRate)}
           </span>
         </div>
@@ -495,6 +574,8 @@ export function DataAnalysisQueryCard({
   userPreferences,
   canRemove,
   onOpenDetails,
+  onDownloadQueryIdsTxt,
+  onDownloadQueryMatchesCsv,
   onToggleCollapsed,
   onDuplicate,
   onRemove,
@@ -509,6 +590,14 @@ export function DataAnalysisQueryCard({
   userPreferences: UserPreferences | null | undefined;
   canRemove: boolean;
   onOpenDetails: (record: AnalysisRecord) => void;
+  onDownloadQueryIdsTxt: (
+    query: AnalysisQueryConfig,
+    result: AnalysisQueryResult
+  ) => void;
+  onDownloadQueryMatchesCsv: (
+    query: AnalysisQueryConfig,
+    result: AnalysisQueryResult
+  ) => void;
   onToggleCollapsed: () => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -611,7 +700,8 @@ export function DataAnalysisQueryCard({
         </div>
       </div>
 
-      <div className={`flex flex-wrap items-start gap-3 ${!isCollapsed ? "border-b border-gray-200 pb-4 dark:border-gray-700" : ""}`}>
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-start gap-3">
         <button
           type="button"
           onClick={() => setIsEditingDescription(true)}
@@ -660,9 +750,9 @@ export function DataAnalysisQueryCard({
             </p>
           )}
         </div>
-      </div>
+        </div>
 
-      {hasDataset && result ? (
+        {hasDataset && result ? (
           <div className="flex flex-wrap gap-2 text-sm">
             <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700 dark:bg-blue-900/30 dark:text-blue-200">
               {result.matchedCount.toLocaleString()} matches
@@ -673,8 +763,12 @@ export function DataAnalysisQueryCard({
             <span className="rounded-full bg-gray-100 px-3 py-1 text-gray-700 dark:bg-gray-700 dark:text-gray-200">
               {result.totalMatchingClassifications.toLocaleString()} classifications
             </span>
+            <span className="rounded-full bg-amber-100 px-3 py-1 text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
+              {result.totalMatchingCommentedClassifications.toLocaleString()} commented classifications
+            </span>
           </div>
         ) : null}
+      </div>
 
       {!isCollapsed ? (
         <>
@@ -881,6 +975,62 @@ export function DataAnalysisQueryCard({
             </div>
           </div>
 
+          <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Comment text filters
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Terms inside one rule behave as OR. Multiple rules are combined as AND, so you can stack positive and negative comment requirements.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  onUpdateQuery(query.id, (currentQuery) => ({
+                    ...currentQuery,
+                    commentRules: [...currentQuery.commentRules, createAnalysisCommentRule()],
+                  }))
+                }
+                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Add comment rule
+              </button>
+            </div>
+
+            {query.commentRules.length > 0 ? (
+              <div className="space-y-3">
+                {query.commentRules.map((rule) => (
+                  <CommentRuleEditor
+                    key={rule.id}
+                    rule={rule}
+                    onChange={(nextRule) =>
+                      onUpdateQuery(query.id, (currentQuery) => ({
+                        ...currentQuery,
+                        commentRules: currentQuery.commentRules.map((candidate) =>
+                          candidate.id === nextRule.id ? nextRule : candidate
+                        ),
+                      }))
+                    }
+                    onRemove={() =>
+                      onUpdateQuery(query.id, (currentQuery) => ({
+                        ...currentQuery,
+                        commentRules: currentQuery.commentRules.filter(
+                          (candidate) => candidate.id !== rule.id
+                        ),
+                      }))
+                    }
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                No comment text rules configured for this query.
+              </div>
+            )}
+          </div>
+
           <div className="mt-6 grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
             <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/30">
               <div className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -930,6 +1080,32 @@ export function DataAnalysisQueryCard({
                   </div>
                   <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Commented classifications
+                    </div>
+                    <div className="mt-1 font-medium">
+                      {result.totalMatchingCommentedClassifications.toLocaleString()}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Avg comment length
+                    </div>
+                    <div className="mt-1 font-medium">
+                      {result.averageMatchingCommentLength === null
+                        ? "-"
+                        : `${result.averageMatchingCommentLength.toFixed(1)} chars`}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Max comment length
+                    </div>
+                    <div className="mt-1 font-medium">
+                      {result.maxMatchingCommentLength.toLocaleString()} chars
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       Dominant Is-LSB breakdown
                     </div>
                     <div className="mt-1 font-medium">
@@ -972,7 +1148,7 @@ export function DataAnalysisQueryCard({
           </div>
 
           <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   Top matches
@@ -981,6 +1157,24 @@ export function DataAnalysisQueryCard({
                   Showing up to {clampPreviewLimit(query.previewLimit)} galaxies ranked by {getMetricShortLabel(query.sortBy).toLowerCase()}.
                 </p>
               </div>
+              {hasDataset && result && result.matchedCount > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onDownloadQueryIdsTxt(query, result)}
+                    className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    Download IDs (.txt)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onDownloadQueryMatchesCsv(query, result)}
+                    className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    Download IDs + aggregates (.csv)
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             {!hasDataset ? (

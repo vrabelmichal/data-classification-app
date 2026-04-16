@@ -3,7 +3,14 @@ import { useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
-import { downloadTextFile, formatDateForFilename } from "../../lib/csv";
+import {
+  createCsvHeader,
+  createCsvRow,
+  downloadTextFile,
+  formatDateForFilename,
+  sanitizeFilenameSegment,
+  type CsvColumn,
+} from "../../lib/csv";
 import { ClassificationDetailsModal } from "./analysis/ClassificationDetailsModal";
 import { DataAnalysisNavigator } from "./analysis/DataAnalysisNavigator";
 import {
@@ -23,6 +30,7 @@ import {
   createBlankAnalysisQuery,
   evaluateAnalysisQuery,
   filterZeroCountHistogram,
+  formatPaperLabel,
   type AnalysisQueryConfig,
   type AnalysisQueryResult,
   type AnalysisRecord,
@@ -39,8 +47,144 @@ import type {
 } from "./analysis/tabTypes";
 import { useAnalysisDataset } from "./analysis/useAnalysisDataset";
 import { usePinnedQueryNavigator } from "./analysis/usePinnedQueryNavigator";
+import { formatPercent } from "./analysis/tabUtils";
 
 const EMPTY_RECORDS: AnalysisRecord[] = [];
+
+function formatNullableNumber(value: number | null | undefined, digits: number) {
+  if (value === null || value === undefined || Number.isNaN(value)) {
+    return "";
+  }
+
+  return value.toFixed(digits);
+}
+
+const ANALYSIS_MATCH_EXPORT_COLUMNS: CsvColumn<AnalysisRecord>[] = [
+  { header: "externalId", getValue: (record) => record.galaxy.id },
+  {
+    header: "numericId",
+    getValue: (record) => record.galaxy.numericId ?? "",
+  },
+  {
+    header: "paper",
+    getValue: (record) => formatPaperLabel(record.galaxy.paper),
+  },
+  {
+    header: "catalogNucleus",
+    getValue: (record) => (record.galaxy.nucleus ? "yes" : "no"),
+  },
+  {
+    header: "totalClassifications",
+    getValue: (record) => record.aggregate.totalClassifications,
+  },
+  {
+    header: "commentedClassifications",
+    getValue: (record) => record.aggregate.commentedClassifications,
+  },
+  {
+    header: "averageCommentLength",
+    getValue: (record) =>
+      record.averageCommentLength === null
+        ? ""
+        : formatNullableNumber(record.averageCommentLength, 2),
+  },
+  {
+    header: "maxCommentLength",
+    getValue: (record) => record.aggregate.maxCommentLength,
+  },
+  { header: "dominantLsb", getValue: (record) => record.dominantLsbLabel },
+  { header: "lsbComparableVotes", getValue: (record) => record.lsb.comparableVotes },
+  { header: "lsbVotes", getValue: (record) => record.aggregate.lsbVotes },
+  { header: "nonLsbVotes", getValue: (record) => record.aggregate.nonLsbVotes },
+  { header: "lsbAgreementCount", getValue: (record) => record.lsb.agreementCount },
+  {
+    header: "lsbAgreementRate",
+    getValue: (record) => formatPercent(record.lsb.agreementRate),
+  },
+  {
+    header: "dominantMorphology",
+    getValue: (record) => record.dominantMorphologyLabel,
+  },
+  {
+    header: "morphologyAgreementCount",
+    getValue: (record) => record.morphology.agreementCount,
+  },
+  {
+    header: "morphologyAgreementRate",
+    getValue: (record) => formatPercent(record.morphology.agreementRate),
+  },
+  {
+    header: "featurelessVotes",
+    getValue: (record) => record.aggregate.featurelessVotes,
+  },
+  {
+    header: "irregularVotes",
+    getValue: (record) => record.aggregate.irregularVotes,
+  },
+  { header: "ltgVotes", getValue: (record) => record.aggregate.ltgVotes },
+  { header: "etgVotes", getValue: (record) => record.aggregate.etgVotes },
+  {
+    header: "awesomeVotes",
+    getValue: (record) => record.aggregate.awesomeVotes,
+  },
+  {
+    header: "validRedshiftVotes",
+    getValue: (record) => record.aggregate.validRedshiftVotes,
+  },
+  {
+    header: "visibleNucleusState",
+    getValue: (record) => record.visibleNucleus.label,
+  },
+  {
+    header: "visibleNucleusVotes",
+    getValue: (record) => record.aggregate.visibleNucleusVotes,
+  },
+  {
+    header: "visibleNucleusComparableVotes",
+    getValue: (record) => record.visibleNucleus.comparableVotes,
+  },
+  {
+    header: "visibleNucleusAgreementCount",
+    getValue: (record) => record.visibleNucleus.agreementCount,
+  },
+  {
+    header: "visibleNucleusAgreementRate",
+    getValue: (record) => formatPercent(record.visibleNucleus.agreementRate),
+  },
+  {
+    header: "failedFittingState",
+    getValue: (record) => record.failedFitting.label,
+  },
+  {
+    header: "failedFittingVotes",
+    getValue: (record) => record.aggregate.failedFittingVotes,
+  },
+  {
+    header: "failedFittingComparableVotes",
+    getValue: (record) => record.failedFitting.comparableVotes,
+  },
+  {
+    header: "failedFittingAgreementCount",
+    getValue: (record) => record.failedFitting.agreementCount,
+  },
+  {
+    header: "failedFittingAgreementRate",
+    getValue: (record) => formatPercent(record.failedFitting.agreementRate),
+  },
+  {
+    header: "nucleusConfirmationRate",
+    getValue: (record) => formatPercent(record.nucleusConfirmationRate),
+  },
+  { header: "ra", getValue: (record) => formatNullableNumber(record.galaxy.ra, 4) },
+  { header: "dec", getValue: (record) => formatNullableNumber(record.galaxy.dec, 4) },
+  { header: "reff", getValue: (record) => formatNullableNumber(record.galaxy.reff, 2) },
+  { header: "q", getValue: (record) => formatNullableNumber(record.galaxy.q, 3) },
+  { header: "mag", getValue: (record) => formatNullableNumber(record.galaxy.mag, 2) },
+  {
+    header: "meanMue",
+    getValue: (record) => formatNullableNumber(record.galaxy.mean_mue, 2),
+  },
+];
 
 export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSystemSettings }) {
   usePageTitle("Statistics – Data Analysis");
@@ -184,6 +328,47 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     );
   }, [dataset, hideZeroBuckets, queries, summary]);
 
+  const handleDownloadQueryIdsTxt = useCallback(
+    (query: AnalysisQueryConfig, result: AnalysisQueryResult) => {
+      if (result.matchedRecords.length === 0) {
+        return;
+      }
+
+      const content = `${result.matchedRecords
+        .map((record) => record.galaxy.id)
+        .join("\n")}\n`;
+
+      downloadTextFile(
+        content,
+        `classification-analysis-${sanitizeFilenameSegment(query.name || "query")}-ids-${formatDateForFilename()}.txt`,
+        "text/plain;charset=utf-8"
+      );
+    },
+    []
+  );
+
+  const handleDownloadQueryMatchesCsv = useCallback(
+    (query: AnalysisQueryConfig, result: AnalysisQueryResult) => {
+      if (result.matchedRecords.length === 0) {
+        return;
+      }
+
+      const csvLines = [
+        createCsvHeader(ANALYSIS_MATCH_EXPORT_COLUMNS),
+        ...result.matchedRecords.map((record) =>
+          createCsvRow(record, ANALYSIS_MATCH_EXPORT_COLUMNS)
+        ),
+      ];
+
+      downloadTextFile(
+        `${csvLines.join("\n")}\n`,
+        `classification-analysis-${sanitizeFilenameSegment(query.name || "query")}-matches-${formatDateForFilename()}.csv`,
+        "text/csv;charset=utf-8"
+      );
+    },
+    []
+  );
+
   const queryResults = useMemo<Map<string, AnalysisQueryResult>>(() => {
     const resultMap = new Map<string, AnalysisQueryResult>();
     if (deferredRecords.length === 0) {
@@ -204,6 +389,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
 
   const visibleGlobalHistograms = useMemo(
     () => ({
+      classificationCoverage: globalHistograms.classificationCoverage,
       lsbAgreementCount: globalHistograms.lsbAgreementCount,
       morphologyAgreementCount: globalHistograms.morphologyAgreementCount,
       visibleNucleusAgreementCount: filterZeroCountHistogram(
@@ -298,6 +484,8 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
             userPreferences={userPrefs}
             canRemove={queries.length > 1}
             onOpenDetails={setSelectedRecord}
+            onDownloadQueryIdsTxt={handleDownloadQueryIdsTxt}
+            onDownloadQueryMatchesCsv={handleDownloadQueryMatchesCsv}
             onToggleCollapsed={() => toggleQueryCollapsed(query.id)}
             onDuplicate={() =>
               setQueries((currentQueries) => [

@@ -15,6 +15,7 @@ import type { DatasetSummary, PreparedDataset, ZeroBucketState } from "./tabType
 import { formatLoadedAt, formatPercent } from "./tabUtils";
 
 type GlobalHistogramKey =
+  | "classificationCoverage"
   | "lsbAgreementCount"
   | "morphologyAgreementCount"
   | "visibleNucleusAgreementCount"
@@ -47,6 +48,12 @@ const GLOBAL_HISTOGRAM_SECTIONS: Array<{
   title: string;
   description: string;
 }> = [
+  {
+    id: "classificationCoverage",
+    title: "Classification coverage by item",
+    description:
+      "How many galaxies have exactly 1, 2, 3, and more classifications. This excludes zero-classification rows so the non-zero coverage is easier to compare.",
+  },
   {
     id: "lsbAgreementCount",
     title: "Is-LSB agreement counts",
@@ -182,6 +189,9 @@ function buildPreviewRecord(
     visibleNucleus: record.visibleNucleus,
     failedFitting: record.failedFitting,
     totalClassifications: record.aggregate.totalClassifications,
+    commentedClassifications: record.aggregate.commentedClassifications,
+    averageCommentLength: record.averageCommentLength,
+    maxCommentLength: record.aggregate.maxCommentLength,
     awesomeVotes: record.aggregate.awesomeVotes,
     failedFittingVotes: record.aggregate.failedFittingVotes,
     failedFittingComparableVotes: record.failedFitting.comparableVotes,
@@ -348,39 +358,7 @@ function renderReportNavigation(reportData: AnalysisReportData) {
 }
 
 function buildStatsOnlyExport(reportData: AnalysisReportData) {
-  return {
-    reportType: reportData.reportType,
-    reportVersion: reportData.reportVersion,
-    generatedAtIso: reportData.generatedAtIso,
-    generatedAtLabel: reportData.generatedAtLabel,
-    datasetLoadedAtIso: reportData.datasetLoadedAtIso,
-    datasetLoadedAtLabel: reportData.datasetLoadedAtLabel,
-    datasetSummary: reportData.datasetSummary,
-    datasetStats: reportData.datasetStats,
-    globalHistograms: reportData.globalHistograms.map((section) => ({
-      id: section.id,
-      title: section.title,
-      description: section.description,
-      zeroBucketHidden: section.zeroBucketHidden,
-      displayBins: section.displayBins,
-      allBins: section.allBins,
-    })),
-    queries: reportData.queries.map((query) => ({
-      id: query.id,
-      name: query.name,
-      description: query.description,
-      config: query.config,
-      summary: query.summary,
-      histogram: {
-        id: query.histogram.id,
-        title: query.histogram.title,
-        description: query.histogram.description,
-        zeroBucketHidden: query.histogram.zeroBucketHidden,
-        displayBins: query.histogram.displayBins,
-        allBins: query.histogram.allBins,
-      },
-    })),
-  };
+  return reportData;
 }
 
 function buildReportData({
@@ -434,10 +412,21 @@ function buildReportData({
           (condition) =>
             `${getMetricLabel(condition.metric)} ${QUERY_OPERATOR_LABELS[condition.operator].toLowerCase()} ${condition.count.toLocaleString()}`
         ),
+        commentRules: query.commentRules.map((rule) => ({
+          mode:
+            rule.mode === "containsAny"
+              ? "Contains any term"
+              : "Does not contain any term",
+          terms: rule.terms,
+        })),
       },
       summary: {
         matchedCount: result.matchedCount,
         totalMatchingClassifications: result.totalMatchingClassifications,
+        totalMatchingCommentedClassifications:
+          result.totalMatchingCommentedClassifications,
+        averageMatchingCommentLength: result.averageMatchingCommentLength,
+        maxMatchingCommentLength: result.maxMatchingCommentLength,
         averageLsbAgreementRate: result.averageLsbAgreementRate,
         averageMorphologyAgreementRate: result.averageMorphologyAgreementRate,
         averageVisibleNucleusAgreementRate: result.averageVisibleNucleusAgreementRate,
@@ -473,9 +462,17 @@ function buildReportData({
         summary.totalGalaxies > 0
           ? dataset.classifiedGalaxyCount / summary.totalGalaxies
           : null,
+      unclassifiedGalaxyCount: Math.max(
+        summary.totalGalaxies - dataset.classifiedGalaxyCount,
+        0
+      ),
+      maxClassificationsPerGalaxy: dataset.maxClassificationsPerGalaxy,
       totalAwesomeVotes: dataset.totalAwesomeVotes,
       totalVisibleNucleusVotes: dataset.totalVisibleNucleusVotes,
       totalFailedFittingVotes: dataset.totalFailedFittingVotes,
+      totalCommentedClassifications: dataset.totalCommentedClassifications,
+      averageCommentLength: dataset.averageCommentLength,
+      maxCommentLength: dataset.maxCommentLength,
       orphanedGalaxyCount: dataset.orphanedGalaxyCount,
       orphanedClassificationCount: dataset.orphanedClassificationCount,
     },
@@ -499,6 +496,9 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
                 <th scope="col">Dominant Is-LSB</th>
                 <th scope="col">Dominant morphology</th>
                 <th scope="col">Classifications</th>
+                <th scope="col">Comments</th>
+                <th scope="col">Avg comment length</th>
+                <th scope="col">Max comment length</th>
                 <th scope="col">Is-LSB agreement</th>
                 <th scope="col">Morphology agreement</th>
                 <th scope="col">Visible nucleus agreement</th>
@@ -538,6 +538,9 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
                       <td>${escapeHtml(record.dominantLsb.label)}</td>
                       <td>${escapeHtml(record.dominantMorphology.label)}</td>
                       <td>${escapeHtml(record.totalClassifications.toLocaleString())}</td>
+                      <td>${escapeHtml(record.commentedClassifications.toLocaleString())}</td>
+                      <td>${escapeHtml(formatFixed(record.averageCommentLength, 1))}</td>
+                      <td>${escapeHtml(record.maxCommentLength.toLocaleString())}</td>
                       <td>${escapeHtml(formatAgreementSummary(record.dominantLsb))}</td>
                       <td>${escapeHtml(formatAgreementSummary(record.dominantMorphology))}</td>
                       <td>${escapeHtml(formatAgreementSummary(record.visibleNucleus))}</td>
@@ -569,7 +572,7 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
 
   return `
     <article id="query-${escapeHtml(query.id)}" class="query-card" data-query-id="${escapeHtml(query.id)}">
-      <header class="query-header">
+    reportVersion: 2,
         <div>
           <h3>${escapeHtml(query.name)}</h3>
           <p>${escapeHtml(query.description)}</p>
@@ -608,6 +611,16 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
               <th scope="row">Conditions</th>
               <td>${escapeHtml(query.config.conditions.join("; "))}</td>
             </tr>
+            <tr>
+              <th scope="row">Comment rules</th>
+              <td>${escapeHtml(
+                query.config.commentRules.length > 0
+                  ? query.config.commentRules
+                      .map((rule) => `${rule.mode}: ${rule.terms}`)
+                      .join("; ")
+                  : "None"
+              )}</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -624,6 +637,24 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
           label: "Total classifications in matches",
           value: query.summary.totalMatchingClassifications.toLocaleString(),
           detail: "Summed classifications across all currently matching galaxies.",
+        },
+        {
+          key: `${query.id}-commentedClassifications`,
+          label: "Commented classifications",
+          value: query.summary.totalMatchingCommentedClassifications.toLocaleString(),
+          detail: "Non-empty written comments submitted inside the matching set.",
+        },
+        {
+          key: `${query.id}-averageCommentLength`,
+          label: "Avg comment length",
+          value: formatFixed(query.summary.averageMatchingCommentLength, 1),
+          detail: "Average comment length across non-empty comments in the matching set.",
+        },
+        {
+          key: `${query.id}-maxCommentLength`,
+          label: "Max comment length",
+          value: query.summary.maxMatchingCommentLength.toLocaleString(),
+          detail: "Longest single comment found among the current matches.",
         },
         {
           key: `${query.id}-lsbAgreement`,
@@ -729,10 +760,40 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
       detail: `${formatPercent(reportData.datasetStats.classifiedGalaxyPercent)} of the full catalog currently has at least one classification.`,
     },
     {
+      key: "unclassifiedGalaxyCount",
+      label: "Unclassified galaxies",
+      value: reportData.datasetStats.unclassifiedGalaxyCount.toLocaleString(),
+      detail: "Rows that still have zero classifications in the current export.",
+    },
+    {
+      key: "maxClassificationsPerGalaxy",
+      label: "Max classifications on one item",
+      value: reportData.datasetStats.maxClassificationsPerGalaxy.toLocaleString(),
+      detail: "Highest per-item classification count seen in this exported analysis run.",
+    },
+    {
       key: "totalAwesomeVotes",
       label: "Awesome votes",
       value: reportData.datasetStats.totalAwesomeVotes.toLocaleString(),
       detail: "Total awesome flags summed locally across the loaded rows.",
+    },
+    {
+      key: "totalCommentedClassifications",
+      label: "Classifications with comments",
+      value: reportData.datasetStats.totalCommentedClassifications.toLocaleString(),
+      detail: "Submitted classifications that included a non-empty written comment.",
+    },
+    {
+      key: "averageCommentLength",
+      label: "Average comment length",
+      value: formatFixed(reportData.datasetStats.averageCommentLength, 1),
+      detail: "Average number of characters across all non-empty comments.",
+    },
+    {
+      key: "maxCommentLength",
+      label: "Maximum comment length",
+      value: reportData.datasetStats.maxCommentLength.toLocaleString(),
+      detail: "Longest written comment present in the export dataset.",
     },
     {
       key: "totalVisibleNucleusVotes",
@@ -997,13 +1058,13 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
     </style>
   </head>
   <body>
-    <main data-report-type="classification-analysis" data-report-version="1">
+    <main data-report-type="classification-analysis" data-report-version="2">
       <section class="hero">
         <h1>Classification analysis report</h1>
         <p class="lead">
           Standalone export from the Statistics / Data Analysis page. This file preserves
           the visible report structure and includes machine-readable histogram bin counts
-          and summary data in the embedded JSON payload.
+          and summary data in the embedded JSON payload, including the exported top-match rows.
         </p>
         <div class="meta-grid">
           <section class="section-card">

@@ -15,9 +15,13 @@ export type PreparedDataset = {
   records: AnalysisRecord[];
   loadedAt: number;
   classifiedGalaxyCount: number;
+  maxClassificationsPerGalaxy: number;
   totalAwesomeVotes: number;
   totalVisibleNucleusVotes: number;
   totalFailedFittingVotes: number;
+  totalCommentedClassifications: number;
+  averageCommentLength: number | null;
+  maxCommentLength: number;
   orphanedGalaxyCount: number;
   orphanedClassificationCount: number;
 };

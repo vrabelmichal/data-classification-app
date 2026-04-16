@@ -43,6 +43,7 @@ const analysisClassificationValidator = v.object({
   valid_redshift: v.boolean(),
   visible_nucleus: v.optional(v.boolean()),
   failed_fitting: v.optional(v.boolean()),
+  comments: v.optional(v.string()),
 });
 
 const analysisUserDirectoryEntryValidator = v.object({
@@ -212,6 +213,7 @@ export const getClassificationPage = query({
         valid_redshift: classification.valid_redshift,
         visible_nucleus: classification.visible_nucleus,
         failed_fitting: classification.failed_fitting,
+        comments: classification.comments,
       })),
       isDone: page.isDone,
       continueCursor: page.isDone ? null : page.continueCursor,
