@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
+import { downloadTextFile, formatDateForFilename } from "../../lib/csv";
 import { ClassificationDetailsModal } from "./analysis/ClassificationDetailsModal";
 import { DataAnalysisNavigator } from "./analysis/DataAnalysisNavigator";
 import {
@@ -27,6 +28,10 @@ import {
   type AnalysisRecord,
   type AnalysisUserDirectoryEntry,
 } from "./analysis/helpers";
+import {
+  buildAnalysisHtmlReport,
+  buildAnalysisStatsExport,
+} from "./analysis/reportExport";
 import type {
   DatasetSummary,
   PublicSystemSettings,
@@ -47,10 +52,11 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
   const userDirectory = useQuery(
     api.statistics.classificationAnalysis.getUserDirectory
   ) as AnalysisUserDirectoryEntry[] | undefined;
-  const [queries, setQueries] = useState<AnalysisQueryConfig[]>(() =>
-    buildDefaultAnalysisQueries()
+  const initialQueries = useMemo(() => buildDefaultAnalysisQueries(), []);
+  const [queries, setQueries] = useState<AnalysisQueryConfig[]>(initialQueries);
+  const [collapsedQueries, setCollapsedQueries] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(initialQueries.map((query) => [query.id, true]))
   );
-  const [collapsedQueries, setCollapsedQueries] = useState<Record<string, boolean>>({});
   const [selectedRecord, setSelectedRecord] = useState<AnalysisRecord | null>(null);
   const [hideZeroBuckets, setHideZeroBuckets] = useState<ZeroBucketState>({
     awesomeVotes: true,
@@ -136,6 +142,48 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     }));
   }, []);
 
+  const handleExportReport = useCallback(() => {
+    if (!summary || !dataset) {
+      return;
+    }
+
+    const reportHtml = buildAnalysisHtmlReport({
+      summary,
+      dataset,
+      queries,
+      hideZeroBuckets,
+      imageQuality,
+      generatedAt: new Date(),
+    });
+
+    downloadTextFile(
+      reportHtml,
+      `classification-analysis-report-${formatDateForFilename()}.html`,
+      "text/html;charset=utf-8"
+    );
+  }, [dataset, hideZeroBuckets, queries, summary]);
+
+  const handleExportJson = useCallback(() => {
+    if (!summary || !dataset) {
+      return;
+    }
+
+    const statsExport = buildAnalysisStatsExport({
+      summary,
+      dataset,
+      queries,
+      hideZeroBuckets,
+      imageQuality,
+      generatedAt: new Date(),
+    });
+
+    downloadTextFile(
+      `${JSON.stringify(statsExport, null, 2)}\n`,
+      `classification-analysis-stats-${formatDateForFilename()}.json`,
+      "application/json;charset=utf-8"
+    );
+  }, [dataset, hideZeroBuckets, queries, summary]);
+
   const queryResults = useMemo<Map<string, AnalysisQueryResult>>(() => {
     const resultMap = new Map<string, AnalysisQueryResult>();
     if (deferredRecords.length === 0) {
@@ -195,6 +243,9 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
           void handleLoadDataset();
         }}
         onCancelLoad={handleCancelLoad}
+        onExportReport={handleExportReport}
+        onExportJson={handleExportJson}
+        canExportReport={hasDataset && loadState.status !== "loading"}
       />
 
       <AgreementExplanation />

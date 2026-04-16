@@ -1,3 +1,4 @@
+import { useEffect, useId, useRef, useState } from "react";
 import { Link } from "react-router";
 
 import { getImageUrl } from "../../../images";
@@ -203,6 +204,72 @@ function VotePreviewRow({
   );
 }
 
+function VotePreviewPopoverButton({
+  label,
+  values,
+}: {
+  label: string;
+  values: string[];
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const popoverId = useId();
+
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isOpen]);
+
+  return (
+    <div ref={containerRef} className="relative inline-flex shrink-0 items-center">
+      <button
+        type="button"
+        onClick={() => setIsOpen((currentState) => !currentState)}
+        aria-label={`Show ${label.toLowerCase()}`}
+        title={label}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls={popoverId}
+        className="inline-flex h-6 items-center justify-center rounded-full border border-gray-300 bg-white px-2 text-[10px] font-medium uppercase tracking-wide text-gray-500 transition hover:bg-gray-50 hover:text-gray-700 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-gray-100"
+      >
+        First 5
+      </button>
+
+      {isOpen ? (
+        <div
+          id={popoverId}
+          role="dialog"
+          aria-label={label}
+          className="absolute left-0 top-8 z-20 w-[min(22rem,calc(100vw-4rem))] rounded-xl border border-gray-200 bg-white p-3 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+        >
+          <VotePreviewRow label={label} values={values} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 function formatAgreementSummary(
   summary: Pick<AnalysisRecord["lsb"], "agreementCount" | "agreementRate" | "comparableVotes" | "label">
 ) {
@@ -256,9 +323,9 @@ function AnalysisGalaxyCard({
             defaultZoomOptions={SMALL_IMAGE_DEFAULT_ZOOM}
           />
         </div>
-        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+        {/* <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
           Click the preview to open the zoom viewer.
-        </p>
+        </p> */}
       </div>
 
       <div className="min-w-0 space-y-3">
@@ -296,13 +363,25 @@ function AnalysisGalaxyCard({
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Dominant Is-LSB
             </div>
-            <div className="mt-1 font-medium">{record.dominantLsbLabel}</div>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="font-medium">{record.dominantLsbLabel}</span>
+              <VotePreviewPopoverButton
+                label="First 5 LSB votes"
+                values={lsbVotePreview}
+              />
+            </div>
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/30">
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Dominant morphology
             </div>
-            <div className="mt-1 font-medium">{record.dominantMorphologyLabel}</div>
+            <div className="mt-1 flex items-center gap-2">
+              <span className="font-medium">{record.dominantMorphologyLabel}</span>
+              <VotePreviewPopoverButton
+                label="First 5 morphology votes"
+                values={morphologyVotePreview}
+              />
+            </div>
           </div>
           <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/30">
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -336,11 +415,6 @@ function AnalysisGalaxyCard({
               {formatAgreementSummary(record.visibleNucleus)}
             </div>
           </div>
-        </div>
-
-        <div className="grid gap-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/20 lg:grid-cols-2">
-          <VotePreviewRow label="First 5 LSB votes" values={lsbVotePreview} />
-          <VotePreviewRow label="First 5 morphology votes" values={morphologyVotePreview} />
         </div>
 
         <div className="flex flex-wrap gap-3 text-sm text-gray-500 dark:text-gray-400">
@@ -420,6 +494,8 @@ export function DataAnalysisQueryCard({
     updater: (query: AnalysisQueryConfig) => AnalysisQueryConfig
   ) => void;
 }) {
+  const [isDescriptionEditorVisible, setIsDescriptionEditorVisible] = useState(false);
+
   return (
     <section
       id={`analysis-query-${query.id}`}
@@ -533,23 +609,48 @@ export function DataAnalysisQueryCard({
                 </select>
               </label>
 
-              <label className="space-y-1 lg:col-span-2">
-                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Description
-                </span>
-                <textarea
-                  value={query.description}
-                  onChange={(event) =>
-                    onUpdateQuery(query.id, (currentQuery) => ({
-                      ...currentQuery,
-                      description: event.target.value,
-                    }))
-                  }
-                  rows={2}
-                  placeholder="Optional note about what this card is trying to surface."
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                />
-              </label>
+              <div className="space-y-2 lg:col-span-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Description
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setIsDescriptionEditorVisible((currentState) => !currentState)
+                    }
+                    className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  >
+                    {isDescriptionEditorVisible
+                      ? "Hide description"
+                      : query.description.trim().length > 0
+                        ? "Edit description"
+                        : "Add description"}
+                  </button>
+                </div>
+                {isDescriptionEditorVisible ? (
+                  <textarea
+                    value={query.description}
+                    onChange={(event) =>
+                      onUpdateQuery(query.id, (currentQuery) => ({
+                        ...currentQuery,
+                        description: event.target.value,
+                      }))
+                    }
+                    rows={2}
+                    placeholder="Optional note about what this card is trying to surface."
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  />
+                ) : query.description.trim().length > 0 ? (
+                  <p className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-400">
+                    Description is set for this query. Use Edit description to view or change it.
+                  </p>
+                ) : (
+                  <p className="rounded-md border border-dashed border-gray-300 bg-gray-50 px-3 py-2 text-sm text-gray-500 dark:border-gray-600 dark:bg-gray-900/30 dark:text-gray-400">
+                    Optional field. Hidden by default to keep the form compact.
+                  </p>
+                )}
+              </div>
 
               <label className="space-y-1">
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">

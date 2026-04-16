@@ -67,9 +67,36 @@ function ZeroBucketToggle({
     <button
       type="button"
       onClick={onToggle}
-      className="rounded-full border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
+      title={hideZeroBucket ? "Show 0 bucket" : "Hide 0 bucket"}
+      aria-label={hideZeroBucket ? "Show 0 bucket" : "Hide 0 bucket"}
+      className="inline-flex whitespace-nowrap rounded-full border border-gray-300 px-2.5 py-1 text-xs font-medium text-gray-600 transition hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700"
     >
-      {hideZeroBucket ? "Show 0 bucket" : "Hide 0 bucket"}
+      <span className="inline-flex items-center gap-1.5">
+        <svg
+          className="h-3.5 w-3.5"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
+        >
+          {hideZeroBucket ? (
+            <>
+              <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+              <circle cx="12" cy="12" r="2.5" />
+            </>
+          ) : (
+            <>
+              <path d="M3 3l18 18" />
+              <path d="M10.6 5.2A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-4 4.8" />
+              <path d="M6.7 6.7C4 8.5 2 12 2 12s3.5 6 10 6a9.7 9.7 0 0 0 3-.5" />
+            </>
+          )}
+        </svg>
+        <span>0 bucket</span>
+      </span>
     </button>
   );
 }
@@ -115,6 +142,9 @@ export function AnalysisLoadSection({
   loadState,
   onLoadDataset,
   onCancelLoad,
+  onExportReport,
+  onExportJson,
+  canExportReport,
 }: {
   summary: DatasetSummary;
   hasDataset: boolean;
@@ -123,6 +153,9 @@ export function AnalysisLoadSection({
   loadState: DataLoadState;
   onLoadDataset: () => void;
   onCancelLoad: () => void;
+  onExportReport: () => void;
+  onExportJson: () => void;
+  canExportReport: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -201,6 +234,39 @@ export function AnalysisLoadSection({
                 Cancel
               </button>
             ) : null}
+          </div>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onExportReport}
+              disabled={!canExportReport}
+              title={
+                canExportReport
+                  ? "Download a standalone HTML report of the current analysis"
+                  : "Load the dataset before exporting the analysis report"
+              }
+              aria-label="Export HTML report"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-800"
+            >
+              <HtmlExportIcon />
+              <span>Export HTML</span>
+            </button>
+            <button
+              type="button"
+              onClick={onExportJson}
+              disabled={!canExportReport}
+              title={
+                canExportReport
+                  ? "Download a JSON file with the current analysis statistics"
+                  : "Load the dataset before exporting analysis statistics"
+              }
+              aria-label="Export JSON stats"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-blue-300 bg-white px-4 text-sm font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-blue-800 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+            >
+              <JsonExportIcon />
+              <span>Export JSON</span>
+            </button>
           </div>
 
           {loadState.cancelled && loadState.status === "idle" ? (
@@ -367,6 +433,74 @@ function CollapseAllIcon() {
   );
 }
 
+function QuerySearchIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3" />
+      <path d="M21 5v5" />
+      <circle cx="15.5" cy="15.5" r="4.5" fill="currentColor" fillOpacity="0.12" />
+      <line x1="22" y1="22" x2="18.7" y2="18.7" />
+    </svg>
+  );
+}
+
+function HtmlExportIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <g strokeWidth="1.2">
+        <path d="M8.5 14.5l-1.5 1.5 1.5 1.5" />
+        <path d="M15.5 14.5l1.5 1.5-1.5 1.5" />
+        <line x1="12.5" y1="13.5" x2="11.5" y2="18.5" />
+      </g>
+    </svg>
+  );
+}
+
+function JsonExportIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <g strokeWidth="1.2">
+        <path d="M8 13.5c-0.6 0-1 0.4-1 1s0.4 0.5 0.4 0.5S7 15.4 7 16s0.4 1 1 1" />
+        <path d="M16 13.5c0.6 0 1 0.4 1 1s-0.4 0.5-0.4 0.5s0.4 0.4 0.4 1s-0.4 1-1 1" />
+        <circle cx="12" cy="14.2" r="0.45" fill="currentColor" stroke="none" />
+        <circle cx="12" cy="16.3" r="0.45" fill="currentColor" stroke="none" />
+      </g>
+    </svg>
+  );
+}
+
 export function AnalysisQueryToolbar({
   onAddQuery,
   onCollapseAll,
@@ -392,9 +526,12 @@ export function AnalysisQueryToolbar({
         <button
           type="button"
           onClick={onAddQuery}
-          className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          title="Add query"
+          aria-label="Add query"
+          className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
         >
-          Add query
+          <QuerySearchIcon />
+          <span>Add</span>
         </button>
         <button
           type="button"
