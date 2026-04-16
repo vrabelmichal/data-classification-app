@@ -1,9 +1,9 @@
 // convex/updateUserSequence.ts
 // Mutations for updating existing user sequences (shorten or extend)
-import { requireAdmin, requireUserId } from "./lib/auth";
+import { requirePermission, requireUserId } from "./lib/auth";
 import { v } from "convex/values";
 import { action, mutation } from "./_generated/server";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import {
   SelectionParams,
   selectFromOrderedStreams,
@@ -33,9 +33,11 @@ export const getUserSequenceInfo = mutation({
     const userId = await requireUserId(ctx);
     const { targetUserId } = args;
 
-    // Admin check if viewing another user's sequence
+    // Assignment-manager check if viewing another user's sequence
     if (targetUserId !== userId) {
-      await requireAdmin(ctx);
+      await requirePermission(ctx, "manageGalaxyAssignments", {
+        notAuthorizedMessage: "Only users with galaxy-assignment access can view another user's sequence",
+      });
     }
 
     const sequence = await ctx.db
@@ -75,9 +77,11 @@ export const shortenUserSequence = mutation({
     const userId = await requireUserId(ctx);
     const { targetUserId, newSize, batchIndex, batchSize = 500 } = args;
 
-    // Admin check
+    // Assignment-manager check
     if (targetUserId !== userId) {
-      await requireAdmin(ctx);
+      await requirePermission(ctx, "manageGalaxyAssignments", {
+        notAuthorizedMessage: "Only users with galaxy-assignment access can shorten another user's sequence",
+      });
     }
 
     // Get the user's sequence
@@ -224,9 +228,11 @@ export const extendUserSequence = mutation({
       return papers.map(p => p === "" ? '(empty)' : p).join(", ");
     };
 
-    // Admin check
+    // Assignment-manager check
     if (targetUserId !== userId) {
-      await requireAdmin(ctx);
+      await requirePermission(ctx, "manageGalaxyAssignments", {
+        notAuthorizedMessage: "Only users with galaxy-assignment access can extend another user's sequence",
+      });
     }
 
     // Get the user's sequence
@@ -433,9 +439,11 @@ export const updateExtendedSequenceStats = mutation({
     const userId = await requireUserId(ctx);
     const { targetUserId, startIndex, batchIndex, batchSize = 500, perUserCapM: M } = args;
 
-    // Admin check
+    // Assignment-manager check
     if (targetUserId !== userId) {
-      await requireAdmin(ctx);
+      await requirePermission(ctx, "manageGalaxyAssignments", {
+        notAuthorizedMessage: "Only users with galaxy-assignment access can update another user's sequence stats",
+      });
     }
 
     // Get the user's sequence
@@ -546,8 +554,8 @@ export const sendSequenceExtendedEmail = action({
   },
   handler: async (ctx, args): Promise<SequenceEmailResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
-    if (!callerProfile || callerProfile.role !== "admin") {
-      throw new Error("Admin access required");
+    if (!callerProfile?.permissions?.manageGalaxyAssignments) {
+      throw new Error("Galaxy-assignment access required");
     }
 
     const target = await ctx.runQuery(api.users.getUserBasicInfo, {
@@ -562,7 +570,10 @@ export const sendSequenceExtendedEmail = action({
       return { success: false, message: "User has no email address" };
     }
 
-    const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
+    const settings = await ctx.runQuery(
+      internal.system_settings.loadMergedSystemSettingsInternal,
+      {}
+    );
     const appName: typeof DEFAULT_SYSTEM_SETTINGS.appName = settings.appName ?? DEFAULT_SYSTEM_SETTINGS.appName;
     const emailFrom: typeof DEFAULT_SYSTEM_SETTINGS.emailFrom = settings.emailFrom ?? DEFAULT_SYSTEM_SETTINGS.emailFrom;
     const fromWithName = `${appName} <${emailFrom}>`;
@@ -662,8 +673,8 @@ export const sendSequenceShortenedEmail = action({
   },
   handler: async (ctx, args): Promise<SequenceEmailResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
-    if (!callerProfile || callerProfile.role !== "admin") {
-      throw new Error("Admin access required");
+    if (!callerProfile?.permissions?.manageGalaxyAssignments) {
+      throw new Error("Galaxy-assignment access required");
     }
 
     const target = await ctx.runQuery(api.users.getUserBasicInfo, {
@@ -678,7 +689,10 @@ export const sendSequenceShortenedEmail = action({
       return { success: false, message: "User has no email address" };
     }
 
-    const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
+    const settings = await ctx.runQuery(
+      internal.system_settings.loadMergedSystemSettingsInternal,
+      {}
+    );
     const appName: typeof DEFAULT_SYSTEM_SETTINGS.appName = settings.appName ?? DEFAULT_SYSTEM_SETTINGS.appName;
     const emailFrom: typeof DEFAULT_SYSTEM_SETTINGS.emailFrom = settings.emailFrom ?? DEFAULT_SYSTEM_SETTINGS.emailFrom;
     const fromWithName = `${appName} <${emailFrom}>`;

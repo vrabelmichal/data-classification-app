@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router";
 import { toast } from "sonner";
+import { getRoleLabel } from "../../lib/permissions";
 import { cn } from "../../lib/utils";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { useTheme } from "../../hooks/useTheme";
@@ -195,7 +196,7 @@ export function UserSettings() {
   // Extract displayable fields (guarded with optional chaining)
   const displayName = authUser?.name ?? "";
   const displayEmail = authUser?.email ?? "";
-  const displayRole = profile?.role ?? "user";
+  const displayRole = getRoleLabel(profile?.role);
   const activeSubPage = settingsSubPages.find((page) => location.pathname === page.path) ?? settingsSubPages[0];
   const isGeneralSubPage = activeSubPage.id === "general";
   const contentWidthClass = activeSubPage.id === "storage" ? "max-w-6xl" : "max-w-4xl";

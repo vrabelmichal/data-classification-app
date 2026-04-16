@@ -1,6 +1,6 @@
 import { query, internalQuery, type QueryCtx } from "../../_generated/server";
 import { v } from "convex/values";
-import { requireAdmin } from "../../lib/auth";
+import { requirePermission } from "../../lib/auth";
 import { classificationsByCreated, galaxiesById, galaxiesByTotalClassifications } from "../../galaxies/aggregates";
 import { getPaperCountsPayload } from "./shared";
 import { MAX_TARGET_CLASSIFICATIONS, OVERVIEW_BUCKET_COUNT } from "./cacheValidators";
@@ -160,7 +160,9 @@ export const get = query({
     timestamp: v.number(),
   }),
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+    await requirePermission(ctx, "viewLiveOverviewStatistics", {
+      notAuthorizedMessage: "Not authorized",
+    });
 
     let totalGalaxies: number;
     let classifiedGalaxies: number;
@@ -231,7 +233,9 @@ export const getPaperClassificationStats = query({
     continueCursor: v.union(v.string(), v.null()),
   }),
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+    await requirePermission(ctx, "viewLiveOverviewStatistics", {
+      notAuthorizedMessage: "Not authorized",
+    });
     return await queryPaperClassificationStatsPage(ctx, args);
   },
 });
@@ -273,7 +277,9 @@ export const getTargetProgress = query({
     timestamp: v.number(),
   }),
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+    await requirePermission(ctx, "viewLiveOverviewStatistics", {
+      notAuthorizedMessage: "Not authorized",
+    });
 
     const targetClassifications = clampTargetClassifications(args.targetClassifications);
 

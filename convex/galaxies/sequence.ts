@@ -22,7 +22,7 @@ you can clear and rebuild with galaxiesAggregate.clear(ctx) followed by backfill
 import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { galaxyIdsAggregate } from "./aggregates";
-import { requireAdmin, requireUserId } from "../lib/auth";
+import { requirePermission, requireUserId } from "../lib/auth";
 
 
 
@@ -40,7 +40,9 @@ export const generateRandomUserSequence = mutation({
         const sequenceSize = Math.min(Math.max(1, requestedSize), MAX_SEQUENCE);
 
         if (targetUserId !== userId) {
-            await requireAdmin(ctx);
+            await requirePermission(ctx, "manageGalaxyAssignments", {
+                notAuthorizedMessage: "Only users with galaxy-assignment access can create another user's random sequence",
+            });
         }
         
         // Obtain total count via aggregate (O(log n)). If zero, bail.
@@ -144,7 +146,9 @@ export const userHasSequence = query({
 
         // Admin check if checking another user
         if (targetUserId !== currentUserId) {
-            await requireAdmin(ctx);
+            await requirePermission(ctx, "manageGalaxyAssignments", {
+                notAuthorizedMessage: "Only users with galaxy-assignment access can inspect another user's sequence",
+            });
         }
 
         const sequence = await ctx.db
@@ -170,8 +174,10 @@ export const removeUserSequence = mutation({
         const batchSize = args.batchSize || 500;
         const batchIndex = args.batchIndex || 0;
 
-        // Admin check - only admins can remove sequences
-        await requireAdmin(ctx);
+        // Assignment-manager check
+        await requirePermission(ctx, "manageGalaxyAssignments", {
+            notAuthorizedMessage: "Only users with galaxy-assignment access can remove sequences",
+        });
 
         // Get the user's sequence
         const sequence = await ctx.db
@@ -262,7 +268,9 @@ export const removeUserSequence = mutation({
 
 export const getUsersWithSequences = query({
     handler: async (ctx) => {
-        await requireAdmin(ctx);
+        await requirePermission(ctx, "manageGalaxyAssignments", {
+            notAuthorizedMessage: "Only users with galaxy-assignment access can view assigned sequences",
+        });
 
         // Get all sequences
         const sequences = await ctx.db.query("galaxySequences").collect();
@@ -304,7 +312,9 @@ export const getUsersWithSequences = query({
 
 export const getUsersWithoutSequences = query({
     handler: async (ctx) => {
-        await requireAdmin(ctx);
+        await requirePermission(ctx, "manageGalaxyAssignments", {
+            notAuthorizedMessage: "Only users with galaxy-assignment access can view users without sequences",
+        });
 
         // Get all user profiles
         const allUserProfiles = await ctx.db.query("userProfiles").collect();

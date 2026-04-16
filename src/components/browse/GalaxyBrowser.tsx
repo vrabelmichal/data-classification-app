@@ -43,9 +43,9 @@ export function GalaxyBrowser() {
   const showValidRedshift = systemSettings?.showValidRedshift !== false;
   const showVisibleNucleus = systemSettings?.showVisibleNucleus !== false;
 
-  // Get user profile to check admin status for export
+  // Get user profile to resolve export permissions.
   const userProfile = useQuery(api.users.getUserProfile);
-  const isAdmin = userProfile?.role === "admin";
+  const canExportAll = Boolean(userProfile?.permissions?.unlimitedGalaxyExport);
 
   const {
     // State
@@ -919,7 +919,7 @@ export function GalaxyBrowser() {
         currentPageGalaxies={galaxyData?.galaxies}
         pageSize={pageSize}
         page={page}
-        isAdmin={isAdmin}
+        canExportAll={canExportAll}
       />
 
       {/* Cursor-based pagination is managed in controls */}

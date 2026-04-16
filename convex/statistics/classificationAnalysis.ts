@@ -6,7 +6,8 @@ import {
   galaxiesByNucleus,
 } from "../galaxies/aggregates";
 import { requireUserProfile } from "../lib/auth";
-import { loadMergedSystemSettings } from "../system_settings";
+import { hasPermissionForRole } from "../lib/permissions";
+import { loadMergedSystemSettings } from "../lib/systemSettings";
 
 const DEFAULT_GALAXY_PAGE_SIZE = 2500;
 const DEFAULT_CLASSIFICATION_PAGE_SIZE = 2500;
@@ -57,13 +58,13 @@ async function requireClassificationAnalysisAccess(
     missingProfileMessage: "User profile not found",
   });
 
-  if (profile.role === "admin") {
+  const settings = await loadMergedSystemSettings(ctx);
+  if (hasPermissionForRole(profile.role, settings, "viewDataAnalysis")) {
     return { userId, profile };
   }
 
-  const settings = await loadMergedSystemSettings(ctx);
   if (!settings.allowPublicDataAnalysis) {
-    throw new Error("Only admins can access the data analysis page");
+    throw new Error("This account does not have access to the data analysis page");
   }
 
   return { userId, profile };

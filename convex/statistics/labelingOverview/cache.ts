@@ -11,8 +11,9 @@ import {
 } from "../../_generated/server";
 import { internal } from "../../_generated/api";
 import { requireAdmin, requireConfirmedUser } from "../../lib/auth";
+import { hasPermissionForRole } from "../../lib/permissions";
+import { loadMergedSystemSettings } from "../../lib/systemSettings";
 import { getPaperCountsPayload, getAvailablePapers, getTopClassifiers } from "./shared";
-import { loadMergedSystemSettings } from "../../system_settings";
 import {
   buildClassificationBucketsFromHistogram,
   loadGlobalClassificationBuckets,
@@ -210,7 +211,10 @@ async function ensureCanAccessCachedOverview(ctx: QueryCtx) {
   const settings = await loadMergedSystemSettings(ctx);
   const { profile } = await requireConfirmedUser(ctx);
 
-  if (profile.role !== "admin" && !settings.allowPublicOverview) {
+  if (
+    !hasPermissionForRole(profile.role, settings, "viewOverviewStatistics") &&
+    !settings.allowPublicOverview
+  ) {
     throw new Error("Cached overview is only available to administrators");
   }
 }

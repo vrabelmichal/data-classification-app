@@ -12,6 +12,7 @@ import {
   galaxyBrowserViewScopeValidator,
   galaxyBrowserViewStateValidator,
 } from "./galaxies/browser/viewState";
+import { userRoleValidator } from "./lib/permissions";
 
 
 // Core galaxy schema (after splitting large nested photometry & thuruthipilly tables)
@@ -245,7 +246,7 @@ const applicationTables = {
   // User profiles
   userProfiles: defineTable({
     userId: v.id("users"),
-    role: v.union(v.literal("user"), v.literal("admin")),
+    role: userRoleValidator,
     isActive: v.boolean(),
     isConfirmed: v.optional(v.boolean()), // Legacy field
     classificationsCount: v.number(),

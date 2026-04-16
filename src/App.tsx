@@ -21,8 +21,7 @@ function App() {
   const isOnline = useOnlineStatus();
   const [bannerOffset, setBannerOffset] = useState(0);
   const appName = String(systemSettings?.appName ?? "Galaxy Classification App");
-  const isAdmin = userProfile?.role === "admin";
-  const navigationItems = getAppNavigationItems(isAdmin);
+  const navigationItems = getAppNavigationItems(userProfile);
   const {
     dismissRuntimeIssue,
     dismissVersionUpdate,

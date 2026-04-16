@@ -1,7 +1,7 @@
 import { paginationOptsValidator } from "convex/server";
 import { v } from "convex/values";
 import { query } from "../_generated/server";
-import { requireAdmin } from "../lib/auth";
+import { requirePermission } from "../lib/auth";
 
 const classificationExportRowValidator = v.object({
   _id: v.id("classifications"),
@@ -30,8 +30,8 @@ export const getAdminExportBatch = query({
     continueCursor: v.union(v.string(), v.null()),
   }),
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, {
-      notAdminMessage: "Only admins can export classification data",
+    await requirePermission(ctx, "accessDataPage", {
+      notAuthorizedMessage: "Only users with data-page access can export classification data",
     });
 
     const paginationResult = args.userId

@@ -1,7 +1,7 @@
 import { internalQuery, mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { Doc } from "./_generated/dataModel";
-import { requireAdmin, requireUserId } from "./lib/auth";
+import { requirePermission } from "./lib/auth";
 import {
   GALAXY_BLACKLIST_AGGREGATE_READY_KEY,
   galaxyBlacklistByExternalId,
@@ -96,7 +96,9 @@ export const getAllBlacklistedGalaxies = query({
     cursor: v.optional(v.string()),
   },
   async handler(ctx, args) {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageGalaxyAssignments", {
+      notAuthorizedMessage: "Only users with galaxy-assignment access can view blacklist entries",
+    });
 
     const limit = args.limit ?? 100;
 
@@ -133,7 +135,9 @@ export const searchBlacklistedGalaxies = query({
     limit: v.optional(v.number()),
   },
   async handler(ctx, args) {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageGalaxyAssignments", {
+      notAuthorizedMessage: "Only users with galaxy-assignment access can search blacklist entries",
+    });
 
     const searchTerm = args.searchTerm.trim().toLowerCase();
     const limit = args.limit ?? 50;
@@ -200,7 +204,9 @@ export const getBlacklistedGalaxyIds = query({
 export const getBlacklistCount = query({
   args: {},
   async handler(ctx) {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageGalaxyAssignments", {
+      notAuthorizedMessage: "Only users with galaxy-assignment access can view blacklist counts",
+    });
     return await getReliableBlacklistCountValue(ctx);
   },
 });
@@ -212,7 +218,9 @@ export const addToBlacklist = mutation({
     reason: v.optional(v.string()),
   },
   async handler(ctx, args) {
-    const { userId } = await requireAdmin(ctx);
+    const { userId } = await requirePermission(ctx, "manageGalaxyAssignments", {
+      notAuthorizedMessage: "Only users with galaxy-assignment access can add blacklist entries",
+    });
 
     const galaxyExternalId = args.galaxyExternalId.trim();
 
@@ -257,7 +265,9 @@ export const removeFromBlacklist = mutation({
     galaxyExternalId: v.string(),
   },
   async handler(ctx, args) {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageGalaxyAssignments", {
+      notAuthorizedMessage: "Only users with galaxy-assignment access can remove blacklist entries",
+    });
 
     const galaxyExternalId = args.galaxyExternalId.trim();
 
@@ -284,7 +294,9 @@ export const bulkAddToBlacklist = mutation({
     reason: v.optional(v.string()),
   },
   async handler(ctx, args) {
-    const { userId } = await requireAdmin(ctx);
+    const { userId } = await requirePermission(ctx, "manageGalaxyAssignments", {
+      notAuthorizedMessage: "Only users with galaxy-assignment access can bulk-add blacklist entries",
+    });
 
     const reason = args.reason?.trim() || undefined;
     const now = Date.now();
@@ -352,7 +364,9 @@ export const bulkRemoveFromBlacklist = mutation({
     galaxyExternalIds: v.array(v.string()),
   },
   async handler(ctx, args) {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageGalaxyAssignments", {
+      notAuthorizedMessage: "Only users with galaxy-assignment access can bulk-remove blacklist entries",
+    });
 
     let removed = 0;
     let notFound = 0;
@@ -392,7 +406,9 @@ export const clearBlacklist = mutation({
     batchSize: v.optional(v.number()),
   },
   async handler(ctx, args) {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageGalaxyAssignments", {
+      notAuthorizedMessage: "Only users with galaxy-assignment access can clear the blacklist",
+    });
 
     const rawBatchSize = args.batchSize ?? 250;
     const batchSize = Math.min(Math.max(Math.floor(rawBatchSize), 1), 1000);

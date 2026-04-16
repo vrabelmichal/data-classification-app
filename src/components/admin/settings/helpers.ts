@@ -21,6 +21,7 @@ import {
   DEFAULT_USER_EXPORT_LIMIT,
   DEFAULT_OVERVIEW_DEFAULT_PAPER,
 } from "../../../lib/defaults";
+import { cloneRolePermissions, DEFAULT_ROLE_PERMISSIONS } from "../../../lib/permissions";
 import type { SettingsFormState } from "./types";
 
 export function createSettingsFormState(systemSettings: any): SettingsFormState {
@@ -63,6 +64,9 @@ export function createSettingsFormState(systemSettings: any): SettingsFormState 
     cloudflareZoneId: systemSettings.cloudflareZoneId ?? DEFAULT_CLOUDFLARE_ZONE_ID,
     cloudflareApiToken:
       systemSettings.cloudflareApiToken ?? DEFAULT_CLOUDFLARE_API_TOKEN,
+    rolePermissions: cloneRolePermissions(
+      systemSettings.rolePermissions ?? DEFAULT_ROLE_PERMISSIONS
+    ),
   };
 }
 
@@ -98,6 +102,8 @@ export function hasSettingsChanges(
       originalSettings.cloudflareCachePurgeEnabled ||
     localSettings.cloudflareZoneId !== originalSettings.cloudflareZoneId ||
     localSettings.cloudflareApiToken !== originalSettings.cloudflareApiToken ||
+    JSON.stringify(localSettings.rolePermissions) !==
+      JSON.stringify(originalSettings.rolePermissions) ||
     JSON.stringify(localSettings.availablePapers) !==
       JSON.stringify(originalSettings.availablePapers)
   );

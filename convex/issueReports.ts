@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { requireAdmin, requireUserId } from "./lib/auth";
+import { requirePermission, requireUserId } from "./lib/auth";
 
 // Submit a new issue report
 export const submitReport = mutation({
@@ -83,7 +83,9 @@ export const getAllReports = query({
     filterCategory: v.optional(v.union(v.literal("general"), v.literal("quick_tap"), v.literal("all"))),
   },
   async handler(ctx, args) {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "viewIssueReports", {
+      notAuthorizedMessage: "Only users with issue-report access can view all reports",
+    });
 
     const reports = await ctx.db.query("issueReports").collect();
 
@@ -136,7 +138,9 @@ export const updateReportStatus = mutation({
     adminNotes: v.optional(v.string()),
   },
   async handler(ctx, args) {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageIssueReports", {
+      notAuthorizedMessage: "Only users with issue-report management access can update reports",
+    });
 
     const updateData: any = {
       status: args.status,
@@ -160,7 +164,9 @@ export const deleteReport = mutation({
     reportId: v.id("issueReports"),
   },
   async handler(ctx, args) {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageIssueReports", {
+      notAuthorizedMessage: "Only users with issue-report management access can delete reports",
+    });
 
     await ctx.db.delete(args.reportId);
   },

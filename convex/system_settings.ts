@@ -1,23 +1,8 @@
 import { v } from "convex/values";
-import { internalQuery, mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
-import { requireAdmin } from "./lib/auth";
-import { DEFAULT_SYSTEM_SETTINGS } from "./lib/defaults";
-
-type SettingsContext = QueryCtx | MutationCtx;
-
-export async function loadMergedSystemSettings(ctx: SettingsContext) {
-  const settings = await ctx.db.query("systemSettings").collect();
-
-  const settingsMap = settings.reduce((acc, setting) => {
-    acc[setting.key as keyof typeof DEFAULT_SYSTEM_SETTINGS] = setting.value;
-    return acc;
-  }, {} as Partial<typeof DEFAULT_SYSTEM_SETTINGS>);
-
-  return {
-    ...DEFAULT_SYSTEM_SETTINGS,
-    ...settingsMap,
-  } as typeof DEFAULT_SYSTEM_SETTINGS;
-}
+import { internalQuery, mutation, query } from "./_generated/server";
+import { requireAnyPermission, requirePermission } from "./lib/auth";
+import { rolePermissionsValidator } from "./lib/permissions";
+import { loadMergedSystemSettings } from "./lib/systemSettings";
 
 export const loadMergedSystemSettingsInternal = internalQuery({
   args: {},
@@ -31,7 +16,9 @@ export const loadMergedSystemSettingsInternal = internalQuery({
 export const getSystemSettings = query({
   args: {},
   handler: async (ctx) => {
-    await requireAdmin(ctx);
+    await requireAnyPermission(ctx, ["manageSettings", "manageGalaxyAssignments"], {
+      notAuthorizedMessage: "You do not have permission to view system settings",
+    });
 
     return await loadMergedSystemSettings(ctx);
   },
@@ -112,11 +99,14 @@ export const updateSystemSettings = mutation({
     cloudflareCachePurgeEnabled: v.optional(v.boolean()),
     cloudflareZoneId: v.optional(v.string()),
     cloudflareApiToken: v.optional(v.string()),
+    rolePermissions: v.optional(rolePermissionsValidator),
     // Maintenance mode flags
     maintenanceDisableClassifications: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageSettings", {
+      notAuthorizedMessage: "You do not have permission to update system settings",
+    });
 
     if (args.allowAnonymous !== undefined) {
       const existing = await ctx.db
@@ -429,6 +419,22 @@ export const updateSystemSettings = mutation({
         .unique();
 
       if (existing) {
+
+    if (args.rolePermissions !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "rolePermissions"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.rolePermissions });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "rolePermissions",
+          value: args.rolePermissions,
+        });
+      }
+    }
         await ctx.db.patch(existing._id, { value: args.cloudflareApiToken });
       } else {
         await ctx.db.insert("systemSettings", {
@@ -473,3 +479,5 @@ export const updateSystemSettings = mutation({
     return { success: true };
   },
 });
+
+export { loadMergedSystemSettings };

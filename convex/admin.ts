@@ -1,12 +1,14 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireAdmin } from "./lib/auth";
+import { requireAdmin, requirePermission } from "./lib/auth";
 import { internal } from "./_generated/api";
 
 export const createUserProfile = mutation({
   args: { targetUserId: v.id("users") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageUsers", {
+      notAuthorizedMessage: "Only users with user-management access can create profiles",
+    });
 
     const now = Date.now();
 

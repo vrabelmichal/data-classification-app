@@ -1,10 +1,19 @@
 import { query, mutation, action, internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
-import { getOptionalUserId, requireAdmin, requireUserId, requireUserProfile } from "./lib/auth";
+import {
+  getOptionalUserId,
+  getResolvedPermissions,
+  requireAdmin,
+  requireAnyPermission,
+  requirePermission,
+  requireUserId,
+  requireUserProfile,
+} from "./lib/auth";
 import { getDefaultImageQuality } from "./lib/settings";
 import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
+import { userRoleValidator } from "./lib/permissions";
 import {
   classificationsByCreated,
   classificationsByAwesomeFlag,
@@ -257,7 +266,9 @@ async function resolveUserStatsTargetUserId(
   }
 
   if (targetUserId && targetUserId !== currentUserId) {
-    await requireAdmin(ctx, { notAdminMessage: "Only admins can view other users' statistics" });
+    await requirePermission(ctx, "viewUserStatistics", {
+      notAuthorizedMessage: "Only users with per-user statistics access can view other users' statistics",
+    });
     return targetUserId;
   }
 
@@ -396,9 +407,16 @@ export const getUserProfile = query({
       return null;
     }
 
+    const { permissions, canAccessAdminPanel } = await getResolvedPermissions(
+      ctx,
+      profile.role
+    );
+
     return {
       user,
       ...profile,
+      permissions,
+      canAccessAdminPanel,
     };
   },
 });
@@ -806,7 +824,9 @@ export const getUserStats = query({
 export const getUsersForSelection = query({
   args: {},
   handler: async (ctx) => {
-    await requireAdmin(ctx, { notAdminMessage: "Only admins can access user list" });
+    await requirePermission(ctx, "viewUserStatistics", {
+      notAuthorizedMessage: "Only users with per-user statistics access can access the user list",
+    });
 
     const allUsers = await ctx.db.query("users").collect();
 
@@ -843,7 +863,9 @@ export const getUsersForSelection = query({
 export const getUsersStatisticsOverview = query({
   args: {},
   handler: async (ctx) => {
-    await requireAdmin(ctx, { notAdminMessage: "Only admins can access per-user statistics" });
+    await requirePermission(ctx, "viewUserStatistics", {
+      notAuthorizedMessage: "Only users with per-user statistics access can access per-user statistics",
+    });
 
     const [allUsers, allProfiles, allSequences] = await Promise.all([
       ctx.db.query("users").collect(),
@@ -918,7 +940,9 @@ export const getUsersStatisticsOverview = query({
 export const getUserById = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageUsers", {
+      notAuthorizedMessage: "Only users with user-management access can view user records",
+    });
 
     return await ctx.db.get(args.userId);
   },
@@ -928,7 +952,9 @@ export const getUserById = query({
 export const getUserProfileById = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageUsers", {
+      notAuthorizedMessage: "Only users with user-management access can view profiles",
+    });
 
     const profile = await ctx.db
       .query("userProfiles")
@@ -951,7 +977,9 @@ export const getUserBasicInfo = query({
     email: string | null;
     profile: Doc<"userProfiles"> | null;
   } | null> => {
-    await requireAdmin(ctx);
+    await requireAnyPermission(ctx, ["manageUsers", "manageGalaxyAssignments"], {
+      notAuthorizedMessage: "You do not have permission to view user contact details",
+    });
 
     const user = await ctx.db.get(args.userId);
     if (!user) {
@@ -976,7 +1004,9 @@ export const getUserBasicInfo = query({
 export const getAllUsers = query({
   args: {},
   handler: async (ctx) => {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageUsers", {
+      notAuthorizedMessage: "Only users with user-management access can view all users",
+    });
 
     // Get all users from the users table
     const allUsers = await ctx.db.query("users").collect();
@@ -1032,7 +1062,9 @@ export const updateUserStatus = mutation({
     isActive: v.boolean(),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageUsers", {
+      notAuthorizedMessage: "Only users with user-management access can update user status",
+    });
 
     let targetProfile = await ctx.db
       .query("userProfiles")
@@ -1077,7 +1109,9 @@ export const confirmUser = mutation({
     isConfirmed: v.boolean(),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageUsers", {
+      notAuthorizedMessage: "Only users with user-management access can confirm users",
+    });
 
     let targetProfile = await ctx.db
       .query("userProfiles")
@@ -1119,15 +1153,27 @@ export const confirmUser = mutation({
 export const updateUserRole = mutation({
   args: {
     targetUserId: v.id("users"),
-    role: v.union(v.literal("user"), v.literal("admin")),
+    role: userRoleValidator,
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    const { userId, profile: callerProfile } = await requirePermission(ctx, "manageUsers", {
+      notAuthorizedMessage: "Only users with user-management access can update roles",
+    });
 
     let targetProfile = await ctx.db
       .query("userProfiles")
       .withIndex("by_user", (q) => q.eq("userId", args.targetUserId))
       .unique();
+
+    if (args.role === "admin" && targetProfile?.role !== "admin") {
+      if (callerProfile.role !== "admin") {
+        throw new Error("Only admins can promote a user to admin");
+      }
+
+      if (args.targetUserId === userId) {
+        throw new Error("You cannot promote your own account to admin");
+      }
+    }
 
     // Create profile if it doesn't exist
     if (!targetProfile) {
@@ -1149,6 +1195,16 @@ export const updateUserRole = mutation({
       return { success: true };
     }
 
+    if (targetProfile.role === "admin" && args.role !== "admin") {
+      if (callerProfile.role !== "admin") {
+        throw new Error("Only admins can change another admin user's role");
+      }
+
+      if (args.targetUserId === userId) {
+        throw new Error("You cannot change your own admin role");
+      }
+    }
+
     await ctx.db.patch(targetProfile._id, {
       role: args.role,
     });
@@ -1166,7 +1222,9 @@ export const deleteUser = mutation({
     targetUserId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    await requireAdmin(ctx);
+    await requirePermission(ctx, "manageUsers", {
+      notAuthorizedMessage: "Only users with user-management access can delete users",
+    });
 
     // Avoid hard failures when aggregate entries are missing for older data
     const safeAggregateDelete = async (label: string, op: () => Promise<void>) => {

@@ -1,6 +1,7 @@
 import { query } from "../../_generated/server";
 import { v } from "convex/values";
 import { requireAdmin } from "../../lib/auth";
+import { requirePermission } from "../../lib/auth";
 import { getTopClassifiers } from "./shared";
 
 export const get = query({
@@ -16,7 +17,9 @@ export const get = query({
     timestamp: v.number(),
   }),
   handler: async (ctx) => {
-    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+    await requirePermission(ctx, "viewLiveOverviewStatistics", {
+      notAuthorizedMessage: "Not authorized",
+    });
     const topClassifiers = await getTopClassifiers(ctx, 5);
     return {
       topClassifiers,
