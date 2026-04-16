@@ -76,7 +76,7 @@ interface GalaxyExportProps {
   currentPageGalaxies?: any[];
   pageSize: number;
   page: number;
-  isAdmin: boolean;
+  canExportAll: boolean;
 }
 
 type ExportMode = "current_page" | "all" | "custom";
@@ -176,7 +176,7 @@ export function GalaxyExport({
   currentPageGalaxies,
   pageSize,
   page,
-  isAdmin,
+  canExportAll,
 }: GalaxyExportProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [exportState, setExportState] = useState<ExportState>({
@@ -195,9 +195,9 @@ export function GalaxyExport({
   const userExportLimitRaw = systemSettings?.userExportLimit;
   const userExportLimit = typeof userExportLimitRaw === "number" ? userExportLimitRaw : DEFAULT_USER_EXPORT_LIMIT;
 
-  const shouldHideExport = !isAdmin && userExportLimit === 0;
+  const shouldHideExport = !canExportAll && userExportLimit === 0;
 
-  const effectiveLimit = isAdmin ? undefined : userExportLimit;
+  const effectiveLimit = canExportAll ? undefined : userExportLimit;
 
   // Query for batch export - only active when exporting and not current page mode
   const exportBatchResult = useQuery(
@@ -310,7 +310,7 @@ export function GalaxyExport({
     }
 
     // Validate custom limit for non-admins
-    if (!isAdmin && exportState.exportMode === "custom" && exportState.customLimit > userExportLimit) {
+    if (!canExportAll && exportState.exportMode === "custom" && exportState.customLimit > userExportLimit) {
       setExportState((prev) => ({
         ...prev,
         error: `Maximum export limit is ${userExportLimit} entries`,
@@ -327,7 +327,7 @@ export function GalaxyExport({
       cursor: null,
       error: null,
     }));
-  }, [exportState.exportMode, exportState.customLimit, handleExportCurrentPage, isAdmin, userExportLimit]);
+  }, [exportState.exportMode, exportState.customLimit, handleExportCurrentPage, canExportAll, userExportLimit]);
 
   const handleCancelExport = useCallback(() => {
     setExportState((prev) => ({
@@ -403,7 +403,7 @@ export function GalaxyExport({
                 />
                 <span className="text-sm text-gray-700 dark:text-gray-300">
                   All matching data
-                  {!isAdmin && effectiveLimit && (
+                  {!canExportAll && effectiveLimit && (
                     <span className="text-gray-500"> (max {effectiveLimit.toLocaleString()})</span>
                   )}
                 </span>
@@ -455,7 +455,7 @@ export function GalaxyExport({
                 <input
                   type="number"
                   min="1"
-                  max={isAdmin ? undefined : userExportLimit}
+                  max={canExportAll ? undefined : userExportLimit}
                   value={exportState.customLimit}
                   onChange={(e) =>
                     setExportState((prev) => ({
@@ -468,7 +468,7 @@ export function GalaxyExport({
                   className="w-32 px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                 />
               </div>
-              {!isAdmin && (
+              {!canExportAll && (
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Maximum allowed: {userExportLimit.toLocaleString()} entries
                 </p>
@@ -477,10 +477,10 @@ export function GalaxyExport({
           )}
 
           {/* Limit info for non-admins */}
-          {!isAdmin && exportState.exportMode !== "current_page" && (
+          {!canExportAll && exportState.exportMode !== "current_page" && (
             <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 rounded-md">
-              ⚠️ Regular users can export up to {userExportLimit.toLocaleString()} entries at once.
-              Contact an administrator if you need to export more data.
+              ⚠️ This account can export up to {userExportLimit.toLocaleString()} entries at once.
+              Contact an administrator if you need elevated export access.
             </div>
           )}
 

@@ -1,6 +1,8 @@
 // Shared default values for the application
 // These are used as fallbacks when system settings are not yet loaded or not configured
 
+import { DEFAULT_ROLE_PERMISSIONS } from "./permissions";
+
 // ============================================================================
 // Individual Default Values
 // ============================================================================
@@ -146,4 +148,5 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   cloudflareCachePurgeEnabled: DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
   cloudflareZoneId: DEFAULT_CLOUDFLARE_ZONE_ID,
   cloudflareApiToken: DEFAULT_CLOUDFLARE_API_TOKEN,
+  rolePermissions: DEFAULT_ROLE_PERMISSIONS,
 };

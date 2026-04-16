@@ -59,12 +59,15 @@ export function IssueReportsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingNotes, setEditingNotes] = useState<Record<string, string>>({});
   const [statusDrafts, setStatusDrafts] = useState<Record<string, ReportStatus>>({});
+  const canViewIssueReports = Boolean(userProfile?.permissions?.viewIssueReports);
+  const canManageIssueReports = Boolean(userProfile?.permissions?.manageIssueReports);
 
-  const reports = useQuery(api.issueReports.getAllReports, {
-    filterCategory: filterCategory === "all" ? "all" : filterCategory,
-  }) as EnrichedReport[] | undefined | null;
-
-  const isAdmin = userProfile?.role === "admin";
+  const reports = useQuery(
+    api.issueReports.getAllReports,
+    canViewIssueReports
+      ? { filterCategory: filterCategory === "all" ? "all" : filterCategory }
+      : "skip"
+  ) as EnrichedReport[] | undefined | null;
 
   // Derived filtered list (used both for rendering and download)
   const filteredReports = (reports || []).filter((r) =>
@@ -105,7 +108,7 @@ export function IssueReportsPage() {
   // Count reports in the current filtered view that have a galaxy ID
   const reportsWithGalaxyId = filteredReports.filter((r) => r.galaxyExternalId).length;
 
-  if (userProfile === undefined || reports === undefined) {
+  if (userProfile === undefined || (canViewIssueReports && reports === undefined)) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -113,14 +116,14 @@ export function IssueReportsPage() {
     );
   }
 
-  if (!isAdmin) {
+  if (!canViewIssueReports) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="text-center">
           <div className="text-6xl mb-4">🚫</div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h1>
           <p className="text-gray-600 dark:text-gray-300">
-            You need administrator privileges to view issue reports.
+            You need issue-report access to view this page.
           </p>
         </div>
       </div>
@@ -200,6 +203,11 @@ export function IssueReportsPage() {
           <p className="mt-2 text-gray-600 dark:text-gray-300">
             Total: {(reports || []).length} | Showing: {filteredReports.length}
           </p>
+          {!canManageIssueReports && (
+            <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+              This account has read-only access. Status updates, notes, and deletion are disabled.
+            </p>
+          )}
         </div>
         <div className="flex flex-col gap-3">
           {/* Category filter */}
@@ -402,46 +410,62 @@ export function IssueReportsPage() {
                           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                             Status
                           </h4>
-                          {renderStatusSelector(report)}
+                          {canManageIssueReports ? (
+                            renderStatusSelector(report)
+                          ) : (
+                            <div className="text-sm text-gray-700 dark:text-gray-300">
+                              {statusConfig[currentStatus].label}
+                            </div>
+                          )}
                         </div>
                         <div>
                           <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                             Admin Notes
                           </h4>
-                          <textarea
-                            value={editingNotes[report._id] ?? report.adminNotes ?? ""}
-                            onChange={(e) =>
-                              setEditingNotes((prev) => ({
-                                ...prev,
-                                [report._id]: e.target.value,
-                              }))
-                            }
-                            rows={4}
-                            className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-3"
-                            placeholder="Add internal notes"
-                          />
+                          {canManageIssueReports ? (
+                            <textarea
+                              value={editingNotes[report._id] ?? report.adminNotes ?? ""}
+                              onChange={(e) =>
+                                setEditingNotes((prev) => ({
+                                  ...prev,
+                                  [report._id]: e.target.value,
+                                }))
+                              }
+                              rows={4}
+                              className="w-full rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm p-3"
+                              placeholder="Add internal notes"
+                            />
+                          ) : (
+                            <div className="rounded-md border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-3 text-sm text-gray-600 dark:text-gray-300 min-h-[5rem]">
+                              {report.adminNotes?.trim() || "No internal notes saved."}
+                            </div>
+                          )}
                         </div>
                       </div>
 
                       <div className="flex items-center gap-3 flex-wrap">
-                        <button
-                          onClick={() =>
-                            handleStatusChange(
-                              report._id,
-                              currentStatus,
-                              editingNotes[report._id] ?? report.adminNotes ?? ""
-                            )
-                          }
-                          className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
-                        >
-                          Save changes
-                        </button>
-                        <button
-                          onClick={() => handleDelete(report._id)}
-                          className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
-                        >
-                          Delete
-                        </button>
+                        {canManageIssueReports && (
+                          <>
+                            <button
+                              onClick={() =>
+                                handleStatusChange(
+                                  report._id,
+                                  currentStatus,
+                                  editingNotes[report._id] ?? report.adminNotes ?? ""
+                                )
+                              }
+                              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                            >
+                              Save changes
+                            </button>
+                            <button
+                              onClick={() => handleDelete(report._id)}
+                              className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
                         {showResolvedTimestamp && (
                           <span className="text-sm text-gray-500 dark:text-gray-400">
                             Resolved at {new Date(report.resolvedAt as number).toLocaleString()}

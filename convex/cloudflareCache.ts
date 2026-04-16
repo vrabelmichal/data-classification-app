@@ -121,8 +121,11 @@ export const getAdminPurgeStatus = query({
     }
 
     const profile = await ctx.runQuery(api.users.getUserProfile);
-    if (!profile || profile.role !== "admin") {
-      throw new Error("Admin access required");
+    const canViewStatus = Boolean(
+      profile?.permissions?.manageSettings || profile?.permissions?.manageSystem
+    );
+    if (!canViewStatus) {
+      throw new Error("Settings access required");
     }
 
     const settings: CloudflareAdminSettings = await ctx.runQuery(

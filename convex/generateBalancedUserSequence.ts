@@ -1,5 +1,5 @@
 // convex/generateBalancedUserSequence.ts
-import { requireAdmin, requireUserId } from "./lib/auth";
+import { requirePermission, requireUserId } from "./lib/auth";
 import { v } from "convex/values";
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { api, internal } from "./_generated/api";
@@ -139,9 +139,11 @@ export const cancelSequenceGeneration = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
 
-    // Admin check if cancelling for another user
+    // Assignment-manager check if cancelling for another user
     if (args.targetUserId !== userId) {
-      await requireAdmin(ctx);
+      await requirePermission(ctx, "manageGalaxyAssignments", {
+        notAuthorizedMessage: "Only users with galaxy-assignment access can cancel another user's sequence generation",
+      });
     }
 
     // Find running job for this user
@@ -174,9 +176,11 @@ export const rollbackSequence = mutation({
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx);
 
-    // Admin check if rolling back for another user
+    // Assignment-manager check if rolling back for another user
     if (args.targetUserId !== userId) {
-      await requireAdmin(ctx);
+      await requirePermission(ctx, "manageGalaxyAssignments", {
+        notAuthorizedMessage: "Only users with galaxy-assignment access can roll back another user's sequence",
+      });
     }
 
     // Find and delete the sequence
@@ -445,9 +449,9 @@ export const generateBalancedUserSequence = action({
     const dryRun = !!args.dryRun;
     const paperFilter = args.paperFilter && args.paperFilter.length > 0 ? args.paperFilter : null;
 
-    // Admin check if generating for another user
-    if (targetUserId !== callerId && callerProfile.role !== "admin") {
-      throw new Error("Admin access required to generate sequence for another user");
+    // Assignment-manager check if generating for another user
+    if (targetUserId !== callerId && !callerProfile.permissions?.manageGalaxyAssignments) {
+      throw new Error("Galaxy-assignment access is required to generate a sequence for another user");
     }
 
     const warnings = validateParams({
@@ -718,9 +722,11 @@ export const updateGalaxyAssignmentStats = mutation({
 
     const { targetUserId, batchIndex, batchSize = 500, perUserCapM: M } = args;
 
-    // Admin check if updating for another user
+    // Assignment-manager check if updating for another user
     if (targetUserId !== userId) {
-      await requireAdmin(ctx);
+      await requirePermission(ctx, "manageGalaxyAssignments", {
+        notAuthorizedMessage: "Only users with galaxy-assignment access can update another user's assignment stats",
+      });
     }
 
     // Get the user's sequence
@@ -814,8 +820,8 @@ export const sendSequenceGeneratedEmail = action({
   },
   handler: async (ctx, args): Promise<SequenceEmailResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
-    if (!callerProfile || callerProfile.role !== "admin") {
-      throw new Error("Admin access required");
+    if (!callerProfile?.permissions?.manageGalaxyAssignments) {
+      throw new Error("Galaxy-assignment access required");
     }
 
     const target = await ctx.runQuery(api.users.getUserBasicInfo, {
@@ -830,7 +836,10 @@ export const sendSequenceGeneratedEmail = action({
       return { success: false, message: "User has no email address" };
     }
 
-    const settings = await ctx.runQuery(api.system_settings.getSystemSettings);
+    const settings = await ctx.runQuery(
+      internal.system_settings.loadMergedSystemSettingsInternal,
+      {}
+    );
     const appName: typeof DEFAULT_SYSTEM_SETTINGS.appName = settings.appName ?? DEFAULT_SYSTEM_SETTINGS.appName;
     const emailFrom: typeof DEFAULT_SYSTEM_SETTINGS.emailFrom = settings.emailFrom ?? DEFAULT_SYSTEM_SETTINGS.emailFrom;
     const fromWithName = `${appName} <${emailFrom}>`;

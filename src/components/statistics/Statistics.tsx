@@ -54,11 +54,12 @@ export function Statistics() {
   const isAdmin = userProfile?.role === "admin";
   const allowPublicOverview = systemSettings?.allowPublicOverview ?? false;
   const allowPublicDataAnalysis = systemSettings?.allowPublicDataAnalysis ?? false;
-  const canAccessOverview = Boolean(isAdmin || allowPublicOverview);
-  const canAccessUsersStatistics = Boolean(isAdmin);
-  const canAccessAssignmentStats = Boolean(isAdmin);
-  const canAccessLiveOverview = Boolean(isAdmin);
-  const canAccessDataAnalysis = Boolean(isAdmin || allowPublicDataAnalysis);
+  const permissions = userProfile?.permissions;
+  const canAccessOverview = Boolean(permissions?.viewOverviewStatistics || allowPublicOverview);
+  const canAccessUsersStatistics = Boolean(permissions?.viewUserStatistics);
+  const canAccessAssignmentStats = Boolean(permissions?.viewAssignmentStatistics);
+  const canAccessLiveOverview = Boolean(permissions?.viewLiveOverviewStatistics);
+  const canAccessDataAnalysis = Boolean(permissions?.viewDataAnalysis || allowPublicDataAnalysis);
   const restrictedTabRedirect = canAccessOverview ? "/statistics/overview" : "/statistics";
   const headerDescription = isAssignmentStats
     ? "Assignment coverage and sequence planning across the full dataset"

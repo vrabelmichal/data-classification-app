@@ -446,12 +446,12 @@ export function StatisticsTab() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const refreshUserStatsSnapshot = useAction(api.users.refreshUserStatsSnapshot);
   
-  const isAdmin = userProfile?.role === "admin";
+  const canViewUserStatistics = Boolean(userProfile?.permissions?.viewUserStatistics);
   
-  // Only fetch user list if admin
+  // Only fetch user list when the account can inspect other users' statistics.
   const usersList = useQuery(
     api.users.getUsersForSelection,
-    isAdmin ? {} : "skip"
+    canViewUserStatistics ? {} : "skip"
   );
   
   // Get stats for selected user (or self if not admin/no selection)
@@ -685,7 +685,7 @@ export function StatisticsTab() {
         </div>
       )}
       {/* Admin User Selector */}
-      {isAdmin && usersList && (
+      {canViewUserStatistics && usersList && (
         <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
           <div className="flex items-center gap-4">
             <label htmlFor="user-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">

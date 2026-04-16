@@ -1,6 +1,8 @@
 // Shared default values for the Convex backend
 // These are used as fallbacks when system settings are not yet loaded or not configured
 
+import { DEFAULT_ROLE_PERMISSIONS } from "./permissions";
+
 /**
  * Default available paper values for filtering galaxies by misc.paper field.
  * Used in balanced sequence generation.
@@ -47,6 +49,7 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   cloudflareCachePurgeEnabled: false,
   cloudflareZoneId: "",
   cloudflareApiToken: "",
+  rolePermissions: DEFAULT_ROLE_PERMISSIONS,
   // Maintenance mode flag
   maintenanceDisableClassifications: false,
 };

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { getRoleLabel, type UserRole } from "../../lib/permissions";
 
 export type UserStatisticsRow = {
   userId: string;
   name: string | null;
   email: string | null;
-  role: "user" | "admin";
+  role: UserRole;
   isActive: boolean;
   isConfirmed: boolean | null;
   joinedAt: number;
@@ -86,7 +87,7 @@ function getColumnValue(row: UserStatisticsRow, key: ColumnKey): string {
     case "active":
       return row.isActive ? "Yes" : "No";
     case "role":
-      return row.role;
+      return getRoleLabel(row.role);
     case "joined":
       return formatDate(row.joinedAt);
     case "awesome":
@@ -123,7 +124,7 @@ function getSortValue(row: UserStatisticsRow, key: ColumnKey): number | string {
     case "active":
       return row.isActive ? 1 : 0;
     case "role":
-      return row.role;
+      return getRoleLabel(row.role);
     case "joined":
       return row.joinedAt;
     case "awesome":
@@ -465,7 +466,7 @@ export function UserStatisticsTable({
                   {visibleColumns.completion && <td className="py-3 pr-4">{row.completionPercent.toFixed(1)}%</td>}
                   {visibleColumns.lastActive && <td className="py-3 pr-4">{formatDate(row.lastActiveAt)}</td>}
                   {visibleColumns.active && <td className="py-3 pr-4">{row.isActive ? "Yes" : "No"}</td>}
-                  {visibleColumns.role && <td className="py-3 pr-4">{row.role}</td>}
+                  {visibleColumns.role && <td className="py-3 pr-4">{getRoleLabel(row.role)}</td>}
                   {visibleColumns.joined && <td className="py-3 pr-4">{formatDate(row.joinedAt)}</td>}
                   {visibleColumns.awesome && <td className="py-3 pr-4">{row.awesomeCount.toLocaleString()}</td>}
                   {visibleColumns.visibleNucleus && (

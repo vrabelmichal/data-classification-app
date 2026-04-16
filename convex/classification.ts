@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { getOptionalUserId, requireAdmin, requireConfirmedUser } from "./lib/auth";
+import { getOptionalUserId, requireConfirmedUser, requirePermission } from "./lib/auth";
 import { Doc } from "./_generated/dataModel";
 import {
   classificationsByCreated,
@@ -132,7 +132,9 @@ export const getProgress = query({
 
     let userId = currentUserId;
     if (args.targetUserId && args.targetUserId !== currentUserId) {
-      await requireAdmin(ctx, { notAdminMessage: "Only admins can view other users' progress" });
+      await requirePermission(ctx, "viewUserStatistics", {
+        notAuthorizedMessage: "Only users with per-user statistics access can view other users' progress",
+      });
       userId = args.targetUserId;
     }
 

@@ -14,7 +14,7 @@ interface NavigationItem {
   label: string;
   icon: string;
   path: string;
-  adminOnly?: boolean;
+  isVisible?: boolean;
   activeWhenPathStartsWith?: string[];
   inactiveWhenPathStartsWith?: string[];
 }
@@ -51,8 +51,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
   const userDisplayName = userProfile?.user?.name ?? userProfile?.user?.email;
   const { theme, effectiveTheme, toggleTheme } = useTheme();
 
-  // Filter items based on permissions (e.g., admin only)
-  const visibleItems = navigationItems.filter((it) => !it.adminOnly || userProfile?.role === "admin");
+  const visibleItems = navigationItems.filter((item) => item.isVisible !== false);
 
   const getItemIsActive = (item: NavigationItem, defaultIsActive: boolean) => {
     const pathname = location.pathname;

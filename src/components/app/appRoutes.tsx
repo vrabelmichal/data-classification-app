@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from "react";
 import { ClassificationInterface } from "../classification/ClassificationInterface";
 import { AccessDenied, LoadingScreen } from "./AppStatus";
+import type { UserRole } from "../../lib/permissions";
 
 export interface AppNavigationItem {
   id: string;
@@ -8,11 +9,23 @@ export interface AppNavigationItem {
   icon: string;
   path: string;
   element: ReactNode;
-  adminOnly?: boolean;
+  isVisible?: boolean;
   hasNestedRoutes?: boolean;
   isExternallyRouted?: boolean;
   activeWhenPathStartsWith?: string[];
   inactiveWhenPathStartsWith?: string[];
+}
+
+interface UserPermissions {
+  accessDataPage?: boolean;
+  viewIssueReports?: boolean;
+  canAccessAdminPanel?: boolean;
+}
+
+interface UserProfile {
+  role?: UserRole;
+  permissions?: UserPermissions;
+  canAccessAdminPanel?: boolean;
 }
 
 function LazyPage({ children }: { children: ReactNode }) {
@@ -113,35 +126,56 @@ const notFoundRoute = (
   </LazyPage>
 );
 
-export function getAppNavigationItems(isAdmin: boolean): AppNavigationItem[] {
-  const dataRoute = isAdmin ? (
+export function getAppNavigationItems(
+  userProfile: UserProfile | null | undefined
+): AppNavigationItem[] {
+  const permissions = userProfile?.permissions;
+  const canAccessDataPage = Boolean(permissions?.accessDataPage);
+  const canViewIssueReports = Boolean(permissions?.viewIssueReports);
+  const canAccessAdminPanel = Boolean(
+    permissions?.canAccessAdminPanel ?? userProfile?.canAccessAdminPanel
+  );
+
+  const dataRoute = canAccessDataPage ? (
     <LazyPage>
       <LazyDataPage />
     </LazyPage>
   ) : (
-    <AccessDenied message="You need administrator privileges to access the data section." />
+    <AccessDenied message="You need data access permissions to use the data section." />
+  );
+
+  const reportsRoute = canViewIssueReports ? (
+    issueReportsRoute
+  ) : (
+    <AccessDenied message="You need issue-report access to view this page." />
+  );
+
+  const adminRoute = canAccessAdminPanel ? (
+    adminPanelRoute
+  ) : (
+    <AccessDenied message="You do not have access to any admin panel sections." />
   );
 
   return [
-    { id: "classify", label: "Classify", icon: "🔬", path: "/classify", element: <ClassificationInterface /> },
-    { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: browseRoute },
-    { id: "skipped", label: "Skipped", icon: "⏭️", path: "/skipped", element: skippedRoute },
-    { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: statisticsRoute, hasNestedRoutes: true },
+    { id: "classify", label: "Classify", icon: "🔬", path: "/classify", element: <ClassificationInterface />, isVisible: true },
+    { id: "browse", label: "Browse Galaxies", icon: "🌌", path: "/browse", element: browseRoute, isVisible: true },
+    { id: "skipped", label: "Skipped", icon: "⏭️", path: "/skipped", element: skippedRoute, isVisible: true },
+    { id: "statistics", label: "Statistics", icon: "📊", path: "/statistics", element: statisticsRoute, isVisible: true, hasNestedRoutes: true },
     {
       id: "data",
       label: "Data",
       icon: "🗂️",
       path: "/data",
       element: dataRoute,
-      adminOnly: true,
+      isVisible: canAccessDataPage,
       hasNestedRoutes: true,
       activeWhenPathStartsWith: ["/data"],
     },
-    { id: "notifications", label: "Notifications", icon: "🔔", path: "/notifications", element: notificationsRoute, hasNestedRoutes: true },
-    { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: settingsRoute, hasNestedRoutes: true, activeWhenPathStartsWith: ["/settings"] },
-    { id: "help", label: "Help", icon: "❓", path: "/help", element: helpRoute, hasNestedRoutes: true },
-    { id: "reports", label: "Issue Reports", icon: "📋", path: "/reports", element: issueReportsRoute, adminOnly: true },
-    { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: adminPanelRoute, adminOnly: true, isExternallyRouted: true },
+    { id: "notifications", label: "Notifications", icon: "🔔", path: "/notifications", element: notificationsRoute, isVisible: true, hasNestedRoutes: true },
+    { id: "settings", label: "Settings", icon: "⚙️", path: "/settings", element: settingsRoute, isVisible: true, hasNestedRoutes: true, activeWhenPathStartsWith: ["/settings"] },
+    { id: "help", label: "Help", icon: "❓", path: "/help", element: helpRoute, isVisible: true, hasNestedRoutes: true },
+    { id: "reports", label: "Issue Reports", icon: "📋", path: "/reports", element: reportsRoute, isVisible: canViewIssueReports },
+    { id: "admin", label: "Admin", icon: "👑", path: "/admin", element: adminRoute, isVisible: canAccessAdminPanel, isExternallyRouted: true },
   ];
 }
 

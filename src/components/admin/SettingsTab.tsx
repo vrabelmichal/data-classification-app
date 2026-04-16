@@ -6,6 +6,7 @@ import { api } from "../../../convex/_generated/api";
 import { cn } from "../../lib/utils";
 import { createSettingsFormState, hasSettingsChanges } from "./settings/helpers";
 import { GeneralSettingsPage } from "./settings/GeneralSettingsPage";
+import { PermissionsSettingsPage } from "./settings/PermissionsSettingsPage";
 import { PapersOverviewSettingsPage } from "./settings/PapersOverviewSettingsPage";
 import { ClassificationSettingsPage } from "./settings/ClassificationSettingsPage";
 import { OperationsSettingsPage } from "./settings/OperationsSettingsPage";
@@ -18,6 +19,12 @@ const settingsSubTabs = [
     label: "General",
     icon: "⚙️",
     path: "/admin/settings/general",
+  },
+  {
+    id: "permissions",
+    label: "Permissions",
+    icon: "🛂",
+    path: "/admin/settings/permissions",
   },
   {
     id: "papers",
@@ -102,6 +109,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         cloudflareCachePurgeEnabled: localSettings.cloudflareCachePurgeEnabled,
         cloudflareZoneId: localSettings.cloudflareZoneId,
         cloudflareApiToken: localSettings.cloudflareApiToken,
+        rolePermissions: localSettings.rolePermissions,
       });
       toast.success("Settings updated successfully");
       setHasChanges(false);
@@ -189,6 +197,15 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
           path="general"
           element={
             <GeneralSettingsPage
+              localSettings={localSettings}
+              handleSettingChange={handleSettingChange}
+            />
+          }
+        />
+        <Route
+          path="permissions"
+          element={
+            <PermissionsSettingsPage
               localSettings={localSettings}
               handleSettingChange={handleSettingChange}
             />

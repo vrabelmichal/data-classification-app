@@ -1,8 +1,9 @@
-import { useMutation, useAction } from "convex/react";
+import { useMutation, useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { cn } from "../../lib/utils";
 import type { ReactNode } from "react";
+import { getRoleLabel, USER_ROLES, type UserRole } from "../../lib/permissions";
 
 interface UsersTabProps {
   users: any[];
@@ -22,6 +23,7 @@ function fmt(value: number, decimals = 1): string {
 }
 
 export function UsersTab({ users }: UsersTabProps) {
+  const currentUserProfile = useQuery(api.users.getUserProfile);
   const updateUserStatus = useMutation(api.users.updateUserStatus);
   const confirmUser = useMutation(api.users.confirmUser);
   const updateUserRole = useMutation(api.users.updateUserRole);
@@ -55,7 +57,7 @@ export function UsersTab({ users }: UsersTabProps) {
     }
   };
 
-  const handleUpdateUserRole = async (userId: any, newRole: "user" | "admin") => {
+  const handleUpdateUserRole = async (userId: any, newRole: UserRole) => {
     try {
       await updateUserRole({
         targetUserId: userId,
@@ -113,7 +115,7 @@ export function UsersTab({ users }: UsersTabProps) {
       return [
         userProfile.user?.name || "Anonymous",
         userProfile.user?.email || "No email",
-        hasProfile ? userProfile.role : "No Profile",
+        hasProfile ? getRoleLabel(userProfile.role) : "No Profile",
         userProfile.classificationsCount || 0,
         userProfile.assignedGalaxiesCount ?? 0,
         registered,
@@ -206,6 +208,11 @@ export function UsersTab({ users }: UsersTabProps) {
           <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
             {users.map((userProfile) => {
               const hasProfile = !userProfile._id.toString().startsWith('temp_');
+              const isCurrentAdminUser =
+                hasProfile &&
+                userProfile.role === "admin" &&
+                currentUserProfile?.role === "admin" &&
+                currentUserProfile.userId === userProfile.userId;
               
               return (
                 <tr key={userProfile._id}>
@@ -231,14 +238,26 @@ export function UsersTab({ users }: UsersTabProps) {
                   <td className="px-6 py-4 whitespace-nowrap">
                     {!hasProfile ? (
                       <span className="text-sm text-gray-500 dark:text-gray-400">No Profile</span>
+                    ) : isCurrentAdminUser ? (
+                      <div>
+                        <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                          {getRoleLabel(userProfile.role)}
+                        </span>
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          Your own admin role cannot be changed here
+                        </p>
+                      </div>
                     ) : (
                       <select
                         value={userProfile.role}
-                        onChange={(e) => void (async () => { await handleUpdateUserRole(userProfile.userId, e.target.value as "user" | "admin"); })()}
+                        onChange={(e) => void (async () => { await handleUpdateUserRole(userProfile.userId, e.target.value as UserRole); })()}
                         className="text-sm border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
+                        {USER_ROLES.map((role) => (
+                          <option key={role} value={role}>
+                            {getRoleLabel(role)}
+                          </option>
+                        ))}
                       </select>
                     )}
                   </td>

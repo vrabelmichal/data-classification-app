@@ -1,6 +1,14 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
+import {
+  canAccessAdminPanelForRole,
+  getPermissionsForRole,
+  hasAnyPermissionForRole,
+  hasPermissionForRole,
+  type AppPermissionKey,
+} from "./permissions";
+import { loadMergedSystemSettings } from "./systemSettings";
 
 
 type AuthContext = QueryCtx | MutationCtx;
@@ -16,6 +24,10 @@ type RequireConfirmedOptions = RequireUserProfileOptions & {
 
 type RequireAdminOptions = RequireUserProfileOptions & {
   notAdminMessage?: string;
+};
+
+type RequirePermissionOptions = RequireUserProfileOptions & {
+  notAuthorizedMessage?: string;
 };
 
 async function fetchUserProfile(
@@ -75,4 +87,55 @@ export async function requireAdmin(
     throw new Error(options.notAdminMessage ?? "Admin access required");
   }
   return { userId, profile };
+}
+
+export async function getResolvedPermissions(ctx: AuthContext, role: unknown) {
+  const settings = await loadMergedSystemSettings(ctx);
+  return {
+    settings,
+    permissions: getPermissionsForRole(role, settings),
+    canAccessAdminPanel: canAccessAdminPanelForRole(role, settings),
+  };
+}
+
+export async function requirePermission(
+  ctx: AuthContext,
+  permission: AppPermissionKey,
+  options: RequirePermissionOptions = {}
+) {
+  const { userId, profile } = await requireUserProfile(ctx, options);
+  const settings = await loadMergedSystemSettings(ctx);
+
+  if (!hasPermissionForRole(profile.role, settings, permission)) {
+    throw new Error(options.notAuthorizedMessage ?? "Not authorized");
+  }
+
+  return {
+    userId,
+    profile,
+    settings,
+    permissions: getPermissionsForRole(profile.role, settings),
+    canAccessAdminPanel: canAccessAdminPanelForRole(profile.role, settings),
+  };
+}
+
+export async function requireAnyPermission(
+  ctx: AuthContext,
+  permissionsToCheck: readonly AppPermissionKey[],
+  options: RequirePermissionOptions = {}
+) {
+  const { userId, profile } = await requireUserProfile(ctx, options);
+  const settings = await loadMergedSystemSettings(ctx);
+
+  if (!hasAnyPermissionForRole(profile.role, settings, permissionsToCheck)) {
+    throw new Error(options.notAuthorizedMessage ?? "Not authorized");
+  }
+
+  return {
+    userId,
+    profile,
+    settings,
+    permissions: getPermissionsForRole(profile.role, settings),
+    canAccessAdminPanel: canAccessAdminPanelForRole(profile.role, settings),
+  };
 }

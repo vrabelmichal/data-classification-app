@@ -7,6 +7,7 @@ import { v } from "convex/values";
 import { internal, api } from "../_generated/api";
 import { galaxyIdsAggregate } from "./aggregates";
 import { DEFAULT_AVAILABLE_PAPERS } from "../lib/defaults";
+import { requirePermission } from "../lib/auth";
 
 // ----------------------------------------------------------------------------
 // Internal helpers (not directly callable from the browser)
@@ -112,15 +113,9 @@ export const getGalaxyStatsBatch = internalQuery({
 export const getAssignmentStatsSummary = query({
   args: {},
   handler: async (ctx) => {
-    const profile = await ctx.runQuery(api.users.getUserProfile);
-    if (!profile || profile.role !== "admin") {
-      return {
-        authorized: false,
-        totalGalaxies: null,
-        availablePapers: [] as string[],
-        blacklistedCount: 0,
-      };
-    }
+    await requirePermission(ctx, "viewAssignmentStatistics", {
+      notAuthorizedMessage: "Assignment statistics are not available for this account",
+    });
 
     let totalGalaxies: number | null = null;
     try {
@@ -204,9 +199,9 @@ export const computeHistogramBatch = action({
     excludeBlacklisted: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<HistogramBatchResult> => {
-    // Admin guard
+    // Permission guard
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
-    if (!callerProfile || callerProfile.role !== "admin") {
+    if (!callerProfile?.permissions?.viewAssignmentStatistics) {
       throw new Error("Not authorized");
     }
 

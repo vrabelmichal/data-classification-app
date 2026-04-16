@@ -39,29 +39,54 @@ export function AdminPanel() {
   
   const userProfile = useQuery(api.users.getUserProfile);
   const isAdmin = userProfile?.role === "admin";
-  
-  const users = useQuery(api.users.getAllUsers, isAdmin ? {} : "skip");
-  const systemSettings = useQuery(api.system_settings.getSystemSettings, isAdmin ? {} : "skip");
+  const permissions = userProfile?.permissions;
+  const canManageUsers = Boolean(permissions?.manageUsers);
+  const canManageGalaxyAssignments = Boolean(permissions?.manageGalaxyAssignments);
+  const canManageSettings = Boolean(permissions?.manageSettings);
+  const canManageMaintenance = Boolean(isAdmin);
+  const canManageSystem = Boolean(isAdmin);
+  const availableTabs = [
+    ...(canManageUsers ? [{ id: "users", label: "Users", icon: "👥", path: "/admin/users" }] : []),
+    ...(canManageGalaxyAssignments ? [{ id: "galaxies", label: "Galaxies", icon: "🌌", path: "/admin/galaxies" }] : []),
+    ...(canManageSettings ? [{ id: "settings", label: "Settings", icon: "⚙️", path: "/admin/settings" }] : []),
+    ...(canManageMaintenance ? [{ id: "maintenance", label: "Maintenance", icon: "🛠️", path: "/admin/maintenance" }] : []),
+    ...(canManageSystem ? [{ id: "system", label: "System", icon: "🖥️", path: "/admin/system" }] : []),
+  ];
+  const hasVisibleAdminTabs = availableTabs.length > 0;
+  const canAccessAdminPanel = Boolean(userProfile?.canAccessAdminPanel) && hasVisibleAdminTabs;
+  const users = useQuery(
+    api.users.getAllUsers,
+    canManageUsers || canManageGalaxyAssignments ? {} : "skip"
+  );
+  const systemSettings = useQuery(
+    api.system_settings.getSystemSettings,
+    canManageSettings || canManageGalaxyAssignments ? {} : "skip"
+  );
+  const defaultTabPath = availableTabs[0]?.path;
 
   if (userProfile === undefined) {
     return <AdminTabLoading />;
   }
 
-  if (!isAdmin) {
+  if (!canAccessAdminPanel) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="text-center">
           <div className="text-6xl mb-4">🚫</div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h1>
           <p className="text-gray-600 dark:text-gray-300">
-            You need administrator privileges to access this page.
+            You do not have access to any admin panel sections.
           </p>
         </div>
       </div>
     );
   }
 
-  if (users === undefined || systemSettings === undefined) {
+  if ((canManageUsers || canManageGalaxyAssignments) && users === undefined) {
+    return <AdminTabLoading />;
+  }
+
+  if ((canManageSettings || canManageGalaxyAssignments) && systemSettings === undefined) {
     return <AdminTabLoading />;
   }
 
@@ -69,18 +94,12 @@ export function AdminPanel() {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Panel</h1>
-        <p className="mt-2 text-gray-600 dark:text-gray-300">Manage users and system settings</p>
+        <p className="mt-2 text-gray-600 dark:text-gray-300">Manage project operations for the sections available to your role</p>
       </div>
       {/* Tab Navigation */}
       <div className="border-b border-gray-200 dark:border-gray-700 mb-8">
         <nav className="-mb-px flex space-x-8 overflow-x-auto">
-          {[
-            { id: "users", label: "Users", icon: "👥", path: "/admin/users" },
-            { id: "galaxies", label: "Galaxies", icon: "🌌", path: "/admin/galaxies" },
-            { id: "settings", label: "Settings", icon: "⚙️", path: "/admin/settings" },
-            { id: "maintenance", label: "Maintenance", icon: "🛠️", path: "/admin/maintenance" },
-            { id: "system", label: "System", icon: "🖥️", path: "/admin/system" },
-          ].map((tab) => (
+          {availableTabs.map((tab) => (
             <Link
               key={tab.id}
               to={tab.path}
@@ -99,49 +118,59 @@ export function AdminPanel() {
       </div>
 
       <Routes>
-        <Route index element={<Navigate to="users" replace />} />
-        <Route
-          path="users"
-          element={
-            <Suspense fallback={<AdminTabLoading />}>
-              <UsersTab users={users} />
-            </Suspense>
-          }
-        />
-        <Route
-          path="galaxies/*"
-          element={
-            <Suspense fallback={<AdminTabLoading />}>
-              <GalaxiesTab users={users} systemSettings={systemSettings} />
-            </Suspense>
-          }
-        />
+        <Route index element={<Navigate to={defaultTabPath ?? "/browse"} replace />} />
+        {canManageUsers && users && (
+          <Route
+            path="users"
+            element={
+              <Suspense fallback={<AdminTabLoading />}>
+                <UsersTab users={users} />
+              </Suspense>
+            }
+          />
+        )}
+        {canManageGalaxyAssignments && users && systemSettings && (
+          <Route
+            path="galaxies/*"
+            element={
+              <Suspense fallback={<AdminTabLoading />}>
+                <GalaxiesTab users={users} systemSettings={systemSettings} />
+              </Suspense>
+            }
+          />
+        )}
         <Route path="notifications/*" element={<Navigate to="/notifications/create" replace />} />
-        <Route
-          path="settings/*"
-          element={
-            <Suspense fallback={<AdminTabLoading />}>
-              <SettingsTab systemSettings={systemSettings} />
-            </Suspense>
-          }
-        />
-        <Route
-          path="maintenance/*"
-          element={
-            <Suspense fallback={<AdminTabLoading />}>
-              <MaintenanceTab />
-            </Suspense>
-          }
-        />
-        <Route
-          path="system"
-          element={
-            <Suspense fallback={<AdminTabLoading />}>
-              <SystemTab />
-            </Suspense>
-          }
-        />
-        <Route path="*" element={<Navigate to="users" replace />} />
+        {canManageSettings && systemSettings && (
+          <Route
+            path="settings/*"
+            element={
+              <Suspense fallback={<AdminTabLoading />}>
+                <SettingsTab systemSettings={systemSettings} />
+              </Suspense>
+            }
+          />
+        )}
+        {canManageMaintenance && (
+          <Route
+            path="maintenance/*"
+            element={
+              <Suspense fallback={<AdminTabLoading />}>
+                <MaintenanceTab />
+              </Suspense>
+            }
+          />
+        )}
+        {canManageSystem && (
+          <Route
+            path="system"
+            element={
+              <Suspense fallback={<AdminTabLoading />}>
+                <SystemTab />
+              </Suspense>
+            }
+          />
+        )}
+        <Route path="*" element={<Navigate to={defaultTabPath ?? "/browse"} replace />} />
       </Routes>
     </div>
   );

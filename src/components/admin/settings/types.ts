@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
+import type { RolePermissionsMatrix } from "../../../lib/permissions";
 
 export interface SettingsFormState {
   allowAnonymous: boolean;
@@ -22,6 +23,7 @@ export interface SettingsFormState {
   cloudflareCachePurgeEnabled: boolean;
   cloudflareZoneId: string;
   cloudflareApiToken: string;
+  rolePermissions: RolePermissionsMatrix;
 }
 
 export interface SettingsTabProps {

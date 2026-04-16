@@ -1,7 +1,7 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { Id } from "../_generated/dataModel";
-import { requireAdmin } from "../lib/auth";
+import { requirePermission } from "../lib/auth";
 import {
   classificationsByAwesomeFlag,
   classificationsByCreated,
@@ -39,7 +39,9 @@ export const getClassificationStats = query({
     timestamp: v.number(),
   }),
   handler: async (ctx, args) => {
-    await requireAdmin(ctx, { notAdminMessage: "Not authorized" });
+    await requirePermission(ctx, "viewLiveOverviewStatistics", {
+      notAuthorizedMessage: "Not authorized",
+    });
 
     const globalAwesome = await classificationsByAwesomeFlag.count(ctx, {
       bounds: { lower: { key: true, inclusive: true }, upper: { key: true, inclusive: true } },
