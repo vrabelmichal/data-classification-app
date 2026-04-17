@@ -276,7 +276,7 @@ export function UserSettings() {
     <div
       ref={barRef}
       className={cn(
-        "mx-auto w-full bg-gray-50/95 backdrop-blur dark:bg-gray-900/95",
+        "mx-auto w-full bg-gray-50 dark:bg-gray-900",
         hidden && "invisible pointer-events-none"
       )}
       aria-hidden={hidden}
