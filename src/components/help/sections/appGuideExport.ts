@@ -7,6 +7,7 @@ import {
 
 export const APP_GUIDE_EXPORT_EXCLUDE_ATTR = "data-app-guide-export-exclude";
 export const APP_GUIDE_STATIC_PREVIEW_ATTR = "data-app-guide-static-preview";
+export const APP_GUIDE_EXPORT_BUST_IMAGE_CACHE = true;
 
 type PreviewCaptureRequest = {
   key: string;
@@ -95,6 +96,20 @@ function createPlaceholderImageDataUrl({
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
+function getExportImageRequestUrl(url: string) {
+  if (!APP_GUIDE_EXPORT_BUST_IMAGE_CACHE) {
+    return url;
+  }
+
+  try {
+    const resolved = new URL(url, window.location.href);
+    resolved.searchParams.set("appGuideExportBust", `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`);
+    return resolved.toString();
+  } catch {
+    return url;
+  }
+}
+
 async function waitForImages(root: ParentNode) {
   const images = Array.from(root.querySelectorAll("img"));
 
@@ -135,7 +150,8 @@ async function fetchDataUrl(
 
   const pending = (async () => {
     try {
-      const response = await fetch(url);
+      const requestUrl = getExportImageRequestUrl(url);
+      const response = await fetch(requestUrl);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
       }
