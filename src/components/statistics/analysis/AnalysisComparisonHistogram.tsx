@@ -25,6 +25,7 @@ function ComparisonHistogramTooltip({
   payload,
   label,
   scale,
+  subjectLabelPlural,
 }: any) {
   if (!active || !payload?.length) {
     return null;
@@ -40,13 +41,13 @@ function ComparisonHistogramTooltip({
       <p className="font-medium text-gray-900 dark:text-white">{datum.metricLabel}</p>
       <p className="text-gray-600 dark:text-gray-300">Bucket: {label}</p>
       <p className="text-emerald-700 dark:text-emerald-300">
-        Matches thresholds: {datum.matchedCount.toLocaleString()} galaxies
+        Matches thresholds: {datum.matchedCount.toLocaleString()} {subjectLabelPlural}
         {scale === "relativeFrequency"
           ? ` (${formatRelativeFrequency(datum.matchedRelativeFrequency)})`
           : ""}
       </p>
       <p className="text-rose-700 dark:text-rose-300">
-        Fails thresholds: {datum.failedCount.toLocaleString()} galaxies
+        Fails thresholds: {datum.failedCount.toLocaleString()} {subjectLabelPlural}
         {scale === "relativeFrequency"
           ? ` (${formatRelativeFrequency(datum.failedRelativeFrequency)})`
           : ""}
@@ -58,12 +59,14 @@ function ComparisonHistogramTooltip({
 interface AnalysisComparisonHistogramProps {
   data: ComparisonHistogramDatum[];
   scale: AnalysisDistributionComparisonScale;
+  subjectLabelPlural?: string;
   height?: number;
 }
 
 export function AnalysisComparisonHistogram({
   data,
   scale,
+  subjectLabelPlural = "records",
   height = 280,
 }: AnalysisComparisonHistogramProps) {
   if (data.length === 0) {
@@ -109,7 +112,14 @@ export function AnalysisComparisonHistogram({
           domain={scale === "relativeFrequency" ? [0, 1] : undefined}
           tickFormatter={valueFormatter}
         />
-        <Tooltip content={<ComparisonHistogramTooltip scale={scale} />} />
+        <Tooltip
+          content={
+            <ComparisonHistogramTooltip
+              scale={scale}
+              subjectLabelPlural={subjectLabelPlural}
+            />
+          }
+        />
         <Legend />
         <Line
           type="stepAfter"

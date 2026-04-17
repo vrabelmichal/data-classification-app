@@ -2,27 +2,27 @@ import { useState } from "react";
 
 import { AnalysisComparisonHistogram } from "./AnalysisComparisonHistogram";
 import {
-  analysisConditionMetricOptions,
+  analysisClassificationConditionMetricOptions,
+  analysisClassificationHistogramMetricOptions,
   analysisDistributionScaleOptions,
-  analysisHistogramMetricOptions,
   analysisOperatorOptions,
   buildComparisonHistogramData,
   catalogNucleusOptions,
-  createAnalysisCondition,
+  createAnalysisClassificationCondition,
   dominantLsbOptions,
-  duplicateAnalysisDistributionComparison,
-  formatConditionThreshold,
-  formatMetricValue,
+  duplicateAnalysisClassificationDistributionComparison,
+  formatClassificationConditionThreshold,
+  formatClassificationMetricValue,
   formatPaperLabel,
-  getConditionMetricLabel,
+  getClassificationConditionMetricLabel,
+  getClassificationMetricLabel,
   getDistributionScaleLabel,
-  getMetricLabel,
-  isDateTimeConditionMetric,
+  isDateTimeClassificationConditionMetric,
   parseDateTimeLocalInputValue,
   toDateTimeLocalInputValue,
-  type AnalysisDistributionComparisonConfig,
-  type AnalysisDistributionComparisonResult,
-  type AnalysisQueryCondition,
+  type AnalysisClassificationComparisonCondition,
+  type AnalysisClassificationDistributionComparisonConfig,
+  type AnalysisClassificationDistributionComparisonResult,
 } from "./helpers";
 import type { DatasetSummary } from "./tabTypes";
 
@@ -123,16 +123,16 @@ function DuplicateIcon() {
   );
 }
 
-function ComparisonConditionEditor({
+function ClassificationConditionEditor({
   condition,
   onChange,
   onRemove,
 }: {
-  condition: AnalysisQueryCondition;
-  onChange: (nextCondition: AnalysisQueryCondition) => void;
+  condition: AnalysisClassificationComparisonCondition;
+  onChange: (nextCondition: AnalysisClassificationComparisonCondition) => void;
   onRemove: () => void;
 }) {
-  const isDateTimeMetric = isDateTimeConditionMetric(condition.metric);
+  const isDateTimeMetric = isDateTimeClassificationConditionMetric(condition.metric);
 
   return (
     <div className="grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/30 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,180px)_44px]">
@@ -143,16 +143,17 @@ function ComparisonConditionEditor({
         <select
           value={condition.metric}
           onChange={(event) => {
-            const nextMetric = event.target.value as AnalysisQueryCondition["metric"];
+            const nextMetric =
+              event.target.value as AnalysisClassificationComparisonCondition["metric"];
             const metricTypeChanged =
-              isDateTimeConditionMetric(nextMetric) !==
-              isDateTimeConditionMetric(condition.metric);
+              isDateTimeClassificationConditionMetric(nextMetric) !==
+              isDateTimeClassificationConditionMetric(condition.metric);
 
             onChange({
               ...condition,
               metric: nextMetric,
               count: metricTypeChanged
-                ? isDateTimeConditionMetric(nextMetric)
+                ? isDateTimeClassificationConditionMetric(nextMetric)
                   ? Date.now()
                   : 0
                 : condition.count,
@@ -160,7 +161,7 @@ function ComparisonConditionEditor({
           }}
           className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
         >
-          {analysisConditionMetricOptions.map((option) => (
+          {analysisClassificationConditionMetricOptions.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -177,7 +178,8 @@ function ComparisonConditionEditor({
           onChange={(event) =>
             onChange({
               ...condition,
-              operator: event.target.value as AnalysisQueryCondition["operator"],
+              operator:
+                event.target.value as AnalysisClassificationComparisonCondition["operator"],
             })
           }
           className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -192,7 +194,7 @@ function ComparisonConditionEditor({
 
       <label className="space-y-1">
         <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-          {isDateTimeMetric ? "Date and time" : "Count"}
+          {isDateTimeMetric ? "Date and time" : "Value"}
         </span>
         <input
           type={isDateTimeMetric ? "datetime-local" : "number"}
@@ -226,9 +228,7 @@ function ComparisonConditionEditor({
         />
         {isDateTimeMetric ? (
           <span className="block text-xs text-gray-500 dark:text-gray-400">
-            {condition.metric === "firstClassificationTime"
-              ? "Compares against the first classification timestamp on the galaxy."
-              : "Compares against the galaxy row creation timestamp."}
+            Compares against the classification row creation timestamp.
           </span>
         ) : null}
       </label>
@@ -268,9 +268,9 @@ function SubsetStatsCard({
 }: {
   title: string;
   tone: "match" | "fail";
-  metric: AnalysisDistributionComparisonConfig["histogramMetric"];
+  metric: AnalysisClassificationDistributionComparisonConfig["histogramMetric"];
   metricLabel: string;
-  stats: AnalysisDistributionComparisonResult["matchedStats"];
+  stats: AnalysisClassificationDistributionComparisonResult["matchedStats"];
 }) {
   const toneClasses =
     tone === "match"
@@ -282,44 +282,37 @@ function SubsetStatsCard({
       <div className="mb-3">
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Summary statistics for the selected histogram metric inside this subset.
+          Summary statistics for the selected classification histogram metric inside this subset.
         </p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <SummaryChip label="Galaxies" value={stats.recordCount.toLocaleString()} />
+        <SummaryChip label="Classifications" value={stats.recordCount.toLocaleString()} />
         <SummaryChip
           label="Share of scope"
           value={stats.shareOfScope === null ? "-" : `${(stats.shareOfScope * 100).toFixed(1)}%`}
         />
         <SummaryChip
           label={`Mean ${metricLabel}`}
-          value={formatMetricValueFromSelectedMetric(metric, stats.averageMetric)}
+          value={formatClassificationMetricValue(metric, stats.averageMetric)}
         />
         <SummaryChip
           label={`Median ${metricLabel}`}
-          value={formatMetricValueFromSelectedMetric(metric, stats.medianMetric)}
+          value={formatClassificationMetricValue(metric, stats.medianMetric)}
         />
         <SummaryChip
           label={`Min ${metricLabel}`}
-          value={formatMetricValueFromSelectedMetric(metric, stats.minMetric)}
+          value={formatClassificationMetricValue(metric, stats.minMetric)}
         />
         <SummaryChip
           label={`Max ${metricLabel}`}
-          value={formatMetricValueFromSelectedMetric(metric, stats.maxMetric)}
+          value={formatClassificationMetricValue(metric, stats.maxMetric)}
         />
       </div>
     </div>
   );
 }
 
-function formatMetricValueFromSelectedMetric(
-  metric: AnalysisDistributionComparisonConfig["histogramMetric"],
-  value: number | null
-) {
-  return formatMetricValue(metric, value);
-}
-
-export function DataAnalysisDistributionCard({
+export function DataAnalysisClassificationDistributionCard({
   comparison,
   result,
   summary,
@@ -331,8 +324,8 @@ export function DataAnalysisDistributionCard({
   onRemove,
   onUpdateComparison,
 }: {
-  comparison: AnalysisDistributionComparisonConfig;
-  result: AnalysisDistributionComparisonResult | undefined;
+  comparison: AnalysisClassificationDistributionComparisonConfig;
+  result: AnalysisClassificationDistributionComparisonResult | undefined;
   summary: DatasetSummary;
   isCollapsed: boolean;
   hasDataset: boolean;
@@ -343,8 +336,8 @@ export function DataAnalysisDistributionCard({
   onUpdateComparison: (
     comparisonId: string,
     updater: (
-      comparison: AnalysisDistributionComparisonConfig
-    ) => AnalysisDistributionComparisonConfig
+      comparison: AnalysisClassificationDistributionComparisonConfig
+    ) => AnalysisClassificationDistributionComparisonConfig
   ) => void;
 }) {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -359,7 +352,7 @@ export function DataAnalysisDistributionCard({
 
   return (
     <section
-      id={`analysis-distribution-${comparison.id}`}
+      id={`analysis-classification-distribution-${comparison.id}`}
       className="scroll-mt-32 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800"
     >
       <div className="flex flex-col gap-4 pb-4">
@@ -390,7 +383,7 @@ export function DataAnalysisDistributionCard({
             ) : (
               <div className="flex flex-wrap items-center gap-2 min-w-0">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
-                  {comparison.name || "Untitled distribution split"}
+                  {comparison.name || "Untitled classification split"}
                 </h3>
                 <button
                   type="button"
@@ -410,9 +403,11 @@ export function DataAnalysisDistributionCard({
               type="button"
               onClick={onToggleCollapsed}
               aria-label={
-                isCollapsed ? "Expand distribution card" : "Collapse distribution card"
+                isCollapsed ? "Expand classification distribution card" : "Collapse classification distribution card"
               }
-              title={isCollapsed ? "Expand distribution card" : "Collapse distribution card"}
+              title={
+                isCollapsed ? "Expand classification distribution card" : "Collapse classification distribution card"
+              }
               className={`inline-flex items-center justify-center rounded-md border px-4 py-2 text-sm font-medium transition ${
                 isCollapsed
                   ? "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -428,8 +423,8 @@ export function DataAnalysisDistributionCard({
               <button
                 type="button"
                 onClick={onDuplicate}
-                aria-label="Duplicate distribution card"
-                title="Duplicate distribution card"
+                aria-label="Duplicate classification distribution card"
+                title="Duplicate classification distribution card"
                 className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 sm:px-4"
               >
                 <span className="sm:mr-2">
@@ -441,8 +436,8 @@ export function DataAnalysisDistributionCard({
                 type="button"
                 onClick={onRemove}
                 disabled={!canRemove}
-                aria-label="Remove distribution card"
-                title="Remove distribution card"
+                aria-label="Remove classification distribution card"
+                title="Remove classification distribution card"
                 className="inline-flex items-center justify-center rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-red-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500 sm:px-4"
               >
                 <span className="sm:mr-2">
@@ -478,7 +473,7 @@ export function DataAnalysisDistributionCard({
                     }))
                   }
                   rows={2}
-                  placeholder="Optional note about what this split is meant to compare."
+                  placeholder="Optional note about what this classification split is meant to compare."
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   autoFocus
                 />
@@ -501,7 +496,7 @@ export function DataAnalysisDistributionCard({
         {hasDataset && result ? (
           <div className="flex flex-wrap gap-2 text-sm">
             <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-700 dark:bg-slate-700 dark:text-slate-100">
-              Scoped set {result.scopedCount.toLocaleString()}
+              Scoped classifications {result.scopedCount.toLocaleString()}
             </span>
             <span className="rounded-full bg-emerald-100 px-3 py-1 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200">
               Matches thresholds {result.matchedCount.toLocaleString()}
@@ -549,7 +544,8 @@ export function DataAnalysisDistributionCard({
                   onChange={(event) =>
                     onUpdateComparison(comparison.id, (currentComparison) => ({
                       ...currentComparison,
-                      catalogNucleus: event.target.value as AnalysisDistributionComparisonConfig["catalogNucleus"],
+                      catalogNucleus:
+                        event.target.value as AnalysisClassificationDistributionComparisonConfig["catalogNucleus"],
                     }))
                   }
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -571,7 +567,8 @@ export function DataAnalysisDistributionCard({
                   onChange={(event) =>
                     onUpdateComparison(comparison.id, (currentComparison) => ({
                       ...currentComparison,
-                      dominantLsb: event.target.value as AnalysisDistributionComparisonConfig["dominantLsb"],
+                      dominantLsb:
+                        event.target.value as AnalysisClassificationDistributionComparisonConfig["dominantLsb"],
                     }))
                   }
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -594,12 +591,13 @@ export function DataAnalysisDistributionCard({
                     onChange={(event) =>
                       onUpdateComparison(comparison.id, (currentComparison) => ({
                         ...currentComparison,
-                        histogramMetric: event.target.value as AnalysisDistributionComparisonConfig["histogramMetric"],
+                        histogramMetric:
+                          event.target.value as AnalysisClassificationDistributionComparisonConfig["histogramMetric"],
                       }))
                     }
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   >
-                    {analysisHistogramMetricOptions.map((option) => (
+                    {analysisClassificationHistogramMetricOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -614,7 +612,8 @@ export function DataAnalysisDistributionCard({
                       onChange={(event) =>
                         onUpdateComparison(comparison.id, (currentComparison) => ({
                           ...currentComparison,
-                          histogramScale: event.target.value as AnalysisDistributionComparisonConfig["histogramScale"],
+                          histogramScale:
+                            event.target.value as AnalysisClassificationDistributionComparisonConfig["histogramScale"],
                         }))
                       }
                       className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
@@ -635,10 +634,10 @@ export function DataAnalysisDistributionCard({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Thresholds
+                  Classification thresholds
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Records that satisfy every threshold fall into the matching subset. Records in the same scope that miss one or more thresholds fall into the failing subset.
+                  Each threshold is applied to individual classification rows after the galaxy-level scope filters.
                 </p>
               </div>
               <button
@@ -648,7 +647,7 @@ export function DataAnalysisDistributionCard({
                     ...currentComparison,
                     conditions: [
                       ...currentComparison.conditions,
-                      createAnalysisCondition(),
+                      createAnalysisClassificationCondition(),
                     ],
                   }))
                 }
@@ -660,7 +659,7 @@ export function DataAnalysisDistributionCard({
 
             <div className="space-y-3">
               {comparison.conditions.map((condition) => (
-                <ComparisonConditionEditor
+                <ClassificationConditionEditor
                   key={condition.id}
                   condition={condition}
                   onChange={(nextCondition) =>
@@ -695,7 +694,7 @@ export function DataAnalysisDistributionCard({
               {hasDataset && result ? (
                 <div className="mt-3 space-y-3 text-sm text-gray-700 dark:text-gray-200">
                   <SummaryChip
-                    label="Scoped records"
+                    label="Scoped classifications"
                     value={result.scopedCount.toLocaleString()}
                   />
                   <SummaryChip
@@ -708,7 +707,7 @@ export function DataAnalysisDistributionCard({
                   />
                   <SummaryChip
                     label="Histogram metric"
-                    value={getMetricLabel(comparison.histogramMetric)}
+                    value={getClassificationMetricLabel(comparison.histogramMetric)}
                   />
                   <SummaryChip
                     label="Scale"
@@ -721,7 +720,10 @@ export function DataAnalysisDistributionCard({
                     <div className="mt-1 space-y-1 text-sm font-medium text-gray-900 dark:text-white">
                       {comparison.conditions.map((condition) => (
                         <div key={condition.id}>
-                          {getConditionMetricLabel(condition.metric)} {condition.operator === "atLeast" ? "at least" : condition.operator === "atMost" ? "at most" : "exactly"} {formatConditionThreshold(condition.metric, condition.count)}
+                          {getClassificationConditionMetricLabel(condition.metric)} {condition.operator === "atLeast" ? "at least" : condition.operator === "atMost" ? "at most" : "exactly"} {formatClassificationConditionThreshold(
+                            condition.metric,
+                            condition.count
+                          )}
                         </div>
                       ))}
                     </div>
@@ -729,7 +731,7 @@ export function DataAnalysisDistributionCard({
                 </div>
               ) : (
                 <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                  Load the dataset first to evaluate this distribution split locally.
+                  Load the dataset first to evaluate this classification distribution split locally.
                 </p>
               )}
             </div>
@@ -737,28 +739,28 @@ export function DataAnalysisDistributionCard({
             <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
               <div className="mb-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Combined distribution comparison
+                  Combined classification comparison
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {hasDataset && result
-                    ? `Step-style comparison of ${getMetricLabel(comparison.histogramMetric).toLowerCase()} for galaxies that pass versus fail the thresholds, shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
+                    ? `Step-style comparison of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} for classifications that pass versus fail the thresholds, shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
                     : "Load the dataset to build this comparison histogram."}
                 </p>
               </div>
               <AnalysisComparisonHistogram
                 data={comparisonPlotData}
                 scale={comparison.histogramScale}
-                subjectLabelPlural="galaxies"
+                subjectLabelPlural="classifications"
               />
             </div>
           </div>
 
           <div className="mt-6 grid gap-4 xl:grid-cols-2">
             <SubsetStatsCard
-              title="Matches thresholds"
+              title="Classifications that match thresholds"
               tone="match"
               metric={comparison.histogramMetric}
-              metricLabel={getMetricLabel(comparison.histogramMetric)}
+              metricLabel={getClassificationMetricLabel(comparison.histogramMetric)}
               stats={
                 result?.matchedStats ?? {
                   recordCount: 0,
@@ -771,10 +773,10 @@ export function DataAnalysisDistributionCard({
               }
             />
             <SubsetStatsCard
-              title="Fails thresholds"
+              title="Classifications that fail thresholds"
               tone="fail"
               metric={comparison.histogramMetric}
-              metricLabel={getMetricLabel(comparison.histogramMetric)}
+              metricLabel={getClassificationMetricLabel(comparison.histogramMetric)}
               stats={
                 result?.failedStats ?? {
                   recordCount: 0,
@@ -793,4 +795,4 @@ export function DataAnalysisDistributionCard({
   );
 }
 
-export { duplicateAnalysisDistributionComparison };
+export { duplicateAnalysisClassificationDistributionComparison };

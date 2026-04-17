@@ -3,16 +3,23 @@ import { getPreviewImageName } from "../../../images/displaySettings";
 import {
   buildComparisonHistogramData,
   buildGlobalSummaryHistograms,
+  evaluateAnalysisClassificationDistributionComparison,
   evaluateAnalysisDistributionComparison,
   evaluateAnalysisQuery,
   filterZeroCountHistogram,
+  formatClassificationConditionThreshold,
+  formatClassificationMetricValue,
   formatConditionThreshold,
   formatMetricValue,
   formatPaperLabel,
+  getClassificationConditionMetricLabel,
+  getClassificationMetricLabel,
   getConditionMetricLabel,
   getDistributionScaleLabel,
   getMetricLabel,
   getVotePreview,
+  type AnalysisClassificationComparisonCondition,
+  type AnalysisClassificationDistributionComparisonConfig,
   type AnalysisDistributionComparisonConfig,
   type AnalysisQueryCondition,
   type AnalysisQueryConfig,
@@ -45,6 +52,7 @@ type ExportInput = {
   dataset: PreparedDataset;
   queries: AnalysisQueryConfig[];
   comparisons: AnalysisDistributionComparisonConfig[];
+  classificationComparisons: AnalysisClassificationDistributionComparisonConfig[];
   hideZeroBuckets: ZeroBucketState;
   imageQuality: "high" | "medium" | "low";
   generatedAt: Date;
@@ -358,7 +366,8 @@ function renderReportNavigation(reportData: AnalysisReportData) {
             <a href="#dataset-stats">Loaded dataset statistics</a>
             <a href="#global-histograms">Global histograms</a>
             <a href="#queries">Query cards</a>
-            <a href="#distribution-comparisons">Threshold-split distributions</a>
+            <a href="#distribution-comparisons">Galaxy threshold-split distributions</a>
+            <a href="#classification-distribution-comparisons">Classification threshold-split distributions</a>
           </div>
         </section>
         <section class="report-nav-group">
@@ -383,6 +392,17 @@ function renderReportNavigation(reportData: AnalysisReportData) {
               .join("")}
           </div>
         </section>
+        <section class="report-nav-group">
+          <h3>Classification splits</h3>
+          <div class="report-nav-links">
+            ${reportData.classificationDistributionComparisons
+              .map(
+                (comparison) =>
+                  `<a href="#classification-comparison-${escapeHtml(comparison.id)}">${escapeHtml(comparison.name)}</a>`
+              )
+              .join("")}
+          </div>
+        </section>
       </div>
     </nav>
   `;
@@ -403,11 +423,28 @@ function buildConditionExport(condition: AnalysisQueryCondition) {
   };
 }
 
+function buildClassificationConditionExport(
+  condition: AnalysisClassificationComparisonCondition
+) {
+  return {
+    metric: condition.metric,
+    metricLabel: getClassificationConditionMetricLabel(condition.metric),
+    operator: condition.operator,
+    operatorLabel: QUERY_OPERATOR_LABELS[condition.operator],
+    thresholdValue: condition.count,
+    thresholdDisplay: formatClassificationConditionThreshold(
+      condition.metric,
+      condition.count
+    ),
+  };
+}
+
 function buildReportData({
   summary,
   dataset,
   queries,
   comparisons,
+  classificationComparisons,
   hideZeroBuckets,
   imageQuality,
   generatedAt,
@@ -521,9 +558,48 @@ function buildReportData({
     };
   });
 
+  const classificationComparisonSections = classificationComparisons.map(
+    (comparison) => {
+      const result = evaluateAnalysisClassificationDistributionComparison(
+        dataset.records,
+        comparison
+      );
+      return {
+        id: comparison.id,
+        name: comparison.name || "Untitled classification distribution split",
+        description: comparison.description.trim() || "No description added yet.",
+        config: {
+          paper:
+            comparison.paper === "__any__"
+              ? "All papers"
+              : formatPaperLabel(comparison.paper),
+          catalogNucleus: CATALOG_NUCLEUS_LABELS[comparison.catalogNucleus],
+          dominantLsb: DOMINANT_LSB_LABELS[comparison.dominantLsb],
+          histogramMetricKey: comparison.histogramMetric,
+          histogramMetric: getClassificationMetricLabel(comparison.histogramMetric),
+          histogramScaleKey: comparison.histogramScale,
+          histogramScale: getDistributionScaleLabel(comparison.histogramScale),
+          conditions: comparison.conditions.map(buildClassificationConditionExport),
+        },
+        summary: {
+          scopedCount: result.scopedCount,
+          matchedCount: result.matchedCount,
+          failedCount: result.failedCount,
+          matchedStats: result.matchedStats,
+          failedStats: result.failedStats,
+        },
+        comparisonHistogram: buildComparisonHistogramData(
+          result.scopedHistogram,
+          result.matchedHistogram,
+          result.failedHistogram
+        ),
+      };
+    }
+  );
+
   return {
     reportType: "classification-analysis",
-    reportVersion: 4,
+    reportVersion: 5,
     generatedAtIso: generatedAt.toISOString(),
     generatedAtLabel: generatedAt.toLocaleString(),
     datasetLoadedAtIso: new Date(dataset.loadedAt).toISOString(),
@@ -552,6 +628,7 @@ function buildReportData({
     },
     globalHistograms,
     distributionComparisons: comparisonSections,
+    classificationDistributionComparisons: classificationComparisonSections,
     queries: querySections,
   };
 }
@@ -1032,11 +1109,256 @@ function renderDistributionComparisonCard(
   `;
 }
 
+function renderClassificationDistributionComparisonCard(
+  comparison: ReturnType<typeof buildReportData>["classificationDistributionComparisons"][number]
+) {
+  const maxBucketCount = Math.max(
+    1,
+    ...comparison.comparisonHistogram.map((bin) =>
+      Math.max(
+        comparison.config.histogramScaleKey === "relativeFrequency"
+          ? bin.matchedRelativeFrequency ?? 0
+          : bin.matchedCount,
+        comparison.config.histogramScaleKey === "relativeFrequency"
+          ? bin.failedRelativeFrequency ?? 0
+          : bin.failedCount
+      )
+    )
+  );
+
+  return `
+    <article id="classification-comparison-${escapeHtml(comparison.id)}" class="query-card" data-classification-comparison-id="${escapeHtml(comparison.id)}">
+      <header class="query-header">
+        <div>
+          <h3>${escapeHtml(comparison.name)}</h3>
+          <p>${escapeHtml(comparison.description)}</p>
+        </div>
+        <div class="query-badge">${escapeHtml(comparison.summary.scopedCount.toLocaleString())} scoped</div>
+      </header>
+
+      <div class="table-wrap">
+        <table class="meta-table" data-classification-comparison-config="${escapeHtml(comparison.id)}">
+          <tbody>
+            <tr>
+              <th scope="row">Paper filter</th>
+              <td>${escapeHtml(comparison.config.paper)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Catalog nucleus filter</th>
+              <td>${escapeHtml(comparison.config.catalogNucleus)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Dominant Is-LSB filter</th>
+              <td>${escapeHtml(comparison.config.dominantLsb)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Histogram metric</th>
+              <td>${escapeHtml(comparison.config.histogramMetric)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Histogram scale</th>
+              <td>${escapeHtml(comparison.config.histogramScale)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Thresholds</th>
+              <td>${escapeHtml(
+                comparison.config.conditions
+                  .map(
+                    (condition) =>
+                      `${condition.metricLabel} ${condition.operatorLabel.toLowerCase()} ${condition.thresholdDisplay}`
+                  )
+                  .join("; ")
+              )}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      ${renderStatCards([
+        {
+          key: `${comparison.id}-scopedCount`,
+          label: "Scoped classifications",
+          value: comparison.summary.scopedCount.toLocaleString(),
+          detail: "Classification rows remaining after the galaxy-level paper, catalog nucleus, and dominant Is-LSB filters.",
+        },
+        {
+          key: `${comparison.id}-matchedCount`,
+          label: "Matching subset",
+          value: comparison.summary.matchedCount.toLocaleString(),
+          detail: "Classifications in scope that satisfy every threshold on this card.",
+        },
+        {
+          key: `${comparison.id}-matchedShareOfScope`,
+          label: "Matching share of scope",
+          value: formatPercent(comparison.summary.matchedStats.shareOfScope),
+          detail: "Share of scoped classifications that satisfy every threshold on this card.",
+        },
+        {
+          key: `${comparison.id}-failedCount`,
+          label: "Failing subset",
+          value: comparison.summary.failedCount.toLocaleString(),
+          detail: "Classifications in the same scope that miss one or more thresholds.",
+        },
+        {
+          key: `${comparison.id}-failedShareOfScope`,
+          label: "Failing share of scope",
+          value: formatPercent(comparison.summary.failedStats.shareOfScope),
+          detail: "Share of scoped classifications that miss at least one threshold on this card.",
+        },
+      ])}
+
+      ${renderStatCards([
+        {
+          key: `${comparison.id}-matchedMean`,
+          label: `Matching mean ${comparison.config.histogramMetric}`,
+          value: formatClassificationMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.matchedStats.averageMetric
+          ),
+          detail: "Average selected metric value across the classifications that pass every threshold.",
+        },
+        {
+          key: `${comparison.id}-matchedMedian`,
+          label: `Matching median ${comparison.config.histogramMetric}`,
+          value: formatClassificationMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.matchedStats.medianMetric
+          ),
+          detail: "Median selected metric value across the classifications that pass every threshold.",
+        },
+        {
+          key: `${comparison.id}-matchedRange`,
+          label: "Matching min / max",
+          value: `${formatClassificationMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.matchedStats.minMetric
+          )} / ${formatClassificationMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.matchedStats.maxMetric
+          )}`,
+          detail: "Minimum and maximum selected metric values in the matching classification subset.",
+        },
+        {
+          key: `${comparison.id}-failedMean`,
+          label: `Failing mean ${comparison.config.histogramMetric}`,
+          value: formatClassificationMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.failedStats.averageMetric
+          ),
+          detail: "Average selected metric value across the classifications that fail at least one threshold.",
+        },
+        {
+          key: `${comparison.id}-failedMedian`,
+          label: `Failing median ${comparison.config.histogramMetric}`,
+          value: formatClassificationMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.failedStats.medianMetric
+          ),
+          detail: "Median selected metric value across the classifications that fail at least one threshold.",
+        },
+        {
+          key: `${comparison.id}-failedRange`,
+          label: "Failing min / max",
+          value: `${formatClassificationMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.failedStats.minMetric
+          )} / ${formatClassificationMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.failedStats.maxMetric
+          )}`,
+          detail: "Minimum and maximum selected metric values in the failing classification subset.",
+        },
+      ])}
+
+      <div class="subsection">
+        <h4>Combined comparison histogram</h4>
+        <p>Shared bins with overlaid ${escapeHtml(comparison.config.histogramScale.toLowerCase())} for the matching and failing classification subsets.</p>
+        <div class="comparison-histogram-bars">
+          ${comparison.comparisonHistogram
+            .map((bin) => {
+              const matchedScaleValue =
+                comparison.config.histogramScaleKey === "relativeFrequency"
+                  ? bin.matchedRelativeFrequency ?? 0
+                  : bin.matchedCount;
+              const failedScaleValue =
+                comparison.config.histogramScaleKey === "relativeFrequency"
+                  ? bin.failedRelativeFrequency ?? 0
+                  : bin.failedCount;
+              const matchedWidth = (matchedScaleValue / maxBucketCount) * 100;
+              const failedWidth = (failedScaleValue / maxBucketCount) * 100;
+              return `
+                <div class="comparison-row">
+                  <div class="histogram-label">${escapeHtml(bin.label)}</div>
+                  <div class="comparison-track-wrap">
+                    <div class="comparison-track comparison-track-match">
+                      <div class="comparison-line comparison-line-match" style="width: ${matchedWidth.toFixed(2)}%"></div>
+                    </div>
+                    <div class="comparison-track comparison-track-fail">
+                      <div class="comparison-line comparison-line-fail" style="width: ${failedWidth.toFixed(2)}%"></div>
+                    </div>
+                  </div>
+                  <div class="comparison-counts">
+                    <div>Pass ${escapeHtml(
+                      comparison.config.histogramScaleKey === "relativeFrequency"
+                        ? formatPercent(bin.matchedRelativeFrequency)
+                        : bin.matchedCount.toLocaleString()
+                    )}</div>
+                    <div>Fail ${escapeHtml(
+                      comparison.config.histogramScaleKey === "relativeFrequency"
+                        ? formatPercent(bin.failedRelativeFrequency)
+                        : bin.failedCount.toLocaleString()
+                    )}</div>
+                  </div>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" data-classification-comparison-histogram="${escapeHtml(comparison.id)}">
+            <thead>
+              <tr>
+                <th scope="col">Bin</th>
+                <th scope="col">Pass count</th>
+                <th scope="col">Fail count</th>
+                <th scope="col">Pass relative frequency</th>
+                <th scope="col">Fail relative frequency</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${comparison.comparisonHistogram
+                .map(
+                  (bin) => `
+                    <tr>
+                      <th scope="row">${escapeHtml(bin.label)}</th>
+                      <td>${escapeHtml(bin.matchedCount.toLocaleString())}</td>
+                      <td>${escapeHtml(bin.failedCount.toLocaleString())}</td>
+                      <td>${escapeHtml(formatPercent(bin.matchedRelativeFrequency))}</td>
+                      <td>${escapeHtml(formatPercent(bin.failedRelativeFrequency))}</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
 function formatMetricValueRaw(
   metric: AnalysisDistributionComparisonConfig["histogramMetric"],
   value: number | null
 ) {
   return formatMetricValue(metric, value);
+}
+
+function formatClassificationMetricValueRaw(
+  metric: AnalysisClassificationDistributionComparisonConfig["histogramMetric"],
+  value: number | null
+) {
+  return formatClassificationMetricValue(metric, value);
 }
 
 export function buildAnalysisStatsExport(input: ExportInput) {
@@ -1428,7 +1750,7 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
     </style>
   </head>
   <body>
-    <main data-report-type="classification-analysis" data-report-version="4">
+    <main data-report-type="classification-analysis" data-report-version="5">
       <section class="hero">
         <h1>Classification analysis report</h1>
         <p class="lead">
@@ -1455,6 +1777,10 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
               {
                 label: "Distribution cards exported",
                 value: reportData.distributionComparisons.length.toLocaleString(),
+              },
+              {
+                label: "Classification distribution cards exported",
+                value: reportData.classificationDistributionComparisons.length.toLocaleString(),
               },
             ])}
           </section>
@@ -1493,10 +1819,21 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
         </section>
 
         <section id="distribution-comparisons" class="section-card" data-section="distribution-comparisons">
-          <h2>Threshold-split distributions</h2>
+          <h2>Galaxy threshold-split distributions</h2>
           <div class="query-list">
             ${reportData.distributionComparisons
               .map((comparison) => renderDistributionComparisonCard(comparison))
+              .join("")}
+          </div>
+        </section>
+
+        <section id="classification-distribution-comparisons" class="section-card" data-section="classification-distribution-comparisons">
+          <h2>Classification threshold-split distributions</h2>
+          <div class="query-list">
+            ${reportData.classificationDistributionComparisons
+              .map((comparison) =>
+                renderClassificationDistributionComparisonCard(comparison)
+              )
               .join("")}
           </div>
         </section>

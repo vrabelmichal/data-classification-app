@@ -35,6 +35,20 @@ export type AnalysisRatioMetric =
 
 export type AnalysisMetric = AnalysisCountMetric | AnalysisRatioMetric;
 
+export type AnalysisClassificationMetric =
+  | "failedFittingFlag"
+  | "failedFittingAnsweredFlag"
+  | "visibleNucleusFlag"
+  | "visibleNucleusAnsweredFlag"
+  | "awesomeFlag"
+  | "validRedshiftFlag"
+  | "hasComment"
+  | "commentLength";
+
+export type AnalysisClassificationConditionMetric =
+  | AnalysisClassificationMetric
+  | "classificationCreationTime";
+
 export type AnalysisOperator = "atLeast" | "atMost" | "exactly";
 export type QuerySortDirection = "desc" | "asc";
 export type AnalysisDistributionComparisonScale =
@@ -138,9 +152,24 @@ export interface AnalysisCommentRule {
   terms: string;
 }
 
+export interface AnalysisClassificationPoint {
+  id: string;
+  vote: AnalysisClassificationVote;
+  record: AnalysisRecord;
+  normalizedComment: string | null;
+  commentLength: number;
+}
+
 export interface AnalysisQueryCondition {
   id: string;
   metric: AnalysisConditionMetric;
+  operator: AnalysisOperator;
+  count: number;
+}
+
+export interface AnalysisClassificationComparisonCondition {
+  id: string;
+  metric: AnalysisClassificationConditionMetric;
   operator: AnalysisOperator;
   count: number;
 }
@@ -172,6 +201,18 @@ export interface AnalysisDistributionComparisonConfig {
   histogramScale: AnalysisDistributionComparisonScale;
 }
 
+export interface AnalysisClassificationDistributionComparisonConfig {
+  id: string;
+  name: string;
+  description: string;
+  paper: string | "__any__";
+  catalogNucleus: CatalogNucleusFilter;
+  dominantLsb: DominantLsbFilter;
+  conditions: AnalysisClassificationComparisonCondition[];
+  histogramMetric: AnalysisClassificationMetric;
+  histogramScale: AnalysisDistributionComparisonScale;
+}
+
 export interface AnalysisDominantLsbBreakdown {
   lsb: number;
   nonLsb: number;
@@ -196,6 +237,17 @@ export interface AnalysisQueryResult {
 }
 
 export interface AnalysisDistributionComparisonResult {
+  scopedCount: number;
+  matchedCount: number;
+  failedCount: number;
+  scopedHistogram: HistogramDatum[];
+  matchedHistogram: HistogramDatum[];
+  failedHistogram: HistogramDatum[];
+  matchedStats: AnalysisDistributionSubsetStats;
+  failedStats: AnalysisDistributionSubsetStats;
+}
+
+export interface AnalysisClassificationDistributionComparisonResult {
   scopedCount: number;
   matchedCount: number;
   failedCount: number;
@@ -243,6 +295,11 @@ type MetricMeta = {
   label: string;
   shortLabel: string;
   isRatio: boolean;
+};
+
+type ClassificationMetricMeta = {
+  label: string;
+  shortLabel: string;
 };
 
 export const ANALYSIS_MAX_PREVIEW_LIMIT = 100;
@@ -383,6 +440,44 @@ const METRIC_META: Record<AnalysisMetric, MetricMeta> = {
   },
 };
 
+const CLASSIFICATION_METRIC_META: Record<
+  AnalysisClassificationMetric,
+  ClassificationMetricMeta
+> = {
+  failedFittingFlag: {
+    label: "Failed-fitting yes flag",
+    shortLabel: "Failed yes",
+  },
+  failedFittingAnsweredFlag: {
+    label: "Failed-fitting answered flag",
+    shortLabel: "Failed answered",
+  },
+  visibleNucleusFlag: {
+    label: "Visible-nucleus yes flag",
+    shortLabel: "Visible yes",
+  },
+  visibleNucleusAnsweredFlag: {
+    label: "Visible-nucleus answered flag",
+    shortLabel: "Visible answered",
+  },
+  awesomeFlag: {
+    label: "Awesome flag",
+    shortLabel: "Awesome",
+  },
+  validRedshiftFlag: {
+    label: "Valid-redshift flag",
+    shortLabel: "Valid z",
+  },
+  hasComment: {
+    label: "Has comment",
+    shortLabel: "Comment",
+  },
+  commentLength: {
+    label: "Comment length",
+    shortLabel: "Comment length",
+  },
+};
+
 const LSB_LABELS = {
   lsb: "LSB",
   nonLsb: "Non-LSB",
@@ -456,6 +551,29 @@ export const analysisConditionMetricOptions: Array<
   },
 ];
 
+export const analysisClassificationConditionMetricOptions: Array<
+  SelectOption<AnalysisClassificationConditionMetric>
+> = [
+  {
+    value: "classificationCreationTime",
+    label: "Classification creation time",
+  },
+  { value: "failedFittingFlag", label: "Failed-fitting yes flag" },
+  {
+    value: "failedFittingAnsweredFlag",
+    label: "Failed-fitting answered flag",
+  },
+  { value: "visibleNucleusFlag", label: "Visible-nucleus yes flag" },
+  {
+    value: "visibleNucleusAnsweredFlag",
+    label: "Visible-nucleus answered flag",
+  },
+  { value: "awesomeFlag", label: "Awesome flag" },
+  { value: "validRedshiftFlag", label: "Valid-redshift flag" },
+  { value: "hasComment", label: "Has comment" },
+  { value: "commentLength", label: "Comment length" },
+];
+
 export const analysisSortMetricOptions: Array<SelectOption<AnalysisMetric>> = [
   { value: "totalClassifications", label: "Total classifications" },
   { value: "lsbAgreementCount", label: "Is-LSB agreement count" },
@@ -513,6 +631,25 @@ export const analysisHistogramMetricOptions: Array<
   SelectOption<AnalysisMetric>
 > = [...analysisSortMetricOptions];
 
+export const analysisClassificationHistogramMetricOptions: Array<
+  SelectOption<AnalysisClassificationMetric>
+> = [
+  { value: "failedFittingFlag", label: "Failed-fitting yes flag" },
+  {
+    value: "failedFittingAnsweredFlag",
+    label: "Failed-fitting answered flag",
+  },
+  { value: "visibleNucleusFlag", label: "Visible-nucleus yes flag" },
+  {
+    value: "visibleNucleusAnsweredFlag",
+    label: "Visible-nucleus answered flag",
+  },
+  { value: "awesomeFlag", label: "Awesome flag" },
+  { value: "validRedshiftFlag", label: "Valid-redshift flag" },
+  { value: "hasComment", label: "Has comment" },
+  { value: "commentLength", label: "Comment length" },
+];
+
 export const analysisDistributionScaleOptions: Array<
   SelectOption<AnalysisDistributionComparisonScale>
 > = [
@@ -568,6 +705,19 @@ export function createAnalysisCondition(
   };
 }
 
+export function createAnalysisClassificationCondition(
+  metric: AnalysisClassificationConditionMetric = "classificationCreationTime",
+  operator: AnalysisOperator = "atMost",
+  count = Date.now()
+): AnalysisClassificationComparisonCondition {
+  return {
+    id: createAnalysisLocalId(),
+    metric,
+    operator,
+    count,
+  };
+}
+
 export function createAnalysisCommentRule(
   mode: AnalysisCommentRuleMode = "containsAny",
   terms = ""
@@ -611,6 +761,27 @@ export function createBlankAnalysisDistributionComparison(): AnalysisDistributio
   };
 }
 
+export function createBlankAnalysisClassificationDistributionComparison(): AnalysisClassificationDistributionComparisonConfig {
+  return {
+    id: createAnalysisLocalId(),
+    name: "Classification threshold split",
+    description:
+      "Compare a classification-level histogram metric for classifications that pass the configured thresholds versus classifications in the same scope that fail them.",
+    paper: "__any__",
+    catalogNucleus: "any",
+    dominantLsb: "any",
+    conditions: [
+      createAnalysisClassificationCondition(
+        "classificationCreationTime",
+        "atLeast",
+        Date.now()
+      ),
+    ],
+    histogramMetric: "failedFittingFlag",
+    histogramScale: "count",
+  };
+}
+
 export function duplicateAnalysisQuery(
   query: AnalysisQueryConfig
 ): AnalysisQueryConfig {
@@ -632,6 +803,20 @@ export function duplicateAnalysisQuery(
 export function duplicateAnalysisDistributionComparison(
   comparison: AnalysisDistributionComparisonConfig
 ): AnalysisDistributionComparisonConfig {
+  return {
+    ...comparison,
+    id: createAnalysisLocalId(),
+    name: `${comparison.name} copy`,
+    conditions: comparison.conditions.map((condition) => ({
+      ...condition,
+      id: createAnalysisLocalId(),
+    })),
+  };
+}
+
+export function duplicateAnalysisClassificationDistributionComparison(
+  comparison: AnalysisClassificationDistributionComparisonConfig
+): AnalysisClassificationDistributionComparisonConfig {
   return {
     ...comparison,
     id: createAnalysisLocalId(),
@@ -795,24 +980,28 @@ export function buildDefaultAnalysisQueries(): AnalysisQueryConfig[] {
 }
 
 export function buildDefaultAnalysisDistributionComparisons(): AnalysisDistributionComparisonConfig[] {
+  return [];
+}
+
+export function buildDefaultAnalysisClassificationDistributionComparisons(): AnalysisClassificationDistributionComparisonConfig[] {
   return [
     {
       id: createAnalysisLocalId(),
       name: "Failed-fitting votes before Feb 16, 2026",
       description:
-        "Compare failed-fitting yes-vote distributions for galaxies first classified before Feb 16, 2026 against galaxies first classified on or after that date.",
+        "Compare classification-level failed-fitting labels before Feb 16, 2026 against classifications created on or after that date.",
       paper: "__any__",
       catalogNucleus: "any",
       dominantLsb: "any",
       conditions: [
-        createAnalysisCondition(
-          "firstClassificationTime",
+        createAnalysisClassificationCondition(
+          "classificationCreationTime",
           "atMost",
           DISTRIBUTION_EXAMPLE_SPLIT_TIME
         ),
       ],
-      histogramMetric: "failedFittingVotes",
-      histogramScale: "count",
+      histogramMetric: "failedFittingFlag",
+      histogramScale: "relativeFrequency",
     },
   ];
 }
@@ -1092,6 +1281,10 @@ export function getMetricLabel(metric: AnalysisMetric) {
   return METRIC_META[metric].label;
 }
 
+export function getClassificationMetricLabel(metric: AnalysisClassificationMetric) {
+  return CLASSIFICATION_METRIC_META[metric].label;
+}
+
 export function getConditionMetricLabel(metric: AnalysisConditionMetric) {
   if (metric === "galaxyCreationTime") {
     return "Galaxy row creation time";
@@ -1104,6 +1297,16 @@ export function getConditionMetricLabel(metric: AnalysisConditionMetric) {
   return getMetricLabel(metric);
 }
 
+export function getClassificationConditionMetricLabel(
+  metric: AnalysisClassificationConditionMetric
+) {
+  if (metric === "classificationCreationTime") {
+    return "Classification creation time";
+  }
+
+  return getClassificationMetricLabel(metric);
+}
+
 export function getDistributionScaleLabel(
   scale: AnalysisDistributionComparisonScale
 ) {
@@ -1112,6 +1315,12 @@ export function getDistributionScaleLabel(
 
 export function getMetricShortLabel(metric: AnalysisMetric) {
   return METRIC_META[metric].shortLabel;
+}
+
+export function getClassificationMetricShortLabel(
+  metric: AnalysisClassificationMetric
+) {
+  return CLASSIFICATION_METRIC_META[metric].shortLabel;
 }
 
 export function isRatioMetric(metric: AnalysisMetric) {
@@ -1130,6 +1339,23 @@ export function formatMetricValue(metric: AnalysisMetric, value: number | null) 
   return value.toLocaleString();
 }
 
+export function formatClassificationMetricValue(
+  metric: AnalysisClassificationMetric,
+  value: number | null
+) {
+  if (value === null || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  if (metric === "commentLength") {
+    return value.toLocaleString();
+  }
+
+  return value.toLocaleString(undefined, {
+    maximumFractionDigits: 3,
+  });
+}
+
 export function formatPaperLabel(paper: string | null | undefined) {
   if (!paper) {
     return "No paper";
@@ -1140,6 +1366,12 @@ export function formatPaperLabel(paper: string | null | undefined) {
 
 export function isDateTimeConditionMetric(metric: AnalysisConditionMetric) {
   return metric === "galaxyCreationTime" || metric === "firstClassificationTime";
+}
+
+export function isDateTimeClassificationConditionMetric(
+  metric: AnalysisClassificationConditionMetric
+) {
+  return metric === "classificationCreationTime";
 }
 
 export function formatAnalysisDateTime(timestamp: number | null | undefined) {
@@ -1161,6 +1393,17 @@ export function formatConditionThreshold(
   value: number
 ) {
   if (isDateTimeConditionMetric(metric)) {
+    return formatAnalysisDateTime(value);
+  }
+
+  return Math.max(0, Math.floor(value || 0)).toLocaleString();
+}
+
+export function formatClassificationConditionThreshold(
+  metric: AnalysisClassificationConditionMetric,
+  value: number
+) {
+  if (isDateTimeClassificationConditionMetric(metric)) {
     return formatAnalysisDateTime(value);
   }
 
@@ -1257,11 +1500,57 @@ function getConditionMetricValue(
   return getMetricValue(record, metric);
 }
 
+function getClassificationMetricValue(
+  point: AnalysisClassificationPoint,
+  metric: AnalysisClassificationMetric
+) {
+  switch (metric) {
+    case "failedFittingFlag":
+      return point.vote.failed_fitting === true ? 1 : 0;
+    case "failedFittingAnsweredFlag":
+      return point.vote.failed_fitting !== undefined ? 1 : 0;
+    case "visibleNucleusFlag":
+      return point.vote.visible_nucleus === true ? 1 : 0;
+    case "visibleNucleusAnsweredFlag":
+      return point.vote.visible_nucleus !== undefined ? 1 : 0;
+    case "awesomeFlag":
+      return point.vote.awesome_flag ? 1 : 0;
+    case "validRedshiftFlag":
+      return point.vote.valid_redshift ? 1 : 0;
+    case "hasComment":
+      return point.normalizedComment ? 1 : 0;
+    case "commentLength":
+      return point.commentLength;
+  }
+}
+
+function getClassificationConditionMetricValue(
+  point: AnalysisClassificationPoint,
+  metric: AnalysisClassificationConditionMetric
+) {
+  if (metric === "classificationCreationTime") {
+    return point.vote._creationTime;
+  }
+
+  return getClassificationMetricValue(point, metric);
+}
+
 function normalizeConditionThreshold(
   metric: AnalysisConditionMetric,
   value: number
 ) {
   if (isDateTimeConditionMetric(metric)) {
+    return value;
+  }
+
+  return Math.max(0, Math.floor(value));
+}
+
+function normalizeClassificationConditionThreshold(
+  metric: AnalysisClassificationConditionMetric,
+  value: number
+) {
+  if (isDateTimeClassificationConditionMetric(metric)) {
     return value;
   }
 
@@ -1288,10 +1577,32 @@ function matchesCondition(
   }
 }
 
+function matchesClassificationCondition(
+  point: AnalysisClassificationPoint,
+  condition: AnalysisClassificationComparisonCondition
+) {
+  const value = getClassificationConditionMetricValue(point, condition.metric);
+  const threshold = normalizeClassificationConditionThreshold(
+    condition.metric,
+    condition.count
+  );
+
+  switch (condition.operator) {
+    case "atLeast":
+      return value >= threshold;
+    case "atMost":
+      return value <= threshold;
+    case "exactly":
+      return value === threshold;
+  }
+}
+
 function matchesSharedFilters(
   record: AnalysisRecord,
   filters: Pick<
-    AnalysisQueryConfig | AnalysisDistributionComparisonConfig,
+    | AnalysisQueryConfig
+    | AnalysisDistributionComparisonConfig
+    | AnalysisClassificationDistributionComparisonConfig,
     "paper" | "catalogNucleus" | "dominantLsb"
   >
 ) {
@@ -1321,6 +1632,15 @@ function matchesAllConditions(
   conditions: AnalysisQueryCondition[]
 ) {
   return conditions.every((condition) => matchesCondition(record, condition));
+}
+
+function matchesAllClassificationConditions(
+  point: AnalysisClassificationPoint,
+  conditions: AnalysisClassificationComparisonCondition[]
+) {
+  return conditions.every((condition) =>
+    matchesClassificationCondition(point, condition)
+  );
 }
 
 function parseCommentTerms(input: string) {
@@ -1510,6 +1830,54 @@ export function buildHistogramData(
   }));
 }
 
+export function buildClassificationHistogramData(
+  points: AnalysisClassificationPoint[],
+  metric: AnalysisClassificationMetric
+): HistogramDatum[] {
+  if (points.length === 0) {
+    return [];
+  }
+
+  const metricLabel = getClassificationMetricLabel(metric);
+  const values = points.map((point) =>
+    Math.max(0, Math.round(getClassificationMetricValue(point, metric)))
+  );
+  const maxValue = Math.max(...values);
+
+  if (metric === "commentLength") {
+    const targetBucketCount = 8;
+    const stepCandidates = [10, 25, 50, 100, 250, 500, 1000];
+    const rawStep = Math.max(1, Math.ceil((maxValue + 1) / targetBucketCount));
+    const bucketSize =
+      stepCandidates.find((candidate) => candidate >= rawStep) ?? rawStep;
+    const bucketCount = Math.max(1, Math.ceil((maxValue + 1) / bucketSize));
+    const bucketValues = Array.from({ length: bucketCount }, () => 0);
+
+    for (const value of values) {
+      const index = Math.min(Math.floor(value / bucketSize), bucketCount - 1);
+      bucketValues[index] += 1;
+    }
+
+    return bucketValues.map((count, index) => {
+      const start = index * bucketSize;
+      const end = Math.min(maxValue, start + bucketSize - 1);
+      return {
+        key: `${metric}-${start}-${end}`,
+        label: `${start}-${end}`,
+        count,
+        metricLabel,
+      };
+    });
+  }
+
+  return Array.from({ length: Math.max(maxValue, 1) + 1 }, (_, index) => ({
+    key: `${metric}-${index}`,
+    label: String(index),
+    count: values.filter((value) => value === index).length,
+    metricLabel,
+  }));
+}
+
 function averageDefined(values: Array<number | null>) {
   const definedValues = values.filter(
     (value): value is number => value !== null && Number.isFinite(value)
@@ -1564,6 +1932,63 @@ function summarizeDistributionSubset(
     minMetric: Math.min(...values),
     maxMetric: Math.max(...values),
   };
+}
+
+function summarizeClassificationDistributionSubset(
+  points: AnalysisClassificationPoint[],
+  metric: AnalysisClassificationMetric,
+  scopedCount: number
+): AnalysisDistributionSubsetStats {
+  if (points.length === 0) {
+    return {
+      recordCount: 0,
+      shareOfScope: scopedCount > 0 ? 0 : null,
+      averageMetric: null,
+      medianMetric: null,
+      minMetric: null,
+      maxMetric: null,
+    };
+  }
+
+  const values = points.map((point) => getClassificationMetricValue(point, metric));
+
+  return {
+    recordCount: points.length,
+    shareOfScope: scopedCount > 0 ? points.length / scopedCount : null,
+    averageMetric: values.reduce((sum, value) => sum + value, 0) / values.length,
+    medianMetric: computeMedian(values),
+    minMetric: Math.min(...values),
+    maxMetric: Math.max(...values),
+  };
+}
+
+function buildClassificationPoints(
+  records: AnalysisRecord[],
+  filters: Pick<
+    AnalysisClassificationDistributionComparisonConfig,
+    "paper" | "catalogNucleus" | "dominantLsb"
+  >
+) {
+  const points: AnalysisClassificationPoint[] = [];
+
+  for (const record of records) {
+    if (!matchesSharedFilters(record, filters)) {
+      continue;
+    }
+
+    for (const vote of record.votes) {
+      const normalizedComment = getNormalizedComment(vote.comments);
+      points.push({
+        id: vote._id,
+        vote,
+        record,
+        normalizedComment,
+        commentLength: normalizedComment?.length ?? 0,
+      });
+    }
+  }
+
+  return points;
 }
 
 export function buildComparisonHistogramData(
@@ -1720,6 +2145,47 @@ export function evaluateAnalysisDistributionComparison(
       failedRecords,
       comparison.histogramMetric,
       scopedRecords.length
+    ),
+  };
+}
+
+export function evaluateAnalysisClassificationDistributionComparison(
+  records: AnalysisRecord[],
+  comparison: AnalysisClassificationDistributionComparisonConfig
+): AnalysisClassificationDistributionComparisonResult {
+  const scopedPoints = buildClassificationPoints(records, comparison);
+  const matchedPoints = scopedPoints.filter((point) =>
+    matchesAllClassificationConditions(point, comparison.conditions)
+  );
+  const failedPoints = scopedPoints.filter(
+    (point) => !matchesAllClassificationConditions(point, comparison.conditions)
+  );
+
+  return {
+    scopedCount: scopedPoints.length,
+    matchedCount: matchedPoints.length,
+    failedCount: failedPoints.length,
+    scopedHistogram: buildClassificationHistogramData(
+      scopedPoints,
+      comparison.histogramMetric
+    ),
+    matchedHistogram: buildClassificationHistogramData(
+      matchedPoints,
+      comparison.histogramMetric
+    ),
+    failedHistogram: buildClassificationHistogramData(
+      failedPoints,
+      comparison.histogramMetric
+    ),
+    matchedStats: summarizeClassificationDistributionSubset(
+      matchedPoints,
+      comparison.histogramMetric,
+      scopedPoints.length
+    ),
+    failedStats: summarizeClassificationDistributionSubset(
+      failedPoints,
+      comparison.histogramMetric,
+      scopedPoints.length
     ),
   };
 }

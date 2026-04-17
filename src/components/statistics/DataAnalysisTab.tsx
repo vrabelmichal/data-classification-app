@@ -14,6 +14,7 @@ import {
 import { ClassificationDetailsModal } from "./analysis/ClassificationDetailsModal";
 import { DataAnalysisNavigator } from "./analysis/DataAnalysisNavigator";
 import {
+  AnalysisClassificationDistributionToolbar,
   AnalysisDistributionToolbar,
   AnalysisDatasetStats,
   AnalysisGlobalHistogramSection,
@@ -25,20 +26,29 @@ import {
   duplicateAnalysisQuery,
 } from "./analysis/DataAnalysisQueryCard";
 import {
+  DataAnalysisClassificationDistributionCard,
+  duplicateAnalysisClassificationDistributionComparison,
+} from "./analysis/DataAnalysisClassificationDistributionCard";
+import {
   DataAnalysisDistributionCard,
   duplicateAnalysisDistributionComparison,
 } from "./analysis/DataAnalysisDistributionCard";
 import { AgreementExplanation } from "./analysis/AgreementExplanation";
 import {
+  buildDefaultAnalysisClassificationDistributionComparisons,
   buildDefaultAnalysisDistributionComparisons,
   buildDefaultAnalysisQueries,
   buildGlobalSummaryHistograms,
+  createBlankAnalysisClassificationDistributionComparison,
   createBlankAnalysisDistributionComparison,
   createBlankAnalysisQuery,
+  evaluateAnalysisClassificationDistributionComparison,
   evaluateAnalysisDistributionComparison,
   evaluateAnalysisQuery,
   filterZeroCountHistogram,
   formatPaperLabel,
+  type AnalysisClassificationDistributionComparisonConfig,
+  type AnalysisClassificationDistributionComparisonResult,
   type AnalysisDistributionComparisonConfig,
   type AnalysisDistributionComparisonResult,
   type AnalysisQueryConfig,
@@ -215,16 +225,29 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     () => buildDefaultAnalysisDistributionComparisons(),
     []
   );
+  const initialClassificationComparisons = useMemo(
+    () => buildDefaultAnalysisClassificationDistributionComparisons(),
+    []
+  );
   const [queries, setQueries] = useState<AnalysisQueryConfig[]>(initialQueries);
   const [comparisons, setComparisons] = useState<AnalysisDistributionComparisonConfig[]>(
     initialComparisons
   );
+  const [classificationComparisons, setClassificationComparisons] = useState<
+    AnalysisClassificationDistributionComparisonConfig[]
+  >(initialClassificationComparisons);
   const [collapsedQueries, setCollapsedQueries] = useState<Record<string, boolean>>(
     () => Object.fromEntries(initialQueries.map((query) => [query.id, true]))
   );
   const [collapsedComparisons, setCollapsedComparisons] = useState<
     Record<string, boolean>
   >(() => Object.fromEntries(initialComparisons.map((comparison) => [comparison.id, true])));
+  const [collapsedClassificationComparisons, setCollapsedClassificationComparisons] =
+    useState<Record<string, boolean>>(() =>
+      Object.fromEntries(
+        initialClassificationComparisons.map((comparison) => [comparison.id, true])
+      )
+    );
   const [selectedRecord, setSelectedRecord] = useState<AnalysisRecord | null>(null);
   const [hideZeroBuckets, setHideZeroBuckets] = useState<ZeroBucketState>({
     awesomeVotes: true,
@@ -300,6 +323,22 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     []
   );
 
+  const updateClassificationComparison = useCallback(
+    (
+      comparisonId: string,
+      updater: (
+        comparison: AnalysisClassificationDistributionComparisonConfig
+      ) => AnalysisClassificationDistributionComparisonConfig
+    ) => {
+      setClassificationComparisons((currentComparisons) =>
+        currentComparisons.map((comparison) =>
+          comparison.id === comparisonId ? updater(comparison) : comparison
+        )
+      );
+    },
+    []
+  );
+
   const removeQuery = useCallback((queryId: string) => {
     setQueries((currentQueries) =>
       currentQueries.filter((query) => query.id !== queryId)
@@ -322,6 +361,17 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     });
   }, []);
 
+  const removeClassificationComparison = useCallback((comparisonId: string) => {
+    setClassificationComparisons((currentComparisons) =>
+      currentComparisons.filter((comparison) => comparison.id !== comparisonId)
+    );
+    setCollapsedClassificationComparisons((current) => {
+      const next = { ...current };
+      delete next[comparisonId];
+      return next;
+    });
+  }, []);
+
   const toggleQueryCollapsed = useCallback((queryId: string) => {
     setCollapsedQueries((current) => ({
       ...current,
@@ -336,6 +386,16 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     }));
   }, []);
 
+  const toggleClassificationComparisonCollapsed = useCallback(
+    (comparisonId: string) => {
+      setCollapsedClassificationComparisons((current) => ({
+        ...current,
+        [comparisonId]: !current[comparisonId],
+      }));
+    },
+    []
+  );
+
   const collapseAllQueries = useCallback(() => {
     setCollapsedQueries(Object.fromEntries(queries.map((query) => [query.id, true])));
   }, [queries]);
@@ -346,12 +406,24 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     );
   }, [comparisons]);
 
+  const collapseAllClassificationComparisons = useCallback(() => {
+    setCollapsedClassificationComparisons(
+      Object.fromEntries(
+        classificationComparisons.map((comparison) => [comparison.id, true])
+      )
+    );
+  }, [classificationComparisons]);
+
   const expandAllQueries = useCallback(() => {
     setCollapsedQueries({});
   }, []);
 
   const expandAllComparisons = useCallback(() => {
     setCollapsedComparisons({});
+  }, []);
+
+  const expandAllClassificationComparisons = useCallback(() => {
+    setCollapsedClassificationComparisons({});
   }, []);
 
   const toggleZeroBucket = useCallback((key: keyof ZeroBucketState) => {
@@ -371,6 +443,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       dataset,
       queries,
       comparisons,
+      classificationComparisons,
       hideZeroBuckets,
       imageQuality,
       generatedAt: new Date(),
@@ -381,7 +454,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       `classification-analysis-report-${formatDateForFilename()}.html`,
       "text/html;charset=utf-8"
     );
-  }, [comparisons, dataset, hideZeroBuckets, imageQuality, queries, summary]);
+  }, [classificationComparisons, comparisons, dataset, hideZeroBuckets, imageQuality, queries, summary]);
 
   const handleExportJson = useCallback(() => {
     if (!summary || !dataset) {
@@ -393,6 +466,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       dataset,
       queries,
       comparisons,
+      classificationComparisons,
       hideZeroBuckets,
       imageQuality,
       generatedAt: new Date(),
@@ -403,7 +477,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       `classification-analysis-stats-${formatDateForFilename()}.json`,
       "application/json;charset=utf-8"
     );
-  }, [comparisons, dataset, hideZeroBuckets, imageQuality, queries, summary]);
+  }, [classificationComparisons, comparisons, dataset, hideZeroBuckets, imageQuality, queries, summary]);
 
   const handleDownloadQueryIdsTxt = useCallback(
     (query: AnalysisQueryConfig, result: AnalysisQueryResult) => {
@@ -474,6 +548,30 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
 
     return resultMap;
   }, [comparisons, deferredRecords]);
+
+  const classificationComparisonResults = useMemo<
+    Map<string, AnalysisClassificationDistributionComparisonResult>
+  >(() => {
+    const resultMap = new Map<
+      string,
+      AnalysisClassificationDistributionComparisonResult
+    >();
+    if (deferredRecords.length === 0) {
+      return resultMap;
+    }
+
+    for (const comparison of classificationComparisons) {
+      resultMap.set(
+        comparison.id,
+        evaluateAnalysisClassificationDistributionComparison(
+          deferredRecords,
+          comparison
+        )
+      );
+    }
+
+    return resultMap;
+  }, [classificationComparisons, deferredRecords]);
 
   const globalHistograms = useMemo(
     () => buildGlobalSummaryHistograms(deferredRecords),
@@ -629,6 +727,44 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
             }
             onRemove={() => removeComparison(comparison.id)}
             onUpdateComparison={updateComparison}
+          />
+        ))}
+      </div>
+
+      <AnalysisClassificationDistributionToolbar
+        onAddDistribution={() =>
+          setClassificationComparisons((currentComparisons) => [
+            ...currentComparisons,
+            createBlankAnalysisClassificationDistributionComparison(),
+          ])
+        }
+        onCollapseAll={collapseAllClassificationComparisons}
+        onExpandAll={expandAllClassificationComparisons}
+      />
+
+      <div className="space-y-6">
+        {classificationComparisons.map((comparison) => (
+          <DataAnalysisClassificationDistributionCard
+            key={comparison.id}
+            comparison={comparison}
+            result={classificationComparisonResults.get(comparison.id)}
+            summary={summary}
+            isCollapsed={
+              collapsedClassificationComparisons[comparison.id] === true
+            }
+            hasDataset={hasDataset}
+            canRemove={classificationComparisons.length > 1}
+            onToggleCollapsed={() =>
+              toggleClassificationComparisonCollapsed(comparison.id)
+            }
+            onDuplicate={() =>
+              setClassificationComparisons((currentComparisons) => [
+                ...currentComparisons,
+                duplicateAnalysisClassificationDistributionComparison(comparison),
+              ])
+            }
+            onRemove={() => removeClassificationComparison(comparison.id)}
+            onUpdateComparison={updateClassificationComparison}
           />
         ))}
       </div>
