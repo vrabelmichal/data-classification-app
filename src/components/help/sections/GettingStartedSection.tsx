@@ -6,7 +6,7 @@ type GettingStartedSectionProps = {
 
 export function GettingStartedSection({ appName }: GettingStartedSectionProps) {
   return (
-    <>
+    <div className="space-y-8">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
           <span className="mr-2">🚀</span>
@@ -35,6 +35,6 @@ export function GettingStartedSection({ appName }: GettingStartedSectionProps) {
         </div>
       </div>
       <KidsExamplesCarousel />
-    </>
+    </div>
   );
 }

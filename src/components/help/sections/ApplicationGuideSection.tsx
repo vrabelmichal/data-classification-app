@@ -506,16 +506,51 @@ function MinorHeading({ children }: { children: React.ReactNode }) {
   );
 }
 
+function getHelpTabsHeight(): number {
+  if (typeof document === "undefined") return 0;
+  // HelpTabs renders with aria-label="Help sections" on the nav inside a border-b div
+  const nav = document.querySelector('nav[aria-label="Help sections"]');
+  return nav?.closest("div")?.getBoundingClientRect().height ?? 0;
+}
+
 function RightSideAnchors({ items }: { items: AnchorItem[] }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const [panelHeight, setPanelHeight] = useState<number>(0);
   const [isPinned, setIsPinned] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [fixedMetrics, setFixedMetrics] = useState<{ left: number; top: number; width: number }>({
     left: 0,
     top: 24,
     width: 0,
   });
+
+  // Track active section via IntersectionObserver
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const helpTabsHeight = getHelpTabsHeight();
+    const rootMarginTop = -(helpTabsHeight + 24);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Find the topmost visible section
+        const visible = entries
+          .filter((e) => e.isIntersecting)
+          .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible.length > 0) {
+          setActiveId(visible[0].target.id);
+        }
+      },
+      {
+        rootMargin: `${rootMarginTop}px 0px -60% 0px`,
+        threshold: 0,
+      }
+    );
+    items.forEach(({ id }) => {
+      const el = document.getElementById(id);
+      if (el) observer.observe(el);
+    });
+    return () => observer.disconnect();
+  }, [items]);
 
   useLayoutEffect(() => {
     const container = containerRef.current;
@@ -525,9 +560,8 @@ function RightSideAnchors({ items }: { items: AnchorItem[] }) {
       return;
     }
 
-    const topOffset = 24;
-
     const updatePosition = () => {
+      const topOffset = getHelpTabsHeight() + 24;
       const nextPanelHeight = panel.offsetHeight;
       const rect = container.getBoundingClientRect();
       const shouldPin = window.innerWidth >= 1024 && rect.top <= topOffset;
@@ -596,15 +630,23 @@ function RightSideAnchors({ items }: { items: AnchorItem[] }) {
           On This Page
         </div>
         <nav className="space-y-2">
-          {items.map((item) => (
-            <a
-              key={item.id}
-              href={`#${item.id}`}
-              className="block rounded-lg px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
-            >
-              {item.label}
-            </a>
-          ))}
+          {items.map((item) => {
+            const isActive = activeId === item.id;
+            return (
+              <a
+                key={item.id}
+                href={`#${item.id}`}
+                className={cn(
+                  "block rounded-lg px-3 py-2 text-sm transition-colors",
+                  isActive
+                    ? "bg-blue-50 font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-400"
+                    : "text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                )}
+              >
+                {item.label}
+              </a>
+            );
+          })}
         </nav>
       </div>
       </div>
