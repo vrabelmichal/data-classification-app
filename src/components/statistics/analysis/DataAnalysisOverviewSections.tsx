@@ -212,135 +212,186 @@ export function AnalysisLoadSection({
           </div>
         </div>
 
-        <div className="w-full max-w-md rounded-xl border border-blue-200 bg-blue-50 p-5 dark:border-blue-900/60 dark:bg-blue-950/20">
-          <div className="text-sm font-medium uppercase tracking-wide text-blue-700 dark:text-blue-300">
-            Analysis run
-          </div>
-          <div className="mt-2 text-lg font-semibold text-blue-900 dark:text-blue-100">
-            {hasDataset ? "Dataset ready" : "Dataset not loaded"}
-          </div>
-          <p className="mt-2 text-sm text-blue-800/90 dark:text-blue-200/90">
-            {hasDataset
-              ? `Loaded ${loadedRecordsCount.toLocaleString()} galaxies${loadedAtLabel ? ` at ${loadedAtLabel}` : ""}. Query edits now stay fully local.`
-              : "Fetching happens in paged requests so the page stays within Convex limits while still pulling large client-side analysis batches."}
-          </p>
+        <div className="w-full max-w-sm shrink-0 divide-y divide-blue-200/60 overflow-hidden rounded-xl border border-blue-200 bg-blue-50 dark:divide-blue-900/40 dark:border-blue-900/60 dark:bg-blue-950/20">
 
-          <div className="mt-4 flex flex-wrap gap-3">
-            {hasStoredDataset ? (
+          {/* ── Status ─────────────────────────────────── */}
+          <div className="px-5 py-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                Analysis run
+              </span>
+              <span
+                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  loadState.status === "loading"
+                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                    : hasDataset
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                      : "bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-400"
+                }`}
+              >
+                {loadState.status === "loading"
+                  ? "Loading"
+                  : hasDataset
+                    ? "Ready"
+                    : "Not loaded"}
+              </span>
+            </div>
+            <p className="mt-2 text-sm text-blue-800/80 dark:text-blue-200/80">
+              {hasDataset
+                ? `Loaded ${loadedRecordsCount.toLocaleString()} galaxies${loadedAtLabel ? ` at ${loadedAtLabel}` : ""}. Query edits stay fully local.`
+                : "Fetch the dataset to enable histograms and query cards."}
+            </p>
+          </div>
+
+          {/* ── Load dataset ────────────────────────────── */}
+          <div className="px-5 py-4">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              Load dataset
+            </p>
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={onLoadStoredDataset}
+                onClick={onLoadDataset}
                 disabled={loadState.status === "loading"}
-                className="inline-flex items-center rounded-md border border-blue-300 bg-white px-4 py-2.5 text-sm font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-blue-800 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+                className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-800"
               >
-                Load saved browser cache
+                {loadState.status === "loading" ? <LoadSpinnerIcon /> : <RefreshDataIcon />}
+                <span>
+                  {loadState.status === "loading"
+                    ? "Loading…"
+                    : hasDataset
+                      ? "Reload"
+                      : "Load dataset"}
+                </span>
               </button>
-            ) : null}
-            <button
-              type="button"
-              onClick={onLoadDataset}
-              disabled={loadState.status === "loading"}
-              className="inline-flex items-center rounded-md bg-blue-600 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-800"
-            >
-              {loadState.status === "loading"
-                ? "Loading dataset..."
-                : hasDataset
-                  ? "Reload dataset"
-                  : "Load data and run analysis"}
-            </button>
-
-            {loadState.status === "loading" ? (
-              <button
-                type="button"
-                onClick={onCancelLoad}
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-              >
-                Cancel
-              </button>
-            ) : null}
+              {hasStoredDataset && loadState.status !== "loading" ? (
+                <button
+                  type="button"
+                  onClick={onLoadStoredDataset}
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  <CacheLoadIcon />
+                  <span>Load from cache</span>
+                </button>
+              ) : null}
+              {loadState.status === "loading" ? (
+                <button
+                  type="button"
+                  onClick={onCancelLoad}
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                >
+                  <CancelLoadIcon />
+                  <span>Cancel</span>
+                </button>
+              ) : null}
+            </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onSaveDatasetToStorage}
-              disabled={!hasDataset || loadState.status === "loading"}
-              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
-            >
-              Save dataset to browser cache
-            </button>
+          {/* ── Browser cache ───────────────────────────── */}
+          <div className="px-5 py-4">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              Browser cache
+            </p>
             {hasStoredDataset ? (
+              <p className="mb-3 text-xs text-blue-700 dark:text-blue-300">
+                {`${storedDatasetRecordCount.toLocaleString()} galaxies saved${storedDatasetSavedAtLabel ? ` · ${storedDatasetSavedAtLabel}` : ""}`}
+              </p>
+            ) : (
+              <p className="mb-3 text-xs text-gray-400 dark:text-gray-500">No saved cache.</p>
+            )}
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={onClearStoredDataset}
-                disabled={loadState.status === "loading"}
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+                onClick={onSaveDatasetToStorage}
+                disabled={!hasDataset || loadState.status === "loading"}
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
               >
-                Clear saved cache
+                <SaveCacheIcon />
+                <span>Save to cache</span>
               </button>
-            ) : null}
+              {hasStoredDataset ? (
+                <button
+                  type="button"
+                  onClick={onClearStoredDataset}
+                  disabled={loadState.status === "loading"}
+                  className="inline-flex h-9 items-center gap-2 rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-red-900/60 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+                >
+                  <ClearCacheIcon />
+                  <span>Clear cache</span>
+                </button>
+              ) : null}
+            </div>
           </div>
 
-          {hasStoredDataset ? (
-            <p className="mt-3 text-sm text-blue-800/90 dark:text-blue-200/90">
-              Saved browser cache available for {storedDatasetRecordCount.toLocaleString()} galaxies
-              {storedDatasetSavedAtLabel ? `, saved ${storedDatasetSavedAtLabel}` : ""}.
+          {/* ── Export ──────────────────────────────────── */}
+          <div className="px-5 py-4">
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              Export
             </p>
-          ) : null}
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onExportReport}
-              disabled={!canExportReport}
-              title={
-                canExportReport
-                  ? "Download a standalone HTML report of the current analysis"
-                  : "Load the dataset before exporting the analysis report"
-              }
-              aria-label="Export HTML report"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-blue-600 px-4 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-800"
-            >
-              <HtmlExportIcon />
-              <span>Export HTML</span>
-            </button>
-            <button
-              type="button"
-              onClick={onExportJson}
-              disabled={!canExportReport}
-              title={
-                canExportReport
-                  ? "Download a JSON file with the current analysis statistics"
-                  : "Load the dataset before exporting analysis statistics"
-              }
-              aria-label="Export JSON stats"
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-md border border-blue-300 bg-white px-4 text-sm font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-blue-800 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
-            >
-              <JsonExportIcon />
-              <span>Export JSON</span>
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={onExportReport}
+                disabled={!canExportReport}
+                title={
+                  canExportReport
+                    ? "Download a standalone HTML report of the current analysis"
+                    : "Load the dataset before exporting the analysis report"
+                }
+                aria-label="Export HTML report"
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+              >
+                <HtmlExportIcon />
+                <span>Export HTML</span>
+              </button>
+              <button
+                type="button"
+                onClick={onExportJson}
+                disabled={!canExportReport}
+                title={
+                  canExportReport
+                    ? "Download a JSON file with the current analysis statistics"
+                    : "Load the dataset before exporting analysis statistics"
+                }
+                aria-label="Export JSON stats"
+                className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+              >
+                <JsonExportIcon />
+                <span>Export JSON</span>
+              </button>
+            </div>
           </div>
 
-          {loadState.cancelled && loadState.status === "idle" ? (
-            <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">
-              Loading was cancelled before the local dataset finished building.
-            </p>
-          ) : null}
-          {storageNotice ? (
-            <p
-              className={`mt-3 text-sm ${
-                storageNotice.tone === "error"
-                  ? "text-red-700 dark:text-red-300"
-                  : "text-emerald-700 dark:text-emerald-300"
-              }`}
-            >
-              {storageNotice.message}
-            </p>
-          ) : null}
-          {loadState.error ? (
-            <p className="mt-3 text-sm text-red-700 dark:text-red-300">
-              {loadState.error}
-            </p>
+          {/* ── Notices ─────────────────────────────────── */}
+          {storageNotice !== null ||
+          loadState.error !== null ||
+          (loadState.cancelled && loadState.status === "idle") ? (
+            <div className="space-y-1.5 px-5 py-3">
+              {loadState.cancelled && loadState.status === "idle" ? (
+                <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+                  <NoticeWarningIcon />
+                  Loading was cancelled before the local dataset finished building.
+                </p>
+              ) : null}
+              {storageNotice ? (
+                <p
+                  className={`flex items-start gap-2 text-sm ${
+                    storageNotice.tone === "error"
+                      ? "text-red-700 dark:text-red-300"
+                      : "text-emerald-700 dark:text-emerald-300"
+                  }`}
+                >
+                  {storageNotice.tone === "error" ? <NoticeErrorIcon /> : <NoticeSuccessIcon />}
+                  {storageNotice.message}
+                </p>
+              ) : null}
+              {loadState.error ? (
+                <p className="flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
+                  <NoticeErrorIcon />
+                  {loadState.error}
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </div>
       </div>
@@ -566,10 +617,177 @@ function QuerySearchIcon() {
   );
 }
 
+function RefreshDataIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+    </svg>
+  );
+}
+
+function LoadSpinnerIcon() {
+  return (
+    <svg
+      className="h-4 w-4 animate-spin"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+    </svg>
+  );
+}
+
+function CacheLoadIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <ellipse cx="12" cy="5" rx="9" ry="3" />
+      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5" />
+      <path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3" />
+    </svg>
+  );
+}
+
+function CancelLoadIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="9" />
+      <path d="m15 9-6 6M9 9l6 6" />
+    </svg>
+  );
+}
+
+function SaveCacheIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+      <polyline points="17 21 17 13 7 13 7 21" />
+      <polyline points="7 3 7 8 15 8" />
+    </svg>
+  );
+}
+
+function ClearCacheIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+      <path d="M10 11v6M14 11v6" />
+      <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+    </svg>
+  );
+}
+
+function NoticeSuccessIcon() {
+  return (
+    <svg
+      className="mt-0.5 h-4 w-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
+function NoticeWarningIcon() {
+  return (
+    <svg
+      className="mt-0.5 h-4 w-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+      <line x1="12" y1="9" x2="12" y2="13" />
+      <line x1="12" y1="17" x2="12.01" y2="17" />
+    </svg>
+  );
+}
+
+function NoticeErrorIcon() {
+  return (
+    <svg
+      className="mt-0.5 h-4 w-4 shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  );
+}
+
 function HtmlExportIcon() {
   return (
     <svg
-      className="h-5 w-5"
+      className="h-4 w-4"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -592,7 +810,7 @@ function HtmlExportIcon() {
 function JsonExportIcon() {
   return (
     <svg
-      className="h-5 w-5"
+      className="h-4 w-4"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
