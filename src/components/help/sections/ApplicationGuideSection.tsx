@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "convex/react";
+import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
 import {
   ActionButtons,
@@ -22,6 +23,11 @@ import { loadImageDisplaySettings } from "../../../images/displaySettings";
 import { cn } from "../../../lib/utils";
 import type { ContrastGroupEntry } from "../../../images/types";
 import type { HelpFeatureFlags } from "../types";
+import {
+  APP_GUIDE_EXPORT_EXCLUDE_ATTR,
+  APP_GUIDE_STATIC_PREVIEW_ATTR,
+  exportApplicationGuideHtml,
+} from "./appGuideExport";
 
 type ApplicationGuideSectionProps = {
   appName: string;
@@ -196,11 +202,13 @@ function DesktopClassificationPreview({
   galaxy,
   imageTypes,
   settings,
+  captureRef,
 }: {
   appName: string;
   galaxy: GalaxyData;
   imageTypes: ImageType[];
   settings: HelpFeatureFlags;
+  captureRef?: React.Ref<HTMLDivElement>;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const lsbClass = 1;
@@ -225,7 +233,7 @@ function DesktopClassificationPreview({
 
   return (
     <div className="overflow-x-auto pb-2">
-      <div className="w-[840px] min-w-[840px] max-w-none">
+      <div ref={captureRef} className="w-[840px] min-w-[840px] max-w-none">
         <StaticPreviewFrame
           title="Desktop Classification View"
           subtitle={`${appName} example with galaxy ${galaxy.id}`}
@@ -342,6 +350,7 @@ function MobileClassificationPreview({
   settings,
   currentContrastGroup,
   totalContrastGroups,
+  captureRef,
 }: {
   appName: string;
   galaxy: GalaxyData;
@@ -349,6 +358,7 @@ function MobileClassificationPreview({
   settings: HelpFeatureFlags;
   currentContrastGroup: number;
   totalContrastGroups: number;
+  captureRef?: React.Ref<HTMLDivElement>;
 }) {
   const lsbClass = 1;
   const morphology = 2;
@@ -359,7 +369,7 @@ function MobileClassificationPreview({
   const comments = "Compact note preview";
 
   return (
-    <div className="mx-auto w-[440px] max-w-full">
+    <div ref={captureRef} className="mx-auto w-[440px] max-w-full">
       <StaticPreviewFrame
         title="Mobile Classification View"
         subtitle={`${appName} example with galaxy ${galaxy.id}`}
@@ -607,6 +617,10 @@ export function ApplicationGuideSection({
   settings,
   defaultImageQuality,
 }: ApplicationGuideSectionProps) {
+  const articleRef = useRef<HTMLDivElement | null>(null);
+  const desktopPreviewRef = useRef<HTMLDivElement | null>(null);
+  const mobilePreviewRef = useRef<HTMLDivElement | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const exampleGalaxyResult = useQuery(api.galaxies.help.getDocumentationExampleGalaxy) as DocumentationExampleGalaxyResult;
   const imageDisplaySettings = loadImageDisplaySettings();
   const showMasks = true;
@@ -716,9 +730,52 @@ export function ApplicationGuideSection({
 
   const { galaxy, contrastGroups, desktopImageTypes, mobileImageTypes, defaultGroupIndex } = documentationData;
 
+  const handleExportGuide = async () => {
+    if (!articleRef.current || !desktopPreviewRef.current || !mobilePreviewRef.current || isExporting) {
+      return;
+    }
+
+    setIsExporting(true);
+
+    try {
+      const result = await exportApplicationGuideHtml({
+        appName,
+        articleNode: articleRef.current,
+        previewCaptures: [
+          {
+            key: "desktop",
+            alt: `${appName} desktop classification view example`,
+            node: desktopPreviewRef.current,
+          },
+          {
+            key: "mobile",
+            alt: `${appName} mobile classification view example`,
+            node: mobilePreviewRef.current,
+          },
+        ],
+      });
+      if (result.warnings.length > 0) {
+        toast.warning(
+          `Downloaded App Guide HTML with ${result.warnings.length} placeholder image${result.warnings.length === 1 ? "" : "s"}. Some source images could not be embedded, likely because the browser could not access them.`
+        );
+      } else {
+        toast.success("Downloaded standalone App Guide HTML.");
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to export the App Guide."
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:gap-8">
-      <div className="space-y-8">
+      <div ref={articleRef} className="space-y-8">
         <SectionCard id="guide-overview" title="Application Guide">
           <p>
             This guide explains how the classification web application works from a participant&apos;s point of view. It covers the <strong>review workflow</strong>, the <strong>questions users answer</strong>, the <strong>images they inspect</strong>, the <strong>contrast groups</strong> available in the interface, and the <strong>way galaxies are assigned</strong> to users.
@@ -810,20 +867,26 @@ export function ApplicationGuideSection({
         </SectionCard>
 
         <SectionCard id="guide-static-examples" title="Static Interface Examples">
-          <DesktopClassificationPreview
-            appName={appName}
-            galaxy={galaxy}
-            imageTypes={desktopImageTypes}
-            settings={settings}
-          />
-          <MobileClassificationPreview
-            appName={appName}
-            galaxy={galaxy}
-            imageTypes={mobileImageTypes}
-            settings={settings}
-            currentContrastGroup={defaultGroupIndex}
-            totalContrastGroups={contrastGroups.length}
-          />
+          <div {...{ [APP_GUIDE_STATIC_PREVIEW_ATTR]: "desktop" }}>
+            <DesktopClassificationPreview
+              appName={appName}
+              galaxy={galaxy}
+              imageTypes={desktopImageTypes}
+              settings={settings}
+              captureRef={desktopPreviewRef}
+            />
+          </div>
+          <div {...{ [APP_GUIDE_STATIC_PREVIEW_ATTR]: "mobile" }}>
+            <MobileClassificationPreview
+              appName={appName}
+              galaxy={galaxy}
+              imageTypes={mobileImageTypes}
+              settings={settings}
+              currentContrastGroup={defaultGroupIndex}
+              totalContrastGroups={contrastGroups.length}
+              captureRef={mobilePreviewRef}
+            />
+          </div>
         </SectionCard>
 
         <SectionCard id="guide-images" title="What Images Users See">
@@ -1107,6 +1170,23 @@ export function ApplicationGuideSection({
             Taken together, these sections make the application more than a single image viewer: it is a complete workflow for running and monitoring a collaborative galaxy classification project.
           </p>
         </SectionCard>
+
+        <div
+          {...{ [APP_GUIDE_EXPORT_EXCLUDE_ATTR]: "true" }}
+          className="flex flex-col gap-3 px-1 text-sm text-gray-600 dark:text-gray-300 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <p>
+            Download a standalone HTML copy of this article with guide images embedded directly in the file and the interface examples baked in as PNG snapshots.
+          </p>
+          <button
+            type="button"
+            onClick={handleExportGuide}
+            disabled={isExporting}
+            className="inline-flex shrink-0 items-center justify-center rounded-full border border-gray-300 bg-gray-100 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-wait disabled:opacity-70 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          >
+            {isExporting ? "Preparing download..." : "Download"}
+          </button>
+        </div>
       </div>
 
       <RightSideAnchors items={anchorItems} />

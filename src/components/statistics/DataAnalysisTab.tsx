@@ -14,6 +14,7 @@ import {
 import { ClassificationDetailsModal } from "./analysis/ClassificationDetailsModal";
 import { DataAnalysisNavigator } from "./analysis/DataAnalysisNavigator";
 import {
+  AnalysisDistributionToolbar,
   AnalysisDatasetStats,
   AnalysisGlobalHistogramSection,
   AnalysisLoadSection,
@@ -23,14 +24,23 @@ import {
   DataAnalysisQueryCard,
   duplicateAnalysisQuery,
 } from "./analysis/DataAnalysisQueryCard";
+import {
+  DataAnalysisDistributionCard,
+  duplicateAnalysisDistributionComparison,
+} from "./analysis/DataAnalysisDistributionCard";
 import { AgreementExplanation } from "./analysis/AgreementExplanation";
 import {
+  buildDefaultAnalysisDistributionComparisons,
   buildDefaultAnalysisQueries,
   buildGlobalSummaryHistograms,
+  createBlankAnalysisDistributionComparison,
   createBlankAnalysisQuery,
+  evaluateAnalysisDistributionComparison,
   evaluateAnalysisQuery,
   filterZeroCountHistogram,
   formatPaperLabel,
+  type AnalysisDistributionComparisonConfig,
+  type AnalysisDistributionComparisonResult,
   type AnalysisQueryConfig,
   type AnalysisQueryResult,
   type AnalysisRecord,
@@ -72,6 +82,10 @@ const ANALYSIS_MATCH_EXPORT_COLUMNS: CsvColumn<AnalysisRecord>[] = [
   {
     header: "catalogNucleus",
     getValue: (record) => (record.galaxy.nucleus ? "yes" : "no"),
+  },
+  {
+    header: "galaxyCreationTime",
+    getValue: (record) => new Date(record.galaxy._creationTime).toISOString(),
   },
   {
     header: "totalClassifications",
@@ -197,10 +211,20 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     api.statistics.classificationAnalysis.getUserDirectory
   ) as AnalysisUserDirectoryEntry[] | undefined;
   const initialQueries = useMemo(() => buildDefaultAnalysisQueries(), []);
+  const initialComparisons = useMemo(
+    () => buildDefaultAnalysisDistributionComparisons(),
+    []
+  );
   const [queries, setQueries] = useState<AnalysisQueryConfig[]>(initialQueries);
+  const [comparisons, setComparisons] = useState<AnalysisDistributionComparisonConfig[]>(
+    initialComparisons
+  );
   const [collapsedQueries, setCollapsedQueries] = useState<Record<string, boolean>>(
     () => Object.fromEntries(initialQueries.map((query) => [query.id, true]))
   );
+  const [collapsedComparisons, setCollapsedComparisons] = useState<
+    Record<string, boolean>
+  >(() => Object.fromEntries(initialComparisons.map((comparison) => [comparison.id, true])));
   const [selectedRecord, setSelectedRecord] = useState<AnalysisRecord | null>(null);
   const [hideZeroBuckets, setHideZeroBuckets] = useState<ZeroBucketState>({
     awesomeVotes: true,
@@ -260,6 +284,22 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     []
   );
 
+  const updateComparison = useCallback(
+    (
+      comparisonId: string,
+      updater: (
+        comparison: AnalysisDistributionComparisonConfig
+      ) => AnalysisDistributionComparisonConfig
+    ) => {
+      setComparisons((currentComparisons) =>
+        currentComparisons.map((comparison) =>
+          comparison.id === comparisonId ? updater(comparison) : comparison
+        )
+      );
+    },
+    []
+  );
+
   const removeQuery = useCallback((queryId: string) => {
     setQueries((currentQueries) =>
       currentQueries.filter((query) => query.id !== queryId)
@@ -271,6 +311,17 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     });
   }, []);
 
+  const removeComparison = useCallback((comparisonId: string) => {
+    setComparisons((currentComparisons) =>
+      currentComparisons.filter((comparison) => comparison.id !== comparisonId)
+    );
+    setCollapsedComparisons((current) => {
+      const next = { ...current };
+      delete next[comparisonId];
+      return next;
+    });
+  }, []);
+
   const toggleQueryCollapsed = useCallback((queryId: string) => {
     setCollapsedQueries((current) => ({
       ...current,
@@ -278,12 +329,29 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     }));
   }, []);
 
+  const toggleComparisonCollapsed = useCallback((comparisonId: string) => {
+    setCollapsedComparisons((current) => ({
+      ...current,
+      [comparisonId]: !current[comparisonId],
+    }));
+  }, []);
+
   const collapseAllQueries = useCallback(() => {
     setCollapsedQueries(Object.fromEntries(queries.map((query) => [query.id, true])));
   }, [queries]);
 
+  const collapseAllComparisons = useCallback(() => {
+    setCollapsedComparisons(
+      Object.fromEntries(comparisons.map((comparison) => [comparison.id, true]))
+    );
+  }, [comparisons]);
+
   const expandAllQueries = useCallback(() => {
     setCollapsedQueries({});
+  }, []);
+
+  const expandAllComparisons = useCallback(() => {
+    setCollapsedComparisons({});
   }, []);
 
   const toggleZeroBucket = useCallback((key: keyof ZeroBucketState) => {
@@ -302,6 +370,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       summary,
       dataset,
       queries,
+      comparisons,
       hideZeroBuckets,
       imageQuality,
       generatedAt: new Date(),
@@ -323,6 +392,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       summary,
       dataset,
       queries,
+      comparisons,
       hideZeroBuckets,
       imageQuality,
       generatedAt: new Date(),
@@ -388,6 +458,22 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
 
     return resultMap;
   }, [deferredQueries, deferredRecords]);
+
+  const comparisonResults = useMemo<Map<string, AnalysisDistributionComparisonResult>>(() => {
+    const resultMap = new Map<string, AnalysisDistributionComparisonResult>();
+    if (deferredRecords.length === 0) {
+      return resultMap;
+    }
+
+    for (const comparison of comparisons) {
+      resultMap.set(
+        comparison.id,
+        evaluateAnalysisDistributionComparison(deferredRecords, comparison)
+      );
+    }
+
+    return resultMap;
+  }, [comparisons, deferredRecords]);
 
   const globalHistograms = useMemo(
     () => buildGlobalSummaryHistograms(deferredRecords),
@@ -509,6 +595,40 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
             }
             onRemove={() => removeQuery(query.id)}
             onUpdateQuery={updateQuery}
+          />
+        ))}
+      </div>
+
+      <AnalysisDistributionToolbar
+        onAddDistribution={() =>
+          setComparisons((currentComparisons) => [
+            ...currentComparisons,
+            createBlankAnalysisDistributionComparison(),
+          ])
+        }
+        onCollapseAll={collapseAllComparisons}
+        onExpandAll={expandAllComparisons}
+      />
+
+      <div className="space-y-6">
+        {comparisons.map((comparison) => (
+          <DataAnalysisDistributionCard
+            key={comparison.id}
+            comparison={comparison}
+            result={comparisonResults.get(comparison.id)}
+            summary={summary}
+            isCollapsed={collapsedComparisons[comparison.id] === true}
+            hasDataset={hasDataset}
+            canRemove={comparisons.length > 1}
+            onToggleCollapsed={() => toggleComparisonCollapsed(comparison.id)}
+            onDuplicate={() =>
+              setComparisons((currentComparisons) => [
+                ...currentComparisons,
+                duplicateAnalysisDistributionComparison(comparison),
+              ])
+            }
+            onRemove={() => removeComparison(comparison.id)}
+            onUpdateComparison={updateComparison}
           />
         ))}
       </div>

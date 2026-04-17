@@ -16,6 +16,7 @@ const MAX_CLASSIFICATION_PAGE_SIZE = 2500;
 
 const analysisGalaxyValidator = v.object({
   _id: v.id("galaxies"),
+  _creationTime: v.number(),
   id: v.string(),
   numericId: v.union(v.number(), v.null()),
   ra: v.number(),
@@ -151,6 +152,7 @@ export const getGalaxyPage = query({
     return {
       page: page.page.map((galaxy) => ({
         _id: galaxy._id,
+        _creationTime: galaxy._creationTime,
         id: galaxy.id,
         numericId:
           galaxy.numericId === undefined || galaxy.numericId === null

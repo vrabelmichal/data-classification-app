@@ -8,6 +8,7 @@ import { ImageViewer } from "../../classification/ImageViewer";
 import type { UserPreferences } from "../../classification/types";
 import { AnalysisHistogram } from "./AnalysisHistogram";
 import {
+  ANALYSIS_MAX_PREVIEW_LIMIT,
   analysisCommentRuleModeOptions,
   analysisConditionMetricOptions,
   analysisHistogramMetricOptions,
@@ -19,11 +20,15 @@ import {
   createAnalysisCondition,
   dominantLsbOptions,
   duplicateAnalysisQuery,
+  formatAnalysisDateTime,
   formatPaperLabel,
   getNormalizedComment,
   getMetricLabel,
   getMetricShortLabel,
   getVotePreview,
+  isDateTimeConditionMetric,
+  parseDateTimeLocalInputValue,
+  toDateTimeLocalInputValue,
   type AnalysisCommentRule,
   type AnalysisQueryConfig,
   type AnalysisQueryCondition,
@@ -42,6 +47,8 @@ function QueryConditionEditor({
   onChange: (nextCondition: AnalysisQueryCondition) => void;
   onRemove: () => void;
 }) {
+  const isDateTimeMetric = isDateTimeConditionMetric(condition.metric);
+
   return (
     <div className="grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/30 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_112px_44px]">
       <label className="space-y-1">
@@ -50,12 +57,22 @@ function QueryConditionEditor({
         </span>
         <select
           value={condition.metric}
-          onChange={(event) =>
+          onChange={(event) => {
+            const nextMetric = event.target.value as AnalysisQueryCondition["metric"];
+            const metricTypeChanged =
+              isDateTimeConditionMetric(nextMetric) !==
+              isDateTimeConditionMetric(condition.metric);
+
             onChange({
               ...condition,
-              metric: event.target.value as AnalysisQueryCondition["metric"],
-            })
-          }
+              metric: nextMetric,
+              count: metricTypeChanged
+                ? isDateTimeConditionMetric(nextMetric)
+                  ? Date.now()
+                  : 0
+                : condition.count,
+            });
+          }}
           className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
         >
           {analysisConditionMetricOptions.map((option) => (
@@ -90,21 +107,43 @@ function QueryConditionEditor({
 
       <label className="space-y-1">
         <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-          Count
+          {isDateTimeMetric ? "Date and time" : "Count"}
         </span>
         <input
-          type="number"
-          min={0}
-          step={1}
-          value={condition.count}
-          onChange={(event) =>
+          type={isDateTimeMetric ? "datetime-local" : "number"}
+          min={isDateTimeMetric ? undefined : 0}
+          step={isDateTimeMetric ? 60 : 1}
+          value={
+            isDateTimeMetric
+              ? toDateTimeLocalInputValue(condition.count || Date.now())
+              : condition.count
+          }
+          onChange={(event) => {
+            if (isDateTimeMetric) {
+              const timestamp = parseDateTimeLocalInputValue(event.target.value);
+              if (timestamp === null) {
+                return;
+              }
+
+              onChange({
+                ...condition,
+                count: timestamp,
+              });
+              return;
+            }
+
             onChange({
               ...condition,
               count: Math.max(0, Math.floor(Number(event.target.value) || 0)),
-            })
-          }
+            });
+          }}
           className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
         />
+        {isDateTimeMetric ? (
+          <span className="block text-xs text-gray-500 dark:text-gray-400">
+            Compares against the galaxy row creation timestamp.
+          </span>
+        ) : null}
       </label>
 
       <div className="flex items-end">
@@ -529,6 +568,7 @@ function AnalysisGalaxyCard({
         </div>
 
         <div className="flex flex-wrap gap-3 text-sm text-gray-500 dark:text-gray-400">
+          <span>Created {formatAnalysisDateTime(galaxy._creationTime)}</span>
           <span>RA {galaxy.ra.toFixed(4)} deg</span>
           <span>Dec {galaxy.dec.toFixed(4)} deg</span>
           <span>Reff {galaxy.reff.toFixed(2)}</span>
@@ -930,7 +970,7 @@ export function DataAnalysisQueryCard({
                 <input
                   type="number"
                   min={1}
-                  max={10}
+                  max={ANALYSIS_MAX_PREVIEW_LIMIT}
                   step={1}
                   value={query.previewLimit}
                   onChange={(event) =>

@@ -214,7 +214,7 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
     };
   }
 
-  if (key === "statistics.dataAnalysis.dataset.v1") {
+  if (key === "statistics.dataAnalysis.dataset.v2") {
     return {
       title: "Data analysis dataset cache",
       description: "Stores metadata for a browser-local IndexedDB cache of the client-side classification analysis dataset so it can be reloaded without fetching every page from the database again.",

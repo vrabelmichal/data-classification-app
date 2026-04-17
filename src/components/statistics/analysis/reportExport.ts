@@ -1,12 +1,19 @@
 import { getImageUrl } from "../../../images";
 import { getPreviewImageName } from "../../../images/displaySettings";
 import {
+  buildComparisonHistogramData,
   buildGlobalSummaryHistograms,
+  evaluateAnalysisDistributionComparison,
   evaluateAnalysisQuery,
   filterZeroCountHistogram,
+  formatConditionThreshold,
+  formatMetricValue,
   formatPaperLabel,
+  getConditionMetricLabel,
   getMetricLabel,
   getVotePreview,
+  type AnalysisDistributionComparisonConfig,
+  type AnalysisQueryCondition,
   type AnalysisQueryConfig,
   type AnalysisRecord,
   type HistogramDatum,
@@ -36,6 +43,7 @@ type ExportInput = {
   summary: DatasetSummary;
   dataset: PreparedDataset;
   queries: AnalysisQueryConfig[];
+  comparisons: AnalysisDistributionComparisonConfig[];
   hideZeroBuckets: ZeroBucketState;
   imageQuality: "high" | "medium" | "low";
   generatedAt: Date;
@@ -329,7 +337,7 @@ function renderReportNavigation(reportData: AnalysisReportData) {
     <nav class="report-nav" aria-label="Report navigation">
       <div class="report-nav-header">
         <h2>Navigate report</h2>
-        <p>Jump directly to the dataset summary, global histograms, or any exported query card.</p>
+        <p>Jump directly to the dataset summary, global histograms, threshold-split distributions, or any exported query card.</p>
       </div>
       <div class="report-nav-grid">
         <section class="report-nav-group">
@@ -339,6 +347,7 @@ function renderReportNavigation(reportData: AnalysisReportData) {
             <a href="#dataset-stats">Loaded dataset statistics</a>
             <a href="#global-histograms">Global histograms</a>
             <a href="#queries">Query cards</a>
+            <a href="#distribution-comparisons">Threshold-split distributions</a>
           </div>
         </section>
         <section class="report-nav-group">
@@ -352,6 +361,17 @@ function renderReportNavigation(reportData: AnalysisReportData) {
               .join("")}
           </div>
         </section>
+        <section class="report-nav-group">
+          <h3>Distribution splits</h3>
+          <div class="report-nav-links">
+            ${reportData.distributionComparisons
+              .map(
+                (comparison) =>
+                  `<a href="#comparison-${escapeHtml(comparison.id)}">${escapeHtml(comparison.name)}</a>`
+              )
+              .join("")}
+          </div>
+        </section>
       </div>
     </nav>
   `;
@@ -361,10 +381,22 @@ function buildStatsOnlyExport(reportData: AnalysisReportData) {
   return reportData;
 }
 
+function buildConditionExport(condition: AnalysisQueryCondition) {
+  return {
+    metric: condition.metric,
+    metricLabel: getConditionMetricLabel(condition.metric),
+    operator: condition.operator,
+    operatorLabel: QUERY_OPERATOR_LABELS[condition.operator],
+    thresholdValue: condition.count,
+    thresholdDisplay: formatConditionThreshold(condition.metric, condition.count),
+  };
+}
+
 function buildReportData({
   summary,
   dataset,
   queries,
+  comparisons,
   hideZeroBuckets,
   imageQuality,
   generatedAt,
@@ -408,10 +440,7 @@ function buildReportData({
         sortDirection: query.sortDirection === "desc" ? "Highest first" : "Lowest first",
         histogramMetric: getMetricLabel(query.histogramMetric),
         previewLimit: query.previewLimit,
-        conditions: query.conditions.map(
-          (condition) =>
-            `${getMetricLabel(condition.metric)} ${QUERY_OPERATOR_LABELS[condition.operator].toLowerCase()} ${condition.count.toLocaleString()}`
-        ),
+        conditions: query.conditions.map(buildConditionExport),
         commentRules: query.commentRules.map((rule) => ({
           mode:
             rule.mode === "containsAny"
@@ -447,9 +476,41 @@ function buildReportData({
     };
   });
 
+  const comparisonSections = comparisons.map((comparison) => {
+    const result = evaluateAnalysisDistributionComparison(dataset.records, comparison);
+    return {
+      id: comparison.id,
+      name: comparison.name || "Untitled distribution split",
+      description: comparison.description.trim() || "No description added yet.",
+      config: {
+        paper:
+          comparison.paper === "__any__"
+            ? "All papers"
+            : formatPaperLabel(comparison.paper),
+        catalogNucleus: CATALOG_NUCLEUS_LABELS[comparison.catalogNucleus],
+        dominantLsb: DOMINANT_LSB_LABELS[comparison.dominantLsb],
+        histogramMetricKey: comparison.histogramMetric,
+        histogramMetric: getMetricLabel(comparison.histogramMetric),
+        conditions: comparison.conditions.map(buildConditionExport),
+      },
+      summary: {
+        scopedCount: result.scopedCount,
+        matchedCount: result.matchedCount,
+        failedCount: result.failedCount,
+        matchedStats: result.matchedStats,
+        failedStats: result.failedStats,
+      },
+      comparisonHistogram: buildComparisonHistogramData(
+        result.scopedHistogram,
+        result.matchedHistogram,
+        result.failedHistogram
+      ),
+    };
+  });
+
   return {
     reportType: "classification-analysis",
-    reportVersion: 1,
+    reportVersion: 3,
     generatedAtIso: generatedAt.toISOString(),
     generatedAtLabel: generatedAt.toLocaleString(),
     datasetLoadedAtIso: new Date(dataset.loadedAt).toISOString(),
@@ -477,6 +538,7 @@ function buildReportData({
       orphanedClassificationCount: dataset.orphanedClassificationCount,
     },
     globalHistograms,
+    distributionComparisons: comparisonSections,
     queries: querySections,
   };
 }
@@ -572,7 +634,7 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
 
   return `
     <article id="query-${escapeHtml(query.id)}" class="query-card" data-query-id="${escapeHtml(query.id)}">
-    reportVersion: 2,
+      <header class="query-header">
         <div>
           <h3>${escapeHtml(query.name)}</h3>
           <p>${escapeHtml(query.description)}</p>
@@ -609,7 +671,14 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
             </tr>
             <tr>
               <th scope="row">Conditions</th>
-              <td>${escapeHtml(query.config.conditions.join("; "))}</td>
+              <td>${escapeHtml(
+                query.config.conditions
+                  .map(
+                    (condition) =>
+                      `${condition.metricLabel} ${condition.operatorLabel.toLowerCase()} ${condition.thresholdDisplay}`
+                  )
+                  .join("; ")
+              )}</td>
             </tr>
             <tr>
               <th scope="row">Comment rules</th>
@@ -708,6 +777,206 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
       </div>
     </article>
   `;
+}
+
+function renderDistributionComparisonCard(
+  comparison: ReturnType<typeof buildReportData>["distributionComparisons"][number]
+) {
+  const maxBucketCount = Math.max(
+    1,
+    ...comparison.comparisonHistogram.map((bin) => Math.max(bin.matchedCount, bin.failedCount))
+  );
+
+  return `
+    <article id="comparison-${escapeHtml(comparison.id)}" class="query-card" data-comparison-id="${escapeHtml(comparison.id)}">
+      <header class="query-header">
+        <div>
+          <h3>${escapeHtml(comparison.name)}</h3>
+          <p>${escapeHtml(comparison.description)}</p>
+        </div>
+        <div class="query-badge">${escapeHtml(comparison.summary.scopedCount.toLocaleString())} scoped</div>
+      </header>
+
+      <div class="table-wrap">
+        <table class="meta-table" data-comparison-config="${escapeHtml(comparison.id)}">
+          <tbody>
+            <tr>
+              <th scope="row">Paper filter</th>
+              <td>${escapeHtml(comparison.config.paper)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Catalog nucleus filter</th>
+              <td>${escapeHtml(comparison.config.catalogNucleus)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Dominant Is-LSB filter</th>
+              <td>${escapeHtml(comparison.config.dominantLsb)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Histogram metric</th>
+              <td>${escapeHtml(comparison.config.histogramMetric)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Thresholds</th>
+              <td>${escapeHtml(
+                comparison.config.conditions
+                  .map(
+                    (condition) =>
+                      `${condition.metricLabel} ${condition.operatorLabel.toLowerCase()} ${condition.thresholdDisplay}`
+                  )
+                  .join("; ")
+              )}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      ${renderStatCards([
+        {
+          key: `${comparison.id}-scopedCount`,
+          label: "Scoped galaxies",
+          value: comparison.summary.scopedCount.toLocaleString(),
+          detail: "Galaxies remaining after the paper, catalog nucleus, and dominant Is-LSB filters.",
+        },
+        {
+          key: `${comparison.id}-matchedCount`,
+          label: "Matching subset",
+          value: comparison.summary.matchedCount.toLocaleString(),
+          detail: "Galaxies in scope that satisfy every threshold on this card.",
+        },
+        {
+          key: `${comparison.id}-failedCount`,
+          label: "Failing subset",
+          value: comparison.summary.failedCount.toLocaleString(),
+          detail: "Galaxies in the same scope that miss one or more thresholds.",
+        },
+      ])}
+
+      ${renderStatCards([
+        {
+          key: `${comparison.id}-matchedMean`,
+          label: `Matching mean ${comparison.config.histogramMetric}`,
+          value: formatMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.matchedStats.averageMetric
+          ),
+          detail: "Average selected metric value across the subset that passes every threshold.",
+        },
+        {
+          key: `${comparison.id}-matchedMedian`,
+          label: `Matching median ${comparison.config.histogramMetric}`,
+          value: formatMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.matchedStats.medianMetric
+          ),
+          detail: "Median selected metric value across the subset that passes every threshold.",
+        },
+        {
+          key: `${comparison.id}-matchedRange`,
+          label: "Matching min / max",
+          value: `${formatMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.matchedStats.minMetric
+          )} / ${formatMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.matchedStats.maxMetric
+          )}`,
+          detail: "Minimum and maximum selected metric values in the matching subset.",
+        },
+        {
+          key: `${comparison.id}-failedMean`,
+          label: `Failing mean ${comparison.config.histogramMetric}`,
+          value: formatMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.failedStats.averageMetric
+          ),
+          detail: "Average selected metric value across the subset that fails at least one threshold.",
+        },
+        {
+          key: `${comparison.id}-failedMedian`,
+          label: `Failing median ${comparison.config.histogramMetric}`,
+          value: formatMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.failedStats.medianMetric
+          ),
+          detail: "Median selected metric value across the subset that fails at least one threshold.",
+        },
+        {
+          key: `${comparison.id}-failedRange`,
+          label: "Failing min / max",
+          value: `${formatMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.failedStats.minMetric
+          )} / ${formatMetricValueRaw(
+            comparison.config.histogramMetricKey,
+            comparison.summary.failedStats.maxMetric
+          )}`,
+          detail: "Minimum and maximum selected metric values in the failing subset.",
+        },
+      ])}
+
+      <div class="subsection">
+        <h4>Combined comparison histogram</h4>
+        <p>Shared bins with overlaid counts for the matching and failing subsets.</p>
+        <div class="comparison-histogram-bars">
+          ${comparison.comparisonHistogram
+            .map((bin) => {
+              const matchedWidth = (bin.matchedCount / maxBucketCount) * 100;
+              const failedWidth = (bin.failedCount / maxBucketCount) * 100;
+              return `
+                <div class="comparison-row">
+                  <div class="histogram-label">${escapeHtml(bin.label)}</div>
+                  <div class="comparison-track-wrap">
+                    <div class="comparison-track comparison-track-match">
+                      <div class="comparison-line comparison-line-match" style="width: ${matchedWidth.toFixed(2)}%"></div>
+                    </div>
+                    <div class="comparison-track comparison-track-fail">
+                      <div class="comparison-line comparison-line-fail" style="width: ${failedWidth.toFixed(2)}%"></div>
+                    </div>
+                  </div>
+                  <div class="comparison-counts">
+                    <div>Pass ${escapeHtml(bin.matchedCount.toLocaleString())}</div>
+                    <div>Fail ${escapeHtml(bin.failedCount.toLocaleString())}</div>
+                  </div>
+                </div>
+              `;
+            })
+            .join("")}
+        </div>
+        <div class="table-wrap">
+          <table class="data-table" data-comparison-histogram="${escapeHtml(comparison.id)}">
+            <thead>
+              <tr>
+                <th scope="col">Bin</th>
+                <th scope="col">Pass count</th>
+                <th scope="col">Fail count</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${comparison.comparisonHistogram
+                .map(
+                  (bin) => `
+                    <tr>
+                      <th scope="row">${escapeHtml(bin.label)}</th>
+                      <td>${escapeHtml(bin.matchedCount.toLocaleString())}</td>
+                      <td>${escapeHtml(bin.failedCount.toLocaleString())}</td>
+                    </tr>
+                  `
+                )
+                .join("")}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function formatMetricValueRaw(
+  metric: AnalysisDistributionComparisonConfig["histogramMetric"],
+  value: number | null
+) {
+  return formatMetricValue(metric, value);
 }
 
 export function buildAnalysisStatsExport(input: ExportInput) {
@@ -1028,6 +1297,46 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
         background: linear-gradient(90deg, #2563eb 0%, #60a5fa 100%);
       }
 
+      .comparison-histogram-bars {
+        display: grid;
+        gap: 12px;
+        margin: 18px 0 20px;
+      }
+
+      .comparison-row {
+        display: grid;
+        grid-template-columns: minmax(90px, 140px) minmax(220px, 1fr) minmax(100px, 140px);
+        gap: 12px;
+        align-items: center;
+      }
+
+      .comparison-track-wrap {
+        display: grid;
+        gap: 8px;
+      }
+
+      .comparison-track {
+        position: relative;
+        height: 16px;
+        border-radius: 999px;
+        background: #f8fbff;
+        border: 1px solid var(--border);
+        overflow: hidden;
+      }
+
+      .comparison-line {
+        position: absolute;
+        top: 50%;
+        height: 0;
+        border-top-width: 3px;
+        border-top-style: solid;
+        transform: translateY(-50%);
+      }
+
+      .comparison-line-match { border-top-color: #059669; }
+      .comparison-line-fail { border-top-color: #e11d48; }
+      .comparison-counts { font-size: 0.9rem; color: var(--muted); }
+
       .empty-state {
         padding: 18px;
         border-radius: 14px;
@@ -1054,11 +1363,12 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
       @media (max-width: 900px) {
         .section-header, .query-header { flex-direction: column; }
         .histogram-row { grid-template-columns: 1fr; }
+        .comparison-row { grid-template-columns: 1fr; }
       }
     </style>
   </head>
   <body>
-    <main data-report-type="classification-analysis" data-report-version="2">
+    <main data-report-type="classification-analysis" data-report-version="3">
       <section class="hero">
         <h1>Classification analysis report</h1>
         <p class="lead">
@@ -1081,6 +1391,10 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
               {
                 label: "Query cards exported",
                 value: reportData.queries.length.toLocaleString(),
+              },
+              {
+                label: "Distribution cards exported",
+                value: reportData.distributionComparisons.length.toLocaleString(),
               },
             ])}
           </section>
@@ -1115,6 +1429,15 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
           <h2>Query cards</h2>
           <div class="query-list">
             ${reportData.queries.map((query) => renderQueryCard(query)).join("")}
+          </div>
+        </section>
+
+        <section id="distribution-comparisons" class="section-card" data-section="distribution-comparisons">
+          <h2>Threshold-split distributions</h2>
+          <div class="query-list">
+            ${reportData.distributionComparisons
+              .map((comparison) => renderDistributionComparisonCard(comparison))
+              .join("")}
           </div>
         </section>
       </section>

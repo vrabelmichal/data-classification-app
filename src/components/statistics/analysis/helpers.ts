@@ -1,4 +1,4 @@
-export type AnalysisConditionMetric =
+export type AnalysisCountMetric =
   | "totalClassifications"
   | "lsbComparableVotes"
   | "lsbVotes"
@@ -21,6 +21,8 @@ export type AnalysisConditionMetric =
   | "failedFittingComparableVotes"
   | "failedFittingAgreementCount";
 
+export type AnalysisConditionMetric = AnalysisCountMetric | "galaxyCreationTime";
+
 export type AnalysisRatioMetric =
   | "lsbAgreementRate"
   | "morphologyAgreementRate"
@@ -28,7 +30,7 @@ export type AnalysisRatioMetric =
   | "failedFittingAgreementRate"
   | "nucleusConfirmationRate";
 
-export type AnalysisMetric = AnalysisConditionMetric | AnalysisRatioMetric;
+export type AnalysisMetric = AnalysisCountMetric | AnalysisRatioMetric;
 
 export type AnalysisOperator = "atLeast" | "atMost" | "exactly";
 export type QuerySortDirection = "desc" | "asc";
@@ -43,6 +45,7 @@ export type AnalysisCommentRuleMode = "containsAny" | "notContainsAny";
 
 export interface AnalysisGalaxy {
   _id: string;
+  _creationTime: number;
   id: string;
   numericId: number | null;
   ra: number;
@@ -150,6 +153,17 @@ export interface AnalysisQueryConfig {
   previewLimit: number;
 }
 
+export interface AnalysisDistributionComparisonConfig {
+  id: string;
+  name: string;
+  description: string;
+  paper: string | "__any__";
+  catalogNucleus: CatalogNucleusFilter;
+  dominantLsb: DominantLsbFilter;
+  conditions: AnalysisQueryCondition[];
+  histogramMetric: AnalysisMetric;
+}
+
 export interface AnalysisDominantLsbBreakdown {
   lsb: number;
   nonLsb: number;
@@ -173,6 +187,35 @@ export interface AnalysisQueryResult {
   dominantLsbBreakdown: AnalysisDominantLsbBreakdown;
 }
 
+export interface AnalysisDistributionComparisonResult {
+  scopedCount: number;
+  matchedCount: number;
+  failedCount: number;
+  scopedHistogram: HistogramDatum[];
+  matchedHistogram: HistogramDatum[];
+  failedHistogram: HistogramDatum[];
+  matchedStats: AnalysisDistributionSubsetStats;
+  failedStats: AnalysisDistributionSubsetStats;
+}
+
+export interface AnalysisDistributionSubsetStats {
+  recordCount: number;
+  shareOfScope: number | null;
+  averageMetric: number | null;
+  medianMetric: number | null;
+  minMetric: number | null;
+  maxMetric: number | null;
+}
+
+export interface ComparisonHistogramDatum {
+  key: string;
+  label: string;
+  metricLabel: string;
+  matchedCount: number;
+  failedCount: number;
+  totalCount: number;
+}
+
 export interface HistogramDatum {
   key: string;
   label: string;
@@ -191,6 +234,11 @@ type MetricMeta = {
   shortLabel: string;
   isRatio: boolean;
 };
+
+export const ANALYSIS_MAX_PREVIEW_LIMIT = 100;
+
+const DISTRIBUTION_EXAMPLE_SPLIT_TIME =
+  new Date(2026, 1, 16, 0, 0, 0, 0).getTime() - 1;
 
 const METRIC_META: Record<AnalysisMetric, MetricMeta> = {
   totalClassifications: {
@@ -359,6 +407,7 @@ export const analysisConditionMetricOptions: Array<
   SelectOption<AnalysisConditionMetric>
 > = [
   { value: "totalClassifications", label: "Total classifications" },
+  { value: "galaxyCreationTime", label: "Galaxy row creation time" },
   { value: "lsbComparableVotes", label: "Comparable Is-LSB votes" },
   { value: "lsbVotes", label: "LSB votes" },
   { value: "nonLsbVotes", label: "Non-LSB votes" },
@@ -529,6 +578,20 @@ export function createBlankAnalysisQuery(): AnalysisQueryConfig {
   };
 }
 
+export function createBlankAnalysisDistributionComparison(): AnalysisDistributionComparisonConfig {
+  return {
+    id: createAnalysisLocalId(),
+    name: "Threshold split histogram",
+    description:
+      "Compare the histogram metric for galaxies that pass the configured thresholds versus galaxies that fail them.",
+    paper: "__any__",
+    catalogNucleus: "any",
+    dominantLsb: "any",
+    conditions: [createAnalysisCondition("totalClassifications", "atLeast", 1)],
+    histogramMetric: "totalClassifications",
+  };
+}
+
 export function duplicateAnalysisQuery(
   query: AnalysisQueryConfig
 ): AnalysisQueryConfig {
@@ -542,6 +605,20 @@ export function duplicateAnalysisQuery(
     })),
     commentRules: query.commentRules.map((rule) => ({
       ...rule,
+      id: createAnalysisLocalId(),
+    })),
+  };
+}
+
+export function duplicateAnalysisDistributionComparison(
+  comparison: AnalysisDistributionComparisonConfig
+): AnalysisDistributionComparisonConfig {
+  return {
+    ...comparison,
+    id: createAnalysisLocalId(),
+    name: `${comparison.name} copy`,
+    conditions: comparison.conditions.map((condition) => ({
+      ...condition,
       id: createAnalysisLocalId(),
     })),
   };
@@ -694,6 +771,28 @@ export function buildDefaultAnalysisQueries(): AnalysisQueryConfig[] {
       sortDirection: "desc",
       histogramMetric: "averageCommentLength",
       previewLimit: 10,
+    },
+  ];
+}
+
+export function buildDefaultAnalysisDistributionComparisons(): AnalysisDistributionComparisonConfig[] {
+  return [
+    {
+      id: createAnalysisLocalId(),
+      name: "Failed-fitting votes before Feb 16, 2026",
+      description:
+        "Compare failed-fitting yes-vote distributions for galaxies created before Feb 16, 2026 against galaxies created on or after that date.",
+      paper: "__any__",
+      catalogNucleus: "any",
+      dominantLsb: "any",
+      conditions: [
+        createAnalysisCondition(
+          "galaxyCreationTime",
+          "atMost",
+          DISTRIBUTION_EXAMPLE_SPLIT_TIME
+        ),
+      ],
+      histogramMetric: "failedFittingVotes",
     },
   ];
 }
@@ -972,6 +1071,14 @@ export function getMetricLabel(metric: AnalysisMetric) {
   return METRIC_META[metric].label;
 }
 
+export function getConditionMetricLabel(metric: AnalysisConditionMetric) {
+  if (metric === "galaxyCreationTime") {
+    return "Galaxy row creation time";
+  }
+
+  return getMetricLabel(metric);
+}
+
 export function getMetricShortLabel(metric: AnalysisMetric) {
   return METRIC_META[metric].shortLabel;
 }
@@ -1000,8 +1107,51 @@ export function formatPaperLabel(paper: string | null | undefined) {
   return paper;
 }
 
+export function isDateTimeConditionMetric(metric: AnalysisConditionMetric) {
+  return metric === "galaxyCreationTime";
+}
+
+export function formatAnalysisDateTime(timestamp: number | null | undefined) {
+  if (timestamp === null || timestamp === undefined || !Number.isFinite(timestamp)) {
+    return "-";
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+export function formatConditionThreshold(
+  metric: AnalysisConditionMetric,
+  value: number
+) {
+  if (isDateTimeConditionMetric(metric)) {
+    return formatAnalysisDateTime(value);
+  }
+
+  return Math.max(0, Math.floor(value || 0)).toLocaleString();
+}
+
+export function toDateTimeLocalInputValue(timestamp: number) {
+  const date = new Date(timestamp);
+  const pad = (value: number) => String(value).padStart(2, "0");
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
+    date.getDate()
+  )}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function parseDateTimeLocalInputValue(value: string) {
+  const timestamp = new Date(value).getTime();
+  return Number.isFinite(timestamp) ? timestamp : null;
+}
+
 export function clampPreviewLimit(value: number) {
-  return Math.max(1, Math.min(Math.floor(value || 0), 10));
+  return Math.max(1, Math.min(Math.floor(value || 0), ANALYSIS_MAX_PREVIEW_LIMIT));
 }
 
 function getMetricValue(record: AnalysisRecord, metric: AnalysisMetric) {
@@ -1061,12 +1211,34 @@ function getMetricValue(record: AnalysisRecord, metric: AnalysisMetric) {
   }
 }
 
+function getConditionMetricValue(
+  record: AnalysisRecord,
+  metric: AnalysisConditionMetric
+) {
+  if (metric === "galaxyCreationTime") {
+    return record.galaxy._creationTime;
+  }
+
+  return getMetricValue(record, metric);
+}
+
+function normalizeConditionThreshold(
+  metric: AnalysisConditionMetric,
+  value: number
+) {
+  if (isDateTimeConditionMetric(metric)) {
+    return value;
+  }
+
+  return Math.max(0, Math.floor(value));
+}
+
 function matchesCondition(
   record: AnalysisRecord,
   condition: AnalysisQueryCondition
 ) {
-  const value = getMetricValue(record, condition.metric);
-  const threshold = Math.max(0, Math.floor(condition.count));
+  const value = getConditionMetricValue(record, condition.metric);
+  const threshold = normalizeConditionThreshold(condition.metric, condition.count);
 
   switch (condition.operator) {
     case "atLeast":
@@ -1076,6 +1248,41 @@ function matchesCondition(
     case "exactly":
       return value === threshold;
   }
+}
+
+function matchesSharedFilters(
+  record: AnalysisRecord,
+  filters: Pick<
+    AnalysisQueryConfig | AnalysisDistributionComparisonConfig,
+    "paper" | "catalogNucleus" | "dominantLsb"
+  >
+) {
+  if (filters.paper !== "__any__") {
+    const recordPaper = record.galaxy.paper ?? "";
+    if (recordPaper !== filters.paper) {
+      return false;
+    }
+  }
+
+  if (filters.catalogNucleus === "yes" && !record.galaxy.nucleus) {
+    return false;
+  }
+  if (filters.catalogNucleus === "no" && record.galaxy.nucleus) {
+    return false;
+  }
+
+  if (filters.dominantLsb !== "any" && record.lsb.state !== filters.dominantLsb) {
+    return false;
+  }
+
+  return true;
+}
+
+function matchesAllConditions(
+  record: AnalysisRecord,
+  conditions: AnalysisQueryCondition[]
+) {
+  return conditions.every((condition) => matchesCondition(record, condition));
 }
 
 function parseCommentTerms(input: string) {
@@ -1279,31 +1486,94 @@ function averageDefined(values: Array<number | null>) {
   );
 }
 
+function computeMedian(values: number[]) {
+  if (values.length === 0) {
+    return null;
+  }
+
+  const sortedValues = [...values].sort((left, right) => left - right);
+  const middleIndex = Math.floor(sortedValues.length / 2);
+  if (sortedValues.length % 2 === 0) {
+    return (sortedValues[middleIndex - 1] + sortedValues[middleIndex]) / 2;
+  }
+
+  return sortedValues[middleIndex];
+}
+
+function summarizeDistributionSubset(
+  records: AnalysisRecord[],
+  metric: AnalysisMetric,
+  scopedCount: number
+): AnalysisDistributionSubsetStats {
+  if (records.length === 0) {
+    return {
+      recordCount: 0,
+      shareOfScope: scopedCount > 0 ? 0 : null,
+      averageMetric: null,
+      medianMetric: null,
+      minMetric: null,
+      maxMetric: null,
+    };
+  }
+
+  const values = records.map((record) => getMetricValue(record, metric));
+
+  return {
+    recordCount: records.length,
+    shareOfScope: scopedCount > 0 ? records.length / scopedCount : null,
+    averageMetric: values.reduce((sum, value) => sum + value, 0) / values.length,
+    medianMetric: computeMedian(values),
+    minMetric: Math.min(...values),
+    maxMetric: Math.max(...values),
+  };
+}
+
+export function buildComparisonHistogramData(
+  scopedHistogram: HistogramDatum[],
+  matchedHistogram: HistogramDatum[],
+  failedHistogram: HistogramDatum[]
+): ComparisonHistogramDatum[] {
+  const matchedByKey = new Map(
+    matchedHistogram.map((datum) => [datum.key, datum.count])
+  );
+  const failedByKey = new Map(
+    failedHistogram.map((datum) => [datum.key, datum.count])
+  );
+  const fallbackOrder = [...matchedHistogram, ...failedHistogram];
+  const orderedBins =
+    scopedHistogram.length > 0
+      ? scopedHistogram
+      : fallbackOrder.filter(
+          (datum, index, allBins) =>
+            allBins.findIndex((candidate) => candidate.key === datum.key) === index
+        );
+
+  return orderedBins.map((datum) => {
+    const matchedCount = matchedByKey.get(datum.key) ?? 0;
+    const failedCount = failedByKey.get(datum.key) ?? 0;
+
+    return {
+      key: datum.key,
+      label: datum.label,
+      metricLabel: datum.metricLabel,
+      matchedCount,
+      failedCount,
+      totalCount: matchedCount + failedCount,
+    };
+  });
+}
+
 export function evaluateAnalysisQuery(
   records: AnalysisRecord[],
   query: AnalysisQueryConfig
 ): AnalysisQueryResult {
   const filtered = records.filter((record) => {
-    if (query.paper !== "__any__") {
-      const recordPaper = record.galaxy.paper ?? "";
-      if (recordPaper !== query.paper) {
-        return false;
-      }
-    }
-
-    if (query.catalogNucleus === "yes" && !record.galaxy.nucleus) {
-      return false;
-    }
-    if (query.catalogNucleus === "no" && record.galaxy.nucleus) {
-      return false;
-    }
-
-    if (query.dominantLsb !== "any" && record.lsb.state !== query.dominantLsb) {
+    if (!matchesSharedFilters(record, query)) {
       return false;
     }
 
     return (
-      query.conditions.every((condition) => matchesCondition(record, condition)) &&
+      matchesAllConditions(record, query.conditions) &&
       query.commentRules.every((rule) => matchesCommentRule(record, rule))
     );
   });
@@ -1367,6 +1637,46 @@ export function evaluateAnalysisQuery(
       sorted.map((record) => record.failedFitting.agreementRate)
     ),
     dominantLsbBreakdown,
+  };
+}
+
+export function evaluateAnalysisDistributionComparison(
+  records: AnalysisRecord[],
+  comparison: AnalysisDistributionComparisonConfig
+): AnalysisDistributionComparisonResult {
+  const scopedRecords = records.filter((record) =>
+    matchesSharedFilters(record, comparison)
+  );
+  const matchedRecords = scopedRecords.filter((record) =>
+    matchesAllConditions(record, comparison.conditions)
+  );
+  const failedRecords = scopedRecords.filter(
+    (record) => !matchesAllConditions(record, comparison.conditions)
+  );
+
+  return {
+    scopedCount: scopedRecords.length,
+    matchedCount: matchedRecords.length,
+    failedCount: failedRecords.length,
+    scopedHistogram: buildHistogramData(scopedRecords, comparison.histogramMetric),
+    matchedHistogram: buildHistogramData(
+      matchedRecords,
+      comparison.histogramMetric
+    ),
+    failedHistogram: buildHistogramData(
+      failedRecords,
+      comparison.histogramMetric
+    ),
+    matchedStats: summarizeDistributionSubset(
+      matchedRecords,
+      comparison.histogramMetric,
+      scopedRecords.length
+    ),
+    failedStats: summarizeDistributionSubset(
+      failedRecords,
+      comparison.histogramMetric,
+      scopedRecords.length
+    ),
   };
 }
 
