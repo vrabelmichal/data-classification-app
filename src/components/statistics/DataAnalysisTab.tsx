@@ -381,7 +381,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       `classification-analysis-report-${formatDateForFilename()}.html`,
       "text/html;charset=utf-8"
     );
-  }, [dataset, hideZeroBuckets, queries, summary]);
+  }, [comparisons, dataset, hideZeroBuckets, imageQuality, queries, summary]);
 
   const handleExportJson = useCallback(() => {
     if (!summary || !dataset) {
@@ -403,7 +403,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       `classification-analysis-stats-${formatDateForFilename()}.json`,
       "application/json;charset=utf-8"
     );
-  }, [dataset, hideZeroBuckets, queries, summary]);
+  }, [comparisons, dataset, hideZeroBuckets, imageQuality, queries, summary]);
 
   const handleDownloadQueryIdsTxt = useCallback(
     (query: AnalysisQueryConfig, result: AnalysisQueryResult) => {

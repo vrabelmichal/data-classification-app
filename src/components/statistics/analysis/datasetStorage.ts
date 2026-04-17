@@ -1,7 +1,7 @@
 import type { PreparedDataset } from "./tabTypes";
 
-const ANALYSIS_DATASET_STORAGE_KEY = "statistics.dataAnalysis.dataset.v2";
-const ANALYSIS_DATASET_STORAGE_VERSION = 2;
+const ANALYSIS_DATASET_STORAGE_KEY = "statistics.dataAnalysis.dataset.v3";
+const ANALYSIS_DATASET_STORAGE_VERSION = 3;
 const ANALYSIS_DATASET_DB_NAME = "dataClassificationApp";
 const ANALYSIS_DATASET_STORE_NAME = "analysisDatasets";
 const ANALYSIS_DATASET_RECORD_KEY = "classificationAnalysis";

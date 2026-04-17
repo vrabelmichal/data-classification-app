@@ -21,7 +21,10 @@ export type AnalysisCountMetric =
   | "failedFittingComparableVotes"
   | "failedFittingAgreementCount";
 
-export type AnalysisConditionMetric = AnalysisCountMetric | "galaxyCreationTime";
+export type AnalysisConditionMetric =
+  | AnalysisCountMetric
+  | "galaxyCreationTime"
+  | "firstClassificationTime";
 
 export type AnalysisRatioMetric =
   | "lsbAgreementRate"
@@ -34,6 +37,9 @@ export type AnalysisMetric = AnalysisCountMetric | AnalysisRatioMetric;
 
 export type AnalysisOperator = "atLeast" | "atMost" | "exactly";
 export type QuerySortDirection = "desc" | "asc";
+export type AnalysisDistributionComparisonScale =
+  | "count"
+  | "relativeFrequency";
 export type CatalogNucleusFilter = "any" | "yes" | "no";
 export type DominantLsbFilter =
   | "any"
@@ -112,6 +118,7 @@ export interface AnalysisRecord {
   galaxy: AnalysisGalaxy;
   aggregate: AnalysisAggregate;
   votes: AnalysisClassificationVote[];
+  firstClassificationTime: number | null;
   averageCommentLength: number | null;
   commentSearchTexts: string[];
   lsb: AnalysisDecisionSummary<Exclude<DominantLsbFilter, "any">>;
@@ -162,6 +169,7 @@ export interface AnalysisDistributionComparisonConfig {
   dominantLsb: DominantLsbFilter;
   conditions: AnalysisQueryCondition[];
   histogramMetric: AnalysisMetric;
+  histogramScale: AnalysisDistributionComparisonScale;
 }
 
 export interface AnalysisDominantLsbBreakdown {
@@ -213,6 +221,8 @@ export interface ComparisonHistogramDatum {
   metricLabel: string;
   matchedCount: number;
   failedCount: number;
+  matchedRelativeFrequency: number | null;
+  failedRelativeFrequency: number | null;
   totalCount: number;
 }
 
@@ -408,6 +418,7 @@ export const analysisConditionMetricOptions: Array<
 > = [
   { value: "totalClassifications", label: "Total classifications" },
   { value: "galaxyCreationTime", label: "Galaxy row creation time" },
+  { value: "firstClassificationTime", label: "First classification time" },
   { value: "lsbComparableVotes", label: "Comparable Is-LSB votes" },
   { value: "lsbVotes", label: "LSB votes" },
   { value: "nonLsbVotes", label: "Non-LSB votes" },
@@ -502,6 +513,13 @@ export const analysisHistogramMetricOptions: Array<
   SelectOption<AnalysisMetric>
 > = [...analysisSortMetricOptions];
 
+export const analysisDistributionScaleOptions: Array<
+  SelectOption<AnalysisDistributionComparisonScale>
+> = [
+  { value: "count", label: "Counts" },
+  { value: "relativeFrequency", label: "Relative frequency" },
+];
+
 export const analysisOperatorOptions: Array<SelectOption<AnalysisOperator>> = [
   { value: "atLeast", label: "At least" },
   { value: "exactly", label: "Exactly" },
@@ -589,6 +607,7 @@ export function createBlankAnalysisDistributionComparison(): AnalysisDistributio
     dominantLsb: "any",
     conditions: [createAnalysisCondition("totalClassifications", "atLeast", 1)],
     histogramMetric: "totalClassifications",
+    histogramScale: "count",
   };
 }
 
@@ -781,18 +800,19 @@ export function buildDefaultAnalysisDistributionComparisons(): AnalysisDistribut
       id: createAnalysisLocalId(),
       name: "Failed-fitting votes before Feb 16, 2026",
       description:
-        "Compare failed-fitting yes-vote distributions for galaxies created before Feb 16, 2026 against galaxies created on or after that date.",
+        "Compare failed-fitting yes-vote distributions for galaxies first classified before Feb 16, 2026 against galaxies first classified on or after that date.",
       paper: "__any__",
       catalogNucleus: "any",
       dominantLsb: "any",
       conditions: [
         createAnalysisCondition(
-          "galaxyCreationTime",
+          "firstClassificationTime",
           "atMost",
           DISTRIBUTION_EXAMPLE_SPLIT_TIME
         ),
       ],
       histogramMetric: "failedFittingVotes",
+      histogramScale: "count",
     },
   ];
 }
@@ -1047,6 +1067,7 @@ export function buildAnalysisRecord(
     galaxy,
     aggregate,
     votes: sortedVotes,
+    firstClassificationTime: sortedVotes[0]?._creationTime ?? null,
     averageCommentLength:
       aggregate.commentedClassifications > 0
         ? aggregate.totalCommentLength / aggregate.commentedClassifications
@@ -1076,7 +1097,17 @@ export function getConditionMetricLabel(metric: AnalysisConditionMetric) {
     return "Galaxy row creation time";
   }
 
+  if (metric === "firstClassificationTime") {
+    return "First classification time";
+  }
+
   return getMetricLabel(metric);
+}
+
+export function getDistributionScaleLabel(
+  scale: AnalysisDistributionComparisonScale
+) {
+  return scale === "relativeFrequency" ? "Relative frequency" : "Counts";
 }
 
 export function getMetricShortLabel(metric: AnalysisMetric) {
@@ -1108,7 +1139,7 @@ export function formatPaperLabel(paper: string | null | undefined) {
 }
 
 export function isDateTimeConditionMetric(metric: AnalysisConditionMetric) {
-  return metric === "galaxyCreationTime";
+  return metric === "galaxyCreationTime" || metric === "firstClassificationTime";
 }
 
 export function formatAnalysisDateTime(timestamp: number | null | undefined) {
@@ -1219,6 +1250,10 @@ function getConditionMetricValue(
     return record.galaxy._creationTime;
   }
 
+  if (metric === "firstClassificationTime") {
+    return record.firstClassificationTime;
+  }
+
   return getMetricValue(record, metric);
 }
 
@@ -1238,6 +1273,9 @@ function matchesCondition(
   condition: AnalysisQueryCondition
 ) {
   const value = getConditionMetricValue(record, condition.metric);
+  if (value === null) {
+    return false;
+  }
   const threshold = normalizeConditionThreshold(condition.metric, condition.count);
 
   switch (condition.operator) {
@@ -1533,6 +1571,8 @@ export function buildComparisonHistogramData(
   matchedHistogram: HistogramDatum[],
   failedHistogram: HistogramDatum[]
 ): ComparisonHistogramDatum[] {
+  const matchedTotal = matchedHistogram.reduce((sum, datum) => sum + datum.count, 0);
+  const failedTotal = failedHistogram.reduce((sum, datum) => sum + datum.count, 0);
   const matchedByKey = new Map(
     matchedHistogram.map((datum) => [datum.key, datum.count])
   );
@@ -1558,6 +1598,10 @@ export function buildComparisonHistogramData(
       metricLabel: datum.metricLabel,
       matchedCount,
       failedCount,
+      matchedRelativeFrequency:
+        matchedTotal > 0 ? matchedCount / matchedTotal : null,
+      failedRelativeFrequency:
+        failedTotal > 0 ? failedCount / failedTotal : null,
       totalCount: matchedCount + failedCount,
     };
   });

@@ -10,6 +10,7 @@ import {
   formatMetricValue,
   formatPaperLabel,
   getConditionMetricLabel,
+  getDistributionScaleLabel,
   getMetricLabel,
   getVotePreview,
   type AnalysisDistributionComparisonConfig,
@@ -186,6 +187,16 @@ function buildPreviewRecord(
   return {
     galaxyId: record.galaxy.id,
     numericId: record.galaxy.numericId,
+    galaxyCreationTimeIso: new Date(record.galaxy._creationTime).toISOString(),
+    galaxyCreationTimeLabel: new Date(record.galaxy._creationTime).toLocaleString(),
+    firstClassificationTimeIso:
+      record.firstClassificationTime === null
+        ? null
+        : new Date(record.firstClassificationTime).toISOString(),
+    firstClassificationTimeLabel:
+      record.firstClassificationTime === null
+        ? "-"
+        : new Date(record.firstClassificationTime).toLocaleString(),
     previewImageUrl: getImageUrl(record.galaxy.id, previewImageName, {
       quality: imageQuality,
     }),
@@ -491,6 +502,8 @@ function buildReportData({
         dominantLsb: DOMINANT_LSB_LABELS[comparison.dominantLsb],
         histogramMetricKey: comparison.histogramMetric,
         histogramMetric: getMetricLabel(comparison.histogramMetric),
+        histogramScaleKey: comparison.histogramScale,
+        histogramScale: getDistributionScaleLabel(comparison.histogramScale),
         conditions: comparison.conditions.map(buildConditionExport),
       },
       summary: {
@@ -510,7 +523,7 @@ function buildReportData({
 
   return {
     reportType: "classification-analysis",
-    reportVersion: 3,
+    reportVersion: 4,
     generatedAtIso: generatedAt.toISOString(),
     generatedAtLabel: generatedAt.toLocaleString(),
     datasetLoadedAtIso: new Date(dataset.loadedAt).toISOString(),
@@ -554,6 +567,7 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
                 <th scope="col">Preview</th>
                 <th scope="col">Galaxy</th>
                 <th scope="col">Paper</th>
+                <th scope="col">Galaxy created</th>
                 <th scope="col">Catalog nucleus</th>
                 <th scope="col">Dominant Is-LSB</th>
                 <th scope="col">Dominant morphology</th>
@@ -596,6 +610,7 @@ function renderQueryCard(query: ReturnType<typeof buildReportData>["queries"][nu
                           : `${record.galaxyId} (#${record.numericId.toLocaleString()})`
                       )}</th>
                       <td>${escapeHtml(record.paperLabel)}</td>
+                      <td>${escapeHtml(record.galaxyCreationTimeLabel)}</td>
                       <td>${record.catalogNucleus ? "Yes" : "No"}</td>
                       <td>${escapeHtml(record.dominantLsb.label)}</td>
                       <td>${escapeHtml(record.dominantMorphology.label)}</td>
@@ -784,7 +799,16 @@ function renderDistributionComparisonCard(
 ) {
   const maxBucketCount = Math.max(
     1,
-    ...comparison.comparisonHistogram.map((bin) => Math.max(bin.matchedCount, bin.failedCount))
+    ...comparison.comparisonHistogram.map((bin) =>
+      Math.max(
+        comparison.config.histogramScaleKey === "relativeFrequency"
+          ? bin.matchedRelativeFrequency ?? 0
+          : bin.matchedCount,
+        comparison.config.histogramScaleKey === "relativeFrequency"
+          ? bin.failedRelativeFrequency ?? 0
+          : bin.failedCount
+      )
+    )
   );
 
   return `
@@ -817,6 +841,10 @@ function renderDistributionComparisonCard(
               <td>${escapeHtml(comparison.config.histogramMetric)}</td>
             </tr>
             <tr>
+              <th scope="row">Histogram scale</th>
+              <td>${escapeHtml(comparison.config.histogramScale)}</td>
+            </tr>
+            <tr>
               <th scope="row">Thresholds</th>
               <td>${escapeHtml(
                 comparison.config.conditions
@@ -845,10 +873,22 @@ function renderDistributionComparisonCard(
           detail: "Galaxies in scope that satisfy every threshold on this card.",
         },
         {
+          key: `${comparison.id}-matchedShareOfScope`,
+          label: "Matching share of scope",
+          value: formatPercent(comparison.summary.matchedStats.shareOfScope),
+          detail: "Share of scoped galaxies that satisfy every threshold on this card.",
+        },
+        {
           key: `${comparison.id}-failedCount`,
           label: "Failing subset",
           value: comparison.summary.failedCount.toLocaleString(),
           detail: "Galaxies in the same scope that miss one or more thresholds.",
+        },
+        {
+          key: `${comparison.id}-failedShareOfScope`,
+          label: "Failing share of scope",
+          value: formatPercent(comparison.summary.failedStats.shareOfScope),
+          detail: "Share of scoped galaxies that miss at least one threshold on this card.",
         },
       ])}
 
@@ -917,12 +957,20 @@ function renderDistributionComparisonCard(
 
       <div class="subsection">
         <h4>Combined comparison histogram</h4>
-        <p>Shared bins with overlaid counts for the matching and failing subsets.</p>
+        <p>Shared bins with overlaid ${escapeHtml(comparison.config.histogramScale.toLowerCase())} for the matching and failing subsets.</p>
         <div class="comparison-histogram-bars">
           ${comparison.comparisonHistogram
             .map((bin) => {
-              const matchedWidth = (bin.matchedCount / maxBucketCount) * 100;
-              const failedWidth = (bin.failedCount / maxBucketCount) * 100;
+              const matchedScaleValue =
+                comparison.config.histogramScaleKey === "relativeFrequency"
+                  ? bin.matchedRelativeFrequency ?? 0
+                  : bin.matchedCount;
+              const failedScaleValue =
+                comparison.config.histogramScaleKey === "relativeFrequency"
+                  ? bin.failedRelativeFrequency ?? 0
+                  : bin.failedCount;
+              const matchedWidth = (matchedScaleValue / maxBucketCount) * 100;
+              const failedWidth = (failedScaleValue / maxBucketCount) * 100;
               return `
                 <div class="comparison-row">
                   <div class="histogram-label">${escapeHtml(bin.label)}</div>
@@ -935,8 +983,16 @@ function renderDistributionComparisonCard(
                     </div>
                   </div>
                   <div class="comparison-counts">
-                    <div>Pass ${escapeHtml(bin.matchedCount.toLocaleString())}</div>
-                    <div>Fail ${escapeHtml(bin.failedCount.toLocaleString())}</div>
+                    <div>Pass ${escapeHtml(
+                      comparison.config.histogramScaleKey === "relativeFrequency"
+                        ? formatPercent(bin.matchedRelativeFrequency)
+                        : bin.matchedCount.toLocaleString()
+                    )}</div>
+                    <div>Fail ${escapeHtml(
+                      comparison.config.histogramScaleKey === "relativeFrequency"
+                        ? formatPercent(bin.failedRelativeFrequency)
+                        : bin.failedCount.toLocaleString()
+                    )}</div>
                   </div>
                 </div>
               `;
@@ -950,6 +1006,8 @@ function renderDistributionComparisonCard(
                 <th scope="col">Bin</th>
                 <th scope="col">Pass count</th>
                 <th scope="col">Fail count</th>
+                <th scope="col">Pass relative frequency</th>
+                <th scope="col">Fail relative frequency</th>
               </tr>
             </thead>
             <tbody>
@@ -960,6 +1018,8 @@ function renderDistributionComparisonCard(
                       <th scope="row">${escapeHtml(bin.label)}</th>
                       <td>${escapeHtml(bin.matchedCount.toLocaleString())}</td>
                       <td>${escapeHtml(bin.failedCount.toLocaleString())}</td>
+                      <td>${escapeHtml(formatPercent(bin.matchedRelativeFrequency))}</td>
+                      <td>${escapeHtml(formatPercent(bin.failedRelativeFrequency))}</td>
                     </tr>
                   `
                 )
@@ -1368,7 +1428,7 @@ export function buildAnalysisHtmlReport(input: ExportInput) {
     </style>
   </head>
   <body>
-    <main data-report-type="classification-analysis" data-report-version="3">
+    <main data-report-type="classification-analysis" data-report-version="4">
       <section class="hero">
         <h1>Classification analysis report</h1>
         <p class="lead">

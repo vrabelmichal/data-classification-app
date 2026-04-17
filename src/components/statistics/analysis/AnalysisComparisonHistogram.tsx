@@ -1,4 +1,5 @@
 import {
+  type AnalysisDistributionComparisonScale,
   CartesianGrid,
   ComposedChart,
   Legend,
@@ -11,7 +12,20 @@ import {
 
 import type { ComparisonHistogramDatum } from "./helpers";
 
-function ComparisonHistogramTooltip({ active, payload, label }: any) {
+function formatRelativeFrequency(value: number | null) {
+  if (value === null || !Number.isFinite(value)) {
+    return "-";
+  }
+
+  return `${(value * 100).toFixed(1)}%`;
+}
+
+function ComparisonHistogramTooltip({
+  active,
+  payload,
+  label,
+  scale,
+}: any) {
   if (!active || !payload?.length) {
     return null;
   }
@@ -27,9 +41,15 @@ function ComparisonHistogramTooltip({ active, payload, label }: any) {
       <p className="text-gray-600 dark:text-gray-300">Bucket: {label}</p>
       <p className="text-emerald-700 dark:text-emerald-300">
         Matches thresholds: {datum.matchedCount.toLocaleString()} galaxies
+        {scale === "relativeFrequency"
+          ? ` (${formatRelativeFrequency(datum.matchedRelativeFrequency)})`
+          : ""}
       </p>
       <p className="text-rose-700 dark:text-rose-300">
         Fails thresholds: {datum.failedCount.toLocaleString()} galaxies
+        {scale === "relativeFrequency"
+          ? ` (${formatRelativeFrequency(datum.failedRelativeFrequency)})`
+          : ""}
       </p>
     </div>
   );
@@ -37,11 +57,13 @@ function ComparisonHistogramTooltip({ active, payload, label }: any) {
 
 interface AnalysisComparisonHistogramProps {
   data: ComparisonHistogramDatum[];
+  scale: AnalysisDistributionComparisonScale;
   height?: number;
 }
 
 export function AnalysisComparisonHistogram({
   data,
+  scale,
   height = 280,
 }: AnalysisComparisonHistogramProps) {
   if (data.length === 0) {
@@ -52,9 +74,26 @@ export function AnalysisComparisonHistogram({
     );
   }
 
+  const chartData = data.map((datum) => ({
+    ...datum,
+    matchedValue:
+      scale === "relativeFrequency"
+        ? datum.matchedRelativeFrequency ?? 0
+        : datum.matchedCount,
+    failedValue:
+      scale === "relativeFrequency"
+        ? datum.failedRelativeFrequency ?? 0
+        : datum.failedCount,
+  }));
+
+  const valueFormatter = (value: number) =>
+    scale === "relativeFrequency"
+      ? formatRelativeFrequency(value)
+      : value.toLocaleString();
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <ComposedChart data={data} margin={{ top: 8, right: 24, left: 0, bottom: 8 }}>
+      <ComposedChart data={chartData} margin={{ top: 8, right: 24, left: 0, bottom: 8 }}>
         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
         <XAxis
           dataKey="label"
@@ -66,14 +105,15 @@ export function AnalysisComparisonHistogram({
         />
         <YAxis
           tick={{ fontSize: 12 }}
-          allowDecimals={false}
-          tickFormatter={(value: number) => value.toLocaleString()}
+          allowDecimals={scale === "relativeFrequency"}
+          domain={scale === "relativeFrequency" ? [0, 1] : undefined}
+          tickFormatter={valueFormatter}
         />
-        <Tooltip content={<ComparisonHistogramTooltip />} />
+        <Tooltip content={<ComparisonHistogramTooltip scale={scale} />} />
         <Legend />
         <Line
           type="stepAfter"
-          dataKey="matchedCount"
+          dataKey="matchedValue"
           name="Matches thresholds"
           stroke="#059669"
           strokeWidth={3}
@@ -82,7 +122,7 @@ export function AnalysisComparisonHistogram({
         />
         <Line
           type="stepAfter"
-          dataKey="failedCount"
+          dataKey="failedValue"
           name="Fails thresholds"
           stroke="#e11d48"
           strokeWidth={3}

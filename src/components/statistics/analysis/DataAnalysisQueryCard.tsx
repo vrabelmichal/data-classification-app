@@ -141,7 +141,9 @@ function QueryConditionEditor({
         />
         {isDateTimeMetric ? (
           <span className="block text-xs text-gray-500 dark:text-gray-400">
-            Compares against the galaxy row creation timestamp.
+            {condition.metric === "firstClassificationTime"
+              ? "Compares against the first classification timestamp on the galaxy."
+              : "Compares against the galaxy row creation timestamp."}
           </span>
         ) : null}
       </label>

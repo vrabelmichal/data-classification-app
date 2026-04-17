@@ -3,6 +3,7 @@ import { useState } from "react";
 import { AnalysisComparisonHistogram } from "./AnalysisComparisonHistogram";
 import {
   analysisConditionMetricOptions,
+  analysisDistributionScaleOptions,
   analysisHistogramMetricOptions,
   analysisOperatorOptions,
   buildComparisonHistogramData,
@@ -14,6 +15,7 @@ import {
   formatMetricValue,
   formatPaperLabel,
   getConditionMetricLabel,
+  getDistributionScaleLabel,
   getMetricLabel,
   isDateTimeConditionMetric,
   parseDateTimeLocalInputValue,
@@ -222,6 +224,13 @@ function ComparisonConditionEditor({
           }}
           className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
         />
+        {isDateTimeMetric ? (
+          <span className="block text-xs text-gray-500 dark:text-gray-400">
+            {condition.metric === "firstClassificationTime"
+              ? "Compares against the first classification timestamp on the galaxy."
+              : "Compares against the galaxy row creation timestamp."}
+          </span>
+        ) : null}
       </label>
 
       <div className="flex items-end">
@@ -579,22 +588,45 @@ export function DataAnalysisDistributionCard({
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   Histogram metric
                 </span>
-                <select
-                  value={comparison.histogramMetric}
-                  onChange={(event) =>
-                    onUpdateComparison(comparison.id, (currentComparison) => ({
-                      ...currentComparison,
-                      histogramMetric: event.target.value as AnalysisDistributionComparisonConfig["histogramMetric"],
-                    }))
-                  }
-                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                >
-                  {analysisHistogramMetricOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <select
+                    value={comparison.histogramMetric}
+                    onChange={(event) =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        histogramMetric: event.target.value as AnalysisDistributionComparisonConfig["histogramMetric"],
+                      }))
+                    }
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  >
+                    {analysisHistogramMetricOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="space-y-1">
+                    <span className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Scale
+                    </span>
+                    <select
+                      value={comparison.histogramScale}
+                      onChange={(event) =>
+                        onUpdateComparison(comparison.id, (currentComparison) => ({
+                          ...currentComparison,
+                          histogramScale: event.target.value as AnalysisDistributionComparisonConfig["histogramScale"],
+                        }))
+                      }
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                    >
+                      {analysisDistributionScaleOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
               </label>
             </div>
           </div>
@@ -678,6 +710,10 @@ export function DataAnalysisDistributionCard({
                     label="Histogram metric"
                     value={getMetricLabel(comparison.histogramMetric)}
                   />
+                  <SummaryChip
+                    label="Scale"
+                    value={getDistributionScaleLabel(comparison.histogramScale)}
+                  />
                   <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       Threshold summary
@@ -705,11 +741,14 @@ export function DataAnalysisDistributionCard({
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {hasDataset && result
-                    ? `Step-style comparison of ${getMetricLabel(comparison.histogramMetric).toLowerCase()} for galaxies that pass versus fail the thresholds.`
+                    ? `Step-style comparison of ${getMetricLabel(comparison.histogramMetric).toLowerCase()} for galaxies that pass versus fail the thresholds, shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
                     : "Load the dataset to build this comparison histogram."}
                 </p>
               </div>
-              <AnalysisComparisonHistogram data={comparisonPlotData} />
+              <AnalysisComparisonHistogram
+                data={comparisonPlotData}
+                scale={comparison.histogramScale}
+              />
             </div>
           </div>
 
