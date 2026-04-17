@@ -1,7 +1,12 @@
-import { startTransition, useCallback, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import { useConvex } from "convex/react";
 
 import { api } from "../../../../convex/_generated/api";
+import {
+  clearStoredAnalysisDataset,
+  getStoredAnalysisDataset,
+  saveAnalysisDatasetToStorage,
+} from "./datasetStorage";
 import {
   accumulateClassificationVote,
   buildAnalysisRecord,
@@ -18,9 +23,21 @@ const GALAXY_PAGE_SIZE = 2500;
 const CLASSIFICATION_PAGE_SIZE = 2500;
 const EMPTY_RECORDS: AnalysisRecord[] = [];
 
+type StoredDatasetInfo = {
+  savedAt: number;
+  recordCount: number;
+};
+
+type StorageNotice = {
+  tone: "success" | "error";
+  message: string;
+} | null;
+
 export function useAnalysisDataset() {
   const convex = useConvex();
   const [dataset, setDataset] = useState<PreparedDataset | null>(null);
+  const [storedDatasetInfo, setStoredDatasetInfo] = useState<StoredDatasetInfo | null>(null);
+  const [storageNotice, setStorageNotice] = useState<StorageNotice>(null);
   const [loadState, setLoadState] = useState<DataLoadState>({
     status: "idle",
     phase: "idle",
@@ -30,6 +47,23 @@ export function useAnalysisDataset() {
     cancelled: false,
   });
   const cancelLoadRef = useRef(false);
+
+  const refreshStoredDatasetInfo = useCallback(() => {
+    const storedDataset = getStoredAnalysisDataset();
+    if (!storedDataset) {
+      setStoredDatasetInfo(null);
+      return;
+    }
+
+    setStoredDatasetInfo({
+      savedAt: storedDataset.savedAt,
+      recordCount: storedDataset.dataset.records.length,
+    });
+  }, []);
+
+  useEffect(() => {
+    refreshStoredDatasetInfo();
+  }, [refreshStoredDatasetInfo]);
 
   const handleLoadDataset = useCallback(async () => {
     cancelLoadRef.current = false;
@@ -219,6 +253,7 @@ export function useAnalysisDataset() {
           cancelled: false,
         });
       });
+      setStorageNotice(null);
     } catch (error) {
       setLoadState((currentState) => ({
         ...currentState,
@@ -234,13 +269,79 @@ export function useAnalysisDataset() {
     cancelLoadRef.current = true;
   }, []);
 
+  const handleSaveDatasetToStorage = useCallback(() => {
+    if (!dataset) {
+      return;
+    }
+
+    const saveResult = saveAnalysisDatasetToStorage(dataset);
+    if (saveResult.ok) {
+      refreshStoredDatasetInfo();
+      setStorageNotice({
+        tone: "success",
+        message: "Saved the current analysis dataset to this browser.",
+      });
+      return;
+    }
+
+    setStorageNotice({ tone: "error", message: saveResult.error });
+  }, [dataset, refreshStoredDatasetInfo]);
+
+  const handleLoadStoredDataset = useCallback(() => {
+    const storedDataset = getStoredAnalysisDataset();
+    if (!storedDataset) {
+      refreshStoredDatasetInfo();
+      setStorageNotice({
+        tone: "error",
+        message: "No saved browser dataset is currently available.",
+      });
+      return;
+    }
+
+    startTransition(() => {
+      setDataset(storedDataset.dataset);
+      setLoadState({
+        status: "ready",
+        phase: "ready",
+        galaxiesLoaded: storedDataset.dataset.records.length,
+        classificationRowsLoaded: storedDataset.dataset.records.reduce(
+          (sum, record) => sum + record.aggregate.totalClassifications,
+          0
+        ),
+        error: null,
+        cancelled: false,
+      });
+    });
+
+    setStorageNotice({
+      tone: "success",
+      message: "Loaded the analysis dataset from this browser instead of querying the database again.",
+    });
+  }, [refreshStoredDatasetInfo]);
+
+  const handleClearStoredDataset = useCallback(() => {
+    clearStoredAnalysisDataset();
+    refreshStoredDatasetInfo();
+    setStorageNotice({
+      tone: "success",
+      message: "Removed the saved browser copy of the analysis dataset.",
+    });
+  }, [refreshStoredDatasetInfo]);
+
   return {
     dataset,
     loadState,
     hasDataset: dataset !== null,
+    hasStoredDataset: storedDatasetInfo !== null,
+    storedDatasetRecordCount: storedDatasetInfo?.recordCount ?? 0,
+    storedDatasetSavedAtLabel: formatLoadedAt(storedDatasetInfo?.savedAt ?? null),
+    storageNotice,
     loadedAtLabel: formatLoadedAt(dataset?.loadedAt ?? null),
     loadedRecords: dataset?.records ?? EMPTY_RECORDS,
     handleLoadDataset,
     handleCancelLoad,
+    handleSaveDatasetToStorage,
+    handleLoadStoredDataset,
+    handleClearStoredDataset,
   };
 }

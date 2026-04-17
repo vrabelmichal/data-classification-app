@@ -137,22 +137,36 @@ function HistogramCard({
 export function AnalysisLoadSection({
   summary,
   hasDataset,
+  hasStoredDataset,
+  storedDatasetRecordCount,
+  storedDatasetSavedAtLabel,
+  storageNotice,
   loadedRecordsCount,
   loadedAtLabel,
   loadState,
   onLoadDataset,
+  onLoadStoredDataset,
   onCancelLoad,
+  onSaveDatasetToStorage,
+  onClearStoredDataset,
   onExportReport,
   onExportJson,
   canExportReport,
 }: {
   summary: DatasetSummary;
   hasDataset: boolean;
+  hasStoredDataset: boolean;
+  storedDatasetRecordCount: number;
+  storedDatasetSavedAtLabel: string | null;
+  storageNotice: { tone: "success" | "error"; message: string } | null;
   loadedRecordsCount: number;
   loadedAtLabel: string | null;
   loadState: DataLoadState;
   onLoadDataset: () => void;
+  onLoadStoredDataset: () => void;
   onCancelLoad: () => void;
+  onSaveDatasetToStorage: () => void;
+  onClearStoredDataset: () => void;
   onExportReport: () => void;
   onExportJson: () => void;
   canExportReport: boolean;
@@ -212,6 +226,16 @@ export function AnalysisLoadSection({
           </p>
 
           <div className="mt-4 flex flex-wrap gap-3">
+            {hasStoredDataset ? (
+              <button
+                type="button"
+                onClick={onLoadStoredDataset}
+                disabled={loadState.status === "loading"}
+                className="inline-flex items-center rounded-md border border-blue-300 bg-white px-4 py-2.5 text-sm font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-blue-800 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+              >
+                Load saved browser copy
+              </button>
+            ) : null}
             <button
               type="button"
               onClick={onLoadDataset}
@@ -235,6 +259,34 @@ export function AnalysisLoadSection({
               </button>
             ) : null}
           </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={onSaveDatasetToStorage}
+              disabled={!hasDataset || loadState.status === "loading"}
+              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+            >
+              Save dataset to browser
+            </button>
+            {hasStoredDataset ? (
+              <button
+                type="button"
+                onClick={onClearStoredDataset}
+                disabled={loadState.status === "loading"}
+                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+              >
+                Clear saved copy
+              </button>
+            ) : null}
+          </div>
+
+          {hasStoredDataset ? (
+            <p className="mt-3 text-sm text-blue-800/90 dark:text-blue-200/90">
+              Saved browser copy available for {storedDatasetRecordCount.toLocaleString()} galaxies
+              {storedDatasetSavedAtLabel ? `, saved ${storedDatasetSavedAtLabel}` : ""}.
+            </p>
+          ) : null}
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button
@@ -272,6 +324,17 @@ export function AnalysisLoadSection({
           {loadState.cancelled && loadState.status === "idle" ? (
             <p className="mt-3 text-sm text-amber-700 dark:text-amber-300">
               Loading was cancelled before the local dataset finished building.
+            </p>
+          ) : null}
+          {storageNotice ? (
+            <p
+              className={`mt-3 text-sm ${
+                storageNotice.tone === "error"
+                  ? "text-red-700 dark:text-red-300"
+                  : "text-emerald-700 dark:text-emerald-300"
+              }`}
+            >
+              {storageNotice.message}
             </p>
           ) : null}
           {loadState.error ? (

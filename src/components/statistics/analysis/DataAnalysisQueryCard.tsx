@@ -267,6 +267,24 @@ function TrashIcon() {
   );
 }
 
+function DuplicateIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <rect x="9" y="9" width="11" height="11" rx="2" />
+      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
 function VotePreviewRow({
   label,
   values,
@@ -678,9 +696,14 @@ export function DataAnalysisQueryCard({
               <button
                 type="button"
                 onClick={onDuplicate}
-                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                aria-label="Duplicate query card"
+                title="Duplicate query card"
+                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 sm:px-4"
               >
-                Duplicate
+                <span className="sm:mr-2">
+                  <DuplicateIcon />
+                </span>
+                <span className="hidden sm:inline">Duplicate</span>
               </button>
               <button
                 type="button"
@@ -688,12 +711,12 @@ export function DataAnalysisQueryCard({
                 disabled={!canRemove}
                 aria-label="Remove query card"
                 title="Remove query card"
-                className="inline-flex items-center justify-center rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-red-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+                className="inline-flex items-center justify-center rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-red-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500 sm:px-4"
               >
-                <span className="mr-2">
+                <span className="sm:mr-2">
                   <TrashIcon />
                 </span>
-                Remove
+                <span className="hidden sm:inline">Remove</span>
               </button>
             </div>
           </div>

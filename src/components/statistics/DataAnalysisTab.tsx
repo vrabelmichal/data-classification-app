@@ -212,10 +212,17 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     dataset,
     loadState,
     hasDataset,
+    hasStoredDataset,
+    storedDatasetRecordCount,
+    storedDatasetSavedAtLabel,
+    storageNotice,
     loadedAtLabel,
     loadedRecords,
     handleLoadDataset,
     handleCancelLoad,
+    handleSaveDatasetToStorage,
+    handleLoadStoredDataset,
+    handleClearStoredDataset,
   } = useAnalysisDataset();
 
   const {
@@ -422,13 +429,20 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       <AnalysisLoadSection
         summary={summary}
         hasDataset={hasDataset}
+        hasStoredDataset={hasStoredDataset}
+        storedDatasetRecordCount={storedDatasetRecordCount}
+        storedDatasetSavedAtLabel={storedDatasetSavedAtLabel}
+        storageNotice={storageNotice}
         loadedRecordsCount={loadedRecords.length}
         loadedAtLabel={loadedAtLabel}
         loadState={loadState}
         onLoadDataset={() => {
           void handleLoadDataset();
         }}
+        onLoadStoredDataset={handleLoadStoredDataset}
         onCancelLoad={handleCancelLoad}
+        onSaveDatasetToStorage={handleSaveDatasetToStorage}
+        onClearStoredDataset={handleClearStoredDataset}
         onExportReport={handleExportReport}
         onExportJson={handleExportJson}
         canExportReport={hasDataset && loadState.status !== "loading"}
