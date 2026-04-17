@@ -446,16 +446,18 @@ function formatDominantLsbBreakdown(
   return `LSB ${breakdown.lsb.toLocaleString()} • Non-LSB ${breakdown.nonLsb.toLocaleString()} • Split ${breakdown.split.toLocaleString()} • No Is-LSB ${breakdown.noComparableVotes.toLocaleString()}`;
 }
 
-function AnalysisGalaxyCard({
+export function AnalysisGalaxyCard({
   record,
   imageQuality,
   userPreferences,
   onOpenDetails,
+  showOpenDetailsButton = true,
 }: {
   record: AnalysisRecord;
   imageQuality: "high" | "medium" | "low";
   userPreferences: UserPreferences | null | undefined;
   onOpenDetails: (record: AnalysisRecord) => void;
+  showOpenDetailsButton?: boolean;
 }) {
   const { galaxy, aggregate } = record;
   const previewImageName = getPreviewImageName();
@@ -590,13 +592,15 @@ function AnalysisGalaxyCard({
           >
             Classify in new tab
           </Link>
-          <button
-            type="button"
-            onClick={() => onOpenDetails(record)}
-            className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-          >
-            View classifications
-          </button>
+          {showOpenDetailsButton ? (
+            <button
+              type="button"
+              onClick={() => onOpenDetails(record)}
+              className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              View classifications
+            </button>
+          ) : null}
           <span className="text-sm text-gray-500 dark:text-gray-400">
             Awesome {aggregate.awesomeVotes.toLocaleString()}
           </span>

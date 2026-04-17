@@ -717,7 +717,10 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
             summary={summary}
             isCollapsed={collapsedComparisons[comparison.id] === true}
             hasDataset={hasDataset}
+            imageQuality={imageQuality}
+            userPreferences={userPrefs}
             canRemove={comparisons.length > 1}
+            onOpenDetails={setSelectedRecord}
             onToggleCollapsed={() => toggleComparisonCollapsed(comparison.id)}
             onDuplicate={() =>
               setComparisons((currentComparisons) => [
@@ -753,7 +756,9 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
               collapsedClassificationComparisons[comparison.id] === true
             }
             hasDataset={hasDataset}
+            userDisplayNames={userDisplayNames}
             canRemove={classificationComparisons.length > 1}
+            onOpenDetails={setSelectedRecord}
             onToggleCollapsed={() =>
               toggleClassificationComparisonCollapsed(comparison.id)
             }
@@ -774,6 +779,8 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         onClose={() => setSelectedRecord(null)}
         record={selectedRecord}
         userDisplayNames={userDisplayNames}
+        imageQuality={imageQuality}
+        userPreferences={userPrefs}
       />
     </div>
   );

@@ -2,12 +2,14 @@ import { useState } from "react";
 
 import { AnalysisComparisonHistogram } from "./AnalysisComparisonHistogram";
 import {
+  ANALYSIS_MAX_PREVIEW_LIMIT,
   analysisClassificationConditionMetricOptions,
   analysisClassificationHistogramMetricOptions,
   analysisDistributionScaleOptions,
   analysisOperatorOptions,
   buildComparisonHistogramData,
   catalogNucleusOptions,
+  clampPreviewLimit,
   createAnalysisClassificationCondition,
   dominantLsbOptions,
   duplicateAnalysisClassificationDistributionComparison,
@@ -17,14 +19,152 @@ import {
   getClassificationConditionMetricLabel,
   getClassificationMetricLabel,
   getDistributionScaleLabel,
+  getNormalizedComment,
   isDateTimeClassificationConditionMetric,
   parseDateTimeLocalInputValue,
   toDateTimeLocalInputValue,
+  type AnalysisClassificationPoint,
   type AnalysisClassificationComparisonCondition,
   type AnalysisClassificationDistributionComparisonConfig,
   type AnalysisClassificationDistributionComparisonResult,
+  type AnalysisRecord,
 } from "./helpers";
 import type { DatasetSummary } from "./tabTypes";
+
+const classificationDateFormatter = new Intl.DateTimeFormat(undefined, {
+  dateStyle: "medium",
+  timeStyle: "short",
+});
+
+function formatClassificationDate(timestamp: number) {
+  return classificationDateFormatter.format(new Date(timestamp));
+}
+
+function formatClassificationBoolean(value: boolean | undefined) {
+  if (value === undefined) {
+    return "-";
+  }
+
+  return value ? "Yes" : "No";
+}
+
+function getCommentPreview(comment: string, previewLength = 36) {
+  if (comment.length <= previewLength) {
+    return comment;
+  }
+
+  return `${comment.slice(0, previewLength).trimEnd()}...`;
+}
+
+function DetailsIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
+  );
+}
+
+function getDisplayName(
+  userId: string,
+  userDisplayNames: Record<string, string>
+) {
+  return userDisplayNames[userId] ?? `User ${userId.slice(-6)}`;
+}
+
+function ClassificationPreviewTable({
+  title,
+  description,
+  points,
+  userDisplayNames,
+  onOpenDetails,
+}: {
+  title: string;
+  description: string;
+  points: AnalysisClassificationPoint[];
+  userDisplayNames: Record<string, string>;
+  onOpenDetails: (record: AnalysisRecord) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+      </div>
+      {points.length > 0 ? (
+        <div className="max-w-full overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
+          <table className="min-w-[860px] divide-y divide-gray-200 text-left text-sm dark:divide-gray-700">
+            <thead className="bg-gray-50 dark:bg-gray-900/40">
+              <tr className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <th className="px-3 py-3">Created</th>
+                <th className="px-3 py-3">User</th>
+                <th className="px-3 py-3">Galaxy</th>
+                <th className="px-3 py-3">Details</th>
+                <th className="px-3 py-3">Failed fitting</th>
+                <th className="px-3 py-3">Visible nucleus</th>
+                <th className="px-3 py-3">Awesome</th>
+                <th className="px-3 py-3">Valid z</th>
+                <th className="px-3 py-3">Comment</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200 dark:divide-gray-800">
+              {points.map((point) => {
+                const comment = getNormalizedComment(point.vote.comments);
+                const commentPreview = comment ? getCommentPreview(comment) : null;
+                return (
+                  <tr key={point.id} className="align-top text-gray-700 dark:text-gray-200">
+                    <td className="px-3 py-3 whitespace-nowrap">
+                      {formatClassificationDate(point.vote._creationTime)}
+                    </td>
+                    <td className="px-3 py-3 font-medium text-gray-900 dark:text-white">
+                      {getDisplayName(point.vote.userId, userDisplayNames)}
+                    </td>
+                    <td className="px-3 py-3 whitespace-nowrap">{point.record.galaxy.id}</td>
+                    <td className="px-3 py-3">
+                      <button
+                        type="button"
+                        onClick={() => onOpenDetails(point.record)}
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                        aria-label={`View details for ${point.record.galaxy.id}`}
+                        title={`View details for ${point.record.galaxy.id}`}
+                      >
+                        <DetailsIcon />
+                      </button>
+                    </td>
+                    <td className="px-3 py-3">{formatClassificationBoolean(point.vote.failed_fitting)}</td>
+                    <td className="px-3 py-3">{formatClassificationBoolean(point.vote.visible_nucleus)}</td>
+                    <td className="px-3 py-3">{point.vote.awesome_flag ? "Yes" : "No"}</td>
+                    <td className="px-3 py-3">{point.vote.valid_redshift ? "Yes" : "No"}</td>
+                    <td className="px-3 py-3 min-w-[120px] max-w-[180px] break-words">
+                      {commentPreview ? (
+                        <span title={comment}>{commentPreview}</span>
+                      ) : (
+                        <span className="text-gray-400 dark:text-gray-500">-</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+          No classifications in this preview.
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ExpandIcon() {
   return (
@@ -318,7 +458,9 @@ export function DataAnalysisClassificationDistributionCard({
   summary,
   isCollapsed,
   hasDataset,
+  userDisplayNames,
   canRemove,
+  onOpenDetails,
   onToggleCollapsed,
   onDuplicate,
   onRemove,
@@ -329,7 +471,9 @@ export function DataAnalysisClassificationDistributionCard({
   summary: DatasetSummary;
   isCollapsed: boolean;
   hasDataset: boolean;
+  userDisplayNames: Record<string, string>;
   canRemove: boolean;
+  onOpenDetails: (record: AnalysisRecord) => void;
   onToggleCollapsed: () => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -585,7 +729,7 @@ export function DataAnalysisClassificationDistributionCard({
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   Histogram metric
                 </span>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
                   <select
                     value={comparison.histogramMetric}
                     onChange={(event) =>
@@ -624,6 +768,27 @@ export function DataAnalysisClassificationDistributionCard({
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Preview rows
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={ANALYSIS_MAX_PREVIEW_LIMIT}
+                      step={1}
+                      value={comparison.previewLimit}
+                      onChange={(event) =>
+                        onUpdateComparison(comparison.id, (currentComparison) => ({
+                          ...currentComparison,
+                          previewLimit: clampPreviewLimit(
+                            Number(event.target.value) || 0
+                          ),
+                        }))
+                      }
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                    />
                   </div>
                 </div>
               </label>
@@ -713,6 +878,10 @@ export function DataAnalysisClassificationDistributionCard({
                     label="Scale"
                     value={getDistributionScaleLabel(comparison.histogramScale)}
                   />
+                  <SummaryChip
+                    label="Preview rows"
+                    value={clampPreviewLimit(comparison.previewLimit).toLocaleString()}
+                  />
                   <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       Threshold summary
@@ -787,6 +956,23 @@ export function DataAnalysisClassificationDistributionCard({
                   maxMetric: null,
                 }
               }
+            />
+          </div>
+
+          <div className="mt-6 grid gap-6 xl:grid-cols-2">
+            <ClassificationPreviewTable
+              title="Matching classifications"
+              description={`Showing up to ${clampPreviewLimit(comparison.previewLimit)} classifications ranked by ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} inside the subset that passes the thresholds.`}
+              points={result?.matchedPreviewPoints ?? []}
+              userDisplayNames={userDisplayNames}
+              onOpenDetails={onOpenDetails}
+            />
+            <ClassificationPreviewTable
+              title="Failing classifications"
+              description={`Showing up to ${clampPreviewLimit(comparison.previewLimit)} classifications ranked by ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} inside the subset that fails one or more thresholds.`}
+              points={result?.failedPreviewPoints ?? []}
+              userDisplayNames={userDisplayNames}
+              onOpenDetails={onOpenDetails}
             />
           </div>
         </>

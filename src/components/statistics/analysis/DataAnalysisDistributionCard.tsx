@@ -1,13 +1,17 @@
 import { useState } from "react";
 
+import type { UserPreferences } from "../../classification/types";
+import { AnalysisGalaxyCard } from "./DataAnalysisQueryCard";
 import { AnalysisComparisonHistogram } from "./AnalysisComparisonHistogram";
 import {
+  ANALYSIS_MAX_PREVIEW_LIMIT,
   analysisConditionMetricOptions,
   analysisDistributionScaleOptions,
   analysisHistogramMetricOptions,
   analysisOperatorOptions,
   buildComparisonHistogramData,
   catalogNucleusOptions,
+  clampPreviewLimit,
   createAnalysisCondition,
   dominantLsbOptions,
   duplicateAnalysisDistributionComparison,
@@ -325,7 +329,10 @@ export function DataAnalysisDistributionCard({
   summary,
   isCollapsed,
   hasDataset,
+  imageQuality,
+  userPreferences,
   canRemove,
+  onOpenDetails,
   onToggleCollapsed,
   onDuplicate,
   onRemove,
@@ -336,7 +343,10 @@ export function DataAnalysisDistributionCard({
   summary: DatasetSummary;
   isCollapsed: boolean;
   hasDataset: boolean;
+  imageQuality: "high" | "medium" | "low";
+  userPreferences: UserPreferences | null | undefined;
   canRemove: boolean;
+  onOpenDetails: (record: import("./helpers").AnalysisRecord) => void;
   onToggleCollapsed: () => void;
   onDuplicate: () => void;
   onRemove: () => void;
@@ -588,7 +598,7 @@ export function DataAnalysisDistributionCard({
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   Histogram metric
                 </span>
-                <div className="grid gap-3 sm:grid-cols-2">
+                <div className="grid gap-3 sm:grid-cols-3">
                   <select
                     value={comparison.histogramMetric}
                     onChange={(event) =>
@@ -625,6 +635,27 @@ export function DataAnalysisDistributionCard({
                         </option>
                       ))}
                     </select>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Preview rows
+                    </span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={ANALYSIS_MAX_PREVIEW_LIMIT}
+                      step={1}
+                      value={comparison.previewLimit}
+                      onChange={(event) =>
+                        onUpdateComparison(comparison.id, (currentComparison) => ({
+                          ...currentComparison,
+                          previewLimit: clampPreviewLimit(
+                            Number(event.target.value) || 0
+                          ),
+                        }))
+                      }
+                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                    />
                   </div>
                 </div>
               </label>
@@ -714,6 +745,10 @@ export function DataAnalysisDistributionCard({
                     label="Scale"
                     value={getDistributionScaleLabel(comparison.histogramScale)}
                   />
+                  <SummaryChip
+                    label="Preview rows"
+                    value={clampPreviewLimit(comparison.previewLimit).toLocaleString()}
+                  />
                   <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       Threshold summary
@@ -786,6 +821,64 @@ export function DataAnalysisDistributionCard({
                 }
               }
             />
+          </div>
+
+          <div className="mt-6 grid gap-6 xl:grid-cols-2">
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Matching galaxies
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Showing up to {clampPreviewLimit(comparison.previewLimit)} galaxies ranked by {getMetricLabel(comparison.histogramMetric).toLowerCase()} inside the subset that passes the thresholds.
+                </p>
+              </div>
+              {hasDataset && result && result.matchedPreviewRecords.length > 0 ? (
+                <div className="space-y-4">
+                  {result.matchedPreviewRecords.map((record) => (
+                    <AnalysisGalaxyCard
+                      key={`${comparison.id}-matched-${record.galaxy._id}`}
+                      record={record}
+                      imageQuality={imageQuality}
+                      userPreferences={userPreferences}
+                      onOpenDetails={onOpenDetails}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                  No galaxies in the matching subset preview.
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                  Failing galaxies
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Showing up to {clampPreviewLimit(comparison.previewLimit)} galaxies ranked by {getMetricLabel(comparison.histogramMetric).toLowerCase()} inside the subset that fails one or more thresholds.
+                </p>
+              </div>
+              {hasDataset && result && result.failedPreviewRecords.length > 0 ? (
+                <div className="space-y-4">
+                  {result.failedPreviewRecords.map((record) => (
+                    <AnalysisGalaxyCard
+                      key={`${comparison.id}-failed-${record.galaxy._id}`}
+                      record={record}
+                      imageQuality={imageQuality}
+                      userPreferences={userPreferences}
+                      onOpenDetails={onOpenDetails}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-4 py-8 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                  No galaxies in the failing subset preview.
+                </div>
+              )}
+            </div>
           </div>
         </>
       ) : null}

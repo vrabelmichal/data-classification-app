@@ -199,6 +199,7 @@ export interface AnalysisDistributionComparisonConfig {
   conditions: AnalysisQueryCondition[];
   histogramMetric: AnalysisMetric;
   histogramScale: AnalysisDistributionComparisonScale;
+  previewLimit: number;
 }
 
 export interface AnalysisClassificationDistributionComparisonConfig {
@@ -211,6 +212,7 @@ export interface AnalysisClassificationDistributionComparisonConfig {
   conditions: AnalysisClassificationComparisonCondition[];
   histogramMetric: AnalysisClassificationMetric;
   histogramScale: AnalysisDistributionComparisonScale;
+  previewLimit: number;
 }
 
 export interface AnalysisDominantLsbBreakdown {
@@ -240,6 +242,8 @@ export interface AnalysisDistributionComparisonResult {
   scopedCount: number;
   matchedCount: number;
   failedCount: number;
+  matchedPreviewRecords: AnalysisRecord[];
+  failedPreviewRecords: AnalysisRecord[];
   scopedHistogram: HistogramDatum[];
   matchedHistogram: HistogramDatum[];
   failedHistogram: HistogramDatum[];
@@ -251,6 +255,8 @@ export interface AnalysisClassificationDistributionComparisonResult {
   scopedCount: number;
   matchedCount: number;
   failedCount: number;
+  matchedPreviewPoints: AnalysisClassificationPoint[];
+  failedPreviewPoints: AnalysisClassificationPoint[];
   scopedHistogram: HistogramDatum[];
   matchedHistogram: HistogramDatum[];
   failedHistogram: HistogramDatum[];
@@ -758,6 +764,7 @@ export function createBlankAnalysisDistributionComparison(): AnalysisDistributio
     conditions: [createAnalysisCondition("totalClassifications", "atLeast", 1)],
     histogramMetric: "totalClassifications",
     histogramScale: "count",
+    previewLimit: 10,
   };
 }
 
@@ -779,6 +786,7 @@ export function createBlankAnalysisClassificationDistributionComparison(): Analy
     ],
     histogramMetric: "failedFittingFlag",
     histogramScale: "count",
+    previewLimit: 10,
   };
 }
 
@@ -1002,6 +1010,7 @@ export function buildDefaultAnalysisClassificationDistributionComparisons(): Ana
       ],
       histogramMetric: "failedFittingFlag",
       histogramScale: "relativeFrequency",
+      previewLimit: 10,
     },
   ];
 }
@@ -1740,6 +1749,32 @@ function compareRecords(
   return left.galaxy.id.localeCompare(right.galaxy.id);
 }
 
+function compareClassificationPoints(
+  left: AnalysisClassificationPoint,
+  right: AnalysisClassificationPoint,
+  sortBy: AnalysisClassificationMetric
+) {
+  const metricComparison = compareNumbers(
+    getClassificationMetricValue(left, sortBy),
+    getClassificationMetricValue(right, sortBy),
+    "desc"
+  );
+  if (metricComparison !== 0) {
+    return metricComparison;
+  }
+
+  const createdComparison = compareNumbers(
+    left.vote._creationTime,
+    right.vote._creationTime,
+    "desc"
+  );
+  if (createdComparison !== 0) {
+    return createdComparison;
+  }
+
+  return left.vote._id.localeCompare(right.vote._id);
+}
+
 export function buildHistogramData(
   records: AnalysisRecord[],
   metric: AnalysisMetric
@@ -2122,11 +2157,20 @@ export function evaluateAnalysisDistributionComparison(
   const failedRecords = scopedRecords.filter(
     (record) => !matchesAllConditions(record, comparison.conditions)
   );
+  const previewLimit = clampPreviewLimit(comparison.previewLimit);
+  const sortedMatchedRecords = [...matchedRecords].sort((left, right) =>
+    compareRecords(left, right, comparison.histogramMetric, "desc")
+  );
+  const sortedFailedRecords = [...failedRecords].sort((left, right) =>
+    compareRecords(left, right, comparison.histogramMetric, "desc")
+  );
 
   return {
     scopedCount: scopedRecords.length,
     matchedCount: matchedRecords.length,
     failedCount: failedRecords.length,
+    matchedPreviewRecords: sortedMatchedRecords.slice(0, previewLimit),
+    failedPreviewRecords: sortedFailedRecords.slice(0, previewLimit),
     scopedHistogram: buildHistogramData(scopedRecords, comparison.histogramMetric),
     matchedHistogram: buildHistogramData(
       matchedRecords,
@@ -2160,11 +2204,20 @@ export function evaluateAnalysisClassificationDistributionComparison(
   const failedPoints = scopedPoints.filter(
     (point) => !matchesAllClassificationConditions(point, comparison.conditions)
   );
+  const previewLimit = clampPreviewLimit(comparison.previewLimit);
+  const sortedMatchedPoints = [...matchedPoints].sort((left, right) =>
+    compareClassificationPoints(left, right, comparison.histogramMetric)
+  );
+  const sortedFailedPoints = [...failedPoints].sort((left, right) =>
+    compareClassificationPoints(left, right, comparison.histogramMetric)
+  );
 
   return {
     scopedCount: scopedPoints.length,
     matchedCount: matchedPoints.length,
     failedCount: failedPoints.length,
+    matchedPreviewPoints: sortedMatchedPoints.slice(0, previewLimit),
+    failedPreviewPoints: sortedFailedPoints.slice(0, previewLimit),
     scopedHistogram: buildClassificationHistogramData(
       scopedPoints,
       comparison.histogramMetric

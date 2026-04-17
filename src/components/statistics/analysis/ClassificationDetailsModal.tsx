@@ -1,6 +1,8 @@
 import { Fragment, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
+import type { UserPreferences } from "../../classification/types";
+import { AnalysisGalaxyCard } from "./DataAnalysisQueryCard";
 import {
   getNormalizedComment,
   getLsbVoteLabel,
@@ -13,6 +15,8 @@ type ClassificationDetailsModalProps = {
   onClose: () => void;
   record: AnalysisRecord | null;
   userDisplayNames: Record<string, string>;
+  imageQuality: "high" | "medium" | "low";
+  userPreferences: UserPreferences | null | undefined;
 };
 
 const dateFormatter = new Intl.DateTimeFormat(undefined, {
@@ -81,6 +85,8 @@ export function ClassificationDetailsModal({
   onClose,
   record,
   userDisplayNames,
+  imageQuality,
+  userPreferences,
 }: ClassificationDetailsModalProps) {
   const [expandedComments, setExpandedComments] = useState<Record<string, boolean>>({});
 
@@ -143,7 +149,16 @@ export function ClassificationDetailsModal({
           </button>
         </div>
 
-        <div className="overflow-x-auto px-6 py-5">
+        <div className="space-y-5 px-6 py-5">
+          <AnalysisGalaxyCard
+            record={record}
+            imageQuality={imageQuality}
+            userPreferences={userPreferences}
+            onOpenDetails={() => undefined}
+            showOpenDetailsButton={false}
+          />
+
+          <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 text-left text-sm dark:divide-gray-700">
             <thead>
               <tr className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
@@ -231,6 +246,7 @@ export function ClassificationDetailsModal({
               })}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
     </div>
