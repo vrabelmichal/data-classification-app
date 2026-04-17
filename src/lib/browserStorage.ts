@@ -217,8 +217,8 @@ export function describeLocalStorageItem(key: string): LocalStorageItemDescripti
   if (key === "statistics.dataAnalysis.dataset.v1") {
     return {
       title: "Data analysis dataset cache",
-      description: "Stores a browser-local copy of the client-side classification analysis dataset so it can be reloaded without fetching every page from the database again.",
-      deleteEffect: "Deleting it removes the saved browser copy of the analysis dataset. The live database data is not changed.",
+      description: "Stores metadata for a browser-local IndexedDB cache of the client-side classification analysis dataset so it can be reloaded without fetching every page from the database again.",
+      deleteEffect: "Deleting it removes the saved browser cache metadata. The live database data is not changed.",
       known: true,
       groupId: "statistics",
       groupLabel: "Statistics",

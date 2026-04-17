@@ -1,6 +1,11 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { describeLocalStorageItem, LOCAL_STORAGE_GROUP_ORDER, type LocalStorageItemDescription } from "../../lib/browserStorage";
+import {
+  clearStoredAnalysisDataset,
+  getAnalysisDatasetIndexedDbInfo,
+  type AnalysisDatasetIndexedDbInfo,
+} from "../statistics/analysis/datasetStorage";
 
 interface LocalStorageEntry {
   key: string;
@@ -16,6 +21,13 @@ interface LocalStorageGroup {
   id: LocalStorageItemDescription["groupId"];
   label: string;
   entries: CategorizedLocalStorageEntry[];
+}
+
+function formatDateTime(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(timestamp));
 }
 
 function estimateBytes(value: string): number {
@@ -199,20 +211,83 @@ function LocalStorageItemRow({
   );
 }
 
+function IndexedDbItemRow({
+  entry,
+  onDelete,
+}: {
+  entry: AnalysisDatasetIndexedDbInfo;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50/70 dark:bg-gray-900/30 p-4">
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{entry.title}</h3>
+            {entry.estimatedSizeBytes !== null ? (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {formatBytes(entry.estimatedSizeBytes)}
+              </span>
+            ) : null}
+          </div>
+          <div className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-300">
+            <p>{entry.description}</p>
+            <p>
+              Saved: {formatDateTime(entry.savedAt)}
+              <span className="mx-2">•</span>
+              Records: {entry.recordCount.toLocaleString()}
+            </p>
+            <p className="font-mono text-xs text-gray-500 dark:text-gray-400 break-all">
+              DB: {entry.dbName} / Store: {entry.storeName} / Key: {entry.recordKey}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">If deleted: {entry.deleteEffect}</p>
+          </div>
+        </div>
+
+        <div className="flex items-start gap-2 lg:justify-end">
+          <button
+            type="button"
+            onClick={onDelete}
+            title="Delete IndexedDB item"
+            aria-label={`Delete IndexedDB item ${entry.title}`}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-red-300 dark:border-red-700 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+          >
+            <TrashIcon />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function LocalStorageSection() {
   const [entries, setEntries] = useState<LocalStorageEntry[]>([]);
+  const [indexedDbEntries, setIndexedDbEntries] = useState<AnalysisDatasetIndexedDbInfo[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [expandedDraftGroups, setExpandedDraftGroups] = useState<Record<string, boolean>>({});
+  const [indexedDbExpanded, setIndexedDbExpanded] = useState(false);
 
   useEffect(() => {
-    const refresh = () => setEntries(readLocalStorageEntries());
+    let isMounted = true;
 
-    refresh();
+    const refresh = async () => {
+      setEntries(readLocalStorageEntries());
+
+      const indexedDbEntry = await getAnalysisDatasetIndexedDbInfo();
+      if (!isMounted) {
+        return;
+      }
+
+      setIndexedDbEntries(indexedDbEntry ? [indexedDbEntry] : []);
+    };
+
+    void refresh();
     window.addEventListener("storage", refresh);
     window.addEventListener("focus", refresh);
 
     return () => {
+      isMounted = false;
       window.removeEventListener("storage", refresh);
       window.removeEventListener("focus", refresh);
     };
@@ -220,6 +295,10 @@ export function LocalStorageSection() {
 
   const totalBytes = entries.reduce((sum, entry) => sum + entry.sizeBytes, 0);
   const groupedEntries = groupLocalStorageEntries(entries);
+  const totalIndexedDbBytes = indexedDbEntries.reduce(
+    (sum, entry) => sum + (entry.estimatedSizeBytes ?? 0),
+    0
+  );
 
   const handleToggleExpanded = (key: string) => {
     setExpandedKeys((current) => ({
@@ -253,6 +332,27 @@ export function LocalStorageSection() {
     }
   };
 
+  const handleDeleteIndexedDbEntry = async (entry: AnalysisDatasetIndexedDbInfo) => {
+    const confirmed = window.confirm(
+      `Delete IndexedDB item "${entry.title}" from this browser?\n\n${entry.deleteEffect}`
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await clearStoredAnalysisDataset();
+      setEntries(readLocalStorageEntries());
+      const indexedDbEntry = await getAnalysisDatasetIndexedDbInfo();
+      setIndexedDbEntries(indexedDbEntry ? [indexedDbEntry] : []);
+      toast.success("IndexedDB item deleted");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to delete IndexedDB item");
+    }
+  };
+
   const handleToggleDraftGroup = (groupId: string) => {
     setExpandedDraftGroups((current) => ({
       ...current,
@@ -273,7 +373,7 @@ export function LocalStorageSection() {
         <div>
           <p className="text-sm text-gray-600 dark:text-gray-300 max-w-4xl">
             This list shows information saved only in this browser for this site. It can include display preferences,
-            filter choices, and unfinished comment drafts. Deleting an item only changes this browser copy. In some
+            filter choices, unfinished comment drafts, and browser database caches. Deleting an item only changes this browser copy. In some
             cases the app will recreate an item the next time you use that feature.
           </p>
         </div>
@@ -369,6 +469,48 @@ export function LocalStorageSection() {
             );
           })
         )}
+      </div>
+
+      <div className="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50/40 dark:bg-gray-900/20 p-4 xl:p-5">
+        <button
+          type="button"
+          onClick={() => setIndexedDbExpanded((current) => !current)}
+          className="flex w-full items-center justify-between gap-3 text-left"
+        >
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white">IndexedDB</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Larger browser-side caches are stored in IndexedDB instead of local storage. This is where the saved data-analysis dataset lives.
+            </p>
+          </div>
+          <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
+            <span className="text-xs text-right">
+              <span className="block">{indexedDbEntries.length} item{indexedDbEntries.length === 1 ? "" : "s"}</span>
+              <span className="block">{totalIndexedDbBytes > 0 ? formatBytes(totalIndexedDbBytes) : "Size unavailable"}</span>
+            </span>
+            <ChevronIcon expanded={indexedDbExpanded} />
+          </div>
+        </button>
+
+        {indexedDbExpanded ? (
+          <div className="mt-4 space-y-3">
+            {indexedDbEntries.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-6 text-sm text-gray-600 dark:text-gray-300">
+                No IndexedDB items are currently saved for this site in this browser.
+              </div>
+            ) : (
+              indexedDbEntries.map((entry) => (
+                <IndexedDbItemRow
+                  key={entry.id}
+                  entry={entry}
+                  onDelete={() => {
+                    void handleDeleteIndexedDbEntry(entry);
+                  }}
+                />
+              ))
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );

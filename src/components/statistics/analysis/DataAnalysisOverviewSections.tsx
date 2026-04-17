@@ -233,7 +233,7 @@ export function AnalysisLoadSection({
                 disabled={loadState.status === "loading"}
                 className="inline-flex items-center rounded-md border border-blue-300 bg-white px-4 py-2.5 text-sm font-medium text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-blue-800 dark:bg-gray-800 dark:text-blue-300 dark:hover:bg-blue-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
               >
-                Load saved browser copy
+                Load saved browser cache
               </button>
             ) : null}
             <button
@@ -267,7 +267,7 @@ export function AnalysisLoadSection({
               disabled={!hasDataset || loadState.status === "loading"}
               className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
             >
-              Save dataset to browser
+              Save dataset to browser cache
             </button>
             {hasStoredDataset ? (
               <button
@@ -276,14 +276,14 @@ export function AnalysisLoadSection({
                 disabled={loadState.status === "loading"}
                 className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
               >
-                Clear saved copy
+                Clear saved cache
               </button>
             ) : null}
           </div>
 
           {hasStoredDataset ? (
             <p className="mt-3 text-sm text-blue-800/90 dark:text-blue-200/90">
-              Saved browser copy available for {storedDatasetRecordCount.toLocaleString()} galaxies
+              Saved browser cache available for {storedDatasetRecordCount.toLocaleString()} galaxies
               {storedDatasetSavedAtLabel ? `, saved ${storedDatasetSavedAtLabel}` : ""}.
             </p>
           ) : null}

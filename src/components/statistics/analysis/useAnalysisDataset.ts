@@ -5,6 +5,7 @@ import { api } from "../../../../convex/_generated/api";
 import {
   clearStoredAnalysisDataset,
   getStoredAnalysisDataset,
+  getStoredAnalysisDatasetInfo,
   saveAnalysisDatasetToStorage,
 } from "./datasetStorage";
 import {
@@ -49,15 +50,15 @@ export function useAnalysisDataset() {
   const cancelLoadRef = useRef(false);
 
   const refreshStoredDatasetInfo = useCallback(() => {
-    const storedDataset = getStoredAnalysisDataset();
-    if (!storedDataset) {
+    const storedDatasetInfo = getStoredAnalysisDatasetInfo();
+    if (!storedDatasetInfo) {
       setStoredDatasetInfo(null);
       return;
     }
 
     setStoredDatasetInfo({
-      savedAt: storedDataset.savedAt,
-      recordCount: storedDataset.dataset.records.length,
+      savedAt: storedDatasetInfo.savedAt,
+      recordCount: storedDatasetInfo.recordCount,
     });
   }, []);
 
@@ -269,17 +270,17 @@ export function useAnalysisDataset() {
     cancelLoadRef.current = true;
   }, []);
 
-  const handleSaveDatasetToStorage = useCallback(() => {
+  const handleSaveDatasetToStorage = useCallback(async () => {
     if (!dataset) {
       return;
     }
 
-    const saveResult = saveAnalysisDatasetToStorage(dataset);
+    const saveResult = await saveAnalysisDatasetToStorage(dataset);
     if (saveResult.ok) {
       refreshStoredDatasetInfo();
       setStorageNotice({
         tone: "success",
-        message: "Saved the current analysis dataset to this browser.",
+        message: "Saved the current analysis dataset to browser storage for fast reloads.",
       });
       return;
     }
@@ -287,13 +288,13 @@ export function useAnalysisDataset() {
     setStorageNotice({ tone: "error", message: saveResult.error });
   }, [dataset, refreshStoredDatasetInfo]);
 
-  const handleLoadStoredDataset = useCallback(() => {
-    const storedDataset = getStoredAnalysisDataset();
+  const handleLoadStoredDataset = useCallback(async () => {
+    const storedDataset = await getStoredAnalysisDataset();
     if (!storedDataset) {
       refreshStoredDatasetInfo();
       setStorageNotice({
         tone: "error",
-        message: "No saved browser dataset is currently available.",
+        message: "No saved browser dataset is currently available, or the saved cache could not be read.",
       });
       return;
     }
@@ -315,16 +316,16 @@ export function useAnalysisDataset() {
 
     setStorageNotice({
       tone: "success",
-      message: "Loaded the analysis dataset from this browser instead of querying the database again.",
+      message: "Loaded the analysis dataset from browser storage instead of querying the database again.",
     });
   }, [refreshStoredDatasetInfo]);
 
-  const handleClearStoredDataset = useCallback(() => {
-    clearStoredAnalysisDataset();
+  const handleClearStoredDataset = useCallback(async () => {
+    await clearStoredAnalysisDataset();
     refreshStoredDatasetInfo();
     setStorageNotice({
       tone: "success",
-      message: "Removed the saved browser copy of the analysis dataset.",
+      message: "Removed the saved browser cache of the analysis dataset.",
     });
   }, [refreshStoredDatasetInfo]);
 
