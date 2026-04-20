@@ -23,6 +23,24 @@ export type ImportedAnalysisDatasetArchive = {
   fileName: string;
 };
 
+function isPreparedDatasetRecord(
+  value: unknown
+): value is PreparedDataset["records"][number] {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const candidate = value as {
+    aggregate?: { totalClassifications?: unknown };
+  };
+
+  return (
+    !!candidate.aggregate &&
+    typeof candidate.aggregate === "object" &&
+    typeof candidate.aggregate.totalClassifications === "number"
+  );
+}
+
 function isPreparedDataset(value: unknown): value is PreparedDataset {
   if (!value || typeof value !== "object") {
     return false;
@@ -31,6 +49,7 @@ function isPreparedDataset(value: unknown): value is PreparedDataset {
   const candidate = value as Partial<PreparedDataset>;
   return (
     Array.isArray(candidate.records) &&
+    candidate.records.every(isPreparedDatasetRecord) &&
     typeof candidate.loadedAt === "number" &&
     typeof candidate.classifiedGalaxyCount === "number" &&
     typeof candidate.maxClassificationsPerGalaxy === "number" &&
@@ -136,9 +155,14 @@ export function downloadAnalysisDatasetArchive(dataset: PreparedDataset) {
     },
     { level: 9 }
   );
+  const archiveBlobBytes = new Uint8Array(archiveBytes.byteLength);
+  archiveBlobBytes.set(archiveBytes);
   const fileName = buildAnalysisDatasetArchiveFileName(exportedAt);
 
-  downloadBlob(new Blob([archiveBytes], { type: "application/zip" }), fileName);
+  downloadBlob(
+    new Blob([archiveBlobBytes.buffer], { type: "application/zip" }),
+    fileName
+  );
 
   return {
     fileName,
