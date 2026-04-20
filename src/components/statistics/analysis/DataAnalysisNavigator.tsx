@@ -11,6 +11,7 @@ type DataAnalysisNavigatorProps = {
   activeQueryId: string | null;
   hasDataset: boolean;
   isNavigatorPinned: boolean;
+  isSectionVisible: boolean;
   navigatorHeight: number;
   pinnedNavigatorStyle: PinnedNavigatorStyle | null;
   navigatorAnchorRef: RefObject<HTMLDivElement | null>;
@@ -134,6 +135,7 @@ export function DataAnalysisNavigator({
   activeQueryId,
   hasDataset,
   isNavigatorPinned,
+  isSectionVisible,
   navigatorHeight,
   pinnedNavigatorStyle,
   navigatorAnchorRef,
@@ -165,7 +167,7 @@ export function DataAnalysisNavigator({
         </div>
       </div>
 
-      {isNavigatorPinned && pinnedNavigatorStyle
+      {isNavigatorPinned && isSectionVisible && pinnedNavigatorStyle
         ? createPortal(
             <div
               className="z-40"

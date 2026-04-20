@@ -15,8 +15,10 @@ export function usePinnedQueryNavigator(
   const [pinnedNavigatorStyle, setPinnedNavigatorStyle] =
     useState<PinnedNavigatorStyle | null>(null);
   const [activeQueryId, setActiveQueryId] = useState<string | null>(null);
+  const [isSectionVisible, setIsSectionVisible] = useState(true);
   const navigatorAnchorRef = useRef<HTMLDivElement | null>(null);
   const navigatorRef = useRef<HTMLDivElement | null>(null);
+  const queriesSectionEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (queries.length === 0) {
@@ -85,7 +87,19 @@ export function usePinnedQueryNavigator(
       setNavigatorHeight(nextHeight);
 
       const anchorRect = anchorElement.getBoundingClientRect();
-      const shouldPin = anchorRect.top <= PINNED_NAVIGATOR_MARGIN;
+      const sectionEndElement = queriesSectionEndRef.current;
+      
+      // Check if the section end is visible in the viewport
+      let isSectionStillVisible = true;
+      if (sectionEndElement) {
+        const sectionEndRect = sectionEndElement.getBoundingClientRect();
+        // Section is considered invisible when the end of it is above the viewport
+        isSectionStillVisible = sectionEndRect.bottom > 0;
+      }
+
+      setIsSectionVisible(isSectionStillVisible);
+
+      const shouldPin = anchorRect.top <= PINNED_NAVIGATOR_MARGIN && isSectionStillVisible;
 
       if (!shouldPin) {
         setIsNavigatorPinned(false);
@@ -136,9 +150,11 @@ export function usePinnedQueryNavigator(
   return {
     activeQueryId,
     isNavigatorPinned,
+    isSectionVisible,
     navigatorHeight,
     navigatorAnchorRef,
     navigatorRef,
+    queriesSectionEndRef,
     pinnedNavigatorStyle,
   };
 }

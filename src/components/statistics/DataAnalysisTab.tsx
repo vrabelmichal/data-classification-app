@@ -278,9 +278,11 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
   const {
     activeQueryId,
     isNavigatorPinned,
+    isSectionVisible,
     navigatorHeight,
     navigatorAnchorRef,
     navigatorRef,
+    queriesSectionEndRef,
     pinnedNavigatorStyle,
   } = usePinnedQueryNavigator(queries, hasDataset);
 
@@ -659,13 +661,15 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         />
       ) : null}
 
-      <AnalysisQueryToolbar
-        onAddQuery={() =>
-          setQueries((currentQueries) => [...currentQueries, createBlankAnalysisQuery()])
-        }
-        onCollapseAll={collapseAllQueries}
-        onExpandAll={expandAllQueries}
-      />
+      {isSectionVisible ? (
+        <AnalysisQueryToolbar
+          onAddQuery={() =>
+            setQueries((currentQueries) => [...currentQueries, createBlankAnalysisQuery()])
+          }
+          onCollapseAll={collapseAllQueries}
+          onExpandAll={expandAllQueries}
+        />
+      ) : null}
 
       <DataAnalysisNavigator
         queries={queries}
@@ -673,6 +677,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         activeQueryId={activeQueryId}
         hasDataset={hasDataset}
         isNavigatorPinned={isNavigatorPinned}
+        isSectionVisible={isSectionVisible}
         navigatorHeight={navigatorHeight}
         pinnedNavigatorStyle={pinnedNavigatorStyle}
         navigatorAnchorRef={navigatorAnchorRef}
@@ -706,6 +711,8 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
           />
         ))}
       </div>
+
+      <div ref={queriesSectionEndRef} />
 
       <AnalysisDistributionToolbar
         onAddDistribution={() =>
