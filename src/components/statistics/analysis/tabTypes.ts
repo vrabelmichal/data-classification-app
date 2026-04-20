@@ -26,6 +26,16 @@ export type PreparedDataset = {
   orphanedClassificationCount: number;
 };
 
+export type DatasetNotice = {
+  tone: "success" | "error";
+  message: string;
+} | null;
+
+export type LoadedDatasetSource =
+  | { kind: "database" }
+  | { kind: "browserCache"; savedAt: number }
+  | { kind: "file"; fileName: string; exportedAt: number };
+
 export type DataLoadState = {
   status: "idle" | "loading" | "ready" | "error";
   phase: "idle" | "galaxies" | "classifications" | "combining" | "ready";

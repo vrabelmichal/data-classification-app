@@ -1,12 +1,79 @@
+import { type ChangeEvent, useRef } from "react";
+
 import { AnalysisHistogram } from "./AnalysisHistogram";
 import type { HistogramDatum } from "./helpers";
 import type {
   DataLoadState,
+  DatasetNotice,
   DatasetSummary,
+  LoadedDatasetSource,
   PreparedDataset,
   ZeroBucketState,
 } from "./tabTypes";
-import { formatPercent } from "./tabUtils";
+import { formatLoadedAt, formatPercent } from "./tabUtils";
+
+function getLoadedSourceLabel(loadedSource: LoadedDatasetSource | null) {
+  switch (loadedSource?.kind) {
+    case "database":
+      return "Live fetch";
+    case "browserCache":
+      return "Browser cache";
+    case "file":
+      return "Dataset file";
+    default:
+      return null;
+  }
+}
+
+function getAnalysisStatusMessage({
+  hasDataset,
+  loadedRecordsCount,
+  loadedAtLabel,
+  loadedSource,
+}: {
+  hasDataset: boolean;
+  loadedRecordsCount: number;
+  loadedAtLabel: string | null;
+  loadedSource: LoadedDatasetSource | null;
+}) {
+  if (!hasDataset) {
+    return "Fetch the dataset or upload a portable ZIP snapshot to enable histograms and query cards.";
+  }
+
+  if (loadedSource?.kind === "file") {
+    const exportedAtLabel = formatLoadedAt(loadedSource.exportedAt);
+
+    return `Loaded ${loadedRecordsCount.toLocaleString()} galaxies from ${loadedSource.fileName}.${exportedAtLabel ? ` File exported ${exportedAtLabel}.` : ""}${loadedAtLabel ? ` Snapshot captured ${loadedAtLabel}.` : ""} Query edits stay fully local.`;
+  }
+
+  if (loadedSource?.kind === "browserCache") {
+    const cacheSavedAtLabel = formatLoadedAt(loadedSource.savedAt);
+
+    return `Loaded ${loadedRecordsCount.toLocaleString()} galaxies from browser cache.${cacheSavedAtLabel ? ` Cache saved ${cacheSavedAtLabel}.` : ""}${loadedAtLabel ? ` Snapshot captured ${loadedAtLabel}.` : ""} Query edits stay fully local.`;
+  }
+
+  return `Loaded ${loadedRecordsCount.toLocaleString()} galaxies${loadedAtLabel ? ` at ${loadedAtLabel}` : ""} from the live dataset. Query edits stay fully local.`;
+}
+
+function getPortableDatasetMessage({
+  hasDataset,
+  loadedSource,
+}: {
+  hasDataset: boolean;
+  loadedSource: LoadedDatasetSource | null;
+}) {
+  if (loadedSource?.kind === "file") {
+    const exportedAtLabel = formatLoadedAt(loadedSource.exportedAt);
+
+    return `${loadedSource.fileName}${exportedAtLabel ? ` · exported ${exportedAtLabel}` : ""}`;
+  }
+
+  if (hasDataset) {
+    return "Download the exact local snapshot currently in memory as one ZIP file, then upload it elsewhere to continue the analysis without re-fetching every page.";
+  }
+
+  return "Upload a ZIP exported from this page to work on a prepared dataset without querying the live tables first.";
+}
 
 function StatCard({
   label,
@@ -134,23 +201,31 @@ function HistogramCard({
   );
 }
 
+const TOOLBAR_BUTTON_CLASS =
+  "inline-flex h-9 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium transition xl:flex-nowrap";
+
 export function AnalysisLoadSection({
   summary,
   hasDataset,
   hasStoredDataset,
   storedDatasetRecordCount,
   storedDatasetSavedAtLabel,
-  storageNotice,
+  datasetNotice,
   loadedRecordsCount,
   loadedAtLabel,
+  loadedSource,
   loadState,
   onLoadDataset,
   onLoadStoredDataset,
   onCancelLoad,
   onSaveDatasetToStorage,
+  onDownloadDatasetArchive,
+  onImportDatasetFile,
   onClearStoredDataset,
   onExportReport,
   onExportJson,
+  canDownloadDatasetArchive,
+  canImportDatasetArchive,
   canExportReport,
 }: {
   summary: DatasetSummary;
@@ -158,22 +233,319 @@ export function AnalysisLoadSection({
   hasStoredDataset: boolean;
   storedDatasetRecordCount: number;
   storedDatasetSavedAtLabel: string | null;
-  storageNotice: { tone: "success" | "error"; message: string } | null;
+  datasetNotice: DatasetNotice;
   loadedRecordsCount: number;
   loadedAtLabel: string | null;
+  loadedSource: LoadedDatasetSource | null;
   loadState: DataLoadState;
   onLoadDataset: () => void;
   onLoadStoredDataset: () => void;
   onCancelLoad: () => void;
   onSaveDatasetToStorage: () => void;
+  onDownloadDatasetArchive: () => void;
+  onImportDatasetFile: (file: File) => void;
   onClearStoredDataset: () => void;
   onExportReport: () => void;
   onExportJson: () => void;
+  canDownloadDatasetArchive: boolean;
+  canImportDatasetArchive: boolean;
   canExportReport: boolean;
 }) {
+  const datasetFileInputRef = useRef<HTMLInputElement | null>(null);
+  const loadedSourceLabel = getLoadedSourceLabel(loadedSource);
+  const statusMessage = getAnalysisStatusMessage({
+    hasDataset,
+    loadedRecordsCount,
+    loadedAtLabel,
+    loadedSource,
+  });
+  const portableDatasetMessage = getPortableDatasetMessage({
+    hasDataset,
+    loadedSource,
+  });
+
+  const handleDatasetFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextFile = event.target.files?.[0] ?? null;
+    event.target.value = "";
+
+    if (!nextFile) {
+      return;
+    }
+
+    onImportDatasetFile(nextFile);
+  };
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+    <div className="space-y-6">
+      <div className="overflow-hidden rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-white to-sky-50 shadow-sm dark:border-blue-900/60 dark:from-blue-950/30 dark:via-gray-900 dark:to-slate-950">
+        <div className="border-b border-blue-200/70 px-5 py-4 dark:border-blue-900/50">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-4xl space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-600 dark:text-blue-400">
+                  Analysis run
+                </span>
+                {loadedSourceLabel ? (
+                  <span className="inline-flex items-center rounded-full border border-blue-200 bg-white px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
+                    {loadedSourceLabel}
+                  </span>
+                ) : null}
+                <span
+                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                    loadState.status === "loading"
+                      ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
+                      : hasDataset
+                        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+                        : "bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-400"
+                  }`}
+                >
+                  {loadState.status === "loading"
+                    ? "Loading"
+                    : hasDataset
+                      ? "Ready"
+                      : "Not loaded"}
+                </span>
+              </div>
+              <p className="text-sm leading-6 text-blue-900/85 dark:text-blue-100/85">
+                {statusMessage}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <input
+          ref={datasetFileInputRef}
+          type="file"
+          accept=".zip,application/zip"
+          onChange={handleDatasetFileChange}
+          disabled={!canImportDatasetArchive}
+          className="hidden"
+        />
+
+        <div className="grid gap-px bg-blue-200/60 md:grid-cols-2 xl:grid-cols-4 dark:bg-blue-900/40">
+          <div className="flex min-h-full flex-col gap-4 bg-white/90 px-5 py-4 dark:bg-gray-900/85">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              Load dataset
+            </p>
+            <div className="flex min-h-[2.25rem] flex-wrap items-start gap-2 xl:flex-nowrap">
+              <button
+                type="button"
+                onClick={onLoadDataset}
+                disabled={loadState.status === "loading"}
+                className={`${TOOLBAR_BUTTON_CLASS} bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-800`}
+              >
+                {loadState.status === "loading" ? <LoadSpinnerIcon /> : <RefreshDataIcon />}
+                <span>
+                  {loadState.status === "loading"
+                    ? "Loading…"
+                    : hasDataset
+                      ? "Reload"
+                      : "Load dataset"}
+                </span>
+              </button>
+              {hasStoredDataset && loadState.status !== "loading" ? (
+                <button
+                  type="button"
+                  onClick={onLoadStoredDataset}
+                  className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700`}
+                >
+                  <CacheLoadIcon />
+                  <span>Load from cache</span>
+                </button>
+              ) : null}
+              {loadState.status === "loading" ? (
+                <button
+                  type="button"
+                  onClick={onCancelLoad}
+                  className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700`}
+                >
+                  <CancelLoadIcon />
+                  <span>Cancel</span>
+                </button>
+              ) : null}
+            </div>
+            <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
+              Pull the latest galaxy and classification pages into this browser session.
+            </p>
+          </div>
+
+          <div className="flex min-h-full flex-col gap-4 bg-white/90 px-5 py-4 dark:bg-gray-900/85">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              Browser cache
+            </p>
+            <div className="flex min-h-[2.25rem] flex-wrap items-start gap-2 xl:flex-nowrap">
+              <button
+                type="button"
+                onClick={onSaveDatasetToStorage}
+                disabled={!hasDataset || loadState.status === "loading"}
+                className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500`}
+              >
+                <SaveCacheIcon />
+                <span>Save to cache</span>
+              </button>
+              {hasStoredDataset ? (
+                <button
+                  type="button"
+                  onClick={onClearStoredDataset}
+                  disabled={loadState.status === "loading"}
+                  className={`${TOOLBAR_BUTTON_CLASS} border border-red-200 bg-white text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-red-900/60 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500`}
+                >
+                  <ClearCacheIcon />
+                  <span>Clear cache</span>
+                </button>
+              ) : null}
+            </div>
+            <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
+              {hasStoredDataset
+                ? `${storedDatasetRecordCount.toLocaleString()} galaxies saved${storedDatasetSavedAtLabel ? ` · ${storedDatasetSavedAtLabel}` : ""}`
+                : "No saved cache."}
+            </p>
+          </div>
+
+          <div className="flex min-h-full flex-col gap-4 bg-white/90 px-5 py-4 dark:bg-gray-900/85">
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                Portable dataset file
+              </p>
+            </div>
+            <div className="flex min-h-[2.25rem] flex-wrap items-start gap-2 xl:flex-nowrap">
+              <button
+                type="button"
+                onClick={onDownloadDatasetArchive}
+                disabled={!canDownloadDatasetArchive}
+                title={
+                  canDownloadDatasetArchive
+                    ? "Download the current local dataset as a portable ZIP file"
+                    : "Load or import a dataset before downloading a ZIP snapshot"
+                }
+                aria-label="Download portable dataset ZIP"
+                className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500`}
+              >
+                <DownloadArchiveIcon />
+                <span>Download ZIP</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => datasetFileInputRef.current?.click()}
+                disabled={!canImportDatasetArchive}
+                title="Upload a portable dataset ZIP exported from another browser session"
+                aria-label="Upload portable dataset ZIP"
+                className={`${TOOLBAR_BUTTON_CLASS} bg-indigo-600 text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-300 dark:disabled:bg-indigo-900/60`}
+              >
+                <UploadArchiveIcon />
+                <span>Upload ZIP</span>
+              </button>
+            </div>
+            <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
+              {portableDatasetMessage}
+            </p>
+          </div>
+
+          <div className="flex min-h-full flex-col gap-4 bg-white/90 px-5 py-4 dark:bg-gray-900/85">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+              Export
+            </p>
+            <div className="flex min-h-[2.25rem] flex-wrap items-start gap-2 xl:flex-nowrap">
+              <button
+                type="button"
+                onClick={onExportReport}
+                disabled={!canExportReport}
+                title={
+                  canExportReport
+                    ? "Download a standalone HTML report of the current analysis"
+                    : "Load the dataset before exporting the analysis report"
+                }
+                aria-label="Export HTML report"
+                className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500`}
+              >
+                <HtmlExportIcon />
+                <span>Export HTML</span>
+              </button>
+              <button
+                type="button"
+                onClick={onExportJson}
+                disabled={!canExportReport}
+                title={
+                  canExportReport
+                    ? "Download a JSON file with the current analysis statistics"
+                    : "Load the dataset before exporting analysis statistics"
+                }
+                aria-label="Export JSON stats"
+                className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500`}
+              >
+                <JsonExportIcon />
+                <span>Export JSON</span>
+              </button>
+            </div>
+            <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
+              Download a standalone report or raw statistics from the current local snapshot.
+            </p>
+          </div>
+        </div>
+
+        {datasetNotice !== null ||
+        loadState.error !== null ||
+        (loadState.cancelled && loadState.status === "idle") ? (
+          <div className="space-y-1.5 border-t border-blue-200/70 px-5 py-3 dark:border-blue-900/50">
+            {loadState.cancelled && loadState.status === "idle" ? (
+              <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
+                <NoticeWarningIcon />
+                Loading was cancelled before the local dataset finished building.
+              </p>
+            ) : null}
+            {datasetNotice ? (
+              <p
+                className={`flex items-start gap-2 text-sm ${
+                  datasetNotice.tone === "error"
+                    ? "text-red-700 dark:text-red-300"
+                    : "text-emerald-700 dark:text-emerald-300"
+                }`}
+              >
+                {datasetNotice.tone === "error" ? <NoticeErrorIcon /> : <NoticeSuccessIcon />}
+                {datasetNotice.message}
+              </p>
+            ) : null}
+            {loadState.error ? (
+              <p className="flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
+                <NoticeErrorIcon />
+                {loadState.error}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {loadState.status === "loading" ? (
+          <div className="border-t border-blue-200/70 px-5 py-4 dark:border-blue-900/50">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/30">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                    Loading in pages
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Phase: {loadState.phase}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-4">
+                <ProgressRail
+                  label="Galaxy pages"
+                  current={loadState.galaxiesLoaded}
+                  total={summary.totalGalaxies}
+                />
+                <ProgressRail
+                  label="Classification pages"
+                  current={loadState.classificationRowsLoaded}
+                  total={summary.totalClassifications}
+                />
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <div className="max-w-3xl space-y-3">
           <div>
             <h2 className="text-2xl font-semibold text-gray-900 dark:text-white">
@@ -211,216 +583,7 @@ export function AnalysisLoadSection({
             />
           </div>
         </div>
-
-        <div className="w-full max-w-sm shrink-0 divide-y divide-blue-200/60 overflow-hidden rounded-xl border border-blue-200 bg-blue-50 dark:divide-blue-900/40 dark:border-blue-900/60 dark:bg-blue-950/20">
-
-          {/* ── Status ─────────────────────────────────── */}
-          <div className="px-5 py-4">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
-                Analysis run
-              </span>
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                  loadState.status === "loading"
-                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300"
-                    : hasDataset
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
-                      : "bg-gray-100 text-gray-600 dark:bg-gray-700/60 dark:text-gray-400"
-                }`}
-              >
-                {loadState.status === "loading"
-                  ? "Loading"
-                  : hasDataset
-                    ? "Ready"
-                    : "Not loaded"}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-blue-800/80 dark:text-blue-200/80">
-              {hasDataset
-                ? `Loaded ${loadedRecordsCount.toLocaleString()} galaxies${loadedAtLabel ? ` at ${loadedAtLabel}` : ""}. Query edits stay fully local.`
-                : "Fetch the dataset to enable histograms and query cards."}
-            </p>
-          </div>
-
-          {/* ── Load dataset ────────────────────────────── */}
-          <div className="px-5 py-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-              Load dataset
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={onLoadDataset}
-                disabled={loadState.status === "loading"}
-                className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-600 px-3 text-sm font-medium text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-300 dark:disabled:bg-blue-800"
-              >
-                {loadState.status === "loading" ? <LoadSpinnerIcon /> : <RefreshDataIcon />}
-                <span>
-                  {loadState.status === "loading"
-                    ? "Loading…"
-                    : hasDataset
-                      ? "Reload"
-                      : "Load dataset"}
-                </span>
-              </button>
-              {hasStoredDataset && loadState.status !== "loading" ? (
-                <button
-                  type="button"
-                  onClick={onLoadStoredDataset}
-                  className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                >
-                  <CacheLoadIcon />
-                  <span>Load from cache</span>
-                </button>
-              ) : null}
-              {loadState.status === "loading" ? (
-                <button
-                  type="button"
-                  onClick={onCancelLoad}
-                  className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                >
-                  <CancelLoadIcon />
-                  <span>Cancel</span>
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {/* ── Browser cache ───────────────────────────── */}
-          <div className="px-5 py-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-              Browser cache
-            </p>
-            {hasStoredDataset ? (
-              <p className="mb-3 text-xs text-blue-700 dark:text-blue-300">
-                {`${storedDatasetRecordCount.toLocaleString()} galaxies saved${storedDatasetSavedAtLabel ? ` · ${storedDatasetSavedAtLabel}` : ""}`}
-              </p>
-            ) : (
-              <p className="mb-3 text-xs text-gray-400 dark:text-gray-500">No saved cache.</p>
-            )}
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={onSaveDatasetToStorage}
-                disabled={!hasDataset || loadState.status === "loading"}
-                className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
-              >
-                <SaveCacheIcon />
-                <span>Save to cache</span>
-              </button>
-              {hasStoredDataset ? (
-                <button
-                  type="button"
-                  onClick={onClearStoredDataset}
-                  disabled={loadState.status === "loading"}
-                  className="inline-flex h-9 items-center gap-2 rounded-md border border-red-200 bg-white px-3 text-sm font-medium text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-red-900/60 dark:bg-gray-800 dark:text-red-400 dark:hover:bg-red-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
-                >
-                  <ClearCacheIcon />
-                  <span>Clear cache</span>
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          {/* ── Export ──────────────────────────────────── */}
-          <div className="px-5 py-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
-              Export
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={onExportReport}
-                disabled={!canExportReport}
-                title={
-                  canExportReport
-                    ? "Download a standalone HTML report of the current analysis"
-                    : "Load the dataset before exporting the analysis report"
-                }
-                aria-label="Export HTML report"
-                className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
-              >
-                <HtmlExportIcon />
-                <span>Export HTML</span>
-              </button>
-              <button
-                type="button"
-                onClick={onExportJson}
-                disabled={!canExportReport}
-                title={
-                  canExportReport
-                    ? "Download a JSON file with the current analysis statistics"
-                    : "Load the dataset before exporting analysis statistics"
-                }
-                aria-label="Export JSON stats"
-                className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
-              >
-                <JsonExportIcon />
-                <span>Export JSON</span>
-              </button>
-            </div>
-          </div>
-
-          {/* ── Notices ─────────────────────────────────── */}
-          {storageNotice !== null ||
-          loadState.error !== null ||
-          (loadState.cancelled && loadState.status === "idle") ? (
-            <div className="space-y-1.5 px-5 py-3">
-              {loadState.cancelled && loadState.status === "idle" ? (
-                <p className="flex items-start gap-2 text-sm text-amber-700 dark:text-amber-300">
-                  <NoticeWarningIcon />
-                  Loading was cancelled before the local dataset finished building.
-                </p>
-              ) : null}
-              {storageNotice ? (
-                <p
-                  className={`flex items-start gap-2 text-sm ${
-                    storageNotice.tone === "error"
-                      ? "text-red-700 dark:text-red-300"
-                      : "text-emerald-700 dark:text-emerald-300"
-                  }`}
-                >
-                  {storageNotice.tone === "error" ? <NoticeErrorIcon /> : <NoticeSuccessIcon />}
-                  {storageNotice.message}
-                </p>
-              ) : null}
-              {loadState.error ? (
-                <p className="flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
-                  <NoticeErrorIcon />
-                  {loadState.error}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
       </div>
-
-      {loadState.status === "loading" ? (
-        <div className="mt-6 space-y-4 rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-900/30">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                Loading in pages
-              </h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Phase: {loadState.phase}
-              </p>
-            </div>
-          </div>
-
-          <ProgressRail
-            label="Galaxy pages"
-            current={loadState.galaxiesLoaded}
-            total={summary.totalGalaxies}
-          />
-          <ProgressRail
-            label="Classification pages"
-            current={loadState.classificationRowsLoaded}
-            total={summary.totalClassifications}
-          />
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -704,6 +867,46 @@ function SaveCacheIcon() {
       <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
       <polyline points="17 21 17 13 7 13 7 21" />
       <polyline points="7 3 7 8 15 8" />
+    </svg>
+  );
+}
+
+function DownloadArchiveIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <path d="M12 12v6" />
+      <path d="m9.5 15.5 2.5 2.5 2.5-2.5" />
+    </svg>
+  );
+}
+
+function UploadArchiveIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+      <polyline points="14 2 14 8 20 8" />
+      <path d="M12 18v-6" />
+      <path d="m9.5 14.5 2.5-2.5 2.5 2.5" />
     </svg>
   );
 }

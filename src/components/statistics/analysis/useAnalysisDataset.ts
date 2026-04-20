@@ -3,6 +3,10 @@ import { useConvex } from "convex/react";
 
 import { api } from "../../../../convex/_generated/api";
 import {
+  downloadAnalysisDatasetArchive,
+  importAnalysisDatasetArchive,
+} from "./datasetArchive";
+import {
   clearStoredAnalysisDataset,
   getStoredAnalysisDataset,
   getStoredAnalysisDatasetInfo,
@@ -17,7 +21,12 @@ import {
   type AnalysisGalaxy,
   type AnalysisRecord,
 } from "./helpers";
-import type { DataLoadState, PreparedDataset } from "./tabTypes";
+import type {
+  DataLoadState,
+  DatasetNotice,
+  LoadedDatasetSource,
+  PreparedDataset,
+} from "./tabTypes";
 import { formatLoadedAt, getErrorMessage } from "./tabUtils";
 
 const GALAXY_PAGE_SIZE = 2500;
@@ -29,16 +38,36 @@ type StoredDatasetInfo = {
   recordCount: number;
 };
 
-type StorageNotice = {
-  tone: "success" | "error";
-  message: string;
-} | null;
+function getDatasetClassificationRowCount(dataset: PreparedDataset) {
+  return (
+    dataset.records.reduce(
+      (sum, record) => sum + record.aggregate.totalClassifications,
+      0
+    ) + dataset.orphanedClassificationCount
+  );
+}
+
+function buildReadyLoadState(
+  dataset: PreparedDataset,
+  counts?: { galaxiesLoaded: number; classificationRowsLoaded: number }
+): DataLoadState {
+  return {
+    status: "ready",
+    phase: "ready",
+    galaxiesLoaded: counts?.galaxiesLoaded ?? dataset.records.length,
+    classificationRowsLoaded:
+      counts?.classificationRowsLoaded ?? getDatasetClassificationRowCount(dataset),
+    error: null,
+    cancelled: false,
+  };
+}
 
 export function useAnalysisDataset() {
   const convex = useConvex();
   const [dataset, setDataset] = useState<PreparedDataset | null>(null);
+  const [loadedSource, setLoadedSource] = useState<LoadedDatasetSource | null>(null);
   const [storedDatasetInfo, setStoredDatasetInfo] = useState<StoredDatasetInfo | null>(null);
-  const [storageNotice, setStorageNotice] = useState<StorageNotice>(null);
+  const [datasetNotice, setDatasetNotice] = useState<DatasetNotice>(null);
   const [loadState, setLoadState] = useState<DataLoadState>({
     status: "idle",
     phase: "idle",
@@ -66,8 +95,24 @@ export function useAnalysisDataset() {
     refreshStoredDatasetInfo();
   }, [refreshStoredDatasetInfo]);
 
+  const applyReadyDataset = useCallback(
+    (
+      nextDataset: PreparedDataset,
+      source: LoadedDatasetSource,
+      counts?: { galaxiesLoaded: number; classificationRowsLoaded: number }
+    ) => {
+      startTransition(() => {
+        setDataset(nextDataset);
+        setLoadedSource(source);
+        setLoadState(buildReadyLoadState(nextDataset, counts));
+      });
+    },
+    []
+  );
+
   const handleLoadDataset = useCallback(async () => {
     cancelLoadRef.current = false;
+    setDatasetNotice(null);
     setLoadState({
       status: "loading",
       phase: "galaxies",
@@ -227,8 +272,8 @@ export function useAnalysisDataset() {
         }
       }
 
-      startTransition(() => {
-        setDataset({
+      applyReadyDataset(
+        {
           records,
           loadedAt: Date.now(),
           classifiedGalaxyCount,
@@ -244,17 +289,13 @@ export function useAnalysisDataset() {
           maxCommentLength,
           orphanedGalaxyCount,
           orphanedClassificationCount,
-        });
-        setLoadState({
-          status: "ready",
-          phase: "ready",
+        },
+        { kind: "database" },
+        {
           galaxiesLoaded,
           classificationRowsLoaded,
-          error: null,
-          cancelled: false,
-        });
-      });
-      setStorageNotice(null);
+        }
+      );
     } catch (error) {
       setLoadState((currentState) => ({
         ...currentState,
@@ -264,7 +305,7 @@ export function useAnalysisDataset() {
         cancelled: false,
       }));
     }
-  }, [convex]);
+  }, [applyReadyDataset, convex]);
 
   const handleCancelLoad = useCallback(() => {
     cancelLoadRef.current = true;
@@ -278,52 +319,92 @@ export function useAnalysisDataset() {
     const saveResult = await saveAnalysisDatasetToStorage(dataset);
     if (saveResult.ok) {
       refreshStoredDatasetInfo();
-      setStorageNotice({
+      setDatasetNotice({
         tone: "success",
         message: "Saved the current analysis dataset to browser storage for fast reloads.",
       });
       return;
     }
 
-    setStorageNotice({ tone: "error", message: saveResult.error });
+    setDatasetNotice({ tone: "error", message: saveResult.error });
   }, [dataset, refreshStoredDatasetInfo]);
 
   const handleLoadStoredDataset = useCallback(async () => {
     const storedDataset = await getStoredAnalysisDataset();
     if (!storedDataset) {
       refreshStoredDatasetInfo();
-      setStorageNotice({
+      setDatasetNotice({
         tone: "error",
         message: "No saved browser dataset is currently available, or the saved cache could not be read.",
       });
       return;
     }
 
-    startTransition(() => {
-      setDataset(storedDataset.dataset);
-      setLoadState({
-        status: "ready",
-        phase: "ready",
-        galaxiesLoaded: storedDataset.dataset.records.length,
-        classificationRowsLoaded: storedDataset.dataset.records.reduce(
-          (sum, record) => sum + record.aggregate.totalClassifications,
-          0
-        ),
-        error: null,
-        cancelled: false,
-      });
+    applyReadyDataset(storedDataset.dataset, {
+      kind: "browserCache",
+      savedAt: storedDataset.savedAt,
     });
 
-    setStorageNotice({
+    setDatasetNotice({
       tone: "success",
       message: "Loaded the analysis dataset from browser storage instead of querying the database again.",
     });
-  }, [refreshStoredDatasetInfo]);
+  }, [applyReadyDataset, refreshStoredDatasetInfo]);
+
+  const handleDownloadDatasetArchive = useCallback(() => {
+    if (!dataset) {
+      return;
+    }
+
+    try {
+      const downloadResult = downloadAnalysisDatasetArchive(dataset);
+      setDatasetNotice({
+        tone: "success",
+        message: `Downloaded ${downloadResult.fileName}. Upload it from this page in another browser session to keep the analysis fully client-side.`,
+      });
+    } catch (error) {
+      setDatasetNotice({
+        tone: "error",
+        message:
+          error instanceof Error && error.message
+            ? error.message
+            : "Failed to create the analysis dataset ZIP export.",
+      });
+    }
+  }, [dataset]);
+
+  const handleImportDatasetArchive = useCallback(
+    async (file: File) => {
+      setDatasetNotice(null);
+
+      try {
+        const importedDataset = await importAnalysisDatasetArchive(file);
+        applyReadyDataset(importedDataset.dataset, {
+          kind: "file",
+          fileName: importedDataset.fileName,
+          exportedAt: importedDataset.exportedAt,
+        });
+        setDatasetNotice({
+          tone: "success",
+          message: `Imported ${importedDataset.dataset.records.length.toLocaleString()} galaxies from ${importedDataset.fileName}. Use Save to cache if you also want this snapshot available in this browser without uploading it again.`,
+        });
+      } catch (error) {
+        setDatasetNotice({
+          tone: "error",
+          message:
+            error instanceof Error && error.message
+              ? error.message
+              : "Failed to import the analysis dataset ZIP file.",
+        });
+      }
+    },
+    [applyReadyDataset]
+  );
 
   const handleClearStoredDataset = useCallback(async () => {
     await clearStoredAnalysisDataset();
     refreshStoredDatasetInfo();
-    setStorageNotice({
+    setDatasetNotice({
       tone: "success",
       message: "Removed the saved browser cache of the analysis dataset.",
     });
@@ -336,13 +417,16 @@ export function useAnalysisDataset() {
     hasStoredDataset: storedDatasetInfo !== null,
     storedDatasetRecordCount: storedDatasetInfo?.recordCount ?? 0,
     storedDatasetSavedAtLabel: formatLoadedAt(storedDatasetInfo?.savedAt ?? null),
-    storageNotice,
+    datasetNotice,
     loadedAtLabel: formatLoadedAt(dataset?.loadedAt ?? null),
     loadedRecords: dataset?.records ?? EMPTY_RECORDS,
+    loadedSource,
     handleLoadDataset,
     handleCancelLoad,
     handleSaveDatasetToStorage,
     handleLoadStoredDataset,
+    handleDownloadDatasetArchive,
+    handleImportDatasetArchive,
     handleClearStoredDataset,
   };
 }

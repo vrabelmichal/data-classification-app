@@ -262,13 +262,16 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     hasStoredDataset,
     storedDatasetRecordCount,
     storedDatasetSavedAtLabel,
-    storageNotice,
+    datasetNotice,
     loadedAtLabel,
     loadedRecords,
+    loadedSource,
     handleLoadDataset,
     handleCancelLoad,
     handleSaveDatasetToStorage,
     handleLoadStoredDataset,
+    handleDownloadDatasetArchive,
+    handleImportDatasetArchive,
     handleClearStoredDataset,
   } = useAnalysisDataset();
 
@@ -616,9 +619,10 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         hasStoredDataset={hasStoredDataset}
         storedDatasetRecordCount={storedDatasetRecordCount}
         storedDatasetSavedAtLabel={storedDatasetSavedAtLabel}
-        storageNotice={storageNotice}
+        datasetNotice={datasetNotice}
         loadedRecordsCount={loadedRecords.length}
         loadedAtLabel={loadedAtLabel}
+        loadedSource={loadedSource}
         loadState={loadState}
         onLoadDataset={() => {
           void handleLoadDataset();
@@ -626,9 +630,15 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         onLoadStoredDataset={handleLoadStoredDataset}
         onCancelLoad={handleCancelLoad}
         onSaveDatasetToStorage={handleSaveDatasetToStorage}
+        onDownloadDatasetArchive={handleDownloadDatasetArchive}
+        onImportDatasetFile={(file) => {
+          void handleImportDatasetArchive(file);
+        }}
         onClearStoredDataset={handleClearStoredDataset}
         onExportReport={handleExportReport}
         onExportJson={handleExportJson}
+        canDownloadDatasetArchive={hasDataset && loadState.status !== "loading"}
+        canImportDatasetArchive={loadState.status !== "loading"}
         canExportReport={hasDataset && loadState.status !== "loading"}
       />
 
