@@ -655,7 +655,7 @@ export function DataAnalysisClassificationDistributionCard({
       {!isCollapsed ? (
         <>
           <div className="mt-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="grid flex-1 gap-4 lg:grid-cols-2 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+            <div className="grid flex-1 gap-4 lg:grid-cols-3 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
               <label className="space-y-1">
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   Paper filter
@@ -729,68 +729,66 @@ export function DataAnalysisClassificationDistributionCard({
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   Histogram metric
                 </span>
-                <div className="grid gap-3 sm:grid-cols-3">
-                  <select
-                    value={comparison.histogramMetric}
-                    onChange={(event) =>
-                      onUpdateComparison(comparison.id, (currentComparison) => ({
-                        ...currentComparison,
-                        histogramMetric:
-                          event.target.value as AnalysisClassificationDistributionComparisonConfig["histogramMetric"],
-                      }))
-                    }
-                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                  >
-                    {analysisClassificationHistogramMetricOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="space-y-1">
-                    <span className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Scale
-                    </span>
-                    <select
-                      value={comparison.histogramScale}
-                      onChange={(event) =>
-                        onUpdateComparison(comparison.id, (currentComparison) => ({
-                          ...currentComparison,
-                          histogramScale:
-                            event.target.value as AnalysisClassificationDistributionComparisonConfig["histogramScale"],
-                        }))
-                      }
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    >
-                      {analysisDistributionScaleOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="block text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Preview rows
-                    </span>
-                    <input
-                      type="number"
-                      min={1}
-                      max={ANALYSIS_MAX_PREVIEW_LIMIT}
-                      step={1}
-                      value={comparison.previewLimit}
-                      onChange={(event) =>
-                        onUpdateComparison(comparison.id, (currentComparison) => ({
-                          ...currentComparison,
-                          previewLimit: clampPreviewLimit(
-                            Number(event.target.value) || 0
-                          ),
-                        }))
-                      }
-                      className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
-                    />
-                  </div>
-                </div>
+                <select
+                  value={comparison.histogramMetric}
+                  onChange={(event) =>
+                    onUpdateComparison(comparison.id, (currentComparison) => ({
+                      ...currentComparison,
+                      histogramMetric:
+                        event.target.value as AnalysisClassificationDistributionComparisonConfig["histogramMetric"],
+                    }))
+                  }
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                >
+                  {analysisClassificationHistogramMetricOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Histogram Scale
+                </span>
+                <select
+                  value={comparison.histogramScale}
+                  onChange={(event) =>
+                    onUpdateComparison(comparison.id, (currentComparison) => ({
+                      ...currentComparison,
+                      histogramScale:
+                        event.target.value as AnalysisClassificationDistributionComparisonConfig["histogramScale"],
+                    }))
+                  }
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                >
+                  {analysisDistributionScaleOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Preview rows
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={ANALYSIS_MAX_PREVIEW_LIMIT}
+                  step={1}
+                  value={comparison.previewLimit}
+                  onChange={(event) =>
+                    onUpdateComparison(comparison.id, (currentComparison) => ({
+                      ...currentComparison,
+                      previewLimit: clampPreviewLimit(
+                        Number(event.target.value) || 0
+                      ),
+                    }))
+                  }
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                />
               </label>
             </div>
           </div>
