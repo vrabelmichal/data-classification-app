@@ -56,7 +56,8 @@ export type AnalysisDistributionComparisonScale =
   | "relativeFrequency";
 export type AnalysisClassificationComparisonPlotType =
   | "histogram"
-  | "frequencyScatter";
+  | "frequencyScatter"
+  | "frequencyLine";
 export type CatalogNucleusFilter = "any" | "yes" | "no";
 export type DominantLsbFilter =
   | "any"
@@ -199,6 +200,7 @@ export interface AnalysisDistributionComparisonConfig {
   paper: string | "__any__";
   catalogNucleus: CatalogNucleusFilter;
   dominantLsb: DominantLsbFilter;
+  scopeConditions: AnalysisQueryCondition[];
   conditions: AnalysisQueryCondition[];
   histogramMetric: AnalysisMetric;
   histogramScale: AnalysisDistributionComparisonScale;
@@ -212,6 +214,7 @@ export interface AnalysisClassificationDistributionComparisonConfig {
   paper: string | "__any__";
   catalogNucleus: CatalogNucleusFilter;
   dominantLsb: DominantLsbFilter;
+  scopeConditions: AnalysisClassificationComparisonCondition[];
   conditions: AnalysisClassificationComparisonCondition[];
   histogramMetric: AnalysisClassificationMetric;
   histogramScale: AnalysisDistributionComparisonScale;
@@ -227,10 +230,18 @@ export interface AnalysisClassificationFrequencyPlotCell {
   xLabel: string;
   xShortLabel: string;
   yLabel: string;
+  totalCount: number;
   matchedCount: number;
   failedCount: number;
+  totalRelativeFrequency: number | null;
   matchedRelativeFrequency: number | null;
   failedRelativeFrequency: number | null;
+}
+
+export interface AnalysisClassificationFrequencyPlotThresholdMarker {
+  key: string;
+  xPosition: number;
+  label: string;
 }
 
 export interface AnalysisClassificationFrequencyPlot {
@@ -240,6 +251,7 @@ export interface AnalysisClassificationFrequencyPlot {
   yTickLabels: string[];
   note: string | null;
   cells: AnalysisClassificationFrequencyPlotCell[];
+  thresholdMarkers: AnalysisClassificationFrequencyPlotThresholdMarker[];
   maxCount: number;
   maxRelativeFrequency: number;
 }
@@ -703,7 +715,8 @@ export const analysisClassificationComparisonPlotTypeOptions: Array<
   SelectOption<AnalysisClassificationComparisonPlotType>
 > = [
   { value: "histogram", label: "Histogram comparison" },
-  { value: "frequencyScatter", label: "Frequency plot" },
+  { value: "frequencyScatter", label: "Frequency bubbles" },
+  { value: "frequencyLine", label: "Frequency lines" },
 ];
 
 export const analysisOperatorOptions: Array<SelectOption<AnalysisOperator>> = [
@@ -804,6 +817,7 @@ export function createBlankAnalysisDistributionComparison(): AnalysisDistributio
     paper: "__any__",
     catalogNucleus: "any",
     dominantLsb: "any",
+    scopeConditions: [],
     conditions: [createAnalysisCondition("totalClassifications", "atLeast", 1)],
     histogramMetric: "totalClassifications",
     histogramScale: "count",
@@ -820,6 +834,7 @@ export function createBlankAnalysisClassificationDistributionComparison(): Analy
     paper: "__any__",
     catalogNucleus: "any",
     dominantLsb: "any",
+    scopeConditions: [],
     conditions: [
       createAnalysisClassificationCondition(
         "classificationCreationTime",
@@ -860,6 +875,10 @@ export function duplicateAnalysisDistributionComparison(
     ...comparison,
     id: createAnalysisLocalId(),
     name: `${comparison.name} copy`,
+    scopeConditions: comparison.scopeConditions.map((condition) => ({
+      ...condition,
+      id: createAnalysisLocalId(),
+    })),
     conditions: comparison.conditions.map((condition) => ({
       ...condition,
       id: createAnalysisLocalId(),
@@ -874,6 +893,10 @@ export function duplicateAnalysisClassificationDistributionComparison(
     ...comparison,
     id: createAnalysisLocalId(),
     name: `${comparison.name} copy`,
+    scopeConditions: comparison.scopeConditions.map((condition) => ({
+      ...condition,
+      id: createAnalysisLocalId(),
+    })),
     conditions: comparison.conditions.map((condition) => ({
       ...condition,
       id: createAnalysisLocalId(),
@@ -1046,6 +1069,7 @@ export function buildDefaultAnalysisClassificationDistributionComparisons(): Ana
       paper: "__any__",
       catalogNucleus: "any",
       dominantLsb: "any",
+      scopeConditions: [],
       conditions: [
         createAnalysisClassificationCondition(
           "classificationCreationTime",
@@ -1372,9 +1396,15 @@ export function getDistributionScaleLabel(
 export function getClassificationComparisonPlotTypeLabel(
   plotType: AnalysisClassificationComparisonPlotType
 ) {
-  return plotType === "frequencyScatter"
-    ? "Frequency plot"
-    : "Histogram comparison";
+  if (plotType === "frequencyScatter") {
+    return "Frequency bubbles";
+  }
+
+  if (plotType === "frequencyLine") {
+    return "Frequency lines";
+  }
+
+  return "Histogram comparison";
 }
 
 export function getMetricShortLabel(metric: AnalysisMetric) {
@@ -1524,12 +1554,16 @@ type ClassificationValueBucket = {
   maxValue: number;
 };
 
+type ClassificationFrequencyAxisBin = {
+  key: string;
+  label: string;
+  shortLabel: string;
+  minValue: number;
+  maxValue: number;
+};
+
 type ClassificationFrequencyAxisBinning = {
-  bins: Array<{
-    key: string;
-    label: string;
-    shortLabel: string;
-  }>;
+  bins: ClassificationFrequencyAxisBin[];
   assignmentByPointId: Map<string, number>;
   note: string | null;
 };
@@ -1621,6 +1655,8 @@ function buildClassificationValueAxisBinning(
       key: bucket.key,
       label: bucket.label,
       shortLabel: bucket.shortLabel,
+      minValue: bucket.minValue,
+      maxValue: bucket.maxValue,
     })),
     assignmentByPointId,
     note: null,
@@ -1673,6 +1709,8 @@ function buildClassificationOrderedTimeAxisBinning(
         key: `classificationCreationTime-${index}`,
         label: formatFrequencyTimeRangeLabel(start, end),
         shortLabel: formatFrequencyTimeRangeShortLabel(start, end),
+        minValue: start,
+        maxValue: end,
       };
     }),
     assignmentByPointId,
@@ -1692,12 +1730,112 @@ function buildClassificationFrequencyXAxisBinning(
   return buildClassificationValueAxisBinning(points, metric);
 }
 
+function getClassificationThresholdMarkerPosition(
+  xAxis: ClassificationFrequencyAxisBinning,
+  scopedPoints: AnalysisClassificationPoint[],
+  xMetric: AnalysisClassificationConditionMetric,
+  condition: AnalysisClassificationComparisonCondition
+) {
+  if (xAxis.bins.length === 0 || condition.metric !== xMetric) {
+    return null;
+  }
+
+  const threshold = normalizeClassificationConditionThreshold(
+    condition.metric,
+    condition.count
+  );
+
+  if (xMetric === "classificationCreationTime") {
+    const sortedValues = scopedPoints
+      .map((point) => getClassificationConditionMetricValue(point, xMetric))
+      .sort((left, right) => left - right);
+
+    if (sortedValues.length === 0) {
+      return null;
+    }
+
+    if (condition.operator === "atMost") {
+      const includedCount = sortedValues.filter((value) => value <= threshold).length;
+      return Math.max(
+        -0.5,
+        Math.min(
+          xAxis.bins.length - 0.5,
+          (includedCount / sortedValues.length) * xAxis.bins.length - 0.5
+        )
+      );
+    }
+
+    if (condition.operator === "atLeast") {
+      const precedingCount = sortedValues.filter((value) => value < threshold).length;
+      return Math.max(
+        -0.5,
+        Math.min(
+          xAxis.bins.length - 0.5,
+          (precedingCount / sortedValues.length) * xAxis.bins.length - 0.5
+        )
+      );
+    }
+  }
+
+  const bucketIndex = xAxis.bins.findIndex(
+    (bin) => threshold >= bin.minValue && threshold <= bin.maxValue
+  );
+
+  if (bucketIndex < 0) {
+    if (threshold < xAxis.bins[0].minValue) {
+      return -0.5;
+    }
+
+    return xAxis.bins.length - 0.5;
+  }
+
+  if (condition.operator === "atLeast") {
+    return bucketIndex - 0.5;
+  }
+
+  if (condition.operator === "atMost") {
+    return bucketIndex + 0.5;
+  }
+
+  return bucketIndex;
+}
+
+function buildClassificationFrequencyThresholdMarkers(
+  xAxis: ClassificationFrequencyAxisBinning,
+  scopedPoints: AnalysisClassificationPoint[],
+  xMetric: AnalysisClassificationConditionMetric,
+  conditions: AnalysisClassificationComparisonCondition[]
+): AnalysisClassificationFrequencyPlotThresholdMarker[] {
+  return conditions
+    .filter((condition) => condition.metric === xMetric)
+    .map((condition) => {
+      const xPosition = getClassificationThresholdMarkerPosition(
+        xAxis,
+        scopedPoints,
+        xMetric,
+        condition
+      );
+
+      if (xPosition === null) {
+        return null;
+      }
+
+      return {
+        key: condition.id,
+        xPosition,
+        label: `${condition.operator === "atLeast" ? ">=" : condition.operator === "atMost" ? "<=" : "="} ${formatClassificationConditionThreshold(condition.metric, condition.count)}`,
+      } satisfies AnalysisClassificationFrequencyPlotThresholdMarker;
+    })
+    .filter((marker): marker is AnalysisClassificationFrequencyPlotThresholdMarker => marker !== null);
+}
+
 function buildClassificationFrequencyPlot(
   scopedPoints: AnalysisClassificationPoint[],
   matchedPoints: AnalysisClassificationPoint[],
   failedPoints: AnalysisClassificationPoint[],
   xMetric: AnalysisClassificationConditionMetric,
-  yMetric: AnalysisClassificationMetric
+  yMetric: AnalysisClassificationMetric,
+  splitConditions: AnalysisClassificationComparisonCondition[]
 ): AnalysisClassificationFrequencyPlot {
   const xAxis = buildClassificationFrequencyXAxisBinning(scopedPoints, xMetric);
   const yAxis = buildClassificationValueAxisBinning(scopedPoints, yMetric);
@@ -1729,6 +1867,7 @@ function buildClassificationFrequencyPlot(
   accumulate(matchedPoints, "matched");
   accumulate(failedPoints, "failed");
 
+  const scopedTotal = scopedPoints.length;
   const matchedTotal = matchedPoints.length;
   const failedTotal = failedPoints.length;
   const cells = xAxis.bins.flatMap((xBin, xIndex) =>
@@ -1745,8 +1884,13 @@ function buildClassificationFrequencyPlot(
         xLabel: xBin.label,
         xShortLabel: xBin.shortLabel,
         yLabel: yBin.label,
+        totalCount: counts.matchedCount + counts.failedCount,
         matchedCount: counts.matchedCount,
         failedCount: counts.failedCount,
+        totalRelativeFrequency:
+          scopedTotal > 0
+            ? (counts.matchedCount + counts.failedCount) / scopedTotal
+            : null,
         matchedRelativeFrequency:
           matchedTotal > 0 ? counts.matchedCount / matchedTotal : null,
         failedRelativeFrequency:
@@ -1762,14 +1906,21 @@ function buildClassificationFrequencyPlot(
     yTickLabels: yAxis.bins.map((bin) => bin.label),
     note: xAxis.note,
     cells,
+    thresholdMarkers: buildClassificationFrequencyThresholdMarkers(
+      xAxis,
+      scopedPoints,
+      xMetric,
+      splitConditions
+    ),
     maxCount: Math.max(
       0,
-      ...cells.map((cell) => Math.max(cell.matchedCount, cell.failedCount))
+      ...cells.map((cell) => Math.max(cell.totalCount, cell.matchedCount, cell.failedCount))
     ),
     maxRelativeFrequency: Math.max(
       0,
       ...cells.map((cell) =>
         Math.max(
+          cell.totalRelativeFrequency ?? 0,
           cell.matchedRelativeFrequency ?? 0,
           cell.failedRelativeFrequency ?? 0
         )
@@ -2469,8 +2620,10 @@ export function evaluateAnalysisDistributionComparison(
   records: AnalysisRecord[],
   comparison: AnalysisDistributionComparisonConfig
 ): AnalysisDistributionComparisonResult {
-  const scopedRecords = records.filter((record) =>
-    matchesSharedFilters(record, comparison)
+  const scopedRecords = records.filter(
+    (record) =>
+      matchesSharedFilters(record, comparison) &&
+      matchesAllConditions(record, comparison.scopeConditions)
   );
   const matchedRecords = scopedRecords.filter((record) =>
     matchesAllConditions(record, comparison.conditions)
@@ -2518,7 +2671,9 @@ export function evaluateAnalysisClassificationDistributionComparison(
   records: AnalysisRecord[],
   comparison: AnalysisClassificationDistributionComparisonConfig
 ): AnalysisClassificationDistributionComparisonResult {
-  const scopedPoints = buildClassificationPoints(records, comparison);
+  const scopedPoints = buildClassificationPoints(records, comparison).filter((point) =>
+    matchesAllClassificationConditions(point, comparison.scopeConditions)
+  );
   const matchedPoints = scopedPoints.filter((point) =>
     matchesAllClassificationConditions(point, comparison.conditions)
   );
@@ -2560,7 +2715,8 @@ export function evaluateAnalysisClassificationDistributionComparison(
       matchedPoints,
       failedPoints,
       comparison.plotXAxisMetric,
-      comparison.histogramMetric
+      comparison.histogramMetric,
+      comparison.conditions
     ),
     matchedStats: summarizeClassificationDistributionSubset(
       matchedPoints,

@@ -538,6 +538,7 @@ function buildReportData({
             : formatPaperLabel(comparison.paper),
         catalogNucleus: CATALOG_NUCLEUS_LABELS[comparison.catalogNucleus],
         dominantLsb: DOMINANT_LSB_LABELS[comparison.dominantLsb],
+        scopeConditions: comparison.scopeConditions.map(buildConditionExport),
         histogramMetricKey: comparison.histogramMetric,
         histogramMetric: getMetricLabel(comparison.histogramMetric),
         histogramScaleKey: comparison.histogramScale,
@@ -576,6 +577,9 @@ function buildReportData({
               : formatPaperLabel(comparison.paper),
           catalogNucleus: CATALOG_NUCLEUS_LABELS[comparison.catalogNucleus],
           dominantLsb: DOMINANT_LSB_LABELS[comparison.dominantLsb],
+          scopeConditions: comparison.scopeConditions.map(
+            buildClassificationConditionExport
+          ),
           plotTypeKey: comparison.plotType,
           plotType: getClassificationComparisonPlotTypeLabel(comparison.plotType),
           plotXAxisMetricKey: comparison.plotXAxisMetric,
@@ -607,7 +611,7 @@ function buildReportData({
 
   return {
     reportType: "classification-analysis",
-    reportVersion: 6,
+    reportVersion: 7,
     generatedAtIso: generatedAt.toISOString(),
     generatedAtLabel: generatedAt.toLocaleString(),
     datasetLoadedAtIso: new Date(dataset.loadedAt).toISOString(),
@@ -930,7 +934,20 @@ function renderDistributionComparisonCard(
               <td>${escapeHtml(comparison.config.histogramScale)}</td>
             </tr>
             <tr>
-              <th scope="row">Thresholds</th>
+              <th scope="row">Scope thresholds</th>
+              <td>${escapeHtml(
+                comparison.config.scopeConditions.length > 0
+                  ? comparison.config.scopeConditions
+                      .map(
+                        (condition) =>
+                          `${condition.metricLabel} ${condition.operatorLabel.toLowerCase()} ${condition.thresholdDisplay}`
+                      )
+                      .join("; ")
+                  : "None"
+              )}</td>
+            </tr>
+            <tr>
+              <th scope="row">Split thresholds</th>
               <td>${escapeHtml(
                 comparison.config.conditions
                   .map(
@@ -949,13 +966,13 @@ function renderDistributionComparisonCard(
           key: `${comparison.id}-scopedCount`,
           label: "Scoped galaxies",
           value: comparison.summary.scopedCount.toLocaleString(),
-          detail: "Galaxies remaining after the paper, catalog nucleus, and dominant Is-LSB filters.",
+          detail: "Galaxies remaining after the paper, catalog nucleus, dominant Is-LSB, and scope-threshold filters.",
         },
         {
           key: `${comparison.id}-matchedCount`,
           label: "Matching subset",
           value: comparison.summary.matchedCount.toLocaleString(),
-          detail: "Galaxies in scope that satisfy every threshold on this card.",
+          detail: "Galaxies in scope that satisfy every split threshold on this card.",
         },
         {
           key: `${comparison.id}-matchedShareOfScope`,
@@ -967,7 +984,7 @@ function renderDistributionComparisonCard(
           key: `${comparison.id}-failedCount`,
           label: "Failing subset",
           value: comparison.summary.failedCount.toLocaleString(),
-          detail: "Galaxies in the same scope that miss one or more thresholds.",
+          detail: "Galaxies in the same filtered scope that miss one or more split thresholds.",
         },
         {
           key: `${comparison.id}-failedShareOfScope`,
@@ -1135,7 +1152,10 @@ function renderClassificationDistributionComparisonCard(
   );
 
   const frequencyPlotMarkup = (() => {
-    if (comparison.config.plotTypeKey !== "frequencyScatter") {
+    if (
+      comparison.config.plotTypeKey !== "frequencyScatter" &&
+      comparison.config.plotTypeKey !== "frequencyLine"
+    ) {
       return "";
     }
 
@@ -1177,8 +1197,17 @@ function renderClassificationDistributionComparisonCard(
 
     return `
       <div class="subsection">
-        <h4>Classification frequency plot summary</h4>
+        <h4>${escapeHtml(
+          comparison.config.plotTypeKey === "frequencyLine"
+            ? "Classification frequency line summary"
+            : "Classification frequency plot summary"
+        )}</h4>
         <p>Ordered X-axis bins for ${escapeHtml(comparison.config.plotXAxisMetric.toLowerCase())} with ${escapeHtml(comparison.config.histogramMetric.toLowerCase())} frequencies shown separately for the passing and failing subsets.</p>
+        ${comparison.frequencyPlot.thresholdMarkers.length > 0 ? `<p>${escapeHtml(
+          `Threshold markers: ${comparison.frequencyPlot.thresholdMarkers
+            .map((marker) => marker.label)
+            .join("; ")}`
+        )}</p>` : ""}
         ${comparison.frequencyPlot.note ? `<p>${escapeHtml(comparison.frequencyPlot.note)}</p>` : ""}
         <div class="table-wrap">
           <table class="data-table" data-classification-frequency-plot="${escapeHtml(comparison.id)}">
@@ -1240,7 +1269,20 @@ function renderClassificationDistributionComparisonCard(
               <td>${escapeHtml(comparison.config.histogramScale)}</td>
             </tr>
             <tr>
-              <th scope="row">Thresholds</th>
+              <th scope="row">Scope thresholds</th>
+              <td>${escapeHtml(
+                comparison.config.scopeConditions.length > 0
+                  ? comparison.config.scopeConditions
+                      .map(
+                        (condition) =>
+                          `${condition.metricLabel} ${condition.operatorLabel.toLowerCase()} ${condition.thresholdDisplay}`
+                      )
+                      .join("; ")
+                  : "None"
+              )}</td>
+            </tr>
+            <tr>
+              <th scope="row">Split thresholds</th>
               <td>${escapeHtml(
                 comparison.config.conditions
                   .map(
@@ -1259,13 +1301,13 @@ function renderClassificationDistributionComparisonCard(
           key: `${comparison.id}-scopedCount`,
           label: "Scoped classifications",
           value: comparison.summary.scopedCount.toLocaleString(),
-          detail: "Classification rows remaining after the galaxy-level paper, catalog nucleus, and dominant Is-LSB filters.",
+          detail: "Classification rows remaining after the galaxy-level paper, catalog nucleus, dominant Is-LSB, and scope-threshold filters.",
         },
         {
           key: `${comparison.id}-matchedCount`,
           label: "Matching subset",
           value: comparison.summary.matchedCount.toLocaleString(),
-          detail: "Classifications in scope that satisfy every threshold on this card.",
+          detail: "Classifications in scope that satisfy every split threshold on this card.",
         },
         {
           key: `${comparison.id}-matchedShareOfScope`,
@@ -1277,7 +1319,7 @@ function renderClassificationDistributionComparisonCard(
           key: `${comparison.id}-failedCount`,
           label: "Failing subset",
           value: comparison.summary.failedCount.toLocaleString(),
-          detail: "Classifications in the same scope that miss one or more thresholds.",
+          detail: "Classifications in the same filtered scope that miss one or more split thresholds.",
         },
         {
           key: `${comparison.id}-failedShareOfScope`,
@@ -1350,7 +1392,8 @@ function renderClassificationDistributionComparisonCard(
         },
       ])}
 
-      ${comparison.config.plotTypeKey === "frequencyScatter"
+      ${comparison.config.plotTypeKey === "frequencyScatter" ||
+      comparison.config.plotTypeKey === "frequencyLine"
         ? frequencyPlotMarkup
         : `<div class="subsection">
         <h4>Combined comparison histogram</h4>

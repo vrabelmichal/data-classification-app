@@ -1,5 +1,6 @@
-import { useState, useRef } from "react";
+import { useRef, useState } from "react";
 
+import { AnalysisClassificationFrequencyLinePlot } from "./AnalysisClassificationFrequencyLinePlot";
 import { AnalysisClassificationFrequencyPlot } from "./AnalysisClassificationFrequencyPlot";
 import { AnalysisComparisonHistogram } from "./AnalysisComparisonHistogram";
 import {
@@ -570,13 +571,13 @@ export function DataAnalysisClassificationDistributionCard({
       )
     : [];
   const previewSortLabel =
-    comparison.plotType === "frequencyScatter"
+    comparison.plotType !== "histogram"
       ? getClassificationConditionMetricLabel(comparison.plotXAxisMetric)
       : getClassificationMetricLabel(comparison.histogramMetric);
   const metricControlLabel =
-    comparison.plotType === "frequencyScatter" ? "Y axis metric" : "Histogram metric";
+    comparison.plotType !== "histogram" ? "Y axis metric" : "Histogram metric";
   const scaleControlLabel =
-    comparison.plotType === "frequencyScatter" ? "Frequency scale" : "Histogram scale";
+    comparison.plotType !== "histogram" ? "Frequency scale" : "Histogram scale";
 
   return (
     <section
@@ -833,7 +834,7 @@ export function DataAnalysisClassificationDistributionCard({
                 </select>
               </label>
 
-              {comparison.plotType === "frequencyScatter" ? (
+              {comparison.plotType !== "histogram" ? (
                 <label className="space-y-1">
                   <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     X axis metric
@@ -931,7 +932,66 @@ export function DataAnalysisClassificationDistributionCard({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Classification thresholds
+                  Scope Thresholds
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Only classifications that satisfy every scope threshold remain in the plot and previews. The matching and failing subsets are both computed from this filtered scope.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  onUpdateComparison(comparison.id, (currentComparison) => ({
+                    ...currentComparison,
+                    scopeConditions: [
+                      ...currentComparison.scopeConditions,
+                      createAnalysisClassificationCondition(),
+                    ],
+                  }))
+                }
+                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Add scope threshold
+              </button>
+            </div>
+
+            {comparison.scopeConditions.length > 0 ? (
+              <div className="space-y-3">
+                {comparison.scopeConditions.map((condition) => (
+                  <ClassificationConditionEditor
+                    key={condition.id}
+                    condition={condition}
+                    onChange={(nextCondition) =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        scopeConditions: currentComparison.scopeConditions.map((candidate) =>
+                          candidate.id === nextCondition.id ? nextCondition : candidate
+                        ),
+                      }))
+                    }
+                    onRemove={() =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        scopeConditions: currentComparison.scopeConditions.filter(
+                          (candidate) => candidate.id !== condition.id
+                        ),
+                      }))
+                    }
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                No scope thresholds yet. All classifications that pass the galaxy-level paper, catalog nucleus, and dominant Is-LSB filters stay in the split.
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Split Thresholds
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Each threshold is applied to individual classification rows after the galaxy-level scope filters.
@@ -1010,7 +1070,7 @@ export function DataAnalysisClassificationDistributionCard({
                     label={metricControlLabel}
                     value={getClassificationMetricLabel(comparison.histogramMetric)}
                   />
-                  {comparison.plotType === "frequencyScatter" ? (
+                  {comparison.plotType !== "histogram" ? (
                     <SummaryChip
                       label="X axis metric"
                       value={getClassificationConditionMetricLabel(
@@ -1028,7 +1088,26 @@ export function DataAnalysisClassificationDistributionCard({
                   />
                   <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Threshold summary
+                      Scope threshold summary
+                    </div>
+                    <div className="mt-1 space-y-1 text-sm font-medium text-gray-900 dark:text-white">
+                      {comparison.scopeConditions.length > 0 ? (
+                        comparison.scopeConditions.map((condition) => (
+                          <div key={condition.id}>
+                            {getClassificationConditionMetricLabel(condition.metric)} {condition.operator === "atLeast" ? "at least" : condition.operator === "atMost" ? "at most" : "exactly"} {formatClassificationConditionThreshold(
+                              condition.metric,
+                              condition.count
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div>No extra scope thresholds.</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Split threshold summary
                     </div>
                     <div className="mt-1 space-y-1 text-sm font-medium text-gray-900 dark:text-white">
                       {comparison.conditions.map((condition) => (
@@ -1052,26 +1131,37 @@ export function DataAnalysisClassificationDistributionCard({
             <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
               <div className="mb-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {comparison.plotType === "frequencyScatter"
-                    ? "Classification frequency plot"
-                    : "Combined classification comparison"}
+                  {comparison.plotType === "histogram"
+                    ? "Combined classification comparison"
+                    : comparison.plotType === "frequencyLine"
+                      ? "Classification frequency lines"
+                      : "Classification frequency plot"}
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {hasDataset && result
                     ? comparison.plotType === "frequencyScatter"
                       ? `Bubble-style frequency view of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} across ordered bins of ${getClassificationConditionMetricLabel(comparison.plotXAxisMetric).toLowerCase()}, with bubble size shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
-                      : `Step-style comparison of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} for classifications that pass versus fail the thresholds, shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
-                    : comparison.plotType === "frequencyScatter"
-                      ? "Load the dataset to build this frequency plot."
-                      : "Load the dataset to build this comparison histogram."}
+                      : comparison.plotType === "frequencyLine"
+                        ? `Line view of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} across ordered bins of ${getClassificationConditionMetricLabel(comparison.plotXAxisMetric).toLowerCase()}, with vertical markers for split thresholds that use the same X-axis metric.`
+                        : `Step-style comparison of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} for classifications that pass versus fail the thresholds, shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
+                    : comparison.plotType === "histogram"
+                      ? "Load the dataset to build this comparison histogram."
+                      : "Load the dataset to build this frequency plot."}
                 </p>
               </div>
-              {comparison.plotType === "frequencyScatter" ? (
+              {comparison.plotType !== "histogram" ? (
                 result ? (
-                  <AnalysisClassificationFrequencyPlot
-                    plot={result.frequencyPlot}
-                    scale={comparison.histogramScale}
-                  />
+                  comparison.plotType === "frequencyLine" ? (
+                    <AnalysisClassificationFrequencyLinePlot
+                      plot={result.frequencyPlot}
+                      scale={comparison.histogramScale}
+                    />
+                  ) : (
+                    <AnalysisClassificationFrequencyPlot
+                      plot={result.frequencyPlot}
+                      scale={comparison.histogramScale}
+                    />
+                  )
                 ) : (
                   <div className="flex h-52 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
                     Load the dataset to build this frequency plot.

@@ -664,7 +664,66 @@ export function DataAnalysisDistributionCard({
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Thresholds
+                  Scope Thresholds
+                </h3>
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Only galaxies that satisfy every scope threshold remain in view. The matching and failing subsets are both computed from this filtered scope.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() =>
+                  onUpdateComparison(comparison.id, (currentComparison) => ({
+                    ...currentComparison,
+                    scopeConditions: [
+                      ...currentComparison.scopeConditions,
+                      createAnalysisCondition(),
+                    ],
+                  }))
+                }
+                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              >
+                Add scope threshold
+              </button>
+            </div>
+
+            {comparison.scopeConditions.length > 0 ? (
+              <div className="space-y-3">
+                {comparison.scopeConditions.map((condition) => (
+                  <ComparisonConditionEditor
+                    key={condition.id}
+                    condition={condition}
+                    onChange={(nextCondition) =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        scopeConditions: currentComparison.scopeConditions.map((candidate) =>
+                          candidate.id === nextCondition.id ? nextCondition : candidate
+                        ),
+                      }))
+                    }
+                    onRemove={() =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        scopeConditions: currentComparison.scopeConditions.filter(
+                          (candidate) => candidate.id !== condition.id
+                        ),
+                      }))
+                    }
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                No scope thresholds yet. All galaxies that pass the paper, catalog nucleus, and dominant Is-LSB filters stay in the split.
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Split Thresholds
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   Records that satisfy every threshold fall into the matching subset. Records in the same scope that miss one or more thresholds fall into the failing subset.
@@ -749,7 +808,23 @@ export function DataAnalysisDistributionCard({
                   />
                   <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
                     <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                      Threshold summary
+                      Scope threshold summary
+                    </div>
+                    <div className="mt-1 space-y-1 text-sm font-medium text-gray-900 dark:text-white">
+                      {comparison.scopeConditions.length > 0 ? (
+                        comparison.scopeConditions.map((condition) => (
+                          <div key={condition.id}>
+                            {getConditionMetricLabel(condition.metric)} {condition.operator === "atLeast" ? "at least" : condition.operator === "atMost" ? "at most" : "exactly"} {formatConditionThreshold(condition.metric, condition.count)}
+                          </div>
+                        ))
+                      ) : (
+                        <div>No extra scope thresholds.</div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-white px-3 py-2 dark:bg-gray-800">
+                    <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Split threshold summary
                     </div>
                     <div className="mt-1 space-y-1 text-sm font-medium text-gray-900 dark:text-white">
                       {comparison.conditions.map((condition) => (
