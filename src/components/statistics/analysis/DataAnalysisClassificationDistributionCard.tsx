@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 
 import { AnalysisClassificationFrequencyPlot } from "./AnalysisClassificationFrequencyPlot";
 import { AnalysisComparisonHistogram } from "./AnalysisComparisonHistogram";
@@ -266,6 +266,25 @@ function DuplicateIcon() {
   );
 }
 
+function InfoIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="16" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
+    </svg>
+  );
+}
+
 function ClassificationConditionEditor({
   condition,
   onChange,
@@ -275,10 +294,41 @@ function ClassificationConditionEditor({
   onChange: (nextCondition: AnalysisClassificationComparisonCondition) => void;
   onRemove: () => void;
 }) {
+  const [isTooltipOpen, setIsTooltipOpen] = useState(false);
+  const isTooltipOpenedByClickRef = useRef(false);
   const isDateTimeMetric = isDateTimeClassificationConditionMetric(condition.metric);
 
+  const handleClickInfo = () => {
+    if (isTooltipOpenedByClickRef.current) {
+      // Already click-opened, so close it
+      setIsTooltipOpen(false);
+      isTooltipOpenedByClickRef.current = false;
+    } else {
+      // Not yet click-opened, so keep open and mark as click-opened
+      setIsTooltipOpen(true);
+      isTooltipOpenedByClickRef.current = true;
+    }
+  };
+
+  const handleCloseTooltip = () => {
+    setIsTooltipOpen(false);
+    isTooltipOpenedByClickRef.current = false;
+  };
+
+  const handleMouseEnter = () => {
+    if (!isTooltipOpenedByClickRef.current) {
+      setIsTooltipOpen(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (!isTooltipOpenedByClickRef.current) {
+      setIsTooltipOpen(false);
+    }
+  };
+
   return (
-    <div className="grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/30 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,180px)_44px]">
+    <div className="grid gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900/30 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,180px)_auto_44px]">
       <label className="space-y-1">
         <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
           Metric
@@ -335,8 +385,8 @@ function ClassificationConditionEditor({
         </select>
       </label>
 
-      <label className="space-y-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+      <label className="flex flex-col items-start justify-end">
+        <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">
           {isDateTimeMetric ? "Date and time" : "Value"}
         </span>
         <input
@@ -369,22 +419,45 @@ function ClassificationConditionEditor({
           }}
           className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
         />
-        {isDateTimeMetric ? (
-          <span className="block text-xs text-gray-500 dark:text-gray-400">
-            Compares against the classification row creation timestamp.
-          </span>
-        ) : null}
       </label>
+
+      {isDateTimeMetric ? (
+        <div className="relative flex items-end">
+          <button
+            type="button"
+            onClick={handleClickInfo}
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+            aria-label="More information"
+          >
+            <InfoIcon />
+          </button>
+          {isTooltipOpen && (
+            <div className="absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 flex items-center gap-2 min-w-[280px] rounded-lg bg-gray-900 px-3 py-2 text-xs text-white shadow-lg dark:bg-gray-700">
+              <span>Compares against the classification row creation timestamp.</span>
+              <button
+                type="button"
+                onClick={handleCloseTooltip}
+                className="flex-shrink-0 text-gray-300 hover:text-white transition"
+                aria-label="Close tooltip"
+              >
+                ×
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
 
       <div className="flex items-end">
         <button
           type="button"
           onClick={onRemove}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           aria-label="Remove condition"
           title="Remove condition"
         >
-          x
+          <TrashIcon />
         </button>
       </div>
     </div>

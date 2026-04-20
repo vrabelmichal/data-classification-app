@@ -241,11 +241,11 @@ function ComparisonConditionEditor({
         <button
           type="button"
           onClick={onRemove}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           aria-label="Remove condition"
           title="Remove condition"
         >
-          x
+          <TrashIcon />
         </button>
       </div>
     </div>
