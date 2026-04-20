@@ -12,6 +12,7 @@ import {
   formatConditionThreshold,
   formatMetricValue,
   formatPaperLabel,
+  getClassificationComparisonPlotTypeLabel,
   getClassificationConditionMetricLabel,
   getClassificationMetricLabel,
   getConditionMetricLabel,
@@ -575,6 +576,12 @@ function buildReportData({
               : formatPaperLabel(comparison.paper),
           catalogNucleus: CATALOG_NUCLEUS_LABELS[comparison.catalogNucleus],
           dominantLsb: DOMINANT_LSB_LABELS[comparison.dominantLsb],
+          plotTypeKey: comparison.plotType,
+          plotType: getClassificationComparisonPlotTypeLabel(comparison.plotType),
+          plotXAxisMetricKey: comparison.plotXAxisMetric,
+          plotXAxisMetric: getClassificationConditionMetricLabel(
+            comparison.plotXAxisMetric
+          ),
           histogramMetricKey: comparison.histogramMetric,
           histogramMetric: getClassificationMetricLabel(comparison.histogramMetric),
           histogramScaleKey: comparison.histogramScale,
@@ -593,13 +600,14 @@ function buildReportData({
           result.matchedHistogram,
           result.failedHistogram
         ),
+        frequencyPlot: result.frequencyPlot,
       };
     }
   );
 
   return {
     reportType: "classification-analysis",
-    reportVersion: 5,
+    reportVersion: 6,
     generatedAtIso: generatedAt.toISOString(),
     generatedAtLabel: generatedAt.toLocaleString(),
     datasetLoadedAtIso: new Date(dataset.loadedAt).toISOString(),
@@ -1126,6 +1134,70 @@ function renderClassificationDistributionComparisonCard(
     )
   );
 
+  const frequencyPlotMarkup = (() => {
+    if (comparison.config.plotTypeKey !== "frequencyScatter") {
+      return "";
+    }
+
+    const frequencyRows = comparison.frequencyPlot.xTickLabels
+      .map((_, xIndex) => {
+        const cells = comparison.frequencyPlot.cells.filter(
+          (cell) => cell.xIndex === xIndex
+        );
+        const xLabel = cells[0]?.xLabel ?? comparison.frequencyPlot.xTickLabels[xIndex];
+        const summarizeSubset = (subset: "matched" | "failed") => {
+          const parts = cells
+            .map((cell) => {
+              const count =
+                subset === "matched" ? cell.matchedCount : cell.failedCount;
+              const relativeFrequency =
+                subset === "matched"
+                  ? cell.matchedRelativeFrequency
+                  : cell.failedRelativeFrequency;
+              if (count <= 0) {
+                return null;
+              }
+
+              return `${cell.yLabel}: ${count.toLocaleString()} (${formatPercent(relativeFrequency)})`;
+            })
+            .filter((value): value is string => value !== null);
+
+          return parts.length > 0 ? parts.join("; ") : "No classifications";
+        };
+
+        return `
+          <tr>
+            <th scope="row">${escapeHtml(xLabel)}</th>
+            <td>${escapeHtml(summarizeSubset("matched"))}</td>
+            <td>${escapeHtml(summarizeSubset("failed"))}</td>
+          </tr>
+        `;
+      })
+      .join("");
+
+    return `
+      <div class="subsection">
+        <h4>Classification frequency plot summary</h4>
+        <p>Ordered X-axis bins for ${escapeHtml(comparison.config.plotXAxisMetric.toLowerCase())} with ${escapeHtml(comparison.config.histogramMetric.toLowerCase())} frequencies shown separately for the passing and failing subsets.</p>
+        ${comparison.frequencyPlot.note ? `<p>${escapeHtml(comparison.frequencyPlot.note)}</p>` : ""}
+        <div class="table-wrap">
+          <table class="data-table" data-classification-frequency-plot="${escapeHtml(comparison.id)}">
+            <thead>
+              <tr>
+                <th scope="col">X bin</th>
+                <th scope="col">Pass subset</th>
+                <th scope="col">Fail subset</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${frequencyRows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  })();
+
   return `
     <article id="classification-comparison-${escapeHtml(comparison.id)}" class="query-card" data-classification-comparison-id="${escapeHtml(comparison.id)}">
       <header class="query-header">
@@ -1150,6 +1222,14 @@ function renderClassificationDistributionComparisonCard(
             <tr>
               <th scope="row">Dominant Is-LSB filter</th>
               <td>${escapeHtml(comparison.config.dominantLsb)}</td>
+            </tr>
+            <tr>
+              <th scope="row">Plot type</th>
+              <td>${escapeHtml(comparison.config.plotType)}</td>
+            </tr>
+            <tr>
+              <th scope="row">X axis metric</th>
+              <td>${escapeHtml(comparison.config.plotXAxisMetric)}</td>
             </tr>
             <tr>
               <th scope="row">Histogram metric</th>
@@ -1270,7 +1350,9 @@ function renderClassificationDistributionComparisonCard(
         },
       ])}
 
-      <div class="subsection">
+      ${comparison.config.plotTypeKey === "frequencyScatter"
+        ? frequencyPlotMarkup
+        : `<div class="subsection">
         <h4>Combined comparison histogram</h4>
         <p>Shared bins with overlaid ${escapeHtml(comparison.config.histogramScale.toLowerCase())} for the matching and failing classification subsets.</p>
         <div class="comparison-histogram-bars">
@@ -1342,7 +1424,7 @@ function renderClassificationDistributionComparisonCard(
             </tbody>
           </table>
         </div>
-      </div>
+      </div>`}
     </article>
   `;
 }

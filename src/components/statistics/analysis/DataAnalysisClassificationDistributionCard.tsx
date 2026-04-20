@@ -1,8 +1,10 @@
 import { useState } from "react";
 
+import { AnalysisClassificationFrequencyPlot } from "./AnalysisClassificationFrequencyPlot";
 import { AnalysisComparisonHistogram } from "./AnalysisComparisonHistogram";
 import {
   ANALYSIS_MAX_PREVIEW_LIMIT,
+  analysisClassificationComparisonPlotTypeOptions,
   analysisClassificationConditionMetricOptions,
   analysisClassificationHistogramMetricOptions,
   analysisDistributionScaleOptions,
@@ -16,6 +18,7 @@ import {
   formatClassificationConditionThreshold,
   formatClassificationMetricValue,
   formatPaperLabel,
+  getClassificationComparisonPlotTypeLabel,
   getClassificationConditionMetricLabel,
   getClassificationMetricLabel,
   getDistributionScaleLabel,
@@ -146,7 +149,7 @@ function ClassificationPreviewTable({
                     <td className="px-3 py-3">{point.vote.valid_redshift ? "Yes" : "No"}</td>
                     <td className="px-3 py-3 min-w-[120px] max-w-[180px] break-words">
                       {commentPreview ? (
-                        <span title={comment}>{commentPreview}</span>
+                        <span title={comment ?? undefined}>{commentPreview}</span>
                       ) : (
                         <span className="text-gray-400 dark:text-gray-500">-</span>
                       )}
@@ -493,6 +496,14 @@ export function DataAnalysisClassificationDistributionCard({
         result.failedHistogram
       )
     : [];
+  const previewSortLabel =
+    comparison.plotType === "frequencyScatter"
+      ? getClassificationConditionMetricLabel(comparison.plotXAxisMetric)
+      : getClassificationMetricLabel(comparison.histogramMetric);
+  const metricControlLabel =
+    comparison.plotType === "frequencyScatter" ? "Y axis metric" : "Histogram metric";
+  const scaleControlLabel =
+    comparison.plotType === "frequencyScatter" ? "Frequency scale" : "Histogram scale";
 
   return (
     <section
@@ -727,7 +738,57 @@ export function DataAnalysisClassificationDistributionCard({
 
               <label className="space-y-1">
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Histogram metric
+                  Visualization
+                </span>
+                <select
+                  value={comparison.plotType}
+                  onChange={(event) =>
+                    onUpdateComparison(comparison.id, (currentComparison) => ({
+                      ...currentComparison,
+                      plotType:
+                        event.target
+                          .value as AnalysisClassificationDistributionComparisonConfig["plotType"],
+                    }))
+                  }
+                  className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                >
+                  {analysisClassificationComparisonPlotTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              {comparison.plotType === "frequencyScatter" ? (
+                <label className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    X axis metric
+                  </span>
+                  <select
+                    value={comparison.plotXAxisMetric}
+                    onChange={(event) =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        plotXAxisMetric:
+                          event.target
+                            .value as AnalysisClassificationDistributionComparisonConfig["plotXAxisMetric"],
+                      }))
+                    }
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  >
+                    {analysisClassificationConditionMetricOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              <label className="space-y-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  {metricControlLabel}
                 </span>
                 <select
                   value={comparison.histogramMetric}
@@ -749,7 +810,7 @@ export function DataAnalysisClassificationDistributionCard({
               </label>
               <label className="space-y-1">
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Histogram Scale
+                  {scaleControlLabel}
                 </span>
                 <select
                   value={comparison.histogramScale}
@@ -869,11 +930,23 @@ export function DataAnalysisClassificationDistributionCard({
                     value={result.failedCount.toLocaleString()}
                   />
                   <SummaryChip
-                    label="Histogram metric"
-                    value={getClassificationMetricLabel(comparison.histogramMetric)}
+                    label="Visualization"
+                    value={getClassificationComparisonPlotTypeLabel(comparison.plotType)}
                   />
                   <SummaryChip
-                    label="Scale"
+                    label={metricControlLabel}
+                    value={getClassificationMetricLabel(comparison.histogramMetric)}
+                  />
+                  {comparison.plotType === "frequencyScatter" ? (
+                    <SummaryChip
+                      label="X axis metric"
+                      value={getClassificationConditionMetricLabel(
+                        comparison.plotXAxisMetric
+                      )}
+                    />
+                  ) : null}
+                  <SummaryChip
+                    label={scaleControlLabel}
                     value={getDistributionScaleLabel(comparison.histogramScale)}
                   />
                   <SummaryChip
@@ -906,19 +979,38 @@ export function DataAnalysisClassificationDistributionCard({
             <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
               <div className="mb-3">
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Combined classification comparison
+                  {comparison.plotType === "frequencyScatter"
+                    ? "Classification frequency plot"
+                    : "Combined classification comparison"}
                 </h3>
                 <p className="text-sm text-gray-500 dark:text-gray-400">
                   {hasDataset && result
-                    ? `Step-style comparison of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} for classifications that pass versus fail the thresholds, shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
-                    : "Load the dataset to build this comparison histogram."}
+                    ? comparison.plotType === "frequencyScatter"
+                      ? `Bubble-style frequency view of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} across ordered bins of ${getClassificationConditionMetricLabel(comparison.plotXAxisMetric).toLowerCase()}, with bubble size shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
+                      : `Step-style comparison of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} for classifications that pass versus fail the thresholds, shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
+                    : comparison.plotType === "frequencyScatter"
+                      ? "Load the dataset to build this frequency plot."
+                      : "Load the dataset to build this comparison histogram."}
                 </p>
               </div>
-              <AnalysisComparisonHistogram
-                data={comparisonPlotData}
-                scale={comparison.histogramScale}
-                subjectLabelPlural="classifications"
-              />
+              {comparison.plotType === "frequencyScatter" ? (
+                result ? (
+                  <AnalysisClassificationFrequencyPlot
+                    plot={result.frequencyPlot}
+                    scale={comparison.histogramScale}
+                  />
+                ) : (
+                  <div className="flex h-52 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                    Load the dataset to build this frequency plot.
+                  </div>
+                )
+              ) : (
+                <AnalysisComparisonHistogram
+                  data={comparisonPlotData}
+                  scale={comparison.histogramScale}
+                  subjectLabelPlural="classifications"
+                />
+              )}
             </div>
           </div>
 
@@ -960,14 +1052,14 @@ export function DataAnalysisClassificationDistributionCard({
           <div className="mt-6 grid gap-6 xl:grid-cols-2">
             <ClassificationPreviewTable
               title="Matching classifications"
-              description={`Showing up to ${clampPreviewLimit(comparison.previewLimit)} classifications ranked by ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} inside the subset that passes the thresholds.`}
+              description={`Showing up to ${clampPreviewLimit(comparison.previewLimit)} classifications ranked by ${previewSortLabel.toLowerCase()} inside the subset that passes the thresholds.`}
               points={result?.matchedPreviewPoints ?? []}
               userDisplayNames={userDisplayNames}
               onOpenDetails={onOpenDetails}
             />
             <ClassificationPreviewTable
               title="Failing classifications"
-              description={`Showing up to ${clampPreviewLimit(comparison.previewLimit)} classifications ranked by ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} inside the subset that fails one or more thresholds.`}
+              description={`Showing up to ${clampPreviewLimit(comparison.previewLimit)} classifications ranked by ${previewSortLabel.toLowerCase()} inside the subset that fails one or more thresholds.`}
               points={result?.failedPreviewPoints ?? []}
               userDisplayNames={userDisplayNames}
               onOpenDetails={onOpenDetails}

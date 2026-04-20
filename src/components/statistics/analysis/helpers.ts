@@ -54,6 +54,9 @@ export type QuerySortDirection = "desc" | "asc";
 export type AnalysisDistributionComparisonScale =
   | "count"
   | "relativeFrequency";
+export type AnalysisClassificationComparisonPlotType =
+  | "histogram"
+  | "frequencyScatter";
 export type CatalogNucleusFilter = "any" | "yes" | "no";
 export type DominantLsbFilter =
   | "any"
@@ -212,7 +215,33 @@ export interface AnalysisClassificationDistributionComparisonConfig {
   conditions: AnalysisClassificationComparisonCondition[];
   histogramMetric: AnalysisClassificationMetric;
   histogramScale: AnalysisDistributionComparisonScale;
+  plotType: AnalysisClassificationComparisonPlotType;
+  plotXAxisMetric: AnalysisClassificationConditionMetric;
   previewLimit: number;
+}
+
+export interface AnalysisClassificationFrequencyPlotCell {
+  key: string;
+  xIndex: number;
+  yIndex: number;
+  xLabel: string;
+  xShortLabel: string;
+  yLabel: string;
+  matchedCount: number;
+  failedCount: number;
+  matchedRelativeFrequency: number | null;
+  failedRelativeFrequency: number | null;
+}
+
+export interface AnalysisClassificationFrequencyPlot {
+  xAxisLabel: string;
+  yAxisLabel: string;
+  xTickLabels: string[];
+  yTickLabels: string[];
+  note: string | null;
+  cells: AnalysisClassificationFrequencyPlotCell[];
+  maxCount: number;
+  maxRelativeFrequency: number;
 }
 
 export interface AnalysisDominantLsbBreakdown {
@@ -260,6 +289,7 @@ export interface AnalysisClassificationDistributionComparisonResult {
   scopedHistogram: HistogramDatum[];
   matchedHistogram: HistogramDatum[];
   failedHistogram: HistogramDatum[];
+  frequencyPlot: AnalysisClassificationFrequencyPlot;
   matchedStats: AnalysisDistributionSubsetStats;
   failedStats: AnalysisDistributionSubsetStats;
 }
@@ -309,9 +339,15 @@ type ClassificationMetricMeta = {
 };
 
 export const ANALYSIS_MAX_PREVIEW_LIMIT = 100;
+const ANALYSIS_CLASSIFICATION_FREQUENCY_TARGET_X_BINS = 24;
 
 const DISTRIBUTION_EXAMPLE_SPLIT_TIME =
   new Date(2026, 1, 16, 0, 0, 0, 0).getTime() - 1;
+
+const analysisFrequencyShortDateFormatter = new Intl.DateTimeFormat(undefined, {
+  month: "short",
+  day: "numeric",
+});
 
 const METRIC_META: Record<AnalysisMetric, MetricMeta> = {
   totalClassifications: {
@@ -663,6 +699,13 @@ export const analysisDistributionScaleOptions: Array<
   { value: "relativeFrequency", label: "Relative frequency" },
 ];
 
+export const analysisClassificationComparisonPlotTypeOptions: Array<
+  SelectOption<AnalysisClassificationComparisonPlotType>
+> = [
+  { value: "histogram", label: "Histogram comparison" },
+  { value: "frequencyScatter", label: "Frequency plot" },
+];
+
 export const analysisOperatorOptions: Array<SelectOption<AnalysisOperator>> = [
   { value: "atLeast", label: "At least" },
   { value: "exactly", label: "Exactly" },
@@ -786,6 +829,8 @@ export function createBlankAnalysisClassificationDistributionComparison(): Analy
     ],
     histogramMetric: "failedFittingFlag",
     histogramScale: "count",
+    plotType: "histogram",
+    plotXAxisMetric: "classificationCreationTime",
     previewLimit: 10,
   };
 }
@@ -997,7 +1042,7 @@ export function buildDefaultAnalysisClassificationDistributionComparisons(): Ana
       id: createAnalysisLocalId(),
       name: "Failed-fitting votes before Feb 16, 2026",
       description:
-        "Compare classification-level failed-fitting labels before Feb 16, 2026 against classifications created on or after that date.",
+        "Compare classification-level failed-fitting labels before Feb 16, 2026 against classifications created on or after that date, with an ordered time-binned frequency view that preserves both yes and no answers.",
       paper: "__any__",
       catalogNucleus: "any",
       dominantLsb: "any",
@@ -1010,6 +1055,8 @@ export function buildDefaultAnalysisClassificationDistributionComparisons(): Ana
       ],
       histogramMetric: "failedFittingFlag",
       histogramScale: "relativeFrequency",
+      plotType: "frequencyScatter",
+      plotXAxisMetric: "classificationCreationTime",
       previewLimit: 10,
     },
   ];
@@ -1322,6 +1369,14 @@ export function getDistributionScaleLabel(
   return scale === "relativeFrequency" ? "Relative frequency" : "Counts";
 }
 
+export function getClassificationComparisonPlotTypeLabel(
+  plotType: AnalysisClassificationComparisonPlotType
+) {
+  return plotType === "frequencyScatter"
+    ? "Frequency plot"
+    : "Histogram comparison";
+}
+
 export function getMetricShortLabel(metric: AnalysisMetric) {
   return METRIC_META[metric].shortLabel;
 }
@@ -1330,6 +1385,30 @@ export function getClassificationMetricShortLabel(
   metric: AnalysisClassificationMetric
 ) {
   return CLASSIFICATION_METRIC_META[metric].shortLabel;
+}
+
+function isBinaryClassificationMetric(
+  metric: AnalysisClassificationMetric | AnalysisClassificationConditionMetric
+) {
+  return metric !== "classificationCreationTime" && metric !== "commentLength";
+}
+
+function getClassificationBinaryBucketLabel(
+  metric: AnalysisClassificationMetric | AnalysisClassificationConditionMetric,
+  value: 0 | 1
+) {
+  if (
+    metric === "failedFittingAnsweredFlag" ||
+    metric === "visibleNucleusAnsweredFlag"
+  ) {
+    return value === 1 ? "Answered" : "Unanswered";
+  }
+
+  if (metric === "hasComment") {
+    return value === 1 ? "Comment" : "No comment";
+  }
+
+  return value === 1 ? "Yes" : "No";
 }
 
 export function isRatioMetric(metric: AnalysisMetric) {
@@ -1358,6 +1437,10 @@ export function formatClassificationMetricValue(
 
   if (metric === "commentLength") {
     return value.toLocaleString();
+  }
+
+  if (isBinaryClassificationMetric(metric)) {
+    return `${(value * 100).toFixed(1)}%`;
   }
 
   return value.toLocaleString(undefined, {
@@ -1431,6 +1514,268 @@ export function toDateTimeLocalInputValue(timestamp: number) {
 export function parseDateTimeLocalInputValue(value: string) {
   const timestamp = new Date(value).getTime();
   return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+type ClassificationValueBucket = {
+  key: string;
+  label: string;
+  shortLabel: string;
+  minValue: number;
+  maxValue: number;
+};
+
+type ClassificationFrequencyAxisBinning = {
+  bins: Array<{
+    key: string;
+    label: string;
+    shortLabel: string;
+  }>;
+  assignmentByPointId: Map<string, number>;
+  note: string | null;
+};
+
+function formatFrequencyTimeRangeShortLabel(start: number, end: number) {
+  const startLabel = analysisFrequencyShortDateFormatter.format(new Date(start));
+  const endLabel = analysisFrequencyShortDateFormatter.format(new Date(end));
+
+  return startLabel === endLabel ? startLabel : `${startLabel} - ${endLabel}`;
+}
+
+function formatFrequencyTimeRangeLabel(start: number, end: number) {
+  if (start === end) {
+    return formatAnalysisDateTime(start);
+  }
+
+  return `${formatAnalysisDateTime(start)} to ${formatAnalysisDateTime(end)}`;
+}
+
+function buildClassificationValueBuckets(
+  metric: AnalysisClassificationMetric | Exclude<AnalysisClassificationConditionMetric, "classificationCreationTime">,
+  values: number[]
+): ClassificationValueBucket[] {
+  if (metric === "commentLength") {
+    const maxValue = Math.max(...values, 0);
+    const targetBucketCount = 8;
+    const stepCandidates = [10, 25, 50, 100, 250, 500, 1000];
+    const rawStep = Math.max(1, Math.ceil((maxValue + 1) / targetBucketCount));
+    const bucketSize =
+      stepCandidates.find((candidate) => candidate >= rawStep) ?? rawStep;
+    const bucketCount = Math.max(1, Math.ceil((maxValue + 1) / bucketSize));
+
+    return Array.from({ length: bucketCount }, (_, index) => {
+      const start = index * bucketSize;
+      const end = Math.min(maxValue, start + bucketSize - 1);
+      return {
+        key: `${metric}-${start}-${end}`,
+        label: `${start}-${end}`,
+        shortLabel: `${start}-${end}`,
+        minValue: start,
+        maxValue: end,
+      };
+    });
+  }
+
+  return [0, 1].map((value) => ({
+    key: `${metric}-${value}`,
+    label: getClassificationBinaryBucketLabel(metric, value as 0 | 1),
+    shortLabel: getClassificationBinaryBucketLabel(metric, value as 0 | 1),
+    minValue: value,
+    maxValue: value,
+  }));
+}
+
+function findClassificationValueBucketIndex(
+  value: number,
+  buckets: ClassificationValueBucket[]
+) {
+  const bucketIndex = buckets.findIndex(
+    (bucket) => value >= bucket.minValue && value <= bucket.maxValue
+  );
+
+  return bucketIndex >= 0 ? bucketIndex : Math.max(buckets.length - 1, 0);
+}
+
+function buildClassificationValueAxisBinning(
+  points: AnalysisClassificationPoint[],
+  metric: Exclude<AnalysisClassificationConditionMetric, "classificationCreationTime">
+): ClassificationFrequencyAxisBinning {
+  const values = points.map((point) =>
+    Math.max(0, Math.round(getClassificationConditionMetricValue(point, metric)))
+  );
+  const buckets = buildClassificationValueBuckets(metric, values);
+  const assignmentByPointId = new Map<string, number>();
+
+  for (const point of points) {
+    const value = Math.max(
+      0,
+      Math.round(getClassificationConditionMetricValue(point, metric))
+    );
+    assignmentByPointId.set(
+      point.id,
+      findClassificationValueBucketIndex(value, buckets)
+    );
+  }
+
+  return {
+    bins: buckets.map((bucket) => ({
+      key: bucket.key,
+      label: bucket.label,
+      shortLabel: bucket.shortLabel,
+    })),
+    assignmentByPointId,
+    note: null,
+  };
+}
+
+function buildClassificationOrderedTimeAxisBinning(
+  points: AnalysisClassificationPoint[]
+): ClassificationFrequencyAxisBinning {
+  if (points.length === 0) {
+    return {
+      bins: [],
+      assignmentByPointId: new Map<string, number>(),
+      note: null,
+    };
+  }
+
+  const sortedPoints = [...points].sort((left, right) => {
+    const timeDifference = left.vote._creationTime - right.vote._creationTime;
+    if (timeDifference !== 0) {
+      return timeDifference;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+  const binCount = Math.min(
+    ANALYSIS_CLASSIFICATION_FREQUENCY_TARGET_X_BINS,
+    sortedPoints.length
+  );
+  const bins = Array.from({ length: binCount }, () => [] as AnalysisClassificationPoint[]);
+  const assignmentByPointId = new Map<string, number>();
+
+  sortedPoints.forEach((point, index) => {
+    const binIndex = Math.min(
+      binCount - 1,
+      Math.floor((index * binCount) / sortedPoints.length)
+    );
+    bins[binIndex].push(point);
+    assignmentByPointId.set(point.id, binIndex);
+  });
+
+  return {
+    bins: bins.map((members, index) => {
+      const start = members[0]?.vote._creationTime ?? sortedPoints[0].vote._creationTime;
+      const end =
+        members[members.length - 1]?.vote._creationTime ??
+        sortedPoints[sortedPoints.length - 1].vote._creationTime;
+
+      return {
+        key: `classificationCreationTime-${index}`,
+        label: formatFrequencyTimeRangeLabel(start, end),
+        shortLabel: formatFrequencyTimeRangeShortLabel(start, end),
+      };
+    }),
+    assignmentByPointId,
+    note:
+      "Ordered time bins use similar numbers of classifications so quiet periods do not stretch the chart.",
+  };
+}
+
+function buildClassificationFrequencyXAxisBinning(
+  points: AnalysisClassificationPoint[],
+  metric: AnalysisClassificationConditionMetric
+): ClassificationFrequencyAxisBinning {
+  if (metric === "classificationCreationTime") {
+    return buildClassificationOrderedTimeAxisBinning(points);
+  }
+
+  return buildClassificationValueAxisBinning(points, metric);
+}
+
+function buildClassificationFrequencyPlot(
+  scopedPoints: AnalysisClassificationPoint[],
+  matchedPoints: AnalysisClassificationPoint[],
+  failedPoints: AnalysisClassificationPoint[],
+  xMetric: AnalysisClassificationConditionMetric,
+  yMetric: AnalysisClassificationMetric
+): AnalysisClassificationFrequencyPlot {
+  const xAxis = buildClassificationFrequencyXAxisBinning(scopedPoints, xMetric);
+  const yAxis = buildClassificationValueAxisBinning(scopedPoints, yMetric);
+  const countsByCell = new Map<string, { matchedCount: number; failedCount: number }>();
+
+  const accumulate = (
+    points: AnalysisClassificationPoint[],
+    subset: "matched" | "failed"
+  ) => {
+    for (const point of points) {
+      const xIndex = xAxis.assignmentByPointId.get(point.id);
+      const yIndex = yAxis.assignmentByPointId.get(point.id);
+
+      if (xIndex === undefined || yIndex === undefined) {
+        continue;
+      }
+
+      const key = `${xIndex}:${yIndex}`;
+      const entry = countsByCell.get(key) ?? { matchedCount: 0, failedCount: 0 };
+      if (subset === "matched") {
+        entry.matchedCount += 1;
+      } else {
+        entry.failedCount += 1;
+      }
+      countsByCell.set(key, entry);
+    }
+  };
+
+  accumulate(matchedPoints, "matched");
+  accumulate(failedPoints, "failed");
+
+  const matchedTotal = matchedPoints.length;
+  const failedTotal = failedPoints.length;
+  const cells = xAxis.bins.flatMap((xBin, xIndex) =>
+    yAxis.bins.map((yBin, yIndex) => {
+      const counts = countsByCell.get(`${xIndex}:${yIndex}`) ?? {
+        matchedCount: 0,
+        failedCount: 0,
+      };
+
+      return {
+        key: `${xBin.key}:${yBin.key}`,
+        xIndex,
+        yIndex,
+        xLabel: xBin.label,
+        xShortLabel: xBin.shortLabel,
+        yLabel: yBin.label,
+        matchedCount: counts.matchedCount,
+        failedCount: counts.failedCount,
+        matchedRelativeFrequency:
+          matchedTotal > 0 ? counts.matchedCount / matchedTotal : null,
+        failedRelativeFrequency:
+          failedTotal > 0 ? counts.failedCount / failedTotal : null,
+      } satisfies AnalysisClassificationFrequencyPlotCell;
+    })
+  );
+
+  return {
+    xAxisLabel: getClassificationConditionMetricLabel(xMetric),
+    yAxisLabel: getClassificationMetricLabel(yMetric),
+    xTickLabels: xAxis.bins.map((bin) => bin.shortLabel),
+    yTickLabels: yAxis.bins.map((bin) => bin.label),
+    note: xAxis.note,
+    cells,
+    maxCount: Math.max(
+      0,
+      ...cells.map((cell) => Math.max(cell.matchedCount, cell.failedCount))
+    ),
+    maxRelativeFrequency: Math.max(
+      0,
+      ...cells.map((cell) =>
+        Math.max(
+          cell.matchedRelativeFrequency ?? 0,
+          cell.failedRelativeFrequency ?? 0
+        )
+      )
+    ),
+  };
 }
 
 export function clampPreviewLimit(value: number) {
@@ -1752,11 +2097,11 @@ function compareRecords(
 function compareClassificationPoints(
   left: AnalysisClassificationPoint,
   right: AnalysisClassificationPoint,
-  sortBy: AnalysisClassificationMetric
+  sortBy: AnalysisClassificationConditionMetric
 ) {
   const metricComparison = compareNumbers(
-    getClassificationMetricValue(left, sortBy),
-    getClassificationMetricValue(right, sortBy),
+    getClassificationConditionMetricValue(left, sortBy),
+    getClassificationConditionMetricValue(right, sortBy),
     "desc"
   );
   if (metricComparison !== 0) {
@@ -1877,38 +2222,14 @@ export function buildClassificationHistogramData(
   const values = points.map((point) =>
     Math.max(0, Math.round(getClassificationMetricValue(point, metric)))
   );
-  const maxValue = Math.max(...values);
+  const buckets = buildClassificationValueBuckets(metric, values);
 
-  if (metric === "commentLength") {
-    const targetBucketCount = 8;
-    const stepCandidates = [10, 25, 50, 100, 250, 500, 1000];
-    const rawStep = Math.max(1, Math.ceil((maxValue + 1) / targetBucketCount));
-    const bucketSize =
-      stepCandidates.find((candidate) => candidate >= rawStep) ?? rawStep;
-    const bucketCount = Math.max(1, Math.ceil((maxValue + 1) / bucketSize));
-    const bucketValues = Array.from({ length: bucketCount }, () => 0);
-
-    for (const value of values) {
-      const index = Math.min(Math.floor(value / bucketSize), bucketCount - 1);
-      bucketValues[index] += 1;
-    }
-
-    return bucketValues.map((count, index) => {
-      const start = index * bucketSize;
-      const end = Math.min(maxValue, start + bucketSize - 1);
-      return {
-        key: `${metric}-${start}-${end}`,
-        label: `${start}-${end}`,
-        count,
-        metricLabel,
-      };
-    });
-  }
-
-  return Array.from({ length: Math.max(maxValue, 1) + 1 }, (_, index) => ({
-    key: `${metric}-${index}`,
-    label: String(index),
-    count: values.filter((value) => value === index).length,
+  return buckets.map((bucket) => ({
+    key: bucket.key,
+    label: bucket.label,
+    count: values.filter(
+      (value) => value >= bucket.minValue && value <= bucket.maxValue
+    ).length,
     metricLabel,
   }));
 }
@@ -2205,11 +2526,15 @@ export function evaluateAnalysisClassificationDistributionComparison(
     (point) => !matchesAllClassificationConditions(point, comparison.conditions)
   );
   const previewLimit = clampPreviewLimit(comparison.previewLimit);
+  const previewSortMetric =
+    comparison.plotType === "frequencyScatter"
+      ? comparison.plotXAxisMetric
+      : comparison.histogramMetric;
   const sortedMatchedPoints = [...matchedPoints].sort((left, right) =>
-    compareClassificationPoints(left, right, comparison.histogramMetric)
+    compareClassificationPoints(left, right, previewSortMetric)
   );
   const sortedFailedPoints = [...failedPoints].sort((left, right) =>
-    compareClassificationPoints(left, right, comparison.histogramMetric)
+    compareClassificationPoints(left, right, previewSortMetric)
   );
 
   return {
@@ -2228,6 +2553,13 @@ export function evaluateAnalysisClassificationDistributionComparison(
     ),
     failedHistogram: buildClassificationHistogramData(
       failedPoints,
+      comparison.histogramMetric
+    ),
+    frequencyPlot: buildClassificationFrequencyPlot(
+      scopedPoints,
+      matchedPoints,
+      failedPoints,
+      comparison.plotXAxisMetric,
       comparison.histogramMetric
     ),
     matchedStats: summarizeClassificationDistributionSubset(
