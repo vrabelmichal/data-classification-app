@@ -86,7 +86,7 @@ export function AnalysisClassificationFrequencyLinePlot({
       );
       row[`series-${yIndex}`] =
         scale === "relativeFrequency"
-          ? cell?.totalRelativeFrequency ?? 0
+          ? cell?.xBinRelativeFrequency ?? 0
           : cell?.totalCount ?? 0;
     });
 
@@ -104,7 +104,7 @@ export function AnalysisClassificationFrequencyLinePlot({
       <ResponsiveContainer width="100%" height={height}>
         <LineChart
           data={chartData}
-          margin={{ top: 8, right: 24, left: 0, bottom: needsAngledTicks ? 48 : 8 }}
+          margin={{ top: 32, right: 24, left: 0, bottom: needsAngledTicks ? 48 : 8 }}
         >
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
           <XAxis
@@ -133,7 +133,7 @@ export function AnalysisClassificationFrequencyLinePlot({
               x={marker.xPosition}
               stroke="#64748b"
               strokeDasharray="5 5"
-              label={{ value: marker.label, position: "top", fontSize: 11 }}
+              label={{ value: marker.label, position: "top", fontSize: 11, offset: 10 }}
             />
           ))}
           {plot.yTickLabels.map((yLabel, yIndex) => (
@@ -153,7 +153,7 @@ export function AnalysisClassificationFrequencyLinePlot({
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
         <span>
-          Line height uses {scale === "relativeFrequency" ? "relative frequency" : "count"} per X bin.
+          Line height uses {scale === "relativeFrequency" ? "share within each X bin" : "count"} per X bin.
         </span>
         {plot.thresholdMarkers.length > 0 ? (
           <span>Split thresholds on the X axis are marked with vertical reference lines.</span>

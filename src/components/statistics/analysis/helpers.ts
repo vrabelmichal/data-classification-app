@@ -58,6 +58,9 @@ export type AnalysisClassificationComparisonPlotType =
   | "histogram"
   | "frequencyScatter"
   | "frequencyLine";
+export type AnalysisClassificationFrequencyBinningMode =
+  | "binCount"
+  | "pointsPerBin";
 export type CatalogNucleusFilter = "any" | "yes" | "no";
 export type DominantLsbFilter =
   | "any"
@@ -220,6 +223,9 @@ export interface AnalysisClassificationDistributionComparisonConfig {
   histogramScale: AnalysisDistributionComparisonScale;
   plotType: AnalysisClassificationComparisonPlotType;
   plotXAxisMetric: AnalysisClassificationConditionMetric;
+  plotXAxisBinningMode: AnalysisClassificationFrequencyBinningMode;
+  plotXAxisBinCount: number;
+  plotXAxisPointsPerBin: number;
   previewLimit: number;
 }
 
@@ -231,9 +237,11 @@ export interface AnalysisClassificationFrequencyPlotCell {
   xShortLabel: string;
   yLabel: string;
   totalCount: number;
+  xBinTotalCount: number;
   matchedCount: number;
   failedCount: number;
   totalRelativeFrequency: number | null;
+  xBinRelativeFrequency: number | null;
   matchedRelativeFrequency: number | null;
   failedRelativeFrequency: number | null;
 }
@@ -352,6 +360,8 @@ type ClassificationMetricMeta = {
 
 export const ANALYSIS_MAX_PREVIEW_LIMIT = 100;
 const ANALYSIS_CLASSIFICATION_FREQUENCY_TARGET_X_BINS = 24;
+const ANALYSIS_CLASSIFICATION_FREQUENCY_MAX_X_BINS = 120;
+const ANALYSIS_CLASSIFICATION_FREQUENCY_DEFAULT_POINTS_PER_BIN = 50;
 
 const DISTRIBUTION_EXAMPLE_SPLIT_TIME =
   new Date(2026, 1, 16, 0, 0, 0, 0).getTime() - 1;
@@ -719,6 +729,13 @@ export const analysisClassificationComparisonPlotTypeOptions: Array<
   { value: "frequencyLine", label: "Frequency lines" },
 ];
 
+export const analysisClassificationFrequencyBinningModeOptions: Array<
+  SelectOption<AnalysisClassificationFrequencyBinningMode>
+> = [
+  { value: "binCount", label: "Total bins" },
+  { value: "pointsPerBin", label: "Values per bin" },
+];
+
 export const analysisOperatorOptions: Array<SelectOption<AnalysisOperator>> = [
   { value: "atLeast", label: "At least" },
   { value: "exactly", label: "Exactly" },
@@ -846,6 +863,9 @@ export function createBlankAnalysisClassificationDistributionComparison(): Analy
     histogramScale: "count",
     plotType: "histogram",
     plotXAxisMetric: "classificationCreationTime",
+    plotXAxisBinningMode: "binCount",
+    plotXAxisBinCount: ANALYSIS_CLASSIFICATION_FREQUENCY_TARGET_X_BINS,
+    plotXAxisPointsPerBin: ANALYSIS_CLASSIFICATION_FREQUENCY_DEFAULT_POINTS_PER_BIN,
     previewLimit: 10,
   };
 }
@@ -1079,11 +1099,34 @@ export function buildDefaultAnalysisClassificationDistributionComparisons(): Ana
       ],
       histogramMetric: "failedFittingFlag",
       histogramScale: "relativeFrequency",
-      plotType: "frequencyScatter",
+      plotType: "frequencyLine",
       plotXAxisMetric: "classificationCreationTime",
+      plotXAxisBinningMode: "binCount",
+      plotXAxisBinCount: ANALYSIS_CLASSIFICATION_FREQUENCY_TARGET_X_BINS,
+      plotXAxisPointsPerBin: ANALYSIS_CLASSIFICATION_FREQUENCY_DEFAULT_POINTS_PER_BIN,
       previewLimit: 10,
     },
   ];
+}
+
+export function clampClassificationFrequencyBinCount(value: number) {
+  return Math.max(
+    1,
+    Math.min(
+      ANALYSIS_CLASSIFICATION_FREQUENCY_MAX_X_BINS,
+      Math.floor(value || 0) || ANALYSIS_CLASSIFICATION_FREQUENCY_TARGET_X_BINS
+    )
+  );
+}
+
+export function clampClassificationFrequencyPointsPerBin(value: number) {
+  return Math.max(
+    1,
+    Math.min(
+      ANALYSIS_CLASSIFICATION_FREQUENCY_MAX_X_BINS * 10,
+      Math.floor(value || 0) || ANALYSIS_CLASSIFICATION_FREQUENCY_DEFAULT_POINTS_PER_BIN
+    )
+  );
 }
 
 export function createEmptyAggregate(): AnalysisAggregate {
@@ -1664,7 +1707,11 @@ function buildClassificationValueAxisBinning(
 }
 
 function buildClassificationOrderedTimeAxisBinning(
-  points: AnalysisClassificationPoint[]
+  points: AnalysisClassificationPoint[],
+  config: Pick<
+    AnalysisClassificationDistributionComparisonConfig,
+    "plotXAxisBinningMode" | "plotXAxisBinCount" | "plotXAxisPointsPerBin"
+  >
 ): ClassificationFrequencyAxisBinning {
   if (points.length === 0) {
     return {
@@ -1682,10 +1729,14 @@ function buildClassificationOrderedTimeAxisBinning(
 
     return left.id.localeCompare(right.id);
   });
-  const binCount = Math.min(
-    ANALYSIS_CLASSIFICATION_FREQUENCY_TARGET_X_BINS,
-    sortedPoints.length
-  );
+  const requestedBinCount =
+    config.plotXAxisBinningMode === "pointsPerBin"
+      ? Math.ceil(
+          sortedPoints.length /
+            clampClassificationFrequencyPointsPerBin(config.plotXAxisPointsPerBin)
+        )
+      : clampClassificationFrequencyBinCount(config.plotXAxisBinCount);
+  const binCount = Math.max(1, Math.min(requestedBinCount, sortedPoints.length));
   const bins = Array.from({ length: binCount }, () => [] as AnalysisClassificationPoint[]);
   const assignmentByPointId = new Map<string, number>();
 
@@ -1721,10 +1772,14 @@ function buildClassificationOrderedTimeAxisBinning(
 
 function buildClassificationFrequencyXAxisBinning(
   points: AnalysisClassificationPoint[],
-  metric: AnalysisClassificationConditionMetric
+  metric: AnalysisClassificationConditionMetric,
+  config: Pick<
+    AnalysisClassificationDistributionComparisonConfig,
+    "plotXAxisBinningMode" | "plotXAxisBinCount" | "plotXAxisPointsPerBin"
+  >
 ): ClassificationFrequencyAxisBinning {
   if (metric === "classificationCreationTime") {
-    return buildClassificationOrderedTimeAxisBinning(points);
+    return buildClassificationOrderedTimeAxisBinning(points, config);
   }
 
   return buildClassificationValueAxisBinning(points, metric);
@@ -1835,9 +1890,13 @@ function buildClassificationFrequencyPlot(
   failedPoints: AnalysisClassificationPoint[],
   xMetric: AnalysisClassificationConditionMetric,
   yMetric: AnalysisClassificationMetric,
-  splitConditions: AnalysisClassificationComparisonCondition[]
+  splitConditions: AnalysisClassificationComparisonCondition[],
+  config: Pick<
+    AnalysisClassificationDistributionComparisonConfig,
+    "plotXAxisBinningMode" | "plotXAxisBinCount" | "plotXAxisPointsPerBin"
+  >
 ): AnalysisClassificationFrequencyPlot {
-  const xAxis = buildClassificationFrequencyXAxisBinning(scopedPoints, xMetric);
+  const xAxis = buildClassificationFrequencyXAxisBinning(scopedPoints, xMetric, config);
   const yAxis = buildClassificationValueAxisBinning(scopedPoints, yMetric);
   const countsByCell = new Map<string, { matchedCount: number; failedCount: number }>();
 
@@ -1870,12 +1929,24 @@ function buildClassificationFrequencyPlot(
   const scopedTotal = scopedPoints.length;
   const matchedTotal = matchedPoints.length;
   const failedTotal = failedPoints.length;
+  const countsByXIndex = new Map<number, number>();
+
+  for (const point of scopedPoints) {
+    const xIndex = xAxis.assignmentByPointId.get(point.id);
+    if (xIndex === undefined) {
+      continue;
+    }
+
+    countsByXIndex.set(xIndex, (countsByXIndex.get(xIndex) ?? 0) + 1);
+  }
+
   const cells = xAxis.bins.flatMap((xBin, xIndex) =>
     yAxis.bins.map((yBin, yIndex) => {
       const counts = countsByCell.get(`${xIndex}:${yIndex}`) ?? {
         matchedCount: 0,
         failedCount: 0,
       };
+      const xBinTotalCount = countsByXIndex.get(xIndex) ?? 0;
 
       return {
         key: `${xBin.key}:${yBin.key}`,
@@ -1885,11 +1956,16 @@ function buildClassificationFrequencyPlot(
         xShortLabel: xBin.shortLabel,
         yLabel: yBin.label,
         totalCount: counts.matchedCount + counts.failedCount,
+        xBinTotalCount,
         matchedCount: counts.matchedCount,
         failedCount: counts.failedCount,
         totalRelativeFrequency:
           scopedTotal > 0
             ? (counts.matchedCount + counts.failedCount) / scopedTotal
+            : null,
+        xBinRelativeFrequency:
+          xBinTotalCount > 0
+            ? (counts.matchedCount + counts.failedCount) / xBinTotalCount
             : null,
         matchedRelativeFrequency:
           matchedTotal > 0 ? counts.matchedCount / matchedTotal : null,
@@ -1921,6 +1997,7 @@ function buildClassificationFrequencyPlot(
       ...cells.map((cell) =>
         Math.max(
           cell.totalRelativeFrequency ?? 0,
+          cell.xBinRelativeFrequency ?? 0,
           cell.matchedRelativeFrequency ?? 0,
           cell.failedRelativeFrequency ?? 0
         )
@@ -2716,7 +2793,8 @@ export function evaluateAnalysisClassificationDistributionComparison(
       failedPoints,
       comparison.plotXAxisMetric,
       comparison.histogramMetric,
-      comparison.conditions
+      comparison.conditions,
+      comparison
     ),
     matchedStats: summarizeClassificationDistributionSubset(
       matchedPoints,

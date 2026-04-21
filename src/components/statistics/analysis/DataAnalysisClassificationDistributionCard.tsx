@@ -6,12 +6,15 @@ import { AnalysisComparisonHistogram } from "./AnalysisComparisonHistogram";
 import {
   ANALYSIS_MAX_PREVIEW_LIMIT,
   analysisClassificationComparisonPlotTypeOptions,
+  analysisClassificationFrequencyBinningModeOptions,
   analysisClassificationConditionMetricOptions,
   analysisClassificationHistogramMetricOptions,
   analysisDistributionScaleOptions,
   analysisOperatorOptions,
   buildComparisonHistogramData,
   catalogNucleusOptions,
+  clampClassificationFrequencyBinCount,
+  clampClassificationFrequencyPointsPerBin,
   clampPreviewLimit,
   createAnalysisClassificationCondition,
   dominantLsbOptions,
@@ -578,6 +581,9 @@ export function DataAnalysisClassificationDistributionCard({
     comparison.plotType !== "histogram" ? "Y axis metric" : "Histogram metric";
   const scaleControlLabel =
     comparison.plotType !== "histogram" ? "Frequency scale" : "Histogram scale";
+  const showsTimeBinningControls =
+    comparison.plotType !== "histogram" &&
+    comparison.plotXAxisMetric === "classificationCreationTime";
 
   return (
     <section
@@ -860,6 +866,71 @@ export function DataAnalysisClassificationDistributionCard({
                 </label>
               ) : null}
 
+              {showsTimeBinningControls ? (
+                <label className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Time binning
+                  </span>
+                  <select
+                    value={comparison.plotXAxisBinningMode}
+                    onChange={(event) =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        plotXAxisBinningMode:
+                          event.target
+                            .value as AnalysisClassificationDistributionComparisonConfig["plotXAxisBinningMode"],
+                      }))
+                    }
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  >
+                    {analysisClassificationFrequencyBinningModeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+
+              {showsTimeBinningControls ? (
+                <label className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    {comparison.plotXAxisBinningMode === "pointsPerBin"
+                      ? "Values per point"
+                      : "Total bins"}
+                  </span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={comparison.plotXAxisBinningMode === "pointsPerBin" ? 1200 : 120}
+                    step={1}
+                    value={
+                      comparison.plotXAxisBinningMode === "pointsPerBin"
+                        ? comparison.plotXAxisPointsPerBin
+                        : comparison.plotXAxisBinCount
+                    }
+                    onChange={(event) =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        ...(currentComparison.plotXAxisBinningMode === "pointsPerBin"
+                          ? {
+                              plotXAxisPointsPerBin:
+                                clampClassificationFrequencyPointsPerBin(
+                                  Number(event.target.value) || 0
+                                ),
+                            }
+                          : {
+                              plotXAxisBinCount: clampClassificationFrequencyBinCount(
+                                Number(event.target.value) || 0
+                              ),
+                            }),
+                      }))
+                    }
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
+                  />
+                </label>
+              ) : null}
+
               <label className="space-y-1">
                 <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                   {metricControlLabel}
@@ -1076,6 +1147,24 @@ export function DataAnalysisClassificationDistributionCard({
                       value={getClassificationConditionMetricLabel(
                         comparison.plotXAxisMetric
                       )}
+                    />
+                  ) : null}
+                  {showsTimeBinningControls ? (
+                    <SummaryChip
+                      label={
+                        comparison.plotXAxisBinningMode === "pointsPerBin"
+                          ? "Values per point"
+                          : "Total bins"
+                      }
+                      value={
+                        comparison.plotXAxisBinningMode === "pointsPerBin"
+                          ? clampClassificationFrequencyPointsPerBin(
+                              comparison.plotXAxisPointsPerBin
+                            ).toLocaleString()
+                          : clampClassificationFrequencyBinCount(
+                              comparison.plotXAxisBinCount
+                            ).toLocaleString()
+                      }
                     />
                   ) : null}
                   <SummaryChip

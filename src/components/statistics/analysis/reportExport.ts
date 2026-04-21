@@ -586,6 +586,13 @@ function buildReportData({
           plotXAxisMetric: getClassificationConditionMetricLabel(
             comparison.plotXAxisMetric
           ),
+          plotXAxisBinningMode: comparison.plotXAxisBinningMode,
+          plotXAxisBinningModeLabel:
+            comparison.plotXAxisBinningMode === "pointsPerBin"
+              ? "Values per point"
+              : "Total bins",
+          plotXAxisBinCount: comparison.plotXAxisBinCount,
+          plotXAxisPointsPerBin: comparison.plotXAxisPointsPerBin,
           histogramMetricKey: comparison.histogramMetric,
           histogramMetric: getClassificationMetricLabel(comparison.histogramMetric),
           histogramScaleKey: comparison.histogramScale,
@@ -611,7 +618,7 @@ function buildReportData({
 
   return {
     reportType: "classification-analysis",
-    reportVersion: 7,
+    reportVersion: 8,
     generatedAtIso: generatedAt.toISOString(),
     generatedAtLabel: generatedAt.toLocaleString(),
     datasetLoadedAtIso: new Date(dataset.loadedAt).toISOString(),
@@ -1260,6 +1267,16 @@ function renderClassificationDistributionComparisonCard(
               <th scope="row">X axis metric</th>
               <td>${escapeHtml(comparison.config.plotXAxisMetric)}</td>
             </tr>
+            ${comparison.config.plotXAxisMetricKey === "classificationCreationTime" ? `<tr>
+              <th scope="row">Time binning</th>
+              <td>${escapeHtml(comparison.config.plotXAxisBinningModeLabel)}: ${escapeHtml(
+                (
+                  comparison.config.plotXAxisBinningMode === "pointsPerBin"
+                    ? comparison.config.plotXAxisPointsPerBin
+                    : comparison.config.plotXAxisBinCount
+                ).toLocaleString()
+              )}</td>
+            </tr>` : ""}
             <tr>
               <th scope="row">Histogram metric</th>
               <td>${escapeHtml(comparison.config.histogramMetric)}</td>
