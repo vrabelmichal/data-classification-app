@@ -3,8 +3,9 @@ import { toast } from "sonner";
 import { describeLocalStorageItem, LOCAL_STORAGE_GROUP_ORDER, type LocalStorageItemDescription } from "../../lib/browserStorage";
 import {
   clearStoredAnalysisDataset,
-  getAnalysisDatasetIndexedDbInfo,
-  type AnalysisDatasetIndexedDbInfo,
+  estimateIndexedDbEntrySizeBytes,
+  getAllIndexedDbEntries,
+  type IndexedDbEntryInfo,
 } from "../statistics/analysis/datasetStorage";
 
 interface LocalStorageEntry {
@@ -106,6 +107,15 @@ function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d={expanded ? "M6 15l6-6 6 6" : "M6 9l6 6 6-6"} />
+    </svg>
+  );
+}
+
+function LoadingIcon() {
+  return (
+    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeOpacity="0.25" />
+      <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" />
     </svg>
   );
 }
@@ -215,7 +225,7 @@ function IndexedDbItemRow({
   entry,
   onDelete,
 }: {
-  entry: AnalysisDatasetIndexedDbInfo;
+  entry: IndexedDbEntryInfo;
   onDelete: () => void;
 }) {
   return (
@@ -232,11 +242,6 @@ function IndexedDbItemRow({
           </div>
           <div className="mt-2 space-y-1 text-sm text-gray-600 dark:text-gray-300">
             <p>{entry.description}</p>
-            <p>
-              Saved: {formatDateTime(entry.savedAt)}
-              <span className="mx-2">•</span>
-              Records: {entry.recordCount.toLocaleString()}
-            </p>
             <p className="font-mono text-xs text-gray-500 dark:text-gray-400 break-all">
               DB: {entry.dbName} / Store: {entry.storeName} / Key: {entry.recordKey}
             </p>
@@ -262,11 +267,13 @@ function IndexedDbItemRow({
 
 export function LocalStorageSection() {
   const [entries, setEntries] = useState<LocalStorageEntry[]>([]);
-  const [indexedDbEntries, setIndexedDbEntries] = useState<AnalysisDatasetIndexedDbInfo[]>([]);
+  const [indexedDbEntries, setIndexedDbEntries] = useState<IndexedDbEntryInfo[]>([]);
   const [expandedKeys, setExpandedKeys] = useState<Record<string, boolean>>({});
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [expandedDraftGroups, setExpandedDraftGroups] = useState<Record<string, boolean>>({});
   const [indexedDbExpanded, setIndexedDbExpanded] = useState(false);
+  const [isCalculatingSizes, setIsCalculatingSizes] = useState(false);
+  const [sizesCalculated, setSizesCalculated] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -274,12 +281,12 @@ export function LocalStorageSection() {
     const refresh = async () => {
       setEntries(readLocalStorageEntries());
 
-      const indexedDbEntry = await getAnalysisDatasetIndexedDbInfo();
+      const allIndexedDbEntries = await getAllIndexedDbEntries();
       if (!isMounted) {
         return;
       }
 
-      setIndexedDbEntries(indexedDbEntry ? [indexedDbEntry] : []);
+      setIndexedDbEntries(allIndexedDbEntries);
     };
 
     void refresh();
@@ -332,7 +339,7 @@ export function LocalStorageSection() {
     }
   };
 
-  const handleDeleteIndexedDbEntry = async (entry: AnalysisDatasetIndexedDbInfo) => {
+  const handleDeleteIndexedDbEntry = async (entry: IndexedDbEntryInfo) => {
     const confirmed = window.confirm(
       `Delete IndexedDB item "${entry.title}" from this browser?\n\n${entry.deleteEffect}`
     );
@@ -342,10 +349,31 @@ export function LocalStorageSection() {
     }
 
     try {
-      await clearStoredAnalysisDataset();
+      // Special handling for known analysis dataset
+      if (entry.dbName === "dataClassificationApp" && entry.storeName === "analysisDatasets" && entry.recordKey === "classificationAnalysis") {
+        await clearStoredAnalysisDataset();
+      } else {
+        // Generic deletion for any IndexedDB entry
+        const database = await new Promise<IDBDatabase>((resolve, reject) => {
+          const request = window.indexedDB.open(entry.dbName);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error ?? new Error("Failed to open database"));
+        });
+
+        await new Promise<void>((resolve, reject) => {
+          const transaction = database.transaction(entry.storeName, "readwrite");
+          const store = transaction.objectStore(entry.storeName);
+          const request = store.delete(entry.recordKey as IDBValidKey);
+          request.onsuccess = () => resolve();
+          request.onerror = () => reject(request.error ?? new Error("Failed to delete entry"));
+        });
+
+        database.close();
+      }
+
       setEntries(readLocalStorageEntries());
-      const indexedDbEntry = await getAnalysisDatasetIndexedDbInfo();
-      setIndexedDbEntries(indexedDbEntry ? [indexedDbEntry] : []);
+      const allIndexedDbEntries = await getAllIndexedDbEntries();
+      setIndexedDbEntries(allIndexedDbEntries);
       toast.success("IndexedDB item deleted");
     } catch (error) {
       console.error(error);
@@ -365,6 +393,34 @@ export function LocalStorageSection() {
       ...current,
       [groupId]: !current[groupId],
     }));
+  };
+
+  const handleCalculateIndexedDbSizes = async () => {
+    setIsCalculatingSizes(true);
+    
+    // Calculate sizes in the background without blocking the UI
+    const updatedEntries = [...indexedDbEntries];
+    
+    for (const entry of updatedEntries) {
+      if (entry.estimatedSizeBytes === null) {
+        const entryId = entry.id;
+        
+        const sizeBytes = await estimateIndexedDbEntrySizeBytes(
+          entry.dbName,
+          entry.storeName,
+          entry.recordKey
+        );
+        
+        setIndexedDbEntries((current) =>
+          current.map((e) =>
+            e.id === entryId ? { ...e, estimatedSizeBytes: sizeBytes } : e
+          )
+        );
+      }
+    }
+    
+    setSizesCalculated(true);
+    setIsCalculatingSizes(false);
   };
 
   return (
@@ -480,7 +536,7 @@ export function LocalStorageSection() {
           <div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">IndexedDB</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Larger browser-side caches are stored in IndexedDB instead of local storage. This is where the saved data-analysis dataset lives.
+              Larger browser-side caches are stored in IndexedDB instead of local storage. This includes the data-analysis dataset cache and any other browser storage from this site. Obsolete data from previous versions of the app may also be shown here.
             </p>
           </div>
           <div className="flex items-center gap-3 text-gray-500 dark:text-gray-400">
@@ -494,6 +550,27 @@ export function LocalStorageSection() {
 
         {indexedDbExpanded ? (
           <div className="mt-4 space-y-3">
+            {indexedDbEntries.length > 0 && indexedDbEntries.some((e) => e.estimatedSizeBytes === null) && !sizesCalculated && (
+              <button
+                type="button"
+                onClick={() => void handleCalculateIndexedDbSizes()}
+                disabled={isCalculatingSizes}
+                className={`w-full inline-flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-medium transition-colors ${
+                  isCalculatingSizes
+                    ? "border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
+                    : "border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                }`}
+              >
+                {isCalculatingSizes ? (
+                  <>
+                    <LoadingIcon />
+                    <span>Calculating sizes...</span>
+                  </>
+                ) : (
+                  <span>Calculate sizes</span>
+                )}
+              </button>
+            )}
             {indexedDbEntries.length === 0 ? (
               <div className="rounded-lg border border-dashed border-gray-300 dark:border-gray-600 px-4 py-6 text-sm text-gray-600 dark:text-gray-300">
                 No IndexedDB items are currently saved for this site in this browser.
