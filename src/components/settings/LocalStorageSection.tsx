@@ -360,15 +360,17 @@ export function LocalStorageSection() {
           request.onerror = () => reject(request.error ?? new Error("Failed to open database"));
         });
 
-        await new Promise<void>((resolve, reject) => {
-          const transaction = database.transaction(entry.storeName, "readwrite");
-          const store = transaction.objectStore(entry.storeName);
-          const request = store.delete(entry.recordKey as IDBValidKey);
-          request.onsuccess = () => resolve();
-          request.onerror = () => reject(request.error ?? new Error("Failed to delete entry"));
-        });
-
-        database.close();
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const transaction = database.transaction(entry.storeName, "readwrite");
+            const store = transaction.objectStore(entry.storeName);
+            const request = store.delete(entry.recordKey as IDBValidKey);
+            request.onsuccess = () => resolve();
+            request.onerror = () => reject(request.error ?? new Error("Failed to delete entry"));
+          });
+        } finally {
+          database.close();
+        }
       }
 
       setEntries(readLocalStorageEntries());
@@ -397,30 +399,48 @@ export function LocalStorageSection() {
 
   const handleCalculateIndexedDbSizes = async () => {
     setIsCalculatingSizes(true);
-    
-    // Calculate sizes in the background without blocking the UI
-    const updatedEntries = [...indexedDbEntries];
-    
-    for (const entry of updatedEntries) {
-      if (entry.estimatedSizeBytes === null) {
-        const entryId = entry.id;
-        
-        const sizeBytes = await estimateIndexedDbEntrySizeBytes(
-          entry.dbName,
-          entry.storeName,
-          entry.recordKey
-        );
-        
-        setIndexedDbEntries((current) =>
-          current.map((e) =>
-            e.id === entryId ? { ...e, estimatedSizeBytes: sizeBytes } : e
-          )
-        );
+
+    let hadErrors = false;
+
+    try {
+      // Calculate sizes in the background without blocking the UI.
+      const updatedEntries = [...indexedDbEntries];
+
+      for (const entry of updatedEntries) {
+        if (entry.estimatedSizeBytes === null) {
+          const entryId = entry.id;
+
+          try {
+            const sizeBytes = await estimateIndexedDbEntrySizeBytes(
+              entry.dbName,
+              entry.storeName,
+              entry.recordKey
+            );
+
+            setIndexedDbEntries((current) =>
+              current.map((e) =>
+                e.id === entryId ? { ...e, estimatedSizeBytes: sizeBytes } : e
+              )
+            );
+          } catch (error) {
+            hadErrors = true;
+            console.error("Failed to calculate IndexedDB entry size", {
+              dbName: entry.dbName,
+              storeName: entry.storeName,
+              recordKey: entry.recordKey,
+              error,
+            });
+          }
+        }
       }
+
+      setSizesCalculated(!hadErrors);
+    } catch (error) {
+      console.error("Failed to calculate IndexedDB sizes", error);
+      setSizesCalculated(false);
+    } finally {
+      setIsCalculatingSizes(false);
     }
-    
-    setSizesCalculated(true);
-    setIsCalculatingSizes(false);
   };
 
   return (

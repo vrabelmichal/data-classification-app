@@ -302,16 +302,27 @@ export async function getAllIndexedDbEntries(): Promise<IndexedDbEntryInfo[]> {
 
   const entries: IndexedDbEntryInfo[] = [];
   const processedIds = new Set<string>();
+  const indexedDbWithDatabases = window.indexedDB as IDBFactory & {
+    databases?: () => Promise<IDBDatabaseInfo[]>;
+  };
+  let discoveredDatabases: IDBDatabaseInfo[] | undefined;
 
   try {
     // Try to use the modern IndexedDB.databases() API if available
-    const databases = (window.indexedDB as any).databases?.();
-    
+    const databases = indexedDbWithDatabases.databases
+      ? await indexedDbWithDatabases.databases()
+      : undefined;
+
     if (databases && Array.isArray(databases)) {
+      discoveredDatabases = databases;
+
       // Process each database discovered via databases() API
       for (const dbInfo of databases) {
         const dbName = dbInfo.name;
-        
+        if (!dbName) {
+          continue;
+        }
+
         try {
           const database = await new Promise<IDBDatabase>((resolve, reject) => {
             const request = window.indexedDB.open(dbName);
@@ -319,59 +330,61 @@ export async function getAllIndexedDbEntries(): Promise<IndexedDbEntryInfo[]> {
             request.onerror = () => reject(request.error ?? new Error("Failed to open database"));
           });
 
-          // Get all stores in this database
-          const storeNames = Array.from(database.objectStoreNames);
-          
-          for (const storeName of storeNames) {
-            try {
-              // Get all keys in this store
-              const storeKeys = await new Promise<IDBValidKey[]>((resolve, reject) => {
-                const transaction = database.transaction(storeName, "readonly");
-                const store = transaction.objectStore(storeName);
-                const request = store.getAllKeys();
-                request.onsuccess = () => resolve(request.result);
-                request.onerror = () => reject(request.error ?? new Error("Failed to get keys"));
-              });
+          try {
+            // Get all stores in this database
+            const storeNames = Array.from(database.objectStoreNames);
 
-              // For each key, create entry without loading data (skip size calculation for now)
-              for (const recordKey of storeKeys) {
-                // Generate a descriptive title and info based on known entries
-                let title = `${dbName} / ${storeName}`;
-                let description = `IndexedDB store entry`;
-                let deleteEffect = `Deleting this item removes it from IndexedDB. The data may be recreated when you use the feature again.`;
+            for (const storeName of storeNames) {
+              try {
+                // Get all keys in this store
+                const storeKeys = await new Promise<IDBValidKey[]>((resolve, reject) => {
+                  const transaction = database.transaction(storeName, "readonly");
+                  const store = transaction.objectStore(storeName);
+                  const request = store.getAllKeys();
+                  request.onsuccess = () => resolve(request.result);
+                  request.onerror = () => reject(request.error ?? new Error("Failed to get keys"));
+                });
 
-                if (dbName === ANALYSIS_DATASET_DB_NAME && storeName === ANALYSIS_DATASET_STORE_NAME && recordKey === ANALYSIS_DATASET_RECORD_KEY) {
-                  title = "Data analysis dataset cache";
-                  description = "Stores the saved client-side classification analysis dataset in IndexedDB so it can be reloaded without fetching every page from the database again.";
-                  deleteEffect = "Deleting it removes the saved browser cache of the analysis dataset. The live database data is not changed.";
+                // For each key, create entry without loading data (skip size calculation for now)
+                for (const recordKey of storeKeys) {
+                  // Generate a descriptive title and info based on known entries
+                  let title = `${dbName} / ${storeName}`;
+                  let description = `IndexedDB store entry`;
+                  let deleteEffect = `Deleting this item removes it from IndexedDB. The data may be recreated when you use the feature again.`;
+
+                  if (dbName === ANALYSIS_DATASET_DB_NAME && storeName === ANALYSIS_DATASET_STORE_NAME && recordKey === ANALYSIS_DATASET_RECORD_KEY) {
+                    title = "Data analysis dataset cache";
+                    description = "Stores the saved client-side classification analysis dataset in IndexedDB so it can be reloaded without fetching every page from the database again.";
+                    deleteEffect = "Deleting it removes the saved browser cache of the analysis dataset. The live database data is not changed.";
+                  }
+
+                  const entryId = `${dbName}/${storeName}/${String(recordKey)}`;
+
+                  // Avoid duplicates
+                  if (!processedIds.has(entryId)) {
+                    const entry: IndexedDbEntryInfo = {
+                      id: entryId,
+                      title,
+                      description,
+                      deleteEffect,
+                      dbName,
+                      storeName,
+                      recordKey: String(recordKey),
+                      recordCount: 1,
+                      estimatedSizeBytes: null, // Skip size calculation for now - will be done lazily
+                    };
+
+                    entries.push(entry);
+                    processedIds.add(entryId);
+                  }
                 }
-
-                const entryId = `${dbName}/${storeName}/${String(recordKey)}`;
-                
-                // Avoid duplicates
-                if (!processedIds.has(entryId)) {
-                  const entry: IndexedDbEntryInfo = {
-                    id: entryId,
-                    title,
-                    description,
-                    deleteEffect,
-                    dbName,
-                    storeName,
-                    recordKey: String(recordKey),
-                    recordCount: 1,
-                    estimatedSizeBytes: null, // Skip size calculation for now - will be done lazily
-                  };
-
-                  entries.push(entry);
-                  processedIds.add(entryId);
-                }
+              } catch {
+                // Skip stores we can't access
               }
-            } catch {
-              // Skip stores we can't access
             }
+          } finally {
+            database.close();
           }
-
-          database.close();
         } catch {
           // Skip databases we can't open
         }
@@ -381,12 +394,17 @@ export async function getAllIndexedDbEntries(): Promise<IndexedDbEntryInfo[]> {
     // Silently continue to fallback
   }
 
-  // Fallback: Always try to directly check the known analysis dataset database
-  // This handles cases where indexedDB.databases() is not supported or failed
+  // Fallback: only probe the known analysis dataset database when databases() confirmed
+  // that the database already exists. If databases() is unavailable, skip this direct
+  // open to avoid creating an empty phantom database during enumeration.
   try {
     const analysisDbId = `${ANALYSIS_DATASET_DB_NAME}/${ANALYSIS_DATASET_STORE_NAME}/${ANALYSIS_DATASET_RECORD_KEY}`;
-    
-    if (!processedIds.has(analysisDbId)) {
+
+    const analysisDbExists = Array.isArray(discoveredDatabases)
+      ? discoveredDatabases.some((dbInfo) => dbInfo.name === ANALYSIS_DATASET_DB_NAME)
+      : false;
+
+    if (!processedIds.has(analysisDbId) && analysisDbExists) {
       const database = await new Promise<IDBDatabase>((resolve, reject) => {
         const request = window.indexedDB.open(ANALYSIS_DATASET_DB_NAME);
         request.onsuccess = () => resolve(request.result);
