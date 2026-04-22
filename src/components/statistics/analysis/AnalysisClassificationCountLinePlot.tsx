@@ -11,20 +11,15 @@ import {
 } from "recharts";
 
 import type {
-  AnalysisClassificationFrequencyPlot as AnalysisClassificationFrequencyPlotData,
+  AnalysisClassificationCountLinePlot as AnalysisClassificationCountLinePlotData,
   AnalysisDistributionComparisonScale,
 } from "./helpers";
 
-const LINE_COLORS = [
-  "#2563eb",
-  "#dc2626",
-  "#059669",
-  "#d97706",
-  "#7c3aed",
-  "#0891b2",
-  "#be123c",
-  "#4f46e5",
-];
+const LINE_COLORS = {
+  scoped: "#2563eb",
+  matched: "#059669",
+  failed: "#dc2626",
+};
 
 function formatRelativeFrequency(value: number | null) {
   if (value === null || !Number.isFinite(value)) {
@@ -55,7 +50,7 @@ function buildDisplayedXTicks(tickLabels: string[]) {
   return ticks;
 }
 
-function FrequencyLineTooltip({ active, payload, scale }: any) {
+function CountLineTooltip({ active, payload, scale }: any) {
   if (!active || !payload?.length) {
     return null;
   }
@@ -76,50 +71,43 @@ function FrequencyLineTooltip({ active, payload, scale }: any) {
   );
 }
 
-interface AnalysisClassificationFrequencyLinePlotProps {
-  plot: AnalysisClassificationFrequencyPlotData;
+interface AnalysisClassificationCountLinePlotProps {
+  plot: AnalysisClassificationCountLinePlotData;
   scale: AnalysisDistributionComparisonScale;
   height?: number;
 }
 
-export function AnalysisClassificationFrequencyLinePlot({
+export function AnalysisClassificationCountLinePlot({
   plot,
   scale,
   height = 320,
-}: AnalysisClassificationFrequencyLinePlotProps) {
-  if (plot.cells.length === 0) {
+}: AnalysisClassificationCountLinePlotProps) {
+  if (plot.bins.length === 0) {
     return (
       <div className="flex h-52 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
-        No classifications available for this frequency line plot.
+        No classifications available for this count line plot.
       </div>
     );
   }
 
-  const chartData = plot.xTickLabels.map((xLabel, xIndex) => {
-    const row: Record<string, number | string | null> = {
-      xIndex,
-      xLabel,
-    };
-
-    plot.yTickLabels.forEach((yLabel, yIndex) => {
-      const cell = plot.cells.find(
-        (candidate) => candidate.xIndex === xIndex && candidate.yIndex === yIndex
-      );
-      row[`series-${yIndex}`] =
-        scale === "relativeFrequency"
-          ? cell?.xBinRelativeFrequency ?? 0
-          : cell?.totalCount ?? 0;
-    });
-
-    return row;
-  });
-
+  const hasFailedSeries = plot.bins.some((bin) => bin.failedCount > 0);
+  const showScopedSeries = !hasFailedSeries && plot.bins.every((bin) => bin.matchedCount === bin.scopedCount);
+  const chartData = plot.bins.map((bin) => ({
+    xIndex: bin.xIndex,
+    xLabel: bin.xLabel,
+    scoped:
+      scale === "relativeFrequency" ? bin.scopedRelativeFrequency ?? 0 : bin.scopedCount,
+    matched:
+      scale === "relativeFrequency" ? bin.matchedRelativeFrequency ?? 0 : bin.matchedCount,
+    failed:
+      scale === "relativeFrequency" ? bin.failedRelativeFrequency ?? 0 : bin.failedCount,
+  }));
+  const displayedXTicks = buildDisplayedXTicks(plot.xTickLabels);
+  const needsAngledTicks = displayedXTicks.length > 8;
   const valueFormatter = (value: number) =>
     scale === "relativeFrequency"
       ? formatRelativeFrequency(value)
       : value.toLocaleString();
-  const displayedXTicks = buildDisplayedXTicks(plot.xTickLabels);
-  const needsAngledTicks = displayedXTicks.length > 8;
 
   return (
     <div className="space-y-3">
@@ -147,7 +135,7 @@ export function AnalysisClassificationFrequencyLinePlot({
             domain={scale === "relativeFrequency" ? [0, 1] : undefined}
             tickFormatter={valueFormatter}
           />
-          <Tooltip content={<FrequencyLineTooltip scale={scale} />} />
+          <Tooltip content={<CountLineTooltip scale={scale} />} />
           <Legend />
           {plot.thresholdMarkers.map((marker) => (
             <ReferenceLine
@@ -158,24 +146,46 @@ export function AnalysisClassificationFrequencyLinePlot({
               label={{ value: marker.label, position: "top", fontSize: 11, offset: 10 }}
             />
           ))}
-          {plot.yTickLabels.map((yLabel, yIndex) => (
+          {showScopedSeries ? (
             <Line
-              key={yLabel}
               type="monotone"
-              dataKey={`series-${yIndex}`}
-              name={yLabel}
-              stroke={LINE_COLORS[yIndex % LINE_COLORS.length]}
+              dataKey="scoped"
+              name="Scoped classifications"
+              stroke={LINE_COLORS.scoped}
               strokeWidth={3}
               dot={false}
               activeDot={{ r: 4 }}
             />
-          ))}
+          ) : (
+            <>
+              <Line
+                type="monotone"
+                dataKey="matched"
+                name="Matches thresholds"
+                stroke={LINE_COLORS.matched}
+                strokeWidth={3}
+                dot={false}
+                activeDot={{ r: 4 }}
+              />
+              {hasFailedSeries ? (
+                <Line
+                  type="monotone"
+                  dataKey="failed"
+                  name="Fails thresholds"
+                  stroke={LINE_COLORS.failed}
+                  strokeWidth={3}
+                  dot={false}
+                  activeDot={{ r: 4 }}
+                />
+              ) : null}
+            </>
+          )}
         </LineChart>
       </ResponsiveContainer>
 
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
         <span>
-          Line height uses {scale === "relativeFrequency" ? "share within each X bin" : "count"} per X bin.
+          Line height uses {scale === "relativeFrequency" ? "share across each subset over time" : "classification count per X bin"}.
         </span>
         {plot.thresholdMarkers.length > 0 ? (
           <span>Split thresholds on the X axis are marked with vertical reference lines.</span>

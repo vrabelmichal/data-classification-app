@@ -590,9 +590,12 @@ function buildReportData({
           plotXAxisBinningModeLabel:
             comparison.plotXAxisBinningMode === "pointsPerBin"
               ? "Values per point"
-              : "Total bins",
+              : comparison.plotXAxisBinningMode === "timeInterval"
+                ? "Days per bin"
+                : "Total bins",
           plotXAxisBinCount: comparison.plotXAxisBinCount,
           plotXAxisPointsPerBin: comparison.plotXAxisPointsPerBin,
+          plotXAxisTimeBinDays: comparison.plotXAxisTimeBinDays,
           histogramMetricKey: comparison.histogramMetric,
           histogramMetric: getClassificationMetricLabel(comparison.histogramMetric),
           histogramScaleKey: comparison.histogramScale,
@@ -612,13 +615,14 @@ function buildReportData({
           result.failedHistogram
         ),
         frequencyPlot: result.frequencyPlot,
+        countLinePlot: result.countLinePlot,
       };
     }
   );
 
   return {
     reportType: "classification-analysis",
-    reportVersion: 8,
+    reportVersion: 9,
     generatedAtIso: generatedAt.toISOString(),
     generatedAtLabel: generatedAt.toLocaleString(),
     datasetLoadedAtIso: new Date(dataset.loadedAt).toISOString(),
@@ -1234,6 +1238,55 @@ function renderClassificationDistributionComparisonCard(
     `;
   })();
 
+  const countLinePlotMarkup = (() => {
+    if (comparison.config.plotTypeKey !== "countLine") {
+      return "";
+    }
+
+    const countRows = comparison.countLinePlot.bins
+      .map(
+        (bin) => `
+          <tr>
+            <th scope="row">${escapeHtml(bin.xLabel)}</th>
+            <td>${escapeHtml(bin.scopedCount.toLocaleString())}</td>
+            <td>${escapeHtml(bin.matchedCount.toLocaleString())}</td>
+            <td>${escapeHtml(bin.failedCount.toLocaleString())}</td>
+            <td>${escapeHtml(formatPercent(bin.scopedRelativeFrequency))}</td>
+          </tr>
+        `
+      )
+      .join("");
+
+    return `
+      <div class="subsection">
+        <h4>Classification count line summary</h4>
+        <p>Classification counts per X-axis bin for ${escapeHtml(comparison.config.plotXAxisMetric.toLowerCase())}, shown for the scoped, passing, and failing subsets.</p>
+        ${comparison.countLinePlot.thresholdMarkers.length > 0 ? `<p>${escapeHtml(
+          `Threshold markers: ${comparison.countLinePlot.thresholdMarkers
+            .map((marker) => marker.label)
+            .join("; ")}`
+        )}</p>` : ""}
+        ${comparison.countLinePlot.note ? `<p>${escapeHtml(comparison.countLinePlot.note)}</p>` : ""}
+        <div class="table-wrap">
+          <table class="data-table" data-classification-count-line-plot="${escapeHtml(comparison.id)}">
+            <thead>
+              <tr>
+                <th scope="col">X bin</th>
+                <th scope="col">Scoped count</th>
+                <th scope="col">Pass count</th>
+                <th scope="col">Fail count</th>
+                <th scope="col">Scoped share</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${countRows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  })();
+
   return `
     <article id="classification-comparison-${escapeHtml(comparison.id)}" class="query-card" data-classification-comparison-id="${escapeHtml(comparison.id)}">
       <header class="query-header">
@@ -1273,6 +1326,8 @@ function renderClassificationDistributionComparisonCard(
                 (
                   comparison.config.plotXAxisBinningMode === "pointsPerBin"
                     ? comparison.config.plotXAxisPointsPerBin
+                    : comparison.config.plotXAxisBinningMode === "timeInterval"
+                      ? comparison.config.plotXAxisTimeBinDays
                     : comparison.config.plotXAxisBinCount
                 ).toLocaleString()
               )}</td>
@@ -1301,12 +1356,14 @@ function renderClassificationDistributionComparisonCard(
             <tr>
               <th scope="row">Split thresholds</th>
               <td>${escapeHtml(
-                comparison.config.conditions
-                  .map(
-                    (condition) =>
-                      `${condition.metricLabel} ${condition.operatorLabel.toLowerCase()} ${condition.thresholdDisplay}`
-                  )
-                  .join("; ")
+                comparison.config.conditions.length > 0
+                  ? comparison.config.conditions
+                      .map(
+                        (condition) =>
+                          `${condition.metricLabel} ${condition.operatorLabel.toLowerCase()} ${condition.thresholdDisplay}`
+                      )
+                      .join("; ")
+                  : "None"
               )}</td>
             </tr>
           </tbody>
@@ -1412,6 +1469,8 @@ function renderClassificationDistributionComparisonCard(
       ${comparison.config.plotTypeKey === "frequencyScatter" ||
       comparison.config.plotTypeKey === "frequencyLine"
         ? frequencyPlotMarkup
+        : comparison.config.plotTypeKey === "countLine"
+          ? countLinePlotMarkup
         : `<div class="subsection">
         <h4>Combined comparison histogram</h4>
         <p>Shared bins with overlaid ${escapeHtml(comparison.config.histogramScale.toLowerCase())} for the matching and failing classification subsets.</p>

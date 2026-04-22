@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 
+import { AnalysisClassificationCountLinePlot } from "./AnalysisClassificationCountLinePlot";
 import { AnalysisClassificationFrequencyLinePlot } from "./AnalysisClassificationFrequencyLinePlot";
 import { AnalysisClassificationFrequencyPlot } from "./AnalysisClassificationFrequencyPlot";
 import { AnalysisComparisonHistogram } from "./AnalysisComparisonHistogram";
@@ -15,6 +16,7 @@ import {
   catalogNucleusOptions,
   clampClassificationFrequencyBinCount,
   clampClassificationFrequencyPointsPerBin,
+  clampClassificationTimeBinDays,
   clampPreviewLimit,
   createAnalysisClassificationCondition,
   dominantLsbOptions,
@@ -22,6 +24,7 @@ import {
   formatClassificationConditionThreshold,
   formatClassificationMetricValue,
   formatPaperLabel,
+  getClassificationFrequencyMinPointsPerBin,
   getClassificationComparisonPlotTypeLabel,
   getClassificationConditionMetricLabel,
   getClassificationMetricLabel,
@@ -266,6 +269,25 @@ function DuplicateIcon() {
     >
       <rect x="9" y="9" width="11" height="11" rx="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+    </svg>
+  );
+}
+
+function AddIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="8" />
+      <line x1="12" y1="8" x2="12" y2="16" />
+      <line x1="8" y1="12" x2="16" y2="12" />
     </svg>
   );
 }
@@ -578,12 +600,24 @@ export function DataAnalysisClassificationDistributionCard({
       ? getClassificationConditionMetricLabel(comparison.plotXAxisMetric)
       : getClassificationMetricLabel(comparison.histogramMetric);
   const metricControlLabel =
-    comparison.plotType !== "histogram" ? "Y axis metric" : "Histogram metric";
+    comparison.plotType === "histogram"
+      ? "Histogram metric"
+      : comparison.plotType === "countLine"
+        ? "Detail metric"
+        : "Y axis metric";
   const scaleControlLabel =
-    comparison.plotType !== "histogram" ? "Frequency scale" : "Histogram scale";
+    comparison.plotType === "histogram"
+      ? "Histogram scale"
+      : comparison.plotType === "countLine"
+        ? "Line scale"
+        : "Frequency scale";
   const showsTimeBinningControls =
     comparison.plotType !== "histogram" &&
     comparison.plotXAxisMetric === "classificationCreationTime";
+  const scopedPointCountForBinning = result?.scopedCount ?? 0;
+  const minPointsPerBin = getClassificationFrequencyMinPointsPerBin(
+    scopedPointCountForBinning
+  );
 
   return (
     <section
@@ -823,12 +857,22 @@ export function DataAnalysisClassificationDistributionCard({
                 <select
                   value={comparison.plotType}
                   onChange={(event) =>
-                    onUpdateComparison(comparison.id, (currentComparison) => ({
-                      ...currentComparison,
-                      plotType:
+                    onUpdateComparison(comparison.id, (currentComparison) => {
+                      const nextPlotType =
                         event.target
-                          .value as AnalysisClassificationDistributionComparisonConfig["plotType"],
-                    }))
+                          .value as AnalysisClassificationDistributionComparisonConfig["plotType"];
+
+                      return {
+                        ...currentComparison,
+                        plotType: nextPlotType,
+                        ...(nextPlotType === "countLine"
+                          ? {
+                              plotXAxisMetric: "classificationCreationTime",
+                              plotXAxisBinningMode: "timeInterval",
+                            }
+                          : {}),
+                      };
+                    })
                   }
                   className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                 >
@@ -897,17 +941,31 @@ export function DataAnalysisClassificationDistributionCard({
                   <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
                     {comparison.plotXAxisBinningMode === "pointsPerBin"
                       ? "Values per point"
-                      : "Total bins"}
+                      : comparison.plotXAxisBinningMode === "timeInterval"
+                        ? "Days per bin"
+                        : "Total bins"}
                   </span>
                   <input
                     type="number"
-                    min={1}
-                    max={comparison.plotXAxisBinningMode === "pointsPerBin" ? 1200 : 120}
+                    min={
+                      comparison.plotXAxisBinningMode === "pointsPerBin"
+                        ? minPointsPerBin
+                        : 1
+                    }
+                    max={
+                      comparison.plotXAxisBinningMode === "pointsPerBin"
+                        ? 1200
+                        : comparison.plotXAxisBinningMode === "timeInterval"
+                          ? 365
+                          : 120
+                    }
                     step={1}
                     value={
                       comparison.plotXAxisBinningMode === "pointsPerBin"
                         ? comparison.plotXAxisPointsPerBin
-                        : comparison.plotXAxisBinCount
+                        : comparison.plotXAxisBinningMode === "timeInterval"
+                          ? comparison.plotXAxisTimeBinDays
+                          : comparison.plotXAxisBinCount
                     }
                     onChange={(event) =>
                       onUpdateComparison(comparison.id, (currentComparison) => ({
@@ -916,9 +974,16 @@ export function DataAnalysisClassificationDistributionCard({
                           ? {
                               plotXAxisPointsPerBin:
                                 clampClassificationFrequencyPointsPerBin(
-                                  Number(event.target.value) || 0
+                                  Number(event.target.value) || 0,
+                                  scopedPointCountForBinning
                                 ),
                             }
+                          : currentComparison.plotXAxisBinningMode === "timeInterval"
+                            ? {
+                                plotXAxisTimeBinDays: clampClassificationTimeBinDays(
+                                  Number(event.target.value) || 0
+                                ),
+                              }
                           : {
                               plotXAxisBinCount: clampClassificationFrequencyBinCount(
                                 Number(event.target.value) || 0
@@ -928,6 +993,15 @@ export function DataAnalysisClassificationDistributionCard({
                     }
                     className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-800 dark:text-white"
                   />
+                  {comparison.plotXAxisBinningMode === "pointsPerBin" ? (
+                    <span className="block text-xs text-gray-500 dark:text-gray-400">
+                      Minimum {minPointsPerBin.toLocaleString()} values per bin to keep the plot at or below 120 X-axis bins.
+                    </span>
+                  ) : comparison.plotXAxisBinningMode === "timeInterval" ? (
+                    <span className="block text-xs text-gray-500 dark:text-gray-400">
+                      Fixed calendar time bins keep each X-axis step at the selected day width.
+                    </span>
+                  ) : null}
                 </label>
               ) : null}
 
@@ -1020,9 +1094,10 @@ export function DataAnalysisClassificationDistributionCard({
                     ],
                   }))
                 }
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
-                Add scope threshold
+                <AddIcon />
+                <span>Add</span>
               </button>
             </div>
 
@@ -1079,38 +1154,42 @@ export function DataAnalysisClassificationDistributionCard({
                     ],
                   }))
                 }
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
-                Add condition
+                <AddIcon />
+                <span>Add</span>
               </button>
             </div>
 
             <div className="space-y-3">
-              {comparison.conditions.map((condition) => (
-                <ClassificationConditionEditor
-                  key={condition.id}
-                  condition={condition}
-                  onChange={(nextCondition) =>
-                    onUpdateComparison(comparison.id, (currentComparison) => ({
-                      ...currentComparison,
-                      conditions: currentComparison.conditions.map((candidate) =>
-                        candidate.id === nextCondition.id ? nextCondition : candidate
-                      ),
-                    }))
-                  }
-                  onRemove={() =>
-                    onUpdateComparison(comparison.id, (currentComparison) => ({
-                      ...currentComparison,
-                      conditions:
-                        currentComparison.conditions.length > 1
-                          ? currentComparison.conditions.filter(
-                              (candidate) => candidate.id !== condition.id
-                            )
-                          : currentComparison.conditions,
-                    }))
-                  }
-                />
-              ))}
+              {comparison.conditions.length > 0 ? (
+                comparison.conditions.map((condition) => (
+                  <ClassificationConditionEditor
+                    key={condition.id}
+                    condition={condition}
+                    onChange={(nextCondition) =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        conditions: currentComparison.conditions.map((candidate) =>
+                          candidate.id === nextCondition.id ? nextCondition : candidate
+                        ),
+                      }))
+                    }
+                    onRemove={() =>
+                      onUpdateComparison(comparison.id, (currentComparison) => ({
+                        ...currentComparison,
+                        conditions: currentComparison.conditions.filter(
+                          (candidate) => candidate.id !== condition.id
+                        ),
+                      }))
+                    }
+                  />
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 px-4 py-4 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
+                  No split thresholds yet. This card compares the full scoped classification set unless you add one or more split thresholds.
+                </div>
+              )}
             </div>
           </div>
 
@@ -1154,13 +1233,20 @@ export function DataAnalysisClassificationDistributionCard({
                       label={
                         comparison.plotXAxisBinningMode === "pointsPerBin"
                           ? "Values per point"
+                          : comparison.plotXAxisBinningMode === "timeInterval"
+                            ? "Days per bin"
                           : "Total bins"
                       }
                       value={
                         comparison.plotXAxisBinningMode === "pointsPerBin"
                           ? clampClassificationFrequencyPointsPerBin(
-                              comparison.plotXAxisPointsPerBin
+                              comparison.plotXAxisPointsPerBin,
+                              scopedPointCountForBinning
                             ).toLocaleString()
+                          : comparison.plotXAxisBinningMode === "timeInterval"
+                            ? clampClassificationTimeBinDays(
+                                comparison.plotXAxisTimeBinDays
+                              ).toLocaleString()
                           : clampClassificationFrequencyBinCount(
                               comparison.plotXAxisBinCount
                             ).toLocaleString()
@@ -1199,14 +1285,18 @@ export function DataAnalysisClassificationDistributionCard({
                       Split threshold summary
                     </div>
                     <div className="mt-1 space-y-1 text-sm font-medium text-gray-900 dark:text-white">
-                      {comparison.conditions.map((condition) => (
-                        <div key={condition.id}>
-                          {getClassificationConditionMetricLabel(condition.metric)} {condition.operator === "atLeast" ? "at least" : condition.operator === "atMost" ? "at most" : "exactly"} {formatClassificationConditionThreshold(
-                            condition.metric,
-                            condition.count
-                          )}
-                        </div>
-                      ))}
+                      {comparison.conditions.length > 0 ? (
+                        comparison.conditions.map((condition) => (
+                          <div key={condition.id}>
+                            {getClassificationConditionMetricLabel(condition.metric)} {condition.operator === "atLeast" ? "at least" : condition.operator === "atMost" ? "at most" : "exactly"} {formatClassificationConditionThreshold(
+                              condition.metric,
+                              condition.count
+                            )}
+                          </div>
+                        ))
+                      ) : (
+                        <div>No split thresholds.</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1222,6 +1312,8 @@ export function DataAnalysisClassificationDistributionCard({
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                   {comparison.plotType === "histogram"
                     ? "Combined classification comparison"
+                    : comparison.plotType === "countLine"
+                      ? "Classification count lines"
                     : comparison.plotType === "frequencyLine"
                       ? "Classification frequency lines"
                       : "Classification frequency plot"}
@@ -1230,17 +1322,26 @@ export function DataAnalysisClassificationDistributionCard({
                   {hasDataset && result
                     ? comparison.plotType === "frequencyScatter"
                       ? `Bubble-style frequency view of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} across ordered bins of ${getClassificationConditionMetricLabel(comparison.plotXAxisMetric).toLowerCase()}, with bubble size shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
+                      : comparison.plotType === "countLine"
+                        ? `Line view of classification counts across ${getClassificationConditionMetricLabel(comparison.plotXAxisMetric).toLowerCase()} bins, shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.${comparison.plotXAxisMetric === "classificationCreationTime" && comparison.plotXAxisBinningMode === "timeInterval" ? ` Each bin spans ${clampClassificationTimeBinDays(comparison.plotXAxisTimeBinDays).toLocaleString()} day${clampClassificationTimeBinDays(comparison.plotXAxisTimeBinDays) === 1 ? "" : "s"}.` : ""}`
                       : comparison.plotType === "frequencyLine"
                         ? `Line view of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} across ordered bins of ${getClassificationConditionMetricLabel(comparison.plotXAxisMetric).toLowerCase()}, with vertical markers for split thresholds that use the same X-axis metric.`
                         : `Step-style comparison of ${getClassificationMetricLabel(comparison.histogramMetric).toLowerCase()} for classifications that pass versus fail the thresholds, shown as ${getDistributionScaleLabel(comparison.histogramScale).toLowerCase()}.`
                     : comparison.plotType === "histogram"
                       ? "Load the dataset to build this comparison histogram."
-                      : "Load the dataset to build this frequency plot."}
+                      : comparison.plotType === "countLine"
+                        ? "Load the dataset to build this count line plot."
+                        : "Load the dataset to build this frequency plot."}
                 </p>
               </div>
               {comparison.plotType !== "histogram" ? (
                 result ? (
-                  comparison.plotType === "frequencyLine" ? (
+                  comparison.plotType === "countLine" ? (
+                    <AnalysisClassificationCountLinePlot
+                      plot={result.countLinePlot}
+                      scale={comparison.histogramScale}
+                    />
+                  ) : comparison.plotType === "frequencyLine" ? (
                     <AnalysisClassificationFrequencyLinePlot
                       plot={result.frequencyPlot}
                       scale={comparison.histogramScale}
@@ -1253,7 +1354,9 @@ export function DataAnalysisClassificationDistributionCard({
                   )
                 ) : (
                   <div className="flex h-52 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-400">
-                    Load the dataset to build this frequency plot.
+                    {comparison.plotType === "countLine"
+                      ? "Load the dataset to build this count line plot."
+                      : "Load the dataset to build this frequency plot."}
                   </div>
                 )
               ) : (

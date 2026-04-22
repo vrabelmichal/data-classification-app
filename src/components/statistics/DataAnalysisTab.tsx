@@ -736,7 +736,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
             hasDataset={hasDataset}
             imageQuality={imageQuality}
             userPreferences={userPrefs}
-            canRemove={comparisons.length > 1}
+            canRemove={true}
             onOpenDetails={setSelectedRecord}
             onToggleCollapsed={() => toggleComparisonCollapsed(comparison.id)}
             onDuplicate={() =>
@@ -774,7 +774,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
             }
             hasDataset={hasDataset}
             userDisplayNames={userDisplayNames}
-            canRemove={classificationComparisons.length > 1}
+            canRemove={true}
             onOpenDetails={setSelectedRecord}
             onToggleCollapsed={() =>
               toggleClassificationComparisonCollapsed(comparison.id)

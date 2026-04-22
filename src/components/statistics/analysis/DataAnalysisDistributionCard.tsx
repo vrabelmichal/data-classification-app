@@ -127,6 +127,25 @@ function DuplicateIcon() {
   );
 }
 
+function AddIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="12" r="8" />
+      <line x1="12" y1="8" x2="12" y2="16" />
+      <line x1="8" y1="12" x2="16" y2="12" />
+    </svg>
+  );
+}
+
 function ComparisonConditionEditor({
   condition,
   onChange,
@@ -681,9 +700,10 @@ export function DataAnalysisDistributionCard({
                     ],
                   }))
                 }
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
-                Add scope threshold
+                <AddIcon />
+                <span>Add</span>
               </button>
             </div>
 
@@ -740,9 +760,10 @@ export function DataAnalysisDistributionCard({
                     ],
                   }))
                 }
-                className="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                className="inline-flex h-9 items-center gap-1.5 whitespace-nowrap rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
-                Add condition
+                <AddIcon />
+                <span>Add</span>
               </button>
             </div>
 
@@ -915,6 +936,7 @@ export function DataAnalysisDistributionCard({
                       imageQuality={imageQuality}
                       userPreferences={userPreferences}
                       onOpenDetails={onOpenDetails}
+                      compactLayout
                     />
                   ))}
                 </div>
@@ -943,6 +965,7 @@ export function DataAnalysisDistributionCard({
                       imageQuality={imageQuality}
                       userPreferences={userPreferences}
                       onOpenDetails={onOpenDetails}
+                      compactLayout
                     />
                   ))}
                 </div>

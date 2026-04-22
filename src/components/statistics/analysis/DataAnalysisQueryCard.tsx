@@ -452,12 +452,14 @@ export function AnalysisGalaxyCard({
   userPreferences,
   onOpenDetails,
   showOpenDetailsButton = true,
+  compactLayout = false,
 }: {
   record: AnalysisRecord;
   imageQuality: "high" | "medium" | "low";
   userPreferences: UserPreferences | null | undefined;
   onOpenDetails: (record: AnalysisRecord) => void;
   showOpenDetailsButton?: boolean;
+  compactLayout?: boolean;
 }) {
   const { galaxy, aggregate } = record;
   const previewImageName = getPreviewImageName();
@@ -465,7 +467,7 @@ export function AnalysisGalaxyCard({
   const morphologyVotePreview = getVotePreview(record.votes, "morphology");
 
   return (
-    <div className="grid gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800 lg:grid-cols-[180px_minmax(0,1fr)]">
+    <div className={`grid gap-4 rounded-xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-gray-800 ${compactLayout ? "p-3 lg:grid-cols-[140px_minmax(0,1fr)]" : "p-4 lg:grid-cols-[180px_minmax(0,1fr)]"}`}>
       <div className="rounded-lg border border-gray-200 bg-gray-100 p-2 dark:border-gray-700 dark:bg-gray-900/40">
         <div className="overflow-hidden rounded-lg">
           <ImageViewer
@@ -490,7 +492,7 @@ export function AnalysisGalaxyCard({
                 to={`/classify/${galaxy.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="text-lg font-semibold text-blue-700 transition hover:text-blue-800 hover:underline dark:text-blue-300 dark:hover:text-blue-200"
+                className={`${compactLayout ? "text-base" : "text-lg"} font-semibold text-blue-700 transition hover:text-blue-800 hover:underline dark:text-blue-300 dark:hover:text-blue-200`}
               >
                 {galaxy.id}
               </Link>
@@ -498,26 +500,26 @@ export function AnalysisGalaxyCard({
                 #{galaxy.numericId?.toLocaleString() ?? "-"}
               </span>
             </div>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <p className={`mt-1 ${compactLayout ? "text-xs" : "text-sm"} text-gray-500 dark:text-gray-400`}>
               Paper: {formatPaperLabel(galaxy.paper)}
               <span className="mx-2">•</span>
               Catalog nucleus: {galaxy.nucleus ? "Yes" : "No"}
             </p>
           </div>
 
-          <div className="rounded-full bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+          <div className={`rounded-full bg-blue-50 px-3 py-1 ${compactLayout ? "text-xs" : "text-sm"} font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300`}>
             {record.lsb.agreementRate === null
               ? "No Is-LSB votes"
               : `${record.lsb.label} • ${record.lsb.agreementCount}/${record.lsb.comparableVotes}`}
           </div>
         </div>
 
-        <div className="grid gap-2 text-sm text-gray-700 dark:text-gray-200 sm:grid-cols-2 xl:grid-cols-3">
+        <div className={`grid gap-2 ${compactLayout ? "text-xs" : "text-sm"} text-gray-700 dark:text-gray-200 sm:grid-cols-2 xl:grid-cols-3`}>
           <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-gray-900/30">
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Dominant Is-LSB
             </div>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-1 flex flex-wrap items-start gap-1.5">
               <span className="font-medium">{record.dominantLsbLabel}</span>
               <VotePreviewPopoverButton
                 label="First 5 LSB votes"
@@ -529,7 +531,7 @@ export function AnalysisGalaxyCard({
             <div className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Dominant morphology
             </div>
-            <div className="mt-1 flex items-center gap-2">
+            <div className="mt-1 flex flex-wrap items-start gap-1.5">
               <span className="font-medium">{record.dominantMorphologyLabel}</span>
               <VotePreviewPopoverButton
                 label="First 5 morphology votes"
@@ -571,7 +573,7 @@ export function AnalysisGalaxyCard({
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-3 text-sm text-gray-500 dark:text-gray-400">
+        <div className={`flex flex-wrap gap-3 ${compactLayout ? "text-xs" : "text-sm"} text-gray-500 dark:text-gray-400`}>
           <span>Created {formatAnalysisDateTime(galaxy._creationTime)}</span>
           <span>RA {galaxy.ra.toFixed(4)} deg</span>
           <span>Dec {galaxy.dec.toFixed(4)} deg</span>
@@ -601,25 +603,25 @@ export function AnalysisGalaxyCard({
               View classifications
             </button>
           ) : null}
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className={`${compactLayout ? "text-xs" : "text-sm"} text-gray-500 dark:text-gray-400`}>
             Awesome {aggregate.awesomeVotes.toLocaleString()}
           </span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className={`${compactLayout ? "text-xs" : "text-sm"} text-gray-500 dark:text-gray-400`}>
             Failed fitting yes {formatAnsweredVoteSummary(
               aggregate.failedFittingVotes,
               record.failedFitting.comparableVotes
             )}
           </span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className={`${compactLayout ? "text-xs" : "text-sm"} text-gray-500 dark:text-gray-400`}>
             Comments {aggregate.commentedClassifications.toLocaleString()}
           </span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className={`${compactLayout ? "text-xs" : "text-sm"} text-gray-500 dark:text-gray-400`}>
             Max comment {aggregate.maxCommentLength.toLocaleString()} chars
           </span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className={`${compactLayout ? "text-xs" : "text-sm"} text-gray-500 dark:text-gray-400`}>
             Avg comment {record.averageCommentLength === null ? "-" : `${record.averageCommentLength.toFixed(1)} chars`}
           </span>
-          <span className="text-sm text-gray-500 dark:text-gray-400">
+          <span className={`${compactLayout ? "text-xs" : "text-sm"} text-gray-500 dark:text-gray-400`}>
             Nucleus confirmation {formatPercent(record.nucleusConfirmationRate)}
           </span>
         </div>
