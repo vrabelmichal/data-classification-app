@@ -545,7 +545,7 @@ export function AnalysisLoadSection({
                 disabled={isAnalysisSetupSaving}
                 className={`${TOOLBAR_BUTTON_CLASS} bg-slate-900 text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white dark:disabled:bg-slate-500 dark:disabled:text-slate-200`}
               >
-                <SaveCacheIcon />
+                {isAnalysisSetupSaving ? <LoadSpinnerIcon /> : <SaveCacheIcon />}
                 <span>{isAnalysisSetupSaving ? "Saving…" : "Save current"}</span>
               </button>
               <button
