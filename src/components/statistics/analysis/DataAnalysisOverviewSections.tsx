@@ -75,6 +75,19 @@ function getPortableDatasetMessage({
   return "Upload a ZIP exported from this page to work on a prepared dataset without querying the live tables first.";
 }
 
+function getAnalysisSetupStatusClass(
+  tone: "neutral" | "success" | "warning"
+) {
+  switch (tone) {
+    case "success":
+      return "text-emerald-700 dark:text-emerald-300";
+    case "warning":
+      return "text-amber-700 dark:text-amber-300";
+    default:
+      return "text-gray-500 dark:text-gray-400";
+  }
+}
+
 function StatCard({
   label,
   value,
@@ -227,6 +240,15 @@ export function AnalysisLoadSection({
   canDownloadDatasetArchive,
   canImportDatasetArchive,
   canExportReport,
+  analysisSetupName,
+  hasSavedAnalysisSetup,
+  analysisSetupStatusMessage,
+  analysisSetupStatusTone,
+  isAnalysisSetupLoading,
+  isAnalysisSetupSaving,
+  onSaveAnalysisSetup,
+  onLoadAnalysisSetup,
+  onRestoreDefaultAnalysisSetup,
 }: {
   summary: DatasetSummary;
   hasDataset: boolean;
@@ -250,6 +272,15 @@ export function AnalysisLoadSection({
   canDownloadDatasetArchive: boolean;
   canImportDatasetArchive: boolean;
   canExportReport: boolean;
+  analysisSetupName: string;
+  hasSavedAnalysisSetup: boolean;
+  analysisSetupStatusMessage: string;
+  analysisSetupStatusTone: "neutral" | "success" | "warning";
+  isAnalysisSetupLoading: boolean;
+  isAnalysisSetupSaving: boolean;
+  onSaveAnalysisSetup: () => void;
+  onLoadAnalysisSetup: () => void;
+  onRestoreDefaultAnalysisSetup: () => void;
 }) {
   const datasetFileInputRef = useRef<HTMLInputElement | null>(null);
   const loadedSourceLabel = getLoadedSourceLabel(loadedSource);
@@ -263,6 +294,9 @@ export function AnalysisLoadSection({
     hasDataset,
     loadedSource,
   });
+  const analysisSetupStatusClass = getAnalysisSetupStatusClass(
+    analysisSetupStatusTone
+  );
 
   const handleDatasetFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     const nextFile = event.target.files?.[0] ?? null;
@@ -480,6 +514,59 @@ export function AnalysisLoadSection({
             <p className="text-xs leading-5 text-gray-500 dark:text-gray-400">
               Download a standalone report or raw statistics from the current local snapshot.
             </p>
+          </div>
+        </div>
+
+        <div className="border-t border-blue-200/70 px-5 py-4 dark:border-blue-900/50">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                  Saved analysis setup
+                </span>
+                <span className="inline-flex items-center rounded-full border border-blue-200 bg-white px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
+                  {analysisSetupName}
+                </span>
+                {hasSavedAnalysisSetup ? (
+                  <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+                    Server copy available
+                  </span>
+                ) : null}
+              </div>
+              <p className={`text-sm leading-6 ${analysisSetupStatusClass}`}>
+                {analysisSetupStatusMessage}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 flex-nowrap items-start gap-2 lg:justify-end">
+              <button
+                type="button"
+                onClick={onSaveAnalysisSetup}
+                disabled={isAnalysisSetupSaving}
+                className={`${TOOLBAR_BUTTON_CLASS} bg-slate-900 text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white dark:disabled:bg-slate-500 dark:disabled:text-slate-200`}
+              >
+                <SaveCacheIcon />
+                <span>{isAnalysisSetupSaving ? "Saving…" : "Save current"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={onLoadAnalysisSetup}
+                disabled={isAnalysisSetupLoading || !hasSavedAnalysisSetup || isAnalysisSetupSaving}
+                className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500`}
+              >
+                <CacheLoadIcon />
+                <span>{isAnalysisSetupLoading ? "Checking…" : "Load saved"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={onRestoreDefaultAnalysisSetup}
+                disabled={isAnalysisSetupSaving}
+                className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500`}
+              >
+                <RefreshDataIcon />
+                <span>Restore defaults</span>
+              </button>
+            </div>
           </div>
         </div>
 

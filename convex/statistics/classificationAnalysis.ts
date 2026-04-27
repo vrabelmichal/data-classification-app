@@ -1,5 +1,5 @@
 import { v } from "convex/values";
-import { query } from "../_generated/server";
+import { mutation, query } from "../_generated/server";
 import {
   classificationsByCreated,
   galaxyIdsAggregate,
@@ -8,6 +8,10 @@ import {
 import { requireUserProfile } from "../lib/auth";
 import { hasPermissionForRole } from "../lib/permissions";
 import { loadMergedSystemSettings } from "../lib/systemSettings";
+import {
+  analysisFrameworkConfigValidator,
+  analysisFrameworkStateValidator,
+} from "./analysisConfigValidators";
 
 const DEFAULT_GALAXY_PAGE_SIZE = 2500;
 const DEFAULT_CLASSIFICATION_PAGE_SIZE = 2500;
@@ -123,6 +127,89 @@ export const getUserDirectory = query({
         };
       })
       .sort((left, right) => left.displayName.localeCompare(right.displayName));
+  },
+});
+
+export const getAnalysisFrameworkConfig = query({
+  args: {
+    configKey: v.string(),
+  },
+  returns: v.union(analysisFrameworkConfigValidator, v.null()),
+  handler: async (ctx, args) => {
+    const { userId } = await requireClassificationAnalysisAccess(ctx);
+
+    const record = await ctx.db
+      .query("analysisFrameworkConfigs")
+      .withIndex("by_owner_config_key", (q) =>
+        q.eq("ownerUserId", userId).eq("configKey", args.configKey)
+      )
+      .unique();
+
+    if (!record) {
+      return null;
+    }
+
+    return {
+      configKey: record.configKey,
+      name: record.name,
+      state: record.state,
+      createdAt: record.createdAt,
+      updatedAt: record.updatedAt,
+    };
+  },
+});
+
+export const saveAnalysisFrameworkConfig = mutation({
+  args: {
+    configKey: v.string(),
+    name: v.string(),
+    state: analysisFrameworkStateValidator,
+  },
+  returns: analysisFrameworkConfigValidator,
+  handler: async (ctx, args) => {
+    const { userId } = await requireClassificationAnalysisAccess(ctx);
+
+    const existing = await ctx.db
+      .query("analysisFrameworkConfigs")
+      .withIndex("by_owner_config_key", (q) =>
+        q.eq("ownerUserId", userId).eq("configKey", args.configKey)
+      )
+      .unique();
+
+    const now = Date.now();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        name: args.name,
+        state: args.state,
+        updatedAt: now,
+      });
+
+      return {
+        configKey: args.configKey,
+        name: args.name,
+        state: args.state,
+        createdAt: existing.createdAt,
+        updatedAt: now,
+      };
+    }
+
+    await ctx.db.insert("analysisFrameworkConfigs", {
+      ownerUserId: userId,
+      configKey: args.configKey,
+      name: args.name,
+      state: args.state,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      configKey: args.configKey,
+      name: args.name,
+      state: args.state,
+      createdAt: now,
+      updatedAt: now,
+    };
   },
 });
 

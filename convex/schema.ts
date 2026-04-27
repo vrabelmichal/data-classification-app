@@ -12,6 +12,7 @@ import {
   galaxyBrowserViewScopeValidator,
   galaxyBrowserViewStateValidator,
 } from "./galaxies/browser/viewState";
+import { analysisFrameworkStateValidator } from "./statistics/analysisConfigValidators";
 import { userRoleValidator } from "./lib/permissions";
 
 
@@ -526,6 +527,15 @@ const applicationTables = {
   })
     .index("by_view_key", ["viewKey"])
     .index("by_owner_scope_hash", ["ownerScopeKey", "stateHash"]),
+
+  analysisFrameworkConfigs: defineTable({
+    ownerUserId: v.id("users"),
+    configKey: v.string(),
+    name: v.string(),
+    state: analysisFrameworkStateValidator,
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  }).index("by_owner_config_key", ["ownerUserId", "configKey"]),
 
   // Notifications - messages sent from admins to users
   notifications: defineTable({

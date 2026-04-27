@@ -1,5 +1,6 @@
 import { useCallback, useDeferredValue, useMemo, useState } from "react";
-import { useQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
+import { toast } from "sonner";
 
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
@@ -35,9 +36,6 @@ import {
 } from "./analysis/DataAnalysisDistributionCard";
 import { AgreementExplanation } from "./analysis/AgreementExplanation";
 import {
-  buildDefaultAnalysisClassificationDistributionComparisons,
-  buildDefaultAnalysisDistributionComparisons,
-  buildDefaultAnalysisQueries,
   buildGlobalSummaryHistograms,
   createBlankAnalysisClassificationDistributionComparison,
   createBlankAnalysisDistributionComparison,
@@ -57,6 +55,16 @@ import {
   type AnalysisUserDirectoryEntry,
 } from "./analysis/helpers";
 import {
+  buildDefaultAnalysisFrameworkState,
+  cloneAnalysisFrameworkState,
+  createCollapsedItemMap,
+  getAnalysisFrameworkSignature,
+  MY_ANALYSIS_FRAMEWORK_KEY,
+  MY_ANALYSIS_FRAMEWORK_NAME,
+  type AnalysisFrameworkState,
+  type SavedAnalysisFrameworkConfig,
+} from "./analysis/analysisFrameworkState";
+import {
   buildAnalysisHtmlReport,
   buildAnalysisStatsExport,
 } from "./analysis/reportExport";
@@ -67,7 +75,7 @@ import type {
 } from "./analysis/tabTypes";
 import { useAnalysisDataset } from "./analysis/useAnalysisDataset";
 import { usePinnedQueryNavigator } from "./analysis/usePinnedQueryNavigator";
-import { formatPercent } from "./analysis/tabUtils";
+import { formatLoadedAt, formatPercent } from "./analysis/tabUtils";
 
 const EMPTY_RECORDS: AnalysisRecord[] = [];
 
@@ -216,37 +224,43 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
   const summary = useQuery(
     api.statistics.classificationAnalysis.getDatasetSummary
   ) as DatasetSummary | undefined;
+  const saveAnalysisFrameworkConfig = useMutation(
+    api.statistics.classificationAnalysis.saveAnalysisFrameworkConfig
+  );
   const userPrefs = useQuery(api.users.getUserPreferences);
   const userDirectory = useQuery(
     api.statistics.classificationAnalysis.getUserDirectory
   ) as AnalysisUserDirectoryEntry[] | undefined;
-  const initialQueries = useMemo(() => buildDefaultAnalysisQueries(), []);
-  const initialComparisons = useMemo(
-    () => buildDefaultAnalysisDistributionComparisons(),
+  const savedAnalysisFramework = useQuery(
+    api.statistics.classificationAnalysis.getAnalysisFrameworkConfig,
+    { configKey: MY_ANALYSIS_FRAMEWORK_KEY }
+  ) as SavedAnalysisFrameworkConfig | null | undefined;
+  const defaultAnalysisFramework = useMemo(
+    () => buildDefaultAnalysisFrameworkState(),
     []
   );
-  const initialClassificationComparisons = useMemo(
-    () => buildDefaultAnalysisClassificationDistributionComparisons(),
-    []
+  const initialAnalysisFramework = useMemo(
+    () => cloneAnalysisFrameworkState(defaultAnalysisFramework),
+    [defaultAnalysisFramework]
   );
-  const [queries, setQueries] = useState<AnalysisQueryConfig[]>(initialQueries);
+  const [queries, setQueries] = useState<AnalysisQueryConfig[]>(
+    initialAnalysisFramework.queries
+  );
   const [comparisons, setComparisons] = useState<AnalysisDistributionComparisonConfig[]>(
-    initialComparisons
+    initialAnalysisFramework.comparisons
   );
   const [classificationComparisons, setClassificationComparisons] = useState<
     AnalysisClassificationDistributionComparisonConfig[]
-  >(initialClassificationComparisons);
+  >(initialAnalysisFramework.classificationComparisons);
   const [collapsedQueries, setCollapsedQueries] = useState<Record<string, boolean>>(
-    () => Object.fromEntries(initialQueries.map((query) => [query.id, true]))
+    () => createCollapsedItemMap(initialAnalysisFramework.queries)
   );
   const [collapsedComparisons, setCollapsedComparisons] = useState<
     Record<string, boolean>
-  >(() => Object.fromEntries(initialComparisons.map((comparison) => [comparison.id, true])));
+  >(() => createCollapsedItemMap(initialAnalysisFramework.comparisons));
   const [collapsedClassificationComparisons, setCollapsedClassificationComparisons] =
     useState<Record<string, boolean>>(() =>
-      Object.fromEntries(
-        initialClassificationComparisons.map((comparison) => [comparison.id, true])
-      )
+      createCollapsedItemMap(initialAnalysisFramework.classificationComparisons)
     );
   const [selectedRecord, setSelectedRecord] = useState<AnalysisRecord | null>(null);
   const [hideZeroBuckets, setHideZeroBuckets] = useState<ZeroBucketState>({
@@ -254,6 +268,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     visibleNucleusAgreementCount: true,
     failedFittingVotes: true,
   });
+  const [isSavingAnalysisFramework, setIsSavingAnalysisFramework] = useState(false);
 
   const {
     dataset,
@@ -300,6 +315,130 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       return accumulator;
     }, {});
   }, [userDirectory]);
+
+  const currentAnalysisFrameworkState = useMemo<AnalysisFrameworkState>(
+    () => ({
+      queries,
+      comparisons,
+      classificationComparisons,
+    }),
+    [classificationComparisons, comparisons, queries]
+  );
+
+  const applyAnalysisFrameworkState = useCallback((nextState: AnalysisFrameworkState) => {
+    const clonedState = cloneAnalysisFrameworkState(nextState);
+
+    setQueries(clonedState.queries);
+    setComparisons(clonedState.comparisons);
+    setClassificationComparisons(clonedState.classificationComparisons);
+    setCollapsedQueries(createCollapsedItemMap(clonedState.queries));
+    setCollapsedComparisons(createCollapsedItemMap(clonedState.comparisons));
+    setCollapsedClassificationComparisons(
+      createCollapsedItemMap(clonedState.classificationComparisons)
+    );
+  }, []);
+
+  const currentAnalysisFrameworkSignature = useMemo(
+    () => getAnalysisFrameworkSignature(currentAnalysisFrameworkState),
+    [currentAnalysisFrameworkState]
+  );
+  const defaultAnalysisFrameworkSignature = useMemo(
+    () => getAnalysisFrameworkSignature(defaultAnalysisFramework),
+    [defaultAnalysisFramework]
+  );
+  const savedAnalysisFrameworkSignature = useMemo(
+    () =>
+      savedAnalysisFramework
+        ? getAnalysisFrameworkSignature(savedAnalysisFramework.state)
+        : null,
+    [savedAnalysisFramework]
+  );
+  const hasSavedAnalysisFramework =
+    savedAnalysisFramework !== null && savedAnalysisFramework !== undefined;
+  const isSavedAnalysisFrameworkLoading = savedAnalysisFramework === undefined;
+  const matchesSavedAnalysisFramework =
+    savedAnalysisFrameworkSignature !== null &&
+    currentAnalysisFrameworkSignature === savedAnalysisFrameworkSignature;
+  const matchesDefaultAnalysisFramework =
+    currentAnalysisFrameworkSignature === defaultAnalysisFrameworkSignature;
+
+  const analysisSetupStatus = useMemo(() => {
+    if (isSavedAnalysisFrameworkLoading) {
+      return {
+        tone: "neutral" as const,
+        message: "Checking the saved server copy for My analysis.",
+      };
+    }
+
+    if (!hasSavedAnalysisFramework) {
+      return {
+        tone: matchesDefaultAnalysisFramework ? ("neutral" as const) : ("warning" as const),
+        message: matchesDefaultAnalysisFramework
+          ? "Using the built-in local defaults. Save to store My analysis on the server."
+          : "This setup only exists in the current browser session until you save it.",
+      };
+    }
+
+    const savedAtLabel = formatLoadedAt(savedAnalysisFramework.updatedAt) ?? "recently";
+
+    if (matchesSavedAnalysisFramework) {
+      return {
+        tone: "success" as const,
+        message: `${savedAnalysisFramework.name} matches the current local setup. Server copy saved ${savedAtLabel}.`,
+      };
+    }
+
+    if (matchesDefaultAnalysisFramework) {
+      return {
+        tone: "warning" as const,
+        message: `${savedAnalysisFramework.name} is saved on the server from ${savedAtLabel}. The page is currently using local defaults until you load it or save over it.`,
+      };
+    }
+
+    return {
+      tone: "warning" as const,
+      message: `${savedAnalysisFramework.name} is saved on the server from ${savedAtLabel}. The current local setup differs and will not overwrite it until you save.`,
+    };
+  }, [
+    hasSavedAnalysisFramework,
+    isSavedAnalysisFrameworkLoading,
+    matchesDefaultAnalysisFramework,
+    matchesSavedAnalysisFramework,
+    savedAnalysisFramework,
+  ]);
+
+  const handleSaveAnalysisFramework = useCallback(async () => {
+    setIsSavingAnalysisFramework(true);
+
+    try {
+      await saveAnalysisFrameworkConfig({
+        configKey: MY_ANALYSIS_FRAMEWORK_KEY,
+        name: MY_ANALYSIS_FRAMEWORK_NAME,
+        state: cloneAnalysisFrameworkState(currentAnalysisFrameworkState),
+      });
+      toast.success("Saved My analysis to the server.");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save My analysis."
+      );
+    } finally {
+      setIsSavingAnalysisFramework(false);
+    }
+  }, [currentAnalysisFrameworkState, saveAnalysisFrameworkConfig]);
+
+  const handleLoadAnalysisFramework = useCallback(() => {
+    if (!savedAnalysisFramework) {
+      return;
+    }
+
+    applyAnalysisFrameworkState(savedAnalysisFramework.state);
+    toast.success(`Loaded ${savedAnalysisFramework.name} from the server.`);
+  }, [applyAnalysisFrameworkState, savedAnalysisFramework]);
+
+  const handleRestoreDefaultAnalysisFramework = useCallback(() => {
+    applyAnalysisFrameworkState(defaultAnalysisFramework);
+    toast.message("Restored the built-in local analysis defaults.");
+  }, [applyAnalysisFrameworkState, defaultAnalysisFramework]);
 
   const updateQuery = useCallback(
     (queryId: string, updater: (query: AnalysisQueryConfig) => AnalysisQueryConfig) => {
@@ -662,6 +801,17 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         canDownloadDatasetArchive={hasDataset && loadState.status !== "loading"}
         canImportDatasetArchive={loadState.status !== "loading"}
         canExportReport={hasDataset && loadState.status !== "loading"}
+        analysisSetupName={MY_ANALYSIS_FRAMEWORK_NAME}
+        hasSavedAnalysisSetup={hasSavedAnalysisFramework}
+        analysisSetupStatusMessage={analysisSetupStatus.message}
+        analysisSetupStatusTone={analysisSetupStatus.tone}
+        isAnalysisSetupLoading={isSavedAnalysisFrameworkLoading}
+        isAnalysisSetupSaving={isSavingAnalysisFramework}
+        onSaveAnalysisSetup={() => {
+          void handleSaveAnalysisFramework();
+        }}
+        onLoadAnalysisSetup={handleLoadAnalysisFramework}
+        onRestoreDefaultAnalysisSetup={handleRestoreDefaultAnalysisFramework}
       />
 
       <AgreementExplanation />
