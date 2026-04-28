@@ -228,7 +228,7 @@ export function UsersTab({ users }: UsersTabProps) {
     <>
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-4 min-[680px]:flex-row min-[680px]:items-center min-[680px]:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               User Management
@@ -237,7 +237,7 @@ export function UsersTab({ users }: UsersTabProps) {
               Manage user accounts, roles, and experience
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 min-[680px]:shrink-0 min-[680px]:justify-end">
             <EmailVisibilityToggle
               showEmails={showEmails}
               onToggle={() => setShowEmails((current) => !current)}
