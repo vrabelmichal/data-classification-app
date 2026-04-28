@@ -2,6 +2,10 @@ export const USER_ROLES = ["user", "analyst", "maintainer", "admin"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 
+export const USER_EXPERIENCE_LEVELS = ["normal", "senior"] as const;
+
+export type UserExperience = (typeof USER_EXPERIENCE_LEVELS)[number];
+
 export const APP_PERMISSION_KEYS = [
   "manageUsers",
   "manageGalaxyAssignments",
@@ -67,13 +71,26 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   admin: "Admin",
 };
 
+export const USER_EXPERIENCE_LABELS: Record<UserExperience, string> = {
+  normal: "Normal",
+  senior: "Senior",
+};
+
+export function normalizeUserExperience(experience: unknown): UserExperience {
+  return experience === "senior" ? "senior" : "normal";
+}
+
+export function getExperienceLabel(experience: unknown) {
+  return USER_EXPERIENCE_LABELS[normalizeUserExperience(experience)];
+}
+
 export const PERMISSION_METADATA: Record<
   AppPermissionKey,
   { label: string; description: string; group: "admin" | "data" | "statistics" | "reports" }
 > = {
   manageUsers: {
     label: "Manage users",
-    description: "View users, change roles, confirm accounts, and update activation state.",
+    description: "View users, change roles or experience, confirm accounts, and update activation state.",
     group: "admin",
   },
   manageGalaxyAssignments: {

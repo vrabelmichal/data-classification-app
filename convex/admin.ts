@@ -15,6 +15,7 @@ export const createUserProfile = mutation({
     await ctx.db.insert("userProfiles", {
       userId: args.targetUserId,
       role: "user",
+      experience: "normal",
       isActive: true,
       isConfirmed: true,
       classificationsCount: 0,

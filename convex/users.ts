@@ -13,7 +13,7 @@ import { getDefaultImageQuality } from "./lib/settings";
 import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { userRoleValidator } from "./lib/permissions";
+import { userRoleValidator, userExperienceValidator } from "./lib/permissions";
 import {
   classificationsByCreated,
   classificationsByAwesomeFlag,
@@ -373,6 +373,7 @@ export const initializeUserProfile = mutation({
     const profileId = await ctx.db.insert("userProfiles", {
       userId,
       role: "user",
+      experience: "normal",
       isActive: true,
       isConfirmed: anonymousAllowed?.value === true || false, // Auto-confirm if anonymous allowed
       classificationsCount: 0,
@@ -1032,6 +1033,7 @@ export const getAllUsers = query({
             _id: `temp_${user._id}` as any,
             userId: user._id,
             role: "user" as const,
+            experience: "normal" as const,
             isActive: false,
             isConfirmed: false,
             classificationsCount: 0,
@@ -1076,6 +1078,7 @@ export const updateUserStatus = mutation({
       const profileId = await ctx.db.insert("userProfiles", {
         userId: args.targetUserId,
         role: "user",
+        experience: "normal",
         isActive: args.isActive,
         isConfirmed: true,
         classificationsCount: 0,
@@ -1123,6 +1126,7 @@ export const confirmUser = mutation({
       const profileId = await ctx.db.insert("userProfiles", {
         userId: args.targetUserId,
         role: "user",
+        experience: "normal",
         isActive: true,
         isConfirmed: args.isConfirmed,
         classificationsCount: 0,
@@ -1180,6 +1184,7 @@ export const updateUserRole = mutation({
       const profileId = await ctx.db.insert("userProfiles", {
         userId: args.targetUserId,
         role: args.role,
+        experience: "normal",
         isActive: true,
         isConfirmed: true,
         classificationsCount: 0,
@@ -1207,6 +1212,53 @@ export const updateUserRole = mutation({
 
     await ctx.db.patch(targetProfile._id, {
       role: args.role,
+    });
+
+    const updatedProfile = await ctx.db.get(targetProfile._id);
+    if (updatedProfile) await replaceUserProfileAggregates(ctx, targetProfile, updatedProfile);
+
+    return { success: true };
+  },
+});
+
+// Admin: Update user experience
+export const updateUserExperience = mutation({
+  args: {
+    targetUserId: v.id("users"),
+    experience: userExperienceValidator,
+  },
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, "manageUsers", {
+      notAuthorizedMessage: "Only users with user-management access can update experience",
+    });
+
+    let targetProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.targetUserId))
+      .unique();
+
+    if (!targetProfile) {
+      const profileId = await ctx.db.insert("userProfiles", {
+        userId: args.targetUserId,
+        role: "user",
+        experience: args.experience,
+        isActive: true,
+        isConfirmed: true,
+        classificationsCount: 0,
+        joinedAt: Date.now(),
+        lastActiveAt: Date.now(),
+        sequenceGenerated: false,
+      });
+      const newProfile = await ctx.db.get(profileId);
+      if (newProfile) {
+        await insertUserProfileAggregates(ctx, newProfile);
+        await insertEmptyUserStatsSnapshotIfMissing(ctx, newProfile);
+      }
+      return { success: true };
+    }
+
+    await ctx.db.patch(targetProfile._id, {
+      experience: args.experience,
     });
 
     const updatedProfile = await ctx.db.get(targetProfile._id);

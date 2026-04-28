@@ -4,6 +4,10 @@ export const USER_ROLES = ["user", "analyst", "maintainer", "admin"] as const;
 
 export type UserRole = (typeof USER_ROLES)[number];
 
+export const USER_EXPERIENCE_LEVELS = ["normal", "senior"] as const;
+
+export type UserExperience = (typeof USER_EXPERIENCE_LEVELS)[number];
+
 export const APP_PERMISSION_KEYS = [
   "manageUsers",
   "manageGalaxyAssignments",
@@ -74,6 +78,8 @@ export const userRoleValidator = v.union(
   v.literal("maintainer"),
   v.literal("admin")
 );
+
+export const userExperienceValidator = v.union(v.literal("normal"), v.literal("senior"));
 
 export const permissionRecordValidator = v.object({
   manageUsers: v.boolean(),

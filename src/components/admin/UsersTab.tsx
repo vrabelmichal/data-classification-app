@@ -2,8 +2,16 @@ import { useMutation, useAction, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { cn } from "../../lib/utils";
-import type { ReactNode } from "react";
-import { getRoleLabel, USER_ROLES, type UserRole } from "../../lib/permissions";
+import { useState, type ReactNode } from "react";
+import {
+  getExperienceLabel,
+  getRoleLabel,
+  normalizeUserExperience,
+  USER_EXPERIENCE_LEVELS,
+  USER_ROLES,
+  type UserExperience,
+  type UserRole,
+} from "../../lib/permissions";
 
 interface UsersTabProps {
   users: any[];
@@ -22,11 +30,60 @@ function fmt(value: number, decimals = 1): string {
   return Number.isFinite(value) ? value.toFixed(decimals) : "N/A";
 }
 
+function SmallInfoButton({ label }: { label: string }) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-gray-500 transition hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-200"
+    >
+      <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 8h.01" />
+        <path d="M11 12h1v4h1" />
+      </svg>
+    </button>
+  );
+}
+
+function EmailVisibilityToggle({
+  showEmails,
+  onToggle,
+}: {
+  showEmails: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={showEmails}
+      title={showEmails ? "Hide emails" : "Show emails"}
+      className={cn(
+        "inline-flex w-[9rem] items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm font-medium transition",
+        showEmails
+          ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/60"
+          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+      )}
+    >
+      <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+        <circle cx="12" cy="12" r="3" />
+        {!showEmails ? <path d="M3 3l18 18" /> : null}
+      </svg>
+      <span>{showEmails ? "Emails visible" : "Emails hidden"}</span>
+    </button>
+  );
+}
+
 export function UsersTab({ users }: UsersTabProps) {
+  const [showEmails, setShowEmails] = useState(false);
   const currentUserProfile = useQuery(api.users.getUserProfile);
   const updateUserStatus = useMutation(api.users.updateUserStatus);
   const confirmUser = useMutation(api.users.confirmUser);
   const updateUserRole = useMutation(api.users.updateUserRole);
+  const updateUserExperience = useMutation(api.users.updateUserExperience);
   // const resetUserPassword = useAction(api.users.resetUserPassword);   // Does not work at the moment, we need to modify convex's authVerificationCodes table in a proper way. Not sure if there is an API for that. 
   const deleteUser = useMutation(api.users.deleteUser);
   const createUserProfile = useMutation(api.admin.createUserProfile);
@@ -70,6 +127,19 @@ export function UsersTab({ users }: UsersTabProps) {
     }
   };
 
+  const handleUpdateUserExperience = async (userId: any, newExperience: UserExperience) => {
+    try {
+      await updateUserExperience({
+        targetUserId: userId,
+        experience: newExperience,
+      });
+      toast.success("User experience updated successfully");
+    } catch (error) {
+      toast.error("Failed to update user experience");
+      console.error(error);
+    }
+  };
+
   const handleDeleteUser = async (userId: any) => {
     if (!confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
       return;
@@ -107,15 +177,17 @@ export function UsersTab({ users }: UsersTabProps) {
 
   const handleDownloadUsers = () => {
     // Create CSV content
-    const headers = ["Name", "Email", "Role", "Classifications", "Assigned Galaxies", "Joined At", "Active", "Confirmed"];
+    const headers = ["Name", "Email", "Role", "Experience", "Classifications", "Assigned Galaxies", "Joined At", "Active", "Confirmed"];
     const rows = users.map(userProfile => {
       const hasProfile = !userProfile._id.toString().startsWith('temp_');
       const registered = hasProfile && userProfile.joinedAt ? new Date(userProfile.joinedAt).toISOString() : "N/A";
+      const experience = hasProfile ? getExperienceLabel(userProfile.experience) : "No Profile";
 
       return [
         userProfile.user?.name || "Anonymous",
         userProfile.user?.email || "No email",
         hasProfile ? getRoleLabel(userProfile.role) : "No Profile",
+        experience,
         userProfile.classificationsCount || 0,
         userProfile.assignedGalaxiesCount ?? 0,
         registered,
@@ -156,51 +228,60 @@ export function UsersTab({ users }: UsersTabProps) {
     <>
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
       <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
               User Management
             </h2>
             <p className="text-sm text-gray-600 dark:text-gray-300">
-              Manage user accounts and permissions
+              Manage user accounts, roles, and experience
             </p>
           </div>
-          <button
-            title={"Download CSV of users (Name, Email, Role, Classifications, Active, Confirmed)"}
-            onClick={handleDownloadUsers}
-            className="px-4 py-2 rounded-md text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 transition-colors flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-            </svg>
-            Download CSV
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <EmailVisibilityToggle
+              showEmails={showEmails}
+              onToggle={() => setShowEmails((current) => !current)}
+            />
+            <button
+              title={"Download CSV of users (Name, Email, Role, Experience, Classifications, Active, Confirmed)"}
+              onClick={handleDownloadUsers}
+              className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              Download CSV
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+        <table className="min-w-full table-fixed divide-y divide-gray-200 dark:divide-gray-700">
           <thead className="bg-gray-50 dark:bg-gray-700">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="w-[18%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300">
                 User
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="w-[12%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300">
                 Role
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-                Classifications
+              <th className="w-[11%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300">
+                Experience
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="w-[8%] px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300">
+                Cls.
+              </th>
+              <th className="w-[8%] px-4 py-3 text-center text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300">
                 Assigned
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="w-[10%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300">
                 Joined At
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="w-[16%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300">
                 Status
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
+              <th className="w-[16%] px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-gray-300">
                 Actions
               </th>
             </tr>
@@ -216,42 +297,33 @@ export function UsersTab({ users }: UsersTabProps) {
               
               return (
                 <tr key={userProfile._id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {userProfile.user?.name?.charAt(0) || userProfile.user?.email?.charAt(0) || "?"}
-                          </span>
-                        </div>
+                  <td className="overflow-hidden px-4 py-3 align-top">
+                    <div className="min-w-0 max-w-full overflow-hidden space-y-0.5">
+                      <div className="block w-full truncate text-sm font-medium text-gray-900 dark:text-white" title={userProfile.user?.name || "Anonymous"}>
+                        {userProfile.user?.name || "Anonymous"}
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900 dark:text-white">
-                          {userProfile.user?.name || "Anonymous"}
-                        </div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {showEmails ? (
+                        <div className="block w-full truncate text-xs text-gray-500 dark:text-gray-400" title={userProfile.user?.email || "No email"}>
                           {userProfile.user?.email || "No email"}
                         </div>
-                      </div>
+                      ) : null}
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 align-top">
                     {!hasProfile ? (
                       <span className="text-sm text-gray-500 dark:text-gray-400">No Profile</span>
                     ) : isCurrentAdminUser ? (
-                      <div>
+                      <div className="flex items-center gap-1.5">
                         <span className="inline-flex items-center rounded-full bg-purple-100 px-2.5 py-1 text-xs font-semibold text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
                           {getRoleLabel(userProfile.role)}
                         </span>
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          Your own admin role cannot be changed here
-                        </p>
+                        <SmallInfoButton label="Your own admin role cannot be changed here" />
                       </div>
                     ) : (
                       <select
                         value={userProfile.role}
                         onChange={(e) => void (async () => { await handleUpdateUserRole(userProfile.userId, e.target.value as UserRole); })()}
-                        className="text-sm border border-gray-300 dark:border-gray-600 rounded-md px-2 py-1 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="w-full max-w-[8.5rem] rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                       >
                         {USER_ROLES.map((role) => (
                           <option key={role} value={role}>
@@ -261,17 +333,38 @@ export function UsersTab({ users }: UsersTabProps) {
                       </select>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                    {userProfile.classificationsCount}
+                  <td className="px-4 py-3 align-top">
+                    {!hasProfile ? (
+                      <span className="text-sm text-gray-500 dark:text-gray-400">No Profile</span>
+                    ) : (
+                      <select
+                        value={normalizeUserExperience(userProfile.experience)}
+                        onChange={(e) => void (async () => { await handleUpdateUserExperience(userProfile.userId, e.target.value as UserExperience); })()}
+                        className="w-full max-w-[8.5rem] rounded-md border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                      >
+                        {USER_EXPERIENCE_LEVELS.map((experience) => (
+                          <option key={experience} value={experience}>
+                            {getExperienceLabel(experience)}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <td className="px-4 py-3 text-center align-top text-sm text-gray-900 dark:text-white">
+                    <span className="inline-flex min-w-[2.25rem] justify-center px-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+                      {userProfile.classificationsCount}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-center align-top text-sm text-gray-900 dark:text-white">
                     {(userProfile.assignedGalaxiesCount ?? 0) > 0 ? (
-                      <span>{userProfile.assignedGalaxiesCount}</span>
+                      <span className="inline-flex min-w-[2.25rem] justify-center px-1 text-sm font-medium text-gray-700 dark:text-gray-200">
+                        {userProfile.assignedGalaxiesCount}
+                      </span>
                     ) : (
                       <span className="text-gray-400 dark:text-gray-500">—</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white align-top">
                     {hasProfile && userProfile.joinedAt ? (
                       <time
                         dateTime={new Date(userProfile.joinedAt).toISOString()}
@@ -285,15 +378,15 @@ export function UsersTab({ users }: UsersTabProps) {
                       <span className="text-sm text-gray-500 dark:text-gray-400">N/A</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-4 py-3 align-top">
                     {!hasProfile ? (
-                      <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
+                      <span className="inline-flex rounded-full bg-gray-100 px-2 py-1 text-xs font-semibold text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
                         No Profile
                       </span>
                     ) : (
-                      <div className="flex flex-col space-y-1">
+                      <div className="flex flex-col gap-1">
                         <span className={cn(
-                          "inline-flex px-2 py-1 text-xs font-semibold rounded-full",
+                          "inline-flex rounded-full px-2 py-1 text-xs font-semibold",
                           userProfile.isActive
                             ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
                             : "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400"
@@ -301,7 +394,7 @@ export function UsersTab({ users }: UsersTabProps) {
                           {userProfile.isActive ? "Active" : "Inactive"}
                         </span>
                         <span className={cn(
-                          "inline-flex px-2 py-1 text-xs font-semibold rounded-full",
+                          "inline-flex rounded-full px-2 py-1 text-xs font-semibold",
                           userProfile.isConfirmed
                             ? "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400"
                             : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
@@ -311,41 +404,43 @@ export function UsersTab({ users }: UsersTabProps) {
                       </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                  <td className="px-4 py-3 align-top text-sm font-medium">
                     {!hasProfile ? (
                       <button
                         onClick={() => void (async () => { await handleCreateProfile(userProfile.userId); })()}
-                        className="px-2 py-1 rounded text-xs font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 transition-colors"
+                        className="w-full rounded bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 xl:w-auto"
                       >
                         Create Profile
                       </button>
                     ) : (
-                      <>
-                        <button
-                          onClick={() => void (async () => { await handleToggleUserStatus(userProfile.userId, userProfile.isActive); })()}
-                          className={cn(
-                            "px-2 py-1 rounded text-xs font-medium transition-colors",
-                            userProfile.isActive
-                              ? "bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
-                              : "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
-                          )}
-                        >
-                          {userProfile.isActive ? "Deactivate" : "Activate"}
-                        </button>
-                        <button
-                          onClick={() => void (async () => { await handleConfirmUser(userProfile.userId, userProfile.isConfirmed || false); })()}
-                          className={cn(
-                            "px-2 py-1 rounded text-xs font-medium transition-colors",
-                            userProfile.isConfirmed
-                              ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"
-                              : "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
-                          )}
-                        >
-                          {userProfile.isConfirmed ? "Unconfirm" : "Confirm"}
-                        </button>
+                      <div className="grid gap-1.5 xl:grid-cols-2 xl:items-start">
+                        <div className="flex flex-col gap-1.5">
+                          <button
+                            onClick={() => void (async () => { await handleToggleUserStatus(userProfile.userId, userProfile.isActive); })()}
+                            className={cn(
+                              "w-full rounded px-2 py-1 text-xs font-medium transition-colors",
+                              userProfile.isActive
+                                ? "bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
+                                : "bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"
+                            )}
+                          >
+                            {userProfile.isActive ? "Deactivate" : "Activate"}
+                          </button>
+                          <button
+                            onClick={() => void (async () => { await handleConfirmUser(userProfile.userId, userProfile.isConfirmed || false); })()}
+                            className={cn(
+                              "w-full rounded px-2 py-1 text-xs font-medium transition-colors",
+                              userProfile.isConfirmed
+                                ? "bg-yellow-100 text-yellow-700 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"
+                                : "bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"
+                            )}
+                          >
+                            {userProfile.isConfirmed ? "Unconfirm" : "Confirm"}
+                          </button>
+                        </div>
                         <button
                           onClick={() => void (async () => { await handleDeleteUser(userProfile.userId); })()}
-                          className="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400 transition-colors"
+                          className="w-full rounded bg-red-100 px-2 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-200 dark:bg-red-900/30 dark:text-red-400"
                         >
                           Delete
                         </button>
@@ -355,7 +450,7 @@ export function UsersTab({ users }: UsersTabProps) {
                         >
                           Reset PW
                         </button> */}
-                      </>
+                      </div>
                     )}
                   </td>
                 </tr>
