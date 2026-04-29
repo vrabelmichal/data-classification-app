@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
+import { Id } from "../../../convex/_generated/dataModel";
 
 interface UpdateUserSequenceProps {
   users: any[];
@@ -9,6 +10,20 @@ interface UpdateUserSequenceProps {
 }
 
 type UpdateMode = "shorten" | "extend";
+type AssignmentProcedure = "balanced" | "classificationBased";
+
+type ClassificationAssignmentDiagnostics = {
+  effectiveBlacklistCount: number;
+  systemBlacklistedCount: number;
+  additionalBlacklistedCount: number;
+  excludedSequenceGalaxyCount: number;
+  excludedSequenceUserCount: number;
+  targetExistingSequenceCount: number;
+  classificationPrioritySelectedCount: number;
+  balancedFallbackSelectedCount: number;
+  balancedFallbackUnderAssignedCount: number;
+  balancedFallbackOverAssignedCount: number;
+};
 
 export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUserSequenceProps) {
   const LOG_STORAGE_KEY = "updateUserSequenceLogs";
@@ -34,13 +49,18 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   const [sendShortenEmail, setSendShortenEmail] = useState(false);
 
   // Extend mode state
+  const [assignmentProcedure, setAssignmentProcedure] = useState<AssignmentProcedure>("balanced");
   const [additionalSize, setAdditionalSize] = useState(50);
   const [sendExtendEmail, setSendExtendEmail] = useState(false);
   const [expectedUsers, setExpectedUsers] = useState(10);
   const [minAssignmentsPerEntry, setMinAssignmentsPerEntry] = useState(3);
   const [maxAssignmentsPerUserPerEntry, setMaxAssignmentsPerUserPerEntry] = useState(1);
   const [allowOverAssign, setAllowOverAssign] = useState(false);
+  const [targetClassificationCount, setTargetClassificationCount] = useState(3);
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
+  const [additionalBlacklistIds, setAdditionalBlacklistIds] = useState<string[]>([]);
+  const [additionalBlacklistFileName, setAdditionalBlacklistFileName] = useState("");
+  const [excludedSequenceUserIds, setExcludedSequenceUserIds] = useState<Set<string>>(new Set());
 
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [userHasScrolled, setUserHasScrolled] = useState(false);
@@ -61,6 +81,9 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   // Mutations
   const shortenUserSequence = useMutation(api.updateUserSequence.shortenUserSequence);
   const extendUserSequence = useMutation(api.updateUserSequence.extendUserSequence);
+  const extendSequenceByClassificationTarget = useAction(
+    api.classificationBasedAssignment.extendSequenceByClassificationTarget
+  );
   const updateExtendedSequenceStats = useMutation(api.updateUserSequence.updateExtendedSequenceStats);
 
   // Actions (email notifications)
@@ -147,6 +170,21 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
     }
   }, [selectedUserId, sequenceInfo]);
 
+  useEffect(() => {
+    if (!selectedUserId) {
+      return;
+    }
+
+    setExcludedSequenceUserIds((prev) => {
+      if (!prev.has(selectedUserId)) {
+        return prev;
+      }
+      const next = new Set(prev);
+      next.delete(selectedUserId);
+      return next;
+    });
+  }, [selectedUserId]);
+
   const handleClearLogs = () => {
     setLogs([]);
     setUserHasScrolled(false);
@@ -175,6 +213,84 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
   const handleDeselectAllPapers = () => {
     setSelectedPapers(new Set());
+  };
+
+  const formatPaperFilter = (papers: string[] | undefined): string => {
+    if (!papers) return "all";
+    return papers.map((paper) => (paper === "" ? "(empty)" : paper)).join(", ");
+  };
+
+  const appendClassificationDiagnosticsLogs = (
+    userDisplayName: string,
+    userIdShort: string,
+    diagnostics: ClassificationAssignmentDiagnostics | undefined
+  ) => {
+    if (!diagnostics) {
+      return;
+    }
+
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] Exclusions resolved: currentSequence=${diagnostics.targetExistingSequenceCount}, effectiveBlacklist=${diagnostics.effectiveBlacklistCount} (system=${diagnostics.systemBlacklistedCount}, extra=${diagnostics.additionalBlacklistedCount}, excludedSequenceGalaxies=${diagnostics.excludedSequenceGalaxyCount} from ${diagnostics.excludedSequenceUserCount} selected sequence users)`
+    );
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] Selection details: classificationPriority=${diagnostics.classificationPrioritySelectedCount}, fallbackUnderK=${diagnostics.balancedFallbackUnderAssignedCount}, overAssignFallback=${diagnostics.balancedFallbackOverAssignedCount}`
+    );
+  };
+
+  const handleExcludedSequenceToggle = (userId: string) => {
+    setExcludedSequenceUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllExcludedSequences = () => {
+    const allIds = (usersWithSequences ?? [])
+      .map((user) => user.userId)
+      .filter((userId) => userId !== selectedUserId);
+    setExcludedSequenceUserIds(new Set(allIds));
+  };
+
+  const handleDeselectAllExcludedSequences = () => {
+    setExcludedSequenceUserIds(new Set());
+  };
+
+  const handleAdditionalBlacklistFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      const parsedIds = Array.from(
+        new Set(
+          content
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+        )
+      );
+
+      setAdditionalBlacklistIds(parsedIds);
+      setAdditionalBlacklistFileName(file.name);
+      appendLog("info", `Loaded ${parsedIds.length} additional blacklisted galaxy IDs from ${file.name}`);
+    } catch (error) {
+      const message = (error as Error)?.message || "Unknown error";
+      appendLog("error", `Failed to read blacklist file: ${message}`);
+    }
+  };
+
+  const handleClearAdditionalBlacklist = () => {
+    setAdditionalBlacklistIds([]);
+    setAdditionalBlacklistFileName("");
   };
 
   const handleShortenSequence = async () => {
@@ -334,122 +450,199 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
       const previousSize = currentSequenceInfo.totalGalaxies;
 
-      appendLog(
-        "info",
-        `[${userDisplayName} (${userIdShort})] Starting sequence extension: adding up to ${additionalSize} galaxies, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}`
-      );
-
-      // Phase 1: Extend the sequence (select and add galaxies)
-      const result = await extendUserSequence({
-        targetUserId: selectedUserId as any,
-        additionalSize,
-        expectedUsers,
-        minAssignmentsPerEntry,
-        maxAssignmentsPerUserPerEntry,
-        allowOverAssign,
-        paperFilter,
-      });
-
-      result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
-
-      if (!result.success) {
-        (result.errors || []).forEach((error: string) => appendLog("error", `[${userDisplayName} (${userIdShort})] ${error}`));
+      if (assignmentProcedure === "classificationBased") {
         appendLog(
-          "error",
-          `[${userDisplayName} (${userIdShort})] Failed to extend sequence: generated ${result.generated} of ${result.requested}`
+          "info",
+          `[${userDisplayName} (${userIdShort})] Starting classification-based sequence extension: adding up to ${additionalSize} galaxies, currentSequenceSize=${previousSize}, N=${expectedUsers}, C=${targetClassificationCount}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, paperFilter=[${formatPaperFilter(paperFilter)}], extraBlacklist=${additionalBlacklistIds.length}, excludedSequenceUsers=${excludedSequenceUserIds.size}`
         );
-        return;
-      }
 
-      appendLog(
-        "success",
-        `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize})`
-      );
+        if (allowOverAssign) {
+          appendLog(
+            "info",
+            `[${userDisplayName} (${userIdShort})] Over-assign fallback is enabled and may use galaxies with totalAssigned >= K if lower-assignment fallback candidates are exhausted.`
+          );
+        }
 
-      // Phase 2: Update stats in batches
-      if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
-        const totalBatches = result.statsBatchesNeeded;
-        const batchSize = result.statsBatchSize || 500;
-
-        setProgress({
-          currentBatch: 1,
-          totalBatches,
-          processedItems: 0,
-          totalItems: result.generated,
-          message: "Starting stats updates...",
-          userDisplayName,
-          userIdShort,
+        const result = await extendSequenceByClassificationTarget({
+          targetUserId: selectedUserId as Id<"users">,
+          additionalSize,
+          expectedUsers,
+          targetClassificationCount,
+          minAssignmentsPerEntry,
+          maxAssignmentsPerUserPerEntry,
+          allowOverAssign,
+          paperFilter,
+          additionalBlacklistedIds: additionalBlacklistIds,
+          excludedSequenceUserIds: Array.from(excludedSequenceUserIds) as Id<"users">[],
         });
 
-        for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-          const statsResult = await updateExtendedSequenceStats({
-            targetUserId: selectedUserId as any,
-            startIndex: previousSize, // Start from where new galaxies begin
-            batchIndex,
-            batchSize,
-            perUserCapM: maxAssignmentsPerUserPerEntry,
-          });
+        appendClassificationDiagnosticsLogs(
+          userDisplayName,
+          userIdShort,
+          result.diagnostics as ClassificationAssignmentDiagnostics | undefined
+        );
 
-          if (!statsResult.success) {
-            throw new Error(`Failed to update stats batch ${batchIndex + 1}`);
+        result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+
+        if (!result.success) {
+          (result.errors || []).forEach((error: string) => appendLog("error", `[${userDisplayName} (${userIdShort})] ${error}`));
+          appendLog(
+            "error",
+            `[${userDisplayName} (${userIdShort})] Failed to extend sequence: generated ${result.generated} of ${result.requested}`
+          );
+          return;
+        }
+
+        appendLog(
+          "success",
+          `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize}) using the classification-based procedure`
+        );
+
+        if (sendExtendEmail && result.newSequenceSize) {
+          try {
+            appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
+            const emailResult = await sendSequenceExtendedEmail({
+              targetUserId: selectedUserId as any,
+              previousSize,
+              newSize: result.newSequenceSize,
+              galaxiesAdded: result.generated,
+              procedureType: "classificationBased",
+            });
+
+            if (!emailResult.success) {
+              appendLog(
+                "warning",
+                emailResult.details
+                  ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+                  : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
+              );
+            } else {
+              appendLog(
+                "success",
+                `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+              );
+            }
+          } catch (emailError) {
+            const message = (emailError as Error)?.message || "Unknown error";
+            appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
           }
+        }
+      } else {
+        appendLog(
+          "info",
+          `[${userDisplayName} (${userIdShort})] Starting sequence extension: adding up to ${additionalSize} galaxies, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}`
+        );
+
+        const result = await extendUserSequence({
+          targetUserId: selectedUserId as any,
+          additionalSize,
+          expectedUsers,
+          minAssignmentsPerEntry,
+          maxAssignmentsPerUserPerEntry,
+          allowOverAssign,
+          paperFilter,
+        });
+
+        result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+
+        if (!result.success) {
+          (result.errors || []).forEach((error: string) => appendLog("error", `[${userDisplayName} (${userIdShort})] ${error}`));
+          appendLog(
+            "error",
+            `[${userDisplayName} (${userIdShort})] Failed to extend sequence: generated ${result.generated} of ${result.requested}`
+          );
+          return;
+        }
+
+        appendLog(
+          "success",
+          `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize})`
+        );
+
+        if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
+          const totalBatches = result.statsBatchesNeeded;
+          const batchSize = result.statsBatchSize || 500;
 
           setProgress({
-            currentBatch: batchIndex + 1,
+            currentBatch: 1,
             totalBatches,
-            processedItems: statsResult.totalProcessed,
+            processedItems: 0,
             totalItems: result.generated,
-            message: statsResult.isComplete
-              ? "Completed stats updates"
-              : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`,
+            message: "Starting stats updates...",
             userDisplayName,
             userIdShort,
           });
 
-          appendLog(
-            "info",
-            statsResult.isComplete
-              ? `[${userDisplayName} (${userIdShort})] Completed stats updates`
-              : `[${userDisplayName} (${userIdShort})] Updated stats for batch ${batchIndex + 1}/${totalBatches}`
-          );
+          for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+            const statsResult = await updateExtendedSequenceStats({
+              targetUserId: selectedUserId as any,
+              startIndex: previousSize,
+              batchIndex,
+              batchSize,
+              perUserCapM: maxAssignmentsPerUserPerEntry,
+            });
 
-          if (statsResult.isComplete) {
-            break;
+            if (!statsResult.success) {
+              throw new Error(`Failed to update stats batch ${batchIndex + 1}`);
+            }
+
+            setProgress({
+              currentBatch: batchIndex + 1,
+              totalBatches,
+              processedItems: statsResult.totalProcessed,
+              totalItems: result.generated,
+              message: statsResult.isComplete
+                ? "Completed stats updates"
+                : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`,
+              userDisplayName,
+              userIdShort,
+            });
+
+            appendLog(
+              "info",
+              statsResult.isComplete
+                ? `[${userDisplayName} (${userIdShort})] Completed stats updates`
+                : `[${userDisplayName} (${userIdShort})] Updated stats for batch ${batchIndex + 1}/${totalBatches}`
+            );
+
+            if (statsResult.isComplete) {
+              break;
+            }
           }
+
+          appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension and stats updates completed!`);
+        } else {
+          appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension completed (no stats updates needed)`);
         }
 
-        appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension and stats updates completed!`);
-      } else {
-        appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension completed (no stats updates needed)`);
-      }
+        if (sendExtendEmail && result.newSequenceSize) {
+          try {
+            appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
+            const emailResult = await sendSequenceExtendedEmail({
+              targetUserId: selectedUserId as any,
+              previousSize,
+              newSize: result.newSequenceSize,
+              galaxiesAdded: result.generated,
+              procedureType: "balanced",
+            });
 
-      // Send email notification if enabled
-      if (sendExtendEmail && result.newSequenceSize) {
-        try {
-          appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
-          const emailResult = await sendSequenceExtendedEmail({
-            targetUserId: selectedUserId as any,
-            previousSize,
-            newSize: result.newSequenceSize,
-            galaxiesAdded: result.generated,
-          });
-
-          if (!emailResult.success) {
-            appendLog(
-              "warning",
-              emailResult.details
-                ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
-                : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
-            );
-          } else {
-            appendLog(
-              "success",
-              `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
-            );
+            if (!emailResult.success) {
+              appendLog(
+                "warning",
+                emailResult.details
+                  ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+                  : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
+              );
+            } else {
+              appendLog(
+                "success",
+                `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+              );
+            }
+          } catch (emailError) {
+            const message = (emailError as Error)?.message || "Unknown error";
+            appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
           }
-        } catch (emailError) {
-          const message = (emailError as Error)?.message || "Unknown error";
-          appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
         }
       }
 
@@ -482,7 +675,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Modify an existing user's galaxy sequence by shortening it (remove galaxies from the end)
-          or extending it (add more galaxies using balanced selection).
+          or extending it with either the regular balanced assignment procedure or the classification-based alternative.
         </p>
 
         <div className="space-y-4">
@@ -665,11 +858,54 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                 Extend Sequence
               </h3>
               <p className="text-xs text-green-700 dark:text-green-300 mb-4">
-                Add more galaxies to the sequence using balanced selection. The same selection
-                algorithm as "Generate Balanced Sequence" is used.
+                Add more galaxies to the sequence using the regular balanced assignment procedure
+                or switch to the classification-based procedure, which prioritizes galaxies by
+                current classification count before falling back to the balanced rules.
               </p>
 
               <div className="space-y-4">
+                <div className="rounded-lg border border-green-200 dark:border-green-700 bg-white dark:bg-gray-800 p-4">
+                  <label className="block text-sm font-medium text-green-900 dark:text-green-100 mb-3">
+                    Assignment Procedure
+                  </label>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <label className="flex items-start gap-3 rounded-md border border-green-200 dark:border-green-700 p-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="extendAssignmentProcedure"
+                        value="balanced"
+                        checked={assignmentProcedure === "balanced"}
+                        onChange={() => setAssignmentProcedure("balanced")}
+                        disabled={isProcessing}
+                        className="mt-1 h-4 w-4"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-green-900 dark:text-green-100">Regular balanced assignment</span>
+                        <span className="block text-xs text-green-700 dark:text-green-300 mt-1">
+                          Prioritizes galaxies with lower total assignment counts.
+                        </span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-3 rounded-md border border-green-200 dark:border-green-700 p-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="extendAssignmentProcedure"
+                        value="classificationBased"
+                        checked={assignmentProcedure === "classificationBased"}
+                        onChange={() => setAssignmentProcedure("classificationBased")}
+                        disabled={isProcessing}
+                        className="mt-1 h-4 w-4"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-green-900 dark:text-green-100">Classification-based assignment</span>
+                        <span className="block text-xs text-green-700 dark:text-green-300 mt-1">
+                          Prioritizes galaxies below a target classification count, breaks ties by fewer senior-classifier classifications, then falls back to the balanced rules.
+                        </span>
+                      </span>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-green-900 dark:text-green-100 mb-2">
@@ -759,6 +995,119 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                   </label>
                 </div>
 
+                {assignmentProcedure === "classificationBased" && (
+                  <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-4">
+                    <div>
+                      <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                        Classification-Based Priority And Exclusions
+                      </h4>
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                        The balanced settings in this form stay active as fallback rules and per-user limits. The fields below add the classification-count priority and run-scoped exclusions.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
+                        Target Classification Count
+                        <span className="block text-xs text-amber-600 dark:text-amber-400 mt-1">
+                          Galaxies with fewer than this many classifications are prioritized first.
+                        </span>
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={targetClassificationCount}
+                        onChange={(e) => setTargetClassificationCount(Math.max(1, Number(e.target.value) || 1))}
+                        className="w-full md:w-48 border border-amber-300 dark:border-amber-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        disabled={isProcessing}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
+                        Additional Blacklist File
+                        <span className="block text-xs text-amber-600 dark:text-amber-400 mt-1">
+                          Upload a plain-text file with one galaxy ID per line to exclude those galaxies for this extension only.
+                        </span>
+                      </label>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <input
+                          type="file"
+                          accept=".txt,text/plain"
+                          onChange={(event) => void handleAdditionalBlacklistFileChange(event)}
+                          disabled={isProcessing}
+                          className="block text-sm text-amber-900 dark:text-amber-100"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleClearAdditionalBlacklist}
+                          disabled={isProcessing || additionalBlacklistIds.length === 0}
+                          className="text-xs px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50 text-amber-900 dark:text-amber-100"
+                        >
+                          Clear Uploaded Blacklist
+                        </button>
+                      </div>
+                      <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                        {additionalBlacklistIds.length > 0
+                          ? `${additionalBlacklistIds.length} extra galaxy IDs loaded${additionalBlacklistFileName ? ` from ${additionalBlacklistFileName}` : ""}.`
+                          : "No extra blacklist file loaded."}
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
+                        Exclude Galaxies From Existing User Sequences
+                        <span className="block text-xs text-amber-600 dark:text-amber-400 mt-1">
+                          Any galaxy already present in the selected users&apos; current sequences will be excluded from the extension candidates.
+                        </span>
+                      </label>
+                      <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 mb-2">
+                        <button
+                          type="button"
+                          onClick={handleSelectAllExcludedSequences}
+                          disabled={isProcessing || (usersWithSequences?.length ?? 0) <= 1}
+                          className="px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDeselectAllExcludedSequences}
+                          disabled={isProcessing || excludedSequenceUserIds.size === 0}
+                          className="px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50"
+                        >
+                          Deselect All
+                        </button>
+                        <span className="ml-1">{excludedSequenceUserIds.size} selected</span>
+                      </div>
+                      <div className="max-h-40 overflow-y-auto border border-amber-200 dark:border-amber-700 rounded-md p-3 bg-white dark:bg-gray-800 space-y-2">
+                        {(usersWithSequences?.filter((user) => user.userId !== selectedUserId).length ?? 0) === 0 ? (
+                          <p className="text-sm text-amber-700 dark:text-amber-300">
+                            No other user sequences are available to exclude.
+                          </p>
+                        ) : (
+                          usersWithSequences
+                            ?.filter((user) => user.userId !== selectedUserId)
+                            .map((user) => (
+                              <label key={user.userId} className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100">
+                                <input
+                                  type="checkbox"
+                                  checked={excludedSequenceUserIds.has(user.userId)}
+                                  onChange={() => handleExcludedSequenceToggle(user.userId)}
+                                  disabled={isProcessing}
+                                  className="h-4 w-4"
+                                />
+                                <span className="truncate" title={user.user?.name || user.user?.email || "Anonymous"}>
+                                  {user.user?.name || user.user?.email || "Anonymous"} ({user.sequenceInfo.galaxyCount} galaxies)
+                                </span>
+                              </label>
+                            ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Paper Filter */}
                 <div>
                   <label className="block text-sm font-medium text-green-900 dark:text-green-100 mb-2">
@@ -845,8 +1194,32 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                   {isProcessing && updateMode === "extend" && (
                     <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   )}
-                  {isProcessing && updateMode === "extend" ? "Extending..." : "Extend Sequence"}
+                  {isProcessing && updateMode === "extend"
+                    ? "Extending..."
+                    : assignmentProcedure === "classificationBased"
+                      ? "Extend Sequence (Classification-Based)"
+                      : "Extend Sequence"}
                 </button>
+              </div>
+            </div>
+          )}
+
+          {isProcessing && updateMode === "extend" && assignmentProcedure === "classificationBased" && (
+            <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-block h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                  Classification-Based Run In Progress
+                </span>
+              </div>
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                This workflow runs server-side as one request, so exact percentage progress is not available yet.
+              </p>
+              <div className="mt-2 space-y-1 text-xs text-amber-700 dark:text-amber-300">
+                <p>1. Resolve blacklists and sequence-based exclusions</p>
+                <p>2. Select galaxies with totalClassifications below the target and rank them</p>
+                <p>3. Fall back to assignment-count selection if needed</p>
+                <p>4. Persist the sequence and update assignment counters</p>
               </div>
             </div>
           )}

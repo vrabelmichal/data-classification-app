@@ -222,6 +222,7 @@ const applicationTables = {
     .index("by_totalAssigned_numericId", ["totalAssigned", "numericId"])
 
     // Indexes for aggregate fields
+    .index("by_totalClassifications_numericId", ["totalClassifications", "numericId"])
     .index("by_totalClassifications", ["totalClassifications"])
     .index("by_numVisibleNucleus", ["numVisibleNucleus"])
     .index("by_numAwesomeFlag", ["numAwesomeFlag"])

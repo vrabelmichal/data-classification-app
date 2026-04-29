@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
@@ -9,18 +9,39 @@ interface GenerateBalancedUserSequenceProps {
   systemSettings: any;
 }
 
+type AssignmentProcedure = "balanced" | "classificationBased";
+
+type ClassificationAssignmentDiagnostics = {
+  effectiveBlacklistCount: number;
+  systemBlacklistedCount: number;
+  additionalBlacklistedCount: number;
+  excludedSequenceGalaxyCount: number;
+  excludedSequenceUserCount: number;
+  targetExistingSequenceCount: number;
+  classificationPrioritySelectedCount: number;
+  balancedFallbackSelectedCount: number;
+  balancedFallbackUnderAssignedCount: number;
+  balancedFallbackOverAssignedCount: number;
+};
+
 export function GenerateBalancedUserSequence({ users: _users, systemSettings }: GenerateBalancedUserSequenceProps) {
   const LOG_STORAGE_KEY = "generateBalancedUserSequenceLogs";
 
+  const [assignmentProcedure, setAssignmentProcedure] = useState<AssignmentProcedure>("balanced");
   const [sequenceSize, setSequenceSize] = useState(50);
   const [expectedUsers, setExpectedUsers] = useState(10);
   const [minAssignmentsPerEntry, setMinAssignmentsPerEntry] = useState(3);
   const [maxAssignmentsPerUserPerEntry, setMaxAssignmentsPerUserPerEntry] = useState(1);
   const [allowOverAssign, setAllowOverAssign] = useState(false);
+  const [targetClassificationCount, setTargetClassificationCount] = useState(3);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [batchMode, setBatchMode] = useState(false);
   const [selectedBatchUserIds, setSelectedBatchUserIds] = useState<Set<string>>(new Set());
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
+  const [additionalBlacklistIds, setAdditionalBlacklistIds] = useState<string[]>([]);
+  const [additionalBlacklistFileName, setAdditionalBlacklistFileName] = useState("");
+  const [excludedSequenceUserIds, setExcludedSequenceUserIds] = useState<Set<string>>(new Set());
+  const [excludePreviouslyAssignedInBatch, setExcludePreviouslyAssignedInBatch] = useState(true);
   const [generatingSequence, setGeneratingSequence] = useState(false);
   const [sendEmailNotification, setSendEmailNotification] = useState(false);
   const [logs, setLogs] = useState<
@@ -41,6 +62,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
   const [userHasScrolled, setUserHasScrolled] = useState(false);
 
   const usersWithoutSequences = useQuery(api.galaxies.sequence.getUsersWithoutSequences);
+  const usersWithSequences = useQuery(api.galaxies.sequence.getUsersWithSequences);
   const resolvedUsers = usersWithoutSequences ?? [];
   
   // Get available papers from system settings
@@ -116,6 +138,9 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
   };
 
   const generateBalancedUserSequence = useAction(api.generateBalancedUserSequence.generateBalancedUserSequence);
+  const generateClassificationBasedUserSequence = useAction(
+    api.classificationBasedAssignment.generateClassificationBasedUserSequence
+  );
   const updateGalaxyAssignmentStats = useMutation(api.generateBalancedUserSequence.updateGalaxyAssignmentStats);
   const sendSequenceGeneratedEmail = useAction(api.generateBalancedUserSequence.sendSequenceGeneratedEmail);
   const cancelSequenceGeneration = useMutation(api.generateBalancedUserSequence.cancelSequenceGeneration);
@@ -127,7 +152,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
   // Query job status for the active user
   const jobStatus = useQuery(
     api.generateBalancedUserSequence.getSequenceGenerationJob,
-    activeGenerationUserId ? { targetUserId: activeGenerationUserId } : "skip"
+    assignmentProcedure === "balanced" && activeGenerationUserId ? { targetUserId: activeGenerationUserId } : "skip"
   );
 
   const handlePaperToggle = (paper: string) => {
@@ -163,6 +188,27 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     setSelectedBatchUserIds(new Set());
   };
 
+  const handleExcludedSequenceToggle = (userId: string) => {
+    setExcludedSequenceUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
+  const handleSelectAllExcludedSequences = () => {
+    const allIds = (usersWithSequences ?? []).map((user: { userId: string }) => user.userId);
+    setExcludedSequenceUserIds(new Set(allIds));
+  };
+
+  const handleDeselectAllExcludedSequences = () => {
+    setExcludedSequenceUserIds(new Set());
+  };
+
   const handleSelectAllPapers = () => {
     setSelectedPapers(new Set(availablePapers));
   };
@@ -171,12 +217,67 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     setSelectedPapers(new Set());
   };
 
+  const handleAdditionalBlacklistFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      const parsedIds = Array.from(
+        new Set(
+          content
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.length > 0)
+        )
+      );
+
+      setAdditionalBlacklistIds(parsedIds);
+      setAdditionalBlacklistFileName(file.name);
+      appendLog("info", `Loaded ${parsedIds.length} additional blacklisted galaxy IDs from ${file.name}`);
+    } catch (error) {
+      const message = (error as Error)?.message || "Unknown error";
+      appendLog("error", `Failed to read blacklist file: ${message}`);
+    }
+  };
+
+  const handleClearAdditionalBlacklist = () => {
+    setAdditionalBlacklistIds([]);
+    setAdditionalBlacklistFileName("");
+  };
+
   const formatPaperFilter = (papers: string[] | undefined): string => {
     if (!papers) return "all";
     return papers.map((p) => (p === "" ? "(empty)" : p)).join(", ");
   };
 
-  const runSequenceForUser = async (targetUserId: string, effectiveSequenceSize: number, paperFilter?: string[]) => {
+  const appendClassificationDiagnosticsLogs = (
+    userDisplayName: string,
+    userIdShort: string,
+    diagnostics: ClassificationAssignmentDiagnostics | undefined
+  ) => {
+    if (!diagnostics) {
+      return;
+    }
+
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] Exclusions resolved: effectiveBlacklist=${diagnostics.effectiveBlacklistCount} (system=${diagnostics.systemBlacklistedCount}, extra=${diagnostics.additionalBlacklistedCount}, excludedSequenceGalaxies=${diagnostics.excludedSequenceGalaxyCount} from ${diagnostics.excludedSequenceUserCount} selected sequence users)`
+    );
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] Selection details: classificationPriority=${diagnostics.classificationPrioritySelectedCount}, fallbackUnderK=${diagnostics.balancedFallbackUnderAssignedCount}, overAssignFallback=${diagnostics.balancedFallbackOverAssignedCount}`
+    );
+  };
+
+  const runSequenceForUser = async (
+    targetUserId: string,
+    effectiveSequenceSize: number,
+    paperFilter?: string[],
+    carryForwardBlacklistIds: string[] = []
+  ): Promise<string[]> => {
     // Find user info for logging
     const userInfo = resolvedUsers.find((u: { userId: string }) => u.userId === targetUserId);
     const userEmail = userInfo?.user?.email || '';
@@ -184,13 +285,93 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     const truncateString = (str: string, maxLen: number) => str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
     const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : 'Unknown');
     const userIdShort = targetUserId.substring(0, 8);
-    
-    // Set active user for job status polling
+    if (assignmentProcedure === "classificationBased") {
+      setActiveGenerationUserId(null);
+
+      appendLog(
+        "info",
+        `[${userDisplayName} (${userIdShort})] Starting classification-based sequence generation (S=${effectiveSequenceSize}, N=${expectedUsers}, C=${targetClassificationCount}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, paperFilter=[${formatPaperFilter(paperFilter)}], extraBlacklist=${additionalBlacklistIds.length}, excludedSequenceUsers=${excludedSequenceUserIds.size}, batchCarryForwardBlacklist=${carryForwardBlacklistIds.length})`
+      );
+
+      if (allowOverAssign) {
+        appendLog(
+          "info",
+          `[${userDisplayName} (${userIdShort})] Over-assign fallback is enabled and may use galaxies with totalAssigned >= K if lower-assignment fallback candidates are exhausted.`
+        );
+      }
+
+      const result = await generateClassificationBasedUserSequence({
+        targetUserId: targetUserId as Id<"users">,
+        expectedUsers,
+        targetClassificationCount,
+        minAssignmentsPerEntry,
+        maxAssignmentsPerUserPerEntry,
+        sequenceSize: effectiveSequenceSize,
+        allowOverAssign,
+        paperFilter,
+        additionalBlacklistedIds: Array.from(new Set([...additionalBlacklistIds, ...carryForwardBlacklistIds])),
+        excludedSequenceUserIds: Array.from(excludedSequenceUserIds) as Id<"users">[],
+      });
+
+      appendClassificationDiagnosticsLogs(
+        userDisplayName,
+        userIdShort,
+        result.diagnostics as ClassificationAssignmentDiagnostics | undefined
+      );
+
+      if (!result.success) {
+        result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+        (result.errors || []).forEach((error: string) => appendLog("error", `[${userDisplayName} (${userIdShort})] ${error}`));
+        appendLog(
+          "error",
+          `[${userDisplayName} (${userIdShort})] Failed: ${result.generated}/${result.requested} galaxies`
+        );
+        return [];
+      }
+
+      result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+      appendLog(
+        "success",
+        `[${userDisplayName} (${userIdShort})] Generated ${result.generated}/${result.requested} galaxies using the classification-based procedure`
+      );
+
+      if (sendEmailNotification) {
+        try {
+          appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
+          const emailResult = await sendSequenceGeneratedEmail({
+            targetUserId: targetUserId as any,
+            generated: result.generated,
+            requested: result.requested,
+            procedureType: "classificationBased",
+          });
+
+          if (!emailResult.success) {
+            appendLog(
+              "warning",
+              emailResult.details
+                ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+                : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
+            );
+          } else {
+            appendLog(
+              "success",
+              `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+            );
+          }
+        } catch (emailError) {
+          const message = (emailError as Error)?.message || "Unknown error";
+          appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
+        }
+      }
+
+      return result.selectedGalaxyIds ?? [];
+    }
+
     setActiveGenerationUserId(targetUserId as Id<"users">);
 
     appendLog(
       "info",
-      `[${userDisplayName} (${userIdShort})] Starting sequence generation (S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry})`
+        `[${userDisplayName} (${userIdShort})] Starting sequence generation (S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign})`
     );
 
     const result = await generateBalancedUserSequence({
@@ -203,10 +384,9 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
       paperFilter,
     });
 
-    // Check if cancelled
     if (result.cancelled) {
       appendLog("warning", `[${userDisplayName} (${userIdShort})] Operation cancelled`);
-      return;
+      return [];
     }
 
     if (!result.success) {
@@ -216,7 +396,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
         "error",
         `[${userDisplayName} (${userIdShort})] Failed: ${result.generated}/${result.requested} galaxies`
       );
-      return;
+      return [];
     }
 
     result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
@@ -288,6 +468,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
           targetUserId: targetUserId as any,
           generated: result.generated,
           requested: result.requested,
+          procedureType: "balanced",
         });
 
         if (!emailResult.success) {
@@ -308,6 +489,8 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
         appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
       }
     }
+
+    return [];
   };
 
   const handleGenerateSequence = async () => {
@@ -340,13 +523,38 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
       setGeneratingSequence(true);
       setStatsProgress(null);
 
+      const carryForwardAssignedIds = new Set<string>();
+
       if (batchMode && selectedUsers.length > 1) {
         appendLog("info", `Batch mode: running for ${selectedUsers.length} users sequentially`);
+        if (assignmentProcedure === "classificationBased" && excludePreviouslyAssignedInBatch) {
+          appendLog("info", "Batch carry-forward blacklist is enabled for classification-based assignment.");
+        }
       }
 
       for (const target of selectedUsers) {
         try {
-          await runSequenceForUser(target, effectiveSequenceSize, paperFilter);
+          const carryForwardBlacklistIds =
+            assignmentProcedure === "classificationBased" && batchMode && excludePreviouslyAssignedInBatch
+              ? Array.from(carryForwardAssignedIds)
+              : [];
+
+          const newlyAssignedGalaxyIds = await runSequenceForUser(
+            target,
+            effectiveSequenceSize,
+            paperFilter,
+            carryForwardBlacklistIds
+          );
+
+          if (assignmentProcedure === "classificationBased" && batchMode && excludePreviouslyAssignedInBatch) {
+            newlyAssignedGalaxyIds.forEach((galaxyId) => carryForwardAssignedIds.add(galaxyId));
+            if (newlyAssignedGalaxyIds.length > 0) {
+              appendLog(
+                "info",
+                `Batch carry-forward blacklist now contains ${carryForwardAssignedIds.size} galaxies from earlier assignments`
+              );
+            }
+          }
         } catch (error) {
           const message = (error as Error)?.message || "Unknown error";
           const userInfo = resolvedUsers.find((u: { userId: string }) => u.userId === target);
@@ -409,14 +617,56 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     <div className="space-y-6">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          Generate Balanced User Sequence
+          Generate User Sequence
         </h2>
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Creates a balanced sequence of galaxies for classification, prioritizing galaxies that need more classifications while respecting user assignment limits.
+          Create a user sequence with the regular balanced assignment procedure or switch to the classification-based procedure, which prioritizes galaxies by their current classification counts before falling back to the balanced rules.
         </p>
 
         <div className="space-y-4">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900">
+            <label className="block text-sm font-medium text-gray-900 dark:text-white mb-3">
+              Assignment Procedure
+            </label>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="flex items-start gap-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="assignmentProcedure"
+                  value="balanced"
+                  checked={assignmentProcedure === "balanced"}
+                  onChange={() => setAssignmentProcedure("balanced")}
+                  disabled={generatingSequence}
+                  className="mt-1 h-4 w-4"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-900 dark:text-white">Regular balanced assignment</span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Prioritizes galaxies with lower total assignment counts.
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="assignmentProcedure"
+                  value="classificationBased"
+                  checked={assignmentProcedure === "classificationBased"}
+                  onChange={() => setAssignmentProcedure("classificationBased")}
+                  disabled={generatingSequence}
+                  className="mt-1 h-4 w-4"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-900 dark:text-white">Classification-based assignment</span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Prioritizes galaxies below a target classification count, breaks ties by fewer senior-classifier classifications, then falls back to the regular balanced rules.
+                  </span>
+                </span>
+              </label>
+            </div>
+          </div>
+
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">Mode</p>
@@ -502,6 +752,135 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
               </select>
             )}
           </div>
+
+          {assignmentProcedure === "classificationBased" && (
+            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                  Classification-Based Priority And Exclusions
+                </h3>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                  This procedure first fills the sequence with galaxies below the target number of classifications. If that pool runs out, the regular K/M/over-assign settings below are still used as the fallback procedure.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
+                  Target Classification Count
+                  <span className="block text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Galaxies with fewer than this many classifications are prioritized first.
+                  </span>
+                </label>
+                <input
+                  type="number"
+                  min="1"
+                  value={targetClassificationCount}
+                  onChange={(e) => setTargetClassificationCount(Math.max(1, Number(e.target.value) || 1))}
+                  className="w-full md:w-48 border border-amber-300 dark:border-amber-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={generatingSequence}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
+                  Additional Blacklist File
+                  <span className="block text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Upload a plain-text file with one galaxy ID per line to exclude those galaxies for this run only.
+                  </span>
+                </label>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    type="file"
+                    accept=".txt,text/plain"
+                    onChange={(event) => void handleAdditionalBlacklistFileChange(event)}
+                    disabled={generatingSequence}
+                    className="block text-sm text-amber-900 dark:text-amber-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleClearAdditionalBlacklist}
+                    disabled={generatingSequence || additionalBlacklistIds.length === 0}
+                    className="text-xs px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50 text-amber-900 dark:text-amber-100"
+                  >
+                    Clear Uploaded Blacklist
+                  </button>
+                </div>
+                <p className="text-xs text-amber-700 dark:text-amber-300 mt-2">
+                  {additionalBlacklistIds.length > 0
+                    ? `${additionalBlacklistIds.length} extra galaxy IDs loaded${additionalBlacklistFileName ? ` from ${additionalBlacklistFileName}` : ""}.`
+                    : "No extra blacklist file loaded."}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-amber-900 dark:text-amber-100 mb-2">
+                  Exclude Galaxies From Existing User Sequences
+                  <span className="block text-xs text-amber-600 dark:text-amber-400 mt-1">
+                    Any galaxy already present in the selected users&apos; current sequences will be excluded for this run.
+                  </span>
+                </label>
+                <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 mb-2">
+                  <button
+                    type="button"
+                    onClick={handleSelectAllExcludedSequences}
+                    disabled={generatingSequence || (usersWithSequences?.length ?? 0) === 0}
+                    className="px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeselectAllExcludedSequences}
+                    disabled={generatingSequence || excludedSequenceUserIds.size === 0}
+                    className="px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50"
+                  >
+                    Deselect All
+                  </button>
+                  <span className="ml-1">{excludedSequenceUserIds.size} selected</span>
+                </div>
+                <div className="max-h-40 overflow-y-auto border border-amber-200 dark:border-amber-700 rounded-md p-3 bg-white dark:bg-gray-800 space-y-2">
+                  {(usersWithSequences?.length ?? 0) === 0 ? (
+                    <p className="text-sm text-amber-700 dark:text-amber-300">No existing user sequences are available to exclude.</p>
+                  ) : (
+                    usersWithSequences?.map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null; sequenceInfo: { galaxyCount: number; numClassified: number } }) => (
+                      <label key={user.userId} className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100">
+                        <input
+                          type="checkbox"
+                          checked={excludedSequenceUserIds.has(user.userId)}
+                          onChange={() => handleExcludedSequenceToggle(user.userId)}
+                          disabled={generatingSequence}
+                          className="h-4 w-4"
+                        />
+                        <span className="truncate" title={user.user?.name || user.user?.email || "Anonymous"}>
+                          {user.user?.name || user.user?.email || "Anonymous"} ({user.sequenceInfo.galaxyCount} galaxies)
+                        </span>
+                      </label>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {batchMode && (
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={excludePreviouslyAssignedInBatch}
+                      onChange={(e) => setExcludePreviouslyAssignedInBatch(e.target.checked)}
+                      className="mr-2"
+                      disabled={generatingSequence}
+                    />
+                    <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                      Automatically exclude galaxies assigned earlier in this batch run
+                    </span>
+                  </label>
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 ml-6">
+                    When enabled, each later user in the batch excludes galaxies assigned to earlier users during the same classification-based batch run.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -674,10 +1053,16 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
               {generatingSequence && (
                 <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               )}
-              {generatingSequence ? 'Generating...' : batchMode ? 'Generate Sequences (Batch)' : 'Generate Balanced Sequence'}
+              {generatingSequence
+                ? 'Generating...'
+                : batchMode
+                  ? 'Generate Sequences (Batch)'
+                  : assignmentProcedure === 'classificationBased'
+                    ? 'Generate Classification-Based Sequence'
+                    : 'Generate Balanced Sequence'}
             </button>
             
-            {generatingSequence && (
+            {generatingSequence && assignmentProcedure === "balanced" && (
               <button
                 onClick={() => void handleCancelGeneration()}
                 className="inline-flex items-center bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
@@ -687,7 +1072,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
             )}
 
             {/* Rollback button - only show if there's a completed sequence that hasn't been used */}
-            {!generatingSequence && jobStatus && jobStatus.status === "completed" && (
+            {!generatingSequence && assignmentProcedure === "balanced" && jobStatus && jobStatus.status === "completed" && (
               <button
                 onClick={() => void handleRollback(jobStatus.userId)}
                 className="inline-flex items-center bg-orange-500 hover:bg-orange-600 text-white font-medium py-2 px-3 rounded-lg transition-colors text-sm"
@@ -699,7 +1084,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
           </div>
 
           {/* Real-time job progress from server */}
-          {jobStatus && jobStatus.status === "running" && (
+          {assignmentProcedure === "balanced" && jobStatus && jobStatus.status === "running" && (
             <div className="mt-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg border border-indigo-200 dark:border-indigo-800">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-indigo-900 dark:text-indigo-100">
@@ -734,7 +1119,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
           )}
 
           {/* Cancelled job status */}
-          {jobStatus && jobStatus.status === "cancelled" && (
+          {assignmentProcedure === "balanced" && jobStatus && jobStatus.status === "cancelled" && (
             <div className="mt-4 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-800">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-orange-900 dark:text-orange-100">
@@ -751,7 +1136,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
           )}
 
           {/* Completed job status */}
-          {jobStatus && jobStatus.status === "completed" && (
+          {assignmentProcedure === "balanced" && jobStatus && jobStatus.status === "completed" && (
             <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-green-900 dark:text-green-100">
@@ -764,6 +1149,26 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
               <p className="text-xs text-green-600 dark:text-green-400 mt-1">
                 Total scanned: {jobStatus.totalScanned.toLocaleString()} documents
               </p>
+            </div>
+          )}
+
+          {generatingSequence && assignmentProcedure === "classificationBased" && (
+            <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg border border-amber-200 dark:border-amber-800">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="inline-block h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full animate-spin" />
+                <span className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                  Classification-Based Run In Progress
+                </span>
+              </div>
+              <p className="text-sm text-amber-800 dark:text-amber-200">
+                This workflow runs server-side as one request, so exact percentage progress is not available yet.
+              </p>
+              <div className="mt-2 space-y-1 text-xs text-amber-700 dark:text-amber-300">
+                <p>1. Resolve blacklists and sequence-based exclusions</p>
+                <p>2. Select galaxies with totalClassifications below the target and rank them</p>
+                <p>3. Fall back to assignment-count selection if needed</p>
+                <p>4. Persist the sequence and update assignment counters</p>
+              </div>
             </div>
           )}
 

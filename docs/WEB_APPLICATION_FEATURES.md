@@ -302,7 +302,12 @@ The classification screen includes progress information so users can see where t
 
 ## How Galaxies Are Assigned to Users
 
-The application uses a balanced assignment strategy when creating a user’s classification sequence. The goal is not simply to hand out galaxies at random. Instead, the system tries to distribute work in a way that is fair, useful, and scientifically practical.
+The application supports two related assignment procedures when creating or extending a user’s classification sequence.
+
+- The default `regular balanced assignment` procedure prioritizes galaxies with lower total assignment counts.
+- The optional `classification-based assignment` procedure prioritizes galaxies with lower completed classification counts, then falls back to the regular balanced rules when needed.
+
+In both cases, the goal is not simply to hand out galaxies at random. Instead, the system tries to distribute work in a way that is fair, useful, and scientifically practical.
 
 In the application, a user normally does not classify from the entire database directly. Instead, the system prepares a personal sequence: an ordered list of galaxy identifiers assigned to that user. The classification interface then walks through that sequence one galaxy at a time.
 
@@ -315,6 +320,13 @@ When preparing a sequence for a user, the application:
 3. excludes blacklisted galaxies,
 4. can apply additional project filters such as paper or subset restrictions,
 5. fills the user’s sequence up to the requested size.
+
+When the classification-based procedure is selected, the first priority changes slightly:
+
+1. the system first looks for galaxies whose completed classification count is still below the requested target,
+2. within that pool, it prefers galaxies with the fewest completed classifications,
+3. when two galaxies are still tied, it prefers the one with fewer classifications by senior classifiers,
+4. if that pool runs out, it falls back to the regular balanced assignment rules using the same K, M, paper-filter, and over-assignment settings already present in the form.
 
 ### What the system is trying to optimize
 
@@ -432,6 +444,12 @@ This matters because total assignment count and per-user assignment count are no
 
 Some galaxies can be explicitly blacklisted from sequences. These are skipped entirely during assignment. This is useful for corrupted entries, unsuitable targets, or objects that should not be shown in the normal labeling workflow.
 
+The classification-based procedure extends this with three additional exclusion controls:
+
+- an uploaded plain-text blacklist file containing one galaxy ID per line,
+- a selection of existing user sequences whose galaxies should be excluded from the current run,
+- an optional batch-mode setting that excludes galaxies assigned earlier in the same batch run so later users do not receive those same newly assigned galaxies.
+
 The generator can also be restricted to a subset of galaxies, for example by a paper-related label stored in the galaxy metadata. In that case, only galaxies belonging to the requested subset are eligible.
 
 ### Sequence size
@@ -452,6 +470,8 @@ The stored sequence includes:
 - counters for how many items have been skipped.
 
 This allows the interface to resume from where the user left off instead of recomputing their assignment every time they open the app.
+
+For the classification-based procedure, the final “apply this chosen sequence” step is performed in a server-managed, batched workflow. That means the client can take part in the preparation and orchestration without leaving the database in a half-updated state if the browser or request fails partway through.
 
 ### Updating assignment statistics after sequence creation
 

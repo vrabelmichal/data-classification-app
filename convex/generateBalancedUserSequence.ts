@@ -6,8 +6,10 @@ import { api, internal } from "./_generated/api";
 import {
   validateParams,
 } from "./lib/assignmentCore";
+import { deserializeGalaxyIdList, serializeGalaxyIdList } from "./lib/classificationBasedAssignmentCore";
 import { DEFAULT_SYSTEM_SETTINGS } from "./lib/defaults";
 import { Id } from "./_generated/dataModel";
+import { getSequenceProcedureCopy } from "./lib/sequenceProcedureMessaging";
 
 type SequenceEmailResult = {
   success: boolean;
@@ -280,8 +282,8 @@ export const selectGalaxiesBatch = internalQuery({
     minAssignmentsK: v.number(),
     maxAssignmentsPerUserM: v.number(),
     paperFilter: v.optional(v.array(v.string())),
-    blacklistedIds: v.array(v.string()),
-    alreadySelectedIds: v.array(v.string()),
+    blacklistedIdsSerialized: v.string(),
+    alreadySelectedIdsSerialized: v.string(),
     // Convex pagination cursor (opaque string)
     cursor: v.optional(v.string()),
     // Phase: "underK" or "overK"
@@ -295,16 +297,16 @@ export const selectGalaxiesBatch = internalQuery({
       minAssignmentsK: K, 
       maxAssignmentsPerUserM: M,
       paperFilter,
-      blacklistedIds,
-      alreadySelectedIds,
+      blacklistedIdsSerialized,
+      alreadySelectedIdsSerialized,
       cursor,
       phase,
       limit,
       neededCount,
     } = args;
 
-    const blacklistedSet = new Set(blacklistedIds);
-    const alreadySelectedSet = new Set(alreadySelectedIds);
+    const blacklistedSet = new Set(deserializeGalaxyIdList(blacklistedIdsSerialized));
+    const alreadySelectedSet = new Set(deserializeGalaxyIdList(alreadySelectedIdsSerialized));
     const effectivePaperFilter = paperFilter && paperFilter.length > 0 ? paperFilter : null;
 
     const selected: string[] = [];
@@ -474,6 +476,7 @@ export const generateBalancedUserSequence = action({
     }
 
     const blacklistedIds = preconditions.blacklistedIds ?? [];
+    const serializedBlacklistedIds = serializeGalaxyIdList(blacklistedIds);
 
     // Create job for progress tracking (unless dry run)
     let jobId: Id<"sequenceGenerationJobs"> | null = null;
@@ -531,8 +534,8 @@ export const generateBalancedUserSequence = action({
         minAssignmentsK: K,
         maxAssignmentsPerUserM: M,
         paperFilter: paperFilter ?? undefined,
-        blacklistedIds,
-        alreadySelectedIds: selectedIds,
+        blacklistedIdsSerialized: serializedBlacklistedIds,
+        alreadySelectedIdsSerialized: serializeGalaxyIdList(selectedIds),
         cursor,
         phase: "underK",
         limit: SELECTION_BATCH_SIZE,
@@ -576,8 +579,8 @@ export const generateBalancedUserSequence = action({
           minAssignmentsK: K,
           maxAssignmentsPerUserM: M,
           paperFilter: paperFilter ?? undefined,
-          blacklistedIds,
-          alreadySelectedIds: selectedIds,
+          blacklistedIdsSerialized: serializedBlacklistedIds,
+          alreadySelectedIdsSerialized: serializeGalaxyIdList(selectedIds),
           cursor,
           phase: "overK",
           limit: SELECTION_BATCH_SIZE,
@@ -817,6 +820,7 @@ export const sendSequenceGeneratedEmail = action({
     targetUserId: v.id("users"),
     generated: v.number(),
     requested: v.number(),
+    procedureType: v.optional(v.union(v.literal("balanced"), v.literal("classificationBased"))),
   },
   handler: async (ctx, args): Promise<SequenceEmailResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
@@ -856,12 +860,18 @@ export const sendSequenceGeneratedEmail = action({
     const appUrlEnv = process.env.SITE_URL || process.env.VERCEL_URL;
     const appUrl = appUrlEnv ? (appUrlEnv.startsWith("http") ? appUrlEnv : `https://${appUrlEnv}`) : "";
     const classificationUrl = appUrl ? `${appUrl}/classify` : undefined;
+    const { procedureLabel, procedureExplanation } = getSequenceProcedureCopy(
+      args.procedureType,
+      "generate"
+    );
 
     const subject = `${appName} - Your galaxy sequence is ready`;
     const textBody = [
       `Hello${target.name ? ` ${target.name}` : ""},`,
       "",
       `A new classification sequence has been generated for you with ${args.generated} galaxies (requested ${args.requested}).`,
+      `Procedure: ${procedureLabel}.`,
+      procedureExplanation,
       classificationUrl ? `Open the app to start classifying: ${classificationUrl}` : "Open the app to start classifying your new sequence.",
       "",
       "Thank you for contributing!",
@@ -871,6 +881,8 @@ export const sendSequenceGeneratedEmail = action({
       <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #0f172a;">
         <h2 style="margin-bottom: 12px; color: #0f172a;">Hi${target.name ? ` ${target.name}` : ""}, your sequence is ready!</h2>
         <p style="margin: 0 0 12px 0;">We generated a new classification sequence for you.</p>
+        <p style="margin: 0 0 12px 0; color: #334155;"><strong>Procedure:</strong> ${procedureLabel}.</p>
+        <p style="margin: 0 0 12px 0; color: #475569;">${procedureExplanation}</p>
         <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px;">
           <p style="margin: 4px 0; font-weight: 600;">Assigned galaxies: ${args.generated}</p>
           <p style="margin: 4px 0; color: #475569;">Requested: ${args.requested}</p>

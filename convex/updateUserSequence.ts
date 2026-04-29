@@ -10,6 +10,7 @@ import {
   validateParams,
 } from "./lib/assignmentCore";
 import { DEFAULT_SYSTEM_SETTINGS } from "./lib/defaults";
+import { getSequenceProcedureCopy } from "./lib/sequenceProcedureMessaging";
 
 type StatsDoc = {
   _id: any;
@@ -551,6 +552,7 @@ export const sendSequenceExtendedEmail = action({
     previousSize: v.number(),
     newSize: v.number(),
     galaxiesAdded: v.number(),
+    procedureType: v.optional(v.union(v.literal("balanced"), v.literal("classificationBased"))),
   },
   handler: async (ctx, args): Promise<SequenceEmailResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
@@ -590,12 +592,18 @@ export const sendSequenceExtendedEmail = action({
     const appUrlEnv = process.env.SITE_URL || process.env.VERCEL_URL;
     const appUrl = appUrlEnv ? (appUrlEnv.startsWith("http") ? appUrlEnv : `https://${appUrlEnv}`) : "";
     const classificationUrl = appUrl ? `${appUrl}/classify` : undefined;
+    const { procedureLabel, procedureExplanation } = getSequenceProcedureCopy(
+      args.procedureType,
+      "extend"
+    );
 
     const subject = `${appName} - Your sequence has been extended`;
     const textBody = [
       `Hello${target.name ? ` ${target.name}` : ""},`,
       "",
       `Your classification sequence has been extended with ${args.galaxiesAdded} new galaxies.`,
+      `Procedure: ${procedureLabel}.`,
+      procedureExplanation,
       `Previous size: ${args.previousSize} galaxies`,
       `New size: ${args.newSize} galaxies`,
       "",
@@ -608,6 +616,8 @@ export const sendSequenceExtendedEmail = action({
       <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #0f172a;">
         <h2 style="margin-bottom: 12px; color: #0f172a;">Hi${target.name ? ` ${target.name}` : ""}, your sequence has been extended!</h2>
         <p style="margin: 0 0 12px 0;">We added more galaxies to your classification sequence.</p>
+        <p style="margin: 0 0 12px 0; color: #334155;"><strong>Procedure:</strong> ${procedureLabel}.</p>
+        <p style="margin: 0 0 12px 0; color: #475569;">${procedureExplanation}</p>
         <div style="background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 16px; margin-bottom: 14px;">
           <p style="margin: 4px 0; font-weight: 600; color: #16a34a;">Added: ${args.galaxiesAdded} galaxies</p>
           <p style="margin: 4px 0; color: #475569;">Previous size: ${args.previousSize}</p>

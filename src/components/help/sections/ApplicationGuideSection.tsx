@@ -1005,10 +1005,24 @@ export function ApplicationGuideSection({
             Users do not classify directly from the entire catalog. Instead, the system prepares a personal ordered sequence for each user. This sequence is built with a balanced assignment procedure that prefers galaxies with lower overall assignment counts, filters out blacklisted entries, respects per-user assignment limits, and can optionally fall back to already well-covered galaxies if the ideal candidate pool is too small.
           </p>
           <p>
-            In practice, the sequence generator validates the requested balancing settings, checks that the user can receive a new sequence, loads the blacklist and any subset filters, scans the under-target pool first, applies the necessary candidate filters, and keeps selecting galaxies in assignment-order batches until the requested sequence is filled or the available pool is exhausted.
+             In practice, the sequence generator validates the requested balancing settings, checks that the user can receive a new sequence, loads the blacklist and any subset filters, scans the under-target pool first, applies the necessary candidate filters, and keeps selecting galaxies in assignment-order batches until the requested sequence is filled or the available pool is exhausted.
+          </p>
+          <p>
+            The application also provides a classification-based alternative. That procedure first prioritizes galaxies whose current <strong>classification count</strong> is still below a configurable target. Among galaxies with the same classification count, it prefers those with fewer classifications from <strong>senior classifiers</strong>. If that priority pool is exhausted before the requested sequence is filled, the system falls back to the regular balanced procedure using the same K, M, paper-filter, and over-assignment settings already present in the form.
           </p>
           <p>
             If over-assignment is permitted and the under-target pool is too small, the system performs a second pass through galaxies already at or above the target threshold. Once selection finishes, the ordered sequence is stored for the user and the assignment counters for those galaxies are updated in follow-up batches.
+          </p>
+
+          <Subheading>How The Two Procedures Differ</Subheading>
+          <p>
+            The <strong>regular balanced procedure</strong> optimizes around <strong>assignment counts</strong>. It asks, in effect, “which galaxies have been assigned the least so far?” and works upward from there.
+          </p>
+          <p>
+            The <strong>classification-based procedure</strong> optimizes around <strong>completed classifications</strong>. It first asks “which galaxies still have fewer than the target number of classifications?” and works upward from there. Within each equal-classification bucket, it prefers galaxies that have received fewer classifications from senior classifiers. This makes the alternative mode useful when the project wants to drive actual completed coverage rather than just queued assignments.
+          </p>
+          <p>
+            In both modes, the existing K, M, paper-filter, and over-assignment fields remain relevant. In classification-based mode they are not discarded; they become the fallback and constraint layer used after the classification-priority pool is exhausted.
           </p>
 
           <Subheading>General Idea</Subheading>
@@ -1116,7 +1130,10 @@ export function ApplicationGuideSection({
 
           <Subheading>Blacklists And Project Filters</Subheading>
           <p>
-            Some galaxies can be explicitly blacklisted from sequences. These are skipped entirely during assignment. The generator can also be restricted to a subset of galaxies, for example by a paper-related label stored in the galaxy metadata. In that case, only galaxies belonging to the requested subset are eligible.
+            Some galaxies can be explicitly blacklisted from sequences. These are skipped entirely during assignment. In addition to the system-wide blacklist, the classification-based procedure can also use a <strong>run-specific blacklist file</strong> supplied by the administrator, can <strong>exclude galaxies already present in selected existing user sequences</strong>, and in batch mode can optionally <strong>exclude galaxies assigned earlier in the same batch run</strong> so later users do not receive the same newly assigned galaxies.
+          </p>
+          <p>
+            The generator can also be restricted to a subset of galaxies, for example by a paper-related label stored in the galaxy metadata. In that case, only galaxies belonging to the requested subset are eligible.
           </p>
 
           <Subheading>Sequence Size, Creation, And Stored State</Subheading>
@@ -1124,7 +1141,7 @@ export function ApplicationGuideSection({
             A user's sequence does not have to be permanent. Administrators can later extend or shorten it. Extending a sequence uses the same core logic as initial generation, but it must also exclude galaxies already present in that user's current sequence. Newly selected galaxies are appended to the end of the existing list. If a sequence is shortened, galaxies removed from the tail no longer count as pending assignments for that user, and the bookkeeping layer is adjusted accordingly.
           </p>
           <p>
-            Once the selection phase is complete, the chosen galaxy identifiers are stored as the user's sequence together with the current position in that list and counters for how many items have been classified or skipped. After that, the system also updates galaxy-level assignment statistics, such as the total number of times a galaxy has been assigned and the per-user assignment count for that galaxy. These updates are performed in batches so the bookkeeping remains scalable and consistent.
+            Once the selection phase is complete, the chosen galaxy identifiers are stored as the user's sequence together with the current position in that list and counters for how many items have been classified or skipped. After that, the system also updates galaxy-level assignment statistics, such as the total number of times a galaxy has been assigned and the per-user assignment count for that galaxy. These updates are performed in batches so the bookkeeping remains scalable and consistent. In the classification-based workflow, the final apply step is kept server-managed and rollback-aware so that a client-side interruption does not leave a partially updated sequence or partially updated assignment counters behind.
           </p>
 
           <Subheading>Warnings, Partial Results, And Failure Cases</Subheading>
@@ -1140,6 +1157,9 @@ export function ApplicationGuideSection({
           <p>This distinguishes a <strong>true system failure</strong> from a <em>valid but limited result</em> caused by the available data.</p>
 
           <Subheading>Assignment Procedure Summary</Subheading>
+          <p>
+            The summary below describes the regular balanced procedure. The classification-based alternative inserts an earlier priority pass on galaxies with <code>totalClassifications &lt; classification target</code>, orders those first by classification count and then by senior-classifier count, and only then falls back to the balanced steps shown here.
+          </p>
           <div className="overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-4 font-mono text-xs leading-6 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
             validate requested balancing parameters
             <br />
