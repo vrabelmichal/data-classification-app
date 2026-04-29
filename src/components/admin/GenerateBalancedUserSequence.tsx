@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
+import { DEFAULT_AVAILABLE_PAPERS, DEFAULT_EXPECTED_USERS } from "../../lib/defaults";
 import { Id } from "../../../convex/_generated/dataModel";
 
 interface GenerateBalancedUserSequenceProps {
@@ -24,12 +24,12 @@ type ClassificationAssignmentDiagnostics = {
   balancedFallbackOverAssignedCount: number;
 };
 
-export function GenerateBalancedUserSequence({ users: _users, systemSettings }: GenerateBalancedUserSequenceProps) {
+export function GenerateBalancedUserSequence({ users, systemSettings }: GenerateBalancedUserSequenceProps) {
   const LOG_STORAGE_KEY = "generateBalancedUserSequenceLogs";
 
   const [assignmentProcedure, setAssignmentProcedure] = useState<AssignmentProcedure>("balanced");
   const [sequenceSize, setSequenceSize] = useState(50);
-  const [expectedUsers, setExpectedUsers] = useState(10);
+  const [expectedUsers, setExpectedUsers] = useState(DEFAULT_EXPECTED_USERS);
   const [minAssignmentsPerEntry, setMinAssignmentsPerEntry] = useState(3);
   const [maxAssignmentsPerUserPerEntry, setMaxAssignmentsPerUserPerEntry] = useState(1);
   const [allowOverAssign, setAllowOverAssign] = useState(false);
@@ -60,10 +60,12 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
 
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [userHasScrolled, setUserHasScrolled] = useState(false);
+  const expectedUsersEditedRef = useRef(false);
 
   const usersWithoutSequences = useQuery(api.galaxies.sequence.getUsersWithoutSequences);
   const usersWithSequences = useQuery(api.galaxies.sequence.getUsersWithSequences);
   const resolvedUsers = usersWithoutSequences ?? [];
+  const defaultExpectedUsers = Math.max(DEFAULT_EXPECTED_USERS, users.length);
   
   // Get available papers from system settings
   const availablePapers: string[] = systemSettings?.availablePapers || DEFAULT_AVAILABLE_PAPERS;
@@ -84,6 +86,12 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
       setSelectedPapers(new Set(availablePapers));
     }
   }, [availablePapers, selectedPapers]);
+
+  useEffect(() => {
+    if (!expectedUsersEditedRef.current) {
+      setExpectedUsers(defaultExpectedUsers);
+    }
+  }, [defaultExpectedUsers]);
 
   // Load persisted logs once on mount
   useEffect(() => {
@@ -135,6 +143,11 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
     } catch (err) {
       console.warn("Failed to clear logs from localStorage", err);
     }
+  };
+
+  const handleExpectedUsersChange = (value: string) => {
+    expectedUsersEditedRef.current = true;
+    setExpectedUsers(Number(value));
   };
 
   const generateBalancedUserSequence = useAction(api.generateBalancedUserSequence.generateBalancedUserSequence);
@@ -753,6 +766,102 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
             )}
           </div>
 
+          <div className="grid gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 shadow-sm">
+              <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                Sequence Size (S)
+                <span className="block text-xs font-normal text-gray-500 dark:text-gray-400 mt-1">
+                  Number of galaxies to assign to each selected user for this run.
+                </span>
+              </label>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <input
+                  type="number"
+                  min="1"
+                  max="8192"
+                  value={sequenceSize}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setSequenceSize(Math.min(Math.max(1, value), 8192));
+                  }}
+                  className="w-full sm:max-w-xs border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                  disabled={generatingSequence}
+                />
+                <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Max 8192 galaxies
+                </span>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                Expected Users (N)
+                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Total number of users in the system for balancing calculations
+                </span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={expectedUsers}
+                onChange={(e) => handleExpectedUsersChange(e.target.value)}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                disabled={generatingSequence}
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                Min Assignments Per Entry (K)
+                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Minimum classifications needed per galaxy (prioritizes galaxies with &lt; K assignments)
+                </span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={minAssignmentsPerEntry}
+                onChange={(e) => setMinAssignmentsPerEntry(Number(e.target.value))}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                disabled={generatingSequence}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
+                Max Per User Per Entry (M)
+                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Maximum times this user can classify the same galaxy
+                </span>
+              </label>
+              <input
+                type="number"
+                min="1"
+                value={maxAssignmentsPerUserPerEntry}
+                onChange={(e) => setMaxAssignmentsPerUserPerEntry(Number(e.target.value))}
+                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                disabled={generatingSequence}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={allowOverAssign}
+                onChange={(e) => setAllowOverAssign(e.target.checked)}
+                className="mr-2"
+                disabled={generatingSequence}
+              />
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Allow Over-Assign (use galaxies with totalAssigned &gt;= K)
+              </span>
+            </label>
+          </div>
+
           {assignmentProcedure === "classificationBased" && (
             <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-4 space-y-4">
               <div>
@@ -760,7 +869,7 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
                   Classification-Based Priority And Exclusions
                 </h3>
                 <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
-                  This procedure first fills the sequence with galaxies below the target number of classifications. If that pool runs out, the regular K/M/over-assign settings below are still used as the fallback procedure.
+                  This procedure first fills the sequence with galaxies below the target number of classifications. If that pool runs out, the regular K/M/over-assign settings above are still used as the fallback procedure.
                 </p>
               </div>
 
@@ -881,97 +990,6 @@ export function GenerateBalancedUserSequence({ users: _users, systemSettings }: 
               )}
             </div>
           )}
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                Expected Users (N)
-                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Total number of users in the system for balancing calculations
-                </span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={expectedUsers}
-                onChange={(e) => setExpectedUsers(Number(e.target.value))}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                disabled={generatingSequence}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                Min Assignments Per Entry (K)
-                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Minimum classifications needed per galaxy (prioritizes galaxies with &lt; K assignments)
-                </span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={minAssignmentsPerEntry}
-                onChange={(e) => setMinAssignmentsPerEntry(Number(e.target.value))}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                disabled={generatingSequence}
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                Max Per User Per Entry (M)
-                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Maximum times this user can classify the same galaxy
-                </span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                value={maxAssignmentsPerUserPerEntry}
-                onChange={(e) => setMaxAssignmentsPerUserPerEntry(Number(e.target.value))}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                disabled={generatingSequence}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
-                Sequence Size (S)
-                <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Number of galaxies to assign to this user (max 8192)
-                </span>
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="8192"
-                value={sequenceSize}
-                onChange={(e) => {
-                  const value = Number(e.target.value);
-                  setSequenceSize(Math.min(Math.max(1, value), 8192));
-                }}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                disabled={generatingSequence}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="flex items-center">
-              <input
-                type="checkbox"
-                checked={allowOverAssign}
-                onChange={(e) => setAllowOverAssign(e.target.checked)}
-                className="mr-2"
-                disabled={generatingSequence}
-              />
-              <span className="text-sm font-medium text-gray-900 dark:text-white">
-                Allow Over-Assign (use galaxies with totalAssigned &gt;= K)
-              </span>
-            </label>
-          </div>
 
           <div>
             <label className="flex items-center">

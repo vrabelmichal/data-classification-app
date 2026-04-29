@@ -105,6 +105,11 @@ export const DEFAULT_MAINTENANCE_DISABLE_NEW_CLASSIFICATIONS = false;
 export const DEFAULT_USER_EXPORT_LIMIT = 1000;
 
 /**
+ * Minimum default user count used to prefill assignment balancing inputs.
+ */
+export const DEFAULT_EXPECTED_USERS = 10;
+
+/**
  * Default state for admin-triggered Cloudflare image cache invalidation
  */
 export const DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED = false;

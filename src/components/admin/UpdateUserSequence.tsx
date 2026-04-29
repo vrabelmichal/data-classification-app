@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { DEFAULT_AVAILABLE_PAPERS } from "../../lib/defaults";
+import { DEFAULT_AVAILABLE_PAPERS, DEFAULT_EXPECTED_USERS } from "../../lib/defaults";
 import { Id } from "../../../convex/_generated/dataModel";
 
 interface UpdateUserSequenceProps {
@@ -52,7 +52,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   const [assignmentProcedure, setAssignmentProcedure] = useState<AssignmentProcedure>("balanced");
   const [additionalSize, setAdditionalSize] = useState(50);
   const [sendExtendEmail, setSendExtendEmail] = useState(false);
-  const [expectedUsers, setExpectedUsers] = useState(10);
+  const [expectedUsers, setExpectedUsers] = useState(DEFAULT_EXPECTED_USERS);
   const [minAssignmentsPerEntry, setMinAssignmentsPerEntry] = useState(3);
   const [maxAssignmentsPerUserPerEntry, setMaxAssignmentsPerUserPerEntry] = useState(1);
   const [allowOverAssign, setAllowOverAssign] = useState(false);
@@ -64,6 +64,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
   const logContainerRef = useRef<HTMLDivElement>(null);
   const [userHasScrolled, setUserHasScrolled] = useState(false);
+  const expectedUsersEditedRef = useRef(false);
 
   // Queries
   const usersWithSequences = useQuery(api.galaxies.sequence.getUsersWithSequences);
@@ -92,6 +93,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
   // Get available papers from system settings
   const availablePapers: string[] = systemSettings?.availablePapers || DEFAULT_AVAILABLE_PAPERS;
+  const defaultExpectedUsers = Math.max(DEFAULT_EXPECTED_USERS, usersWithSequences?.length ?? 0);
 
   const appendLog = (level: "info" | "warning" | "error" | "success", message: string) => {
     const entry = { level, message, timestamp: Date.now() };
@@ -108,6 +110,12 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
       setSelectedPapers(new Set(availablePapers));
     }
   }, [availablePapers, selectedPapers.size]);
+
+  useEffect(() => {
+    if (!expectedUsersEditedRef.current) {
+      setExpectedUsers(defaultExpectedUsers);
+    }
+  }, [defaultExpectedUsers]);
 
   // Load persisted logs once on mount
   useEffect(() => {
@@ -193,6 +201,11 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
     } catch (err) {
       console.warn("Failed to clear logs from localStorage", err);
     }
+  };
+
+  const handleExpectedUsersChange = (value: string) => {
+    expectedUsersEditedRef.current = true;
+    setExpectedUsers(Number(value));
   };
 
   const handlePaperToggle = (paper: string) => {
@@ -906,27 +919,31 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-green-900 dark:text-green-100 mb-2">
+                <div className="grid gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+                  <div className="rounded-lg border border-green-200 dark:border-green-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
+                    <label className="block text-sm font-semibold text-green-900 dark:text-green-100 mb-2">
                       Additional Galaxies
-                      <span className="block text-xs text-green-600 dark:text-green-400 mt-1">
-                        Number of galaxies to add (max{" "}
-                        {Math.max(0, 8192 - currentSequenceInfo.totalGalaxies)})
+                      <span className="block text-xs font-normal text-green-600 dark:text-green-400 mt-1">
+                        Number of galaxies to add to this user&apos;s sequence in this update.
                       </span>
                     </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max={Math.max(1, 8192 - currentSequenceInfo.totalGalaxies)}
-                      value={additionalSize}
-                      onChange={(e) => setAdditionalSize(Number(e.target.value))}
-                      className="w-full border border-green-300 dark:border-green-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                      disabled={isProcessing}
-                    />
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                      <input
+                        type="number"
+                        min="1"
+                        max={Math.max(1, 8192 - currentSequenceInfo.totalGalaxies)}
+                        value={additionalSize}
+                        onChange={(e) => setAdditionalSize(Number(e.target.value))}
+                        className="w-full sm:max-w-xs border border-green-300 dark:border-green-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        disabled={isProcessing}
+                      />
+                      <span className="text-xs font-medium uppercase tracking-wide text-green-700 dark:text-green-300">
+                        Max {Math.max(0, 8192 - currentSequenceInfo.totalGalaxies)} galaxies
+                      </span>
+                    </div>
                   </div>
 
-                  <div>
+                  <div className="rounded-lg border border-green-200 dark:border-green-700 bg-white dark:bg-gray-800 p-4">
                     <label className="block text-sm font-medium text-green-900 dark:text-green-100 mb-2">
                       Expected Users (N)
                       <span className="block text-xs text-green-600 dark:text-green-400 mt-1">
@@ -937,14 +954,14 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                       type="number"
                       min="1"
                       value={expectedUsers}
-                      onChange={(e) => setExpectedUsers(Number(e.target.value))}
+                      onChange={(e) => handleExpectedUsersChange(e.target.value)}
                       className="w-full border border-green-300 dark:border-green-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       disabled={isProcessing}
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <label className="block text-sm font-medium text-green-900 dark:text-green-100 mb-2">
                       Min Assignments (K)

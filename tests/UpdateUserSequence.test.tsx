@@ -131,6 +131,16 @@ function configureUpdateHooks(options?: {
   };
 }
 
+function getNumberInputByLabelText(labelText: RegExp): HTMLInputElement {
+  const label = screen.getByText(labelText).closest("label");
+  const container = label?.parentElement;
+  const input = container?.querySelector("input[type='number']");
+  if (!(input instanceof HTMLInputElement)) {
+    throw new Error(`Number input for ${labelText} not found`);
+  }
+  return input;
+}
+
 describe("UpdateUserSequence", () => {
   const usersWithSequences = [
     {
@@ -147,6 +157,28 @@ describe("UpdateUserSequence", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("prefills expected users with the greater of 10 and the number of users with sequences", async () => {
+    configureUpdateHooks({
+      usersWithSequences: Array.from({ length: 12 }, (_, index) => ({
+        userId: `user-${index}`,
+        user: { name: `User ${index}`, email: `user-${index}@example.com` },
+        sequenceInfo: { galaxyCount: 5, numClassified: 0, currentIndex: 0, numSkipped: 0 },
+      })),
+    });
+
+    render(
+      <UpdateUserSequence
+        users={[]}
+        systemSettings={{ availablePapers: ["paper-a", "paper-b"] }}
+      />
+    );
+
+    await userEvent.selectOptions(screen.getByRole("combobox"), "user-0");
+    await waitFor(() => expect(screen.getByText(/Current Sequence Status/i)).toBeTruthy());
+    await userEvent.click(screen.getByLabelText(/Classification-based assignment/i));
+    expect(getNumberInputByLabelText(/Expected Users \(N\)/i).value).toBe("12");
   });
 
   it("submits classification-based extension with an empty additional blacklist when no file is uploaded", async () => {

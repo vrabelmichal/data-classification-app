@@ -141,6 +141,23 @@ describe("GenerateBalancedUserSequence", () => {
     vi.clearAllMocks();
   });
 
+  it("prefills expected users with the greater of 10 and the total user count", () => {
+    configureGenerateHooks({
+      usersWithoutSequences: [
+        { userId: "user-a", user: { name: "User A", email: "a@example.com" } },
+      ],
+    });
+
+    render(
+      <GenerateBalancedUserSequence
+        users={Array.from({ length: 14 }, (_, index) => ({ userId: `user-${index}` }))}
+        systemSettings={{ availablePapers: ["paper-a", "paper-b"] }}
+      />
+    );
+
+    expect(getNumberInputByLabelText(/Expected Users \(N\)/i).value).toBe("14");
+  });
+
   it("shows the balanced procedure by default and preserves regular form values across toggles", async () => {
     configureGenerateHooks({
       usersWithoutSequences: [
