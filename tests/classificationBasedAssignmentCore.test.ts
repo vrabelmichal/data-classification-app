@@ -65,6 +65,38 @@ describe("classificationBasedAssignmentCore", () => {
     expect(compareRankedCandidates(merged[1], merged[2])).toBeLessThan(0);
   });
 
+  it("deduplicates ranked candidates by galaxy id when merging current and incoming lists", () => {
+    const merged = mergeTopRankedCandidates(
+      [
+        {
+          galaxyExternalId: "galaxy-10",
+          numericId: BigInt(10),
+          totalClassifications: BigInt(1),
+          seniorClassificationCount: 3,
+        },
+      ],
+      [
+        {
+          galaxyExternalId: "galaxy-10",
+          numericId: BigInt(10),
+          totalClassifications: BigInt(1),
+          seniorClassificationCount: 1,
+        },
+        {
+          galaxyExternalId: "galaxy-11",
+          numericId: BigInt(11),
+          totalClassifications: BigInt(1),
+          seniorClassificationCount: 2,
+        },
+      ],
+      3
+    );
+
+    expect(merged).toHaveLength(2);
+    expect(merged.map((candidate) => candidate.galaxyExternalId)).toEqual(["galaxy-10", "galaxy-11"]);
+    expect(merged[0]?.seniorClassificationCount).toBe(1);
+  });
+
   it("merges system, uploaded, and carry-forward galaxy ids into a unique set", () => {
     expect(
       mergeGalaxyIdSources(["sys-1", "sys-2"], ["upload-1", "sys-2"], ["carry-1", "upload-1"]) 

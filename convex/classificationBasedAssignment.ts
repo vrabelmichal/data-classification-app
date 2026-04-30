@@ -195,6 +195,159 @@ type TraceClassificationBasedAssignmentResult = {
   }>;
 };
 
+const classificationCandidateDocValidator = v.object({
+  galaxyExternalId: v.string(),
+  numericId: v.int64(),
+  totalClassifications: v.int64(),
+});
+
+const classificationCandidateBatchResultValidator = v.object({
+  candidateDocs: v.array(classificationCandidateDocValidator),
+  cursor: v.union(v.string(), v.null()),
+  exhausted: v.boolean(),
+  scannedCount: v.number(),
+});
+
+const classificationAssignmentDiagnosticsValidator = v.object({
+  effectiveBlacklistCount: v.number(),
+  systemBlacklistedCount: v.number(),
+  additionalBlacklistedCount: v.number(),
+  excludedSequenceGalaxyCount: v.number(),
+  excludedSequenceUserCount: v.number(),
+  targetExistingSequenceCount: v.number(),
+  classificationPrioritySelectedCount: v.number(),
+  balancedFallbackSelectedCount: v.number(),
+  balancedFallbackUnderAssignedCount: v.number(),
+  balancedFallbackOverAssignedCount: v.number(),
+});
+
+const classificationAssignmentResultValidator = v.object({
+  success: v.boolean(),
+  requested: v.number(),
+  generated: v.number(),
+  selectedGalaxyIds: v.optional(v.array(v.string())),
+  underClassificationTargetCount: v.optional(v.number()),
+  fallbackAssignedCount: v.optional(v.number()),
+  previousSize: v.optional(v.number()),
+  newSequenceSize: v.optional(v.number()),
+  classificationTarget: v.number(),
+  minAssignmentsPerEntry: v.number(),
+  perUserCap: v.number(),
+  expectedUsers: v.number(),
+  allowOverAssign: v.boolean(),
+  paperFilter: v.optional(v.array(v.string())),
+  diagnostics: v.optional(classificationAssignmentDiagnosticsValidator),
+  warnings: v.optional(v.array(v.string())),
+  errors: v.optional(v.array(v.string())),
+});
+
+const assignmentTraceTargetEntryValidator = v.object({
+  userId: v.id("users"),
+  name: v.union(v.string(), v.null()),
+  email: v.union(v.string(), v.null()),
+  role: v.string(),
+  sequenceSize: v.number(),
+  numClassified: v.number(),
+  hasSequence: v.boolean(),
+});
+
+const assignmentTraceTargetsResultValidator = v.object({
+  usersWithSequences: v.array(assignmentTraceTargetEntryValidator),
+  usersWithoutSequences: v.array(assignmentTraceTargetEntryValidator),
+});
+
+const assignmentTraceGalaxyStateValidator = v.object({
+  galaxyExternalId: v.string(),
+  exists: v.boolean(),
+  numericId: v.union(v.string(), v.null()),
+  totalAssigned: v.number(),
+  totalClassifications: v.number(),
+  targetUserAssigned: v.number(),
+  inTargetSequence: v.boolean(),
+});
+
+const assignmentTraceStateValidator = v.object({
+  sequenceSize: v.number(),
+  sequenceGalaxyIds: v.array(v.string()),
+  galaxies: v.array(assignmentTraceGalaxyStateValidator),
+});
+
+const traceClassificationParametersValidator = v.object({
+  expectedUsers: v.number(),
+  targetClassificationCount: v.number(),
+  minAssignmentsPerEntry: v.number(),
+  maxAssignmentsPerUserPerEntry: v.number(),
+  sequenceSize: v.optional(v.number()),
+  additionalSize: v.optional(v.number()),
+  allowOverAssign: v.boolean(),
+  paperFilter: v.array(v.string()),
+  additionalBlacklistedIds: v.array(v.string()),
+  excludedSequenceUserIds: v.array(v.id("users")),
+});
+
+const traceChangedGalaxyValidator = v.object({
+  galaxyExternalId: v.string(),
+  numericId: v.union(v.string(), v.null()),
+  totalClassifications: v.number(),
+  before: v.object({
+    totalAssigned: v.number(),
+    targetUserAssigned: v.number(),
+    inTargetSequence: v.boolean(),
+  }),
+  after: v.object({
+    totalAssigned: v.number(),
+    targetUserAssigned: v.number(),
+    inTargetSequence: v.boolean(),
+  }),
+  delta: v.object({
+    totalAssigned: v.number(),
+    targetUserAssigned: v.number(),
+  }),
+});
+
+const traceClassificationBasedAssignmentResultValidator = v.object({
+  mode: v.union(v.literal("generate"), v.literal("extend")),
+  targetUserId: v.id("users"),
+  parameters: traceClassificationParametersValidator,
+  plan: classificationAssignmentResultValidator,
+  before: v.union(assignmentTraceStateValidator, v.null()),
+  after: v.union(assignmentTraceStateValidator, v.null()),
+  changedGalaxies: v.array(traceChangedGalaxyValidator),
+});
+
+const seniorClassificationCountEntryValidator = v.object({
+  galaxyExternalId: v.string(),
+  seniorClassificationCount: v.number(),
+});
+
+const userSequenceInternalValidator = v.object({
+  _id: v.id("galaxySequences"),
+  _creationTime: v.number(),
+  userId: v.id("users"),
+  galaxyExternalIds: v.optional(v.array(v.string())),
+  currentIndex: v.number(),
+  numClassified: v.number(),
+  numSkipped: v.number(),
+});
+
+function maskEmail(email: string | null | undefined): string | null {
+  if (!email) {
+    return null;
+  }
+
+  const trimmed = email.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+
+  const atIndex = trimmed.indexOf("@");
+  if (atIndex <= 0) {
+    return `${trimmed.slice(0, 1)}***`;
+  }
+
+  return `${trimmed.slice(0, 1)}***${trimmed.slice(atIndex)}`;
+}
+
 function formatPaperFilter(papers: string[] | null | undefined): string {
   if (!papers) return "all";
   return papers.map((paper) => (paper === "" ? "(empty)" : paper)).join(", ");
@@ -1138,6 +1291,7 @@ async function persistExtendedClassificationBasedSequence(
 
 export const getSeniorClassifierIds = internalQuery({
   args: {},
+  returns: v.array(v.id("users")),
   handler: async (ctx) => {
     const userProfiles = await ctx.db.query("userProfiles").collect();
     return userProfiles
@@ -1148,6 +1302,7 @@ export const getSeniorClassifierIds = internalQuery({
 
 export const getSystemBlacklistedGalaxyIdsInternal = internalQuery({
   args: {},
+  returns: v.array(v.string()),
   handler: async (ctx) => {
     const blacklistedGalaxies = await ctx.db.query("galaxyBlacklist").collect();
     return blacklistedGalaxies.map((entry) => entry.galaxyExternalId);
@@ -1165,6 +1320,7 @@ export const selectClassificationBasedCandidatesBatch = internalQuery({
     cursor: v.optional(v.string()),
     limit: v.number(),
   },
+  returns: classificationCandidateBatchResultValidator,
   handler: async (ctx, args): Promise<ClassificationCandidateBatchResult> => {
     const blacklistedSet = new Set(deserializeGalaxyIdList(args.blacklistedIdsSerialized));
     const excludedSet = new Set(deserializeGalaxyIdList(args.excludedIdsSerialized));
@@ -1219,6 +1375,7 @@ export const getSeniorClassificationCountsBatch = internalQuery({
     galaxyExternalIds: v.array(v.string()),
     seniorUserIds: v.array(v.id("users")),
   },
+  returns: v.array(seniorClassificationCountEntryValidator),
   handler: async (ctx, args) => {
     const seniorUserIds = new Set(args.seniorUserIds);
     const counts: Array<{ galaxyExternalId: string; seniorClassificationCount: number }> = [];
@@ -1247,6 +1404,7 @@ export const getUserSequenceInternal = internalQuery({
   args: {
     targetUserId: v.id("users"),
   },
+  returns: v.union(userSequenceInternalValidator, v.null()),
   handler: async (ctx, args) => {
     return await ctx.db
       .query("galaxySequences")
@@ -1260,6 +1418,7 @@ export const replaceUserSequenceGalaxyIdsInternal = internalMutation({
     targetUserId: v.id("users"),
     galaxyExternalIds: v.array(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const sequence = await ctx.db
       .query("galaxySequences")
@@ -1273,6 +1432,8 @@ export const replaceUserSequenceGalaxyIdsInternal = internalMutation({
     await ctx.db.patch(sequence._id, {
       galaxyExternalIds: args.galaxyExternalIds,
     });
+
+    return null;
   },
 });
 
@@ -1280,6 +1441,7 @@ export const deleteUserSequenceInternal = internalMutation({
   args: {
     targetUserId: v.id("users"),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const sequence = await ctx.db
       .query("galaxySequences")
@@ -1287,10 +1449,11 @@ export const deleteUserSequenceInternal = internalMutation({
       .unique();
 
     if (!sequence) {
-      return;
+      return null;
     }
 
     await ctx.db.delete(sequence._id);
+    return null;
   },
 });
 
@@ -1300,6 +1463,7 @@ export const applyAssignmentStatsBatchInternal = internalMutation({
     galaxyExternalIds: v.array(v.string()),
     perUserCapM: v.number(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const now = Date.now();
 
@@ -1326,6 +1490,8 @@ export const applyAssignmentStatsBatchInternal = internalMutation({
         lastAssignedAt: now,
       });
     }
+
+    return null;
   },
 });
 
@@ -1334,6 +1500,7 @@ export const revertAssignmentStatsBatchInternal = internalMutation({
     targetUserId: v.id("users"),
     galaxyExternalIds: v.array(v.string()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     for (const galaxyExternalId of args.galaxyExternalIds) {
       const galaxy = await ctx.db
@@ -1370,6 +1537,8 @@ export const revertAssignmentStatsBatchInternal = internalMutation({
         perUser: Object.keys(perUser).length > 0 ? perUser : undefined,
       });
     }
+
+    return null;
   },
 });
 
@@ -1378,6 +1547,7 @@ export const setSequenceGeneratedFlagInternal = internalMutation({
     targetUserId: v.id("users"),
     sequenceGenerated: v.boolean(),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const userProfile = await ctx.db
       .query("userProfiles")
@@ -1385,17 +1555,20 @@ export const setSequenceGeneratedFlagInternal = internalMutation({
       .unique();
 
     if (!userProfile) {
-      return;
+      return null;
     }
 
     await ctx.db.patch(userProfile._id, {
       sequenceGenerated: args.sequenceGenerated,
     });
+
+    return null;
   },
 });
 
 export const listAssignmentTraceTargetsInternal = internalQuery({
   args: {},
+  returns: assignmentTraceTargetsResultValidator,
   handler: async (ctx): Promise<AssignmentTraceTargetsResult> => {
     const sequences = await ctx.db.query("galaxySequences").collect();
     const sequenceByUserId = new Map(sequences.map((sequence) => [sequence.userId, sequence]));
@@ -1409,7 +1582,7 @@ export const listAssignmentTraceTargetsInternal = internalQuery({
         return {
           userId: profile.userId,
           name: user?.name ?? null,
-          email: user?.email ?? null,
+          email: maskEmail(user?.email),
           role: profile.role,
           sequenceSize: sequence?.galaxyExternalIds?.length ?? 0,
           numClassified: sequence?.numClassified ?? 0,
@@ -1440,6 +1613,7 @@ export const getAssignmentTraceStateInternal = internalQuery({
     targetUserId: v.id("users"),
     galaxyExternalIds: v.array(v.string()),
   },
+  returns: assignmentTraceStateValidator,
   handler: async (ctx, args): Promise<AssignmentTraceState> => {
     const sequence = await ctx.db
       .query("galaxySequences")
@@ -1477,6 +1651,7 @@ export const getAssignmentTraceStateInternal = internalQuery({
 
 export const listAssignmentTraceTargetsDev = internalAction({
   args: {},
+  returns: assignmentTraceTargetsResultValidator,
   handler: async (ctx): Promise<AssignmentTraceTargetsResult> => {
     return await ctx.runQuery(internal.classificationBasedAssignment.listAssignmentTraceTargetsInternal, {});
   },
@@ -1495,6 +1670,7 @@ export const traceGenerateClassificationBasedAssignmentDev = internalAction({
     additionalBlacklistedIds: v.optional(v.array(v.string())),
     excludedSequenceUserIds: v.optional(v.array(v.id("users"))),
   },
+  returns: traceClassificationBasedAssignmentResultValidator,
   handler: async (ctx, args): Promise<TraceClassificationBasedAssignmentResult> => {
     const normalizedArgs = normalizeGenerateClassificationBasedSequenceArgs(args);
     const plan = await planGenerateClassificationBasedSequence(ctx, normalizedArgs);
@@ -1637,6 +1813,7 @@ export const traceExtendClassificationBasedAssignmentDev = internalAction({
     additionalBlacklistedIds: v.optional(v.array(v.string())),
     excludedSequenceUserIds: v.optional(v.array(v.id("users"))),
   },
+  returns: traceClassificationBasedAssignmentResultValidator,
   handler: async (ctx, args): Promise<TraceClassificationBasedAssignmentResult> => {
     const normalizedArgs = normalizeExtendClassificationBasedSequenceArgs(args);
     const plan = await planExtendClassificationBasedSequence(ctx, normalizedArgs);
@@ -1780,6 +1957,7 @@ export const generateClassificationBasedUserSequence = action({
     additionalBlacklistedIds: v.optional(v.array(v.string())),
     excludedSequenceUserIds: v.optional(v.array(v.id("users"))),
   },
+  returns: classificationAssignmentResultValidator,
   handler: async (ctx, args): Promise<ClassificationAssignmentResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
     if (!callerProfile) {
@@ -1848,6 +2026,7 @@ export const extendSequenceByClassificationTarget = action({
     additionalBlacklistedIds: v.optional(v.array(v.string())),
     excludedSequenceUserIds: v.optional(v.array(v.id("users"))),
   },
+  returns: classificationAssignmentResultValidator,
   handler: async (ctx, args): Promise<ClassificationAssignmentResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
     if (!callerProfile) {

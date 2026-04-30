@@ -52,6 +52,9 @@ function parseArgs(argv) {
     switch (arg) {
       case "--mode": {
         const value = requireOptionValue("--mode");
+        if (!["auto", "generate", "extend"].includes(value)) {
+          throw new Error(`Invalid value for --mode: ${value}. Expected: auto, generate, or extend.`);
+        }
         options.mode = value;
         index += 1;
         break;

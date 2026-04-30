@@ -33,7 +33,15 @@ export function mergeTopRankedCandidates(
     return [];
   }
 
-  const merged = [...current, ...incoming];
+  const deduped = new Map<string, RankedClassificationCandidate>();
+  for (const candidate of [...current, ...incoming]) {
+    const existing = deduped.get(candidate.galaxyExternalId);
+    if (!existing || compareRankedCandidates(candidate, existing) < 0) {
+      deduped.set(candidate.galaxyExternalId, candidate);
+    }
+  }
+
+  const merged = Array.from(deduped.values());
   merged.sort(compareRankedCandidates);
   if (merged.length > limit) {
     merged.length = limit;
