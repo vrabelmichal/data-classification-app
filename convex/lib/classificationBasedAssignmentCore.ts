@@ -96,8 +96,9 @@ export function mergeGalaxyIdSources(
       continue;
     }
     for (const value of source) {
-      if (value.trim().length > 0) {
-        merged.add(value);
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        merged.add(trimmed);
       }
     }
   }

@@ -29,64 +29,93 @@ function parseArgs(argv) {
     paperFilter: undefined,
   };
 
+  const requireOptionValue = (optionName) => {
+    const value = argv[index + 1];
+    if (!value || value.startsWith("--")) {
+      throw new Error(`Missing value for ${optionName}.`);
+    }
+    return value;
+  };
+
+  const parseNumericOption = (optionName) => {
+    const value = requireOptionValue(optionName);
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      throw new Error(`Invalid numeric value for ${optionName}: ${value}`);
+    }
+    return parsed;
+  };
+
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    const next = argv[index + 1];
 
     switch (arg) {
-      case "--mode":
-        options.mode = next;
+      case "--mode": {
+        const value = requireOptionValue("--mode");
+        options.mode = value;
         index += 1;
         break;
-      case "--env":
-        options.env = next;
+      }
+      case "--env": {
+        const value = requireOptionValue("--env");
+        options.env = value;
         index += 1;
         break;
+      }
       case "--list":
         options.listOnly = true;
         break;
-      case "--user":
-        options.userId = next;
+      case "--user": {
+        const value = requireOptionValue("--user");
+        options.userId = value;
         index += 1;
         break;
+      }
       case "--expectedUsers":
-        options.expectedUsers = Number(next);
+        options.expectedUsers = parseNumericOption("--expectedUsers");
         index += 1;
         break;
       case "--targetClassificationCount":
-        options.targetClassificationCount = Number(next);
+        options.targetClassificationCount = parseNumericOption("--targetClassificationCount");
         index += 1;
         break;
       case "--minAssignmentsPerEntry":
-        options.minAssignmentsPerEntry = Number(next);
+        options.minAssignmentsPerEntry = parseNumericOption("--minAssignmentsPerEntry");
         index += 1;
         break;
       case "--maxAssignmentsPerUserPerEntry":
-        options.maxAssignmentsPerUserPerEntry = Number(next);
+        options.maxAssignmentsPerUserPerEntry = parseNumericOption("--maxAssignmentsPerUserPerEntry");
         index += 1;
         break;
       case "--sequenceSize":
-        options.sequenceSize = Number(next);
+        options.sequenceSize = parseNumericOption("--sequenceSize");
         index += 1;
         break;
       case "--additionalSize":
-        options.additionalSize = Number(next);
+        options.additionalSize = parseNumericOption("--additionalSize");
         index += 1;
         break;
       case "--allowOverAssign":
         options.allowOverAssign = true;
         break;
-      case "--paperFilter":
-        options.paperFilter = next
+      case "--paperFilter": {
+        const value = requireOptionValue("--paperFilter");
+        options.paperFilter = value
           .split(",")
           .map((value) => value.trim())
           .filter((value) => value.length > 0);
+        if (options.paperFilter.length === 0) {
+          throw new Error("Invalid value for --paperFilter: expected at least one non-empty paper value.");
+        }
         index += 1;
         break;
-      case "--out":
-        options.out = next;
+      }
+      case "--out": {
+        const value = requireOptionValue("--out");
+        options.out = value;
         index += 1;
         break;
+      }
       default:
         break;
     }

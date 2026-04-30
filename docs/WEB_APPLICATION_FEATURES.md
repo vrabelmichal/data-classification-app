@@ -307,6 +307,8 @@ The application supports two related assignment procedures when creating or exte
 - The default `regular balanced assignment` procedure prioritizes galaxies with lower total assignment counts.
 - The optional `classification-based assignment` procedure prioritizes galaxies with lower completed classification counts, then falls back to the regular balanced rules when needed.
 
+Here, `completed classification count` means successful finished classifications recorded for a galaxy, while `total assignment count` means how many times that galaxy has been assigned to users overall, including completed, in-progress, and skipped work.
+
 In both cases, the goal is not simply to hand out galaxies at random. Instead, the system tries to distribute work in a way that is fair, useful, and scientifically practical.
 
 In the application, a user normally does not classify from the entire database directly. Instead, the system prepares a personal sequence: an ordered list of galaxy identifiers assigned to that user. The classification interface then walks through that sequence one galaxy at a time.
@@ -326,7 +328,7 @@ When the classification-based procedure is selected, the first priority changes 
 1. the system first looks for galaxies whose completed classification count is still below the requested target,
 2. within that pool, it prefers galaxies with the fewest completed classifications,
 3. when two galaxies are still tied, it prefers the one with fewer classifications by senior classifiers,
-4. if that pool runs out, it falls back to the regular balanced assignment rules using the same K, M, paper-filter, and over-assignment settings already present in the form.
+4. if that pool runs out, it falls back to the regular balanced assignment rules using the same minimum assignment threshold, per-user assignment cap, paper-filter, and over-assignment settings already present in the form.
 
 ### What the system is trying to optimize
 

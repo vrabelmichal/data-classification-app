@@ -158,6 +158,23 @@ describe("GenerateBalancedUserSequence", () => {
     expect(getNumberInputByLabelText(/Expected Users \(N\)/i).value).toBe("14");
   });
 
+  it("prefills expected users to 10 when the total user count is lower", () => {
+    configureGenerateHooks({
+      usersWithoutSequences: [
+        { userId: "user-a", user: { name: "User A", email: "a@example.com" } },
+      ],
+    });
+
+    render(
+      <GenerateBalancedUserSequence
+        users={Array.from({ length: 5 }, (_, index) => ({ userId: `user-${index}` }))}
+        systemSettings={{ availablePapers: ["paper-a", "paper-b"] }}
+      />
+    );
+
+    expect(getNumberInputByLabelText(/Expected Users \(N\)/i).value).toBe("10");
+  });
+
   it("shows the balanced procedure by default and preserves regular form values across toggles", async () => {
     configureGenerateHooks({
       usersWithoutSequences: [

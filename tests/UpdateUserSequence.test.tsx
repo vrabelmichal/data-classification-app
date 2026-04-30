@@ -71,10 +71,7 @@ function configureUpdateHooks(options?: {
     numSkipped: 0,
     remaining: 8,
   };
-  const getUserSequenceInfo = vi
-    .fn()
-    .mockResolvedValue(sequenceInfo)
-    .mockResolvedValue(sequenceInfo);
+  const getUserSequenceInfo = vi.fn().mockResolvedValue(sequenceInfo);
   const shortenUserSequence = vi.fn();
   const extendUserSequence = options?.balancedExtendMutation ?? vi.fn();
   const updateExtendedSequenceStats = vi.fn();
