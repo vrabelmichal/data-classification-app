@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { renderAdditionalDetails } from "./detailRenderers";
 import type { GalaxyData } from "./types";
 
@@ -10,6 +11,7 @@ interface GalaxyInfoProps {
   onOpenImageUrls?: () => void;
   showGalaxyHeader?: boolean;
   navigation?: { currentIndex: number; totalGalaxies: number } | null;
+  detailsExtraContent?: ReactNode;
 }
 
 export function GalaxyInfo({
@@ -21,6 +23,7 @@ export function GalaxyInfo({
   onOpenImageUrls,
   showGalaxyHeader = false,
   navigation,
+  detailsExtraContent,
 }: GalaxyInfoProps) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
@@ -83,6 +86,7 @@ export function GalaxyInfo({
         </button>
       </div>
       {renderAdditionalDetails(additionalDetails, showAdditionalDetails, displayGalaxy.nucleus)}
+      {showAdditionalDetails ? detailsExtraContent : null}
     </div>
   );
 }

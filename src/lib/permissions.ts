@@ -9,6 +9,7 @@ export type UserExperience = (typeof USER_EXPERIENCE_LEVELS)[number];
 export const APP_PERMISSION_KEYS = [
   "manageUsers",
   "manageGalaxyAssignments",
+  "viewGalaxyAssignmentDetails",
   "manageSettings",
   "manageMaintenance",
   "manageSystem",
@@ -51,6 +52,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
   }),
   maintainer: buildPermissionRecord({
     manageGalaxyAssignments: true,
+    viewGalaxyAssignmentDetails: true,
     viewOverviewStatistics: true,
     viewLiveOverviewStatistics: true,
     viewAssignmentStatistics: true,
@@ -91,6 +93,11 @@ export const PERMISSION_METADATA: Record<
   manageUsers: {
     label: "Manage users",
     description: "View users, change roles or experience, confirm accounts, and update activation state.",
+    group: "admin",
+  },
+  viewGalaxyAssignmentDetails: {
+    label: "View galaxy assignment details",
+    description: "Inspect which users a galaxy is assigned to and how assigned users classified it from the classification details panel.",
     group: "admin",
   },
   manageGalaxyAssignments: {

@@ -12,6 +12,7 @@ const permissionGroups = ["statistics", "data", "reports", "admin"] as const;
 const editablePermissionKeys = [
   "manageUsers",
   "manageGalaxyAssignments",
+  "viewGalaxyAssignmentDetails",
   "manageSettings",
   "accessDataPage",
   "unlimitedGalaxyExport",

@@ -2,6 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getOptionalUserId, requireConfirmedUser, requirePermission } from "./lib/auth";
 import { Doc } from "./_generated/dataModel";
+import { normalizeUserExperience } from "./lib/permissions";
 import {
   classificationsByCreated,
   classificationsByAwesomeFlag,
@@ -469,6 +470,172 @@ export const getUserClassificationForGalaxy = query({
     }
 
     return null;
+  },
+});
+
+function getSequenceState(sequenceIndex: number, currentIndex: number) {
+  if (sequenceIndex < currentIndex) {
+    return "passed" as const;
+  }
+
+  if (sequenceIndex === currentIndex) {
+    return "current" as const;
+  }
+
+  return "upcoming" as const;
+}
+
+function summarizeClassification(classification: Doc<"classifications">) {
+  return {
+    lsb_class: classification.lsb_class,
+    morphology: classification.morphology,
+    awesome_flag: classification.awesome_flag,
+    valid_redshift: classification.valid_redshift,
+    visible_nucleus: classification.visible_nucleus ?? null,
+    failed_fitting: classification.failed_fitting ?? false,
+    comments: classification.comments ?? null,
+    timeSpent: classification.timeSpent,
+    createdAt: classification._creationTime,
+  };
+}
+
+export const getGalaxyAssignmentDetails = query({
+  args: { galaxyExternalId: v.string() },
+  handler: async (ctx, { galaxyExternalId }) => {
+    await requirePermission(ctx, "viewGalaxyAssignmentDetails", {
+      notAuthorizedMessage: "Galaxy assignment details are not available for this account",
+    });
+
+    const [sequences, classifications, skippedRows] = await Promise.all([
+      ctx.db.query("galaxySequences").collect(),
+      ctx.db
+        .query("classifications")
+        .withIndex("by_galaxy", (q) => q.eq("galaxyExternalId", galaxyExternalId))
+        .collect(),
+      ctx.db
+        .query("skippedGalaxies")
+        .withIndex("by_galaxy", (q) => q.eq("galaxyExternalId", galaxyExternalId))
+        .collect(),
+    ]);
+
+    const assignments = sequences
+      .map((sequence) => {
+        const galaxyIds = sequence.galaxyExternalIds ?? [];
+        const sequenceIndex = galaxyIds.indexOf(galaxyExternalId);
+
+        if (sequenceIndex === -1) {
+          return null;
+        }
+
+        return {
+          sequence,
+          sequenceIndex,
+        };
+      })
+      .filter(
+        (
+          entry
+        ): entry is {
+          sequence: Doc<"galaxySequences">;
+          sequenceIndex: number;
+        } => entry !== null
+      );
+
+    const userIds = new Set(assignments.map((entry) => entry.sequence.userId));
+    for (const classification of classifications) {
+      userIds.add(classification.userId);
+    }
+    for (const skipped of skippedRows) {
+      userIds.add(skipped.userId);
+    }
+
+    const assignmentByUserId = new Map(
+      assignments.map((entry) => [entry.sequence.userId, entry] as const)
+    );
+    const classificationByUserId = new Map(
+      classifications.map((classification) => [classification.userId, classification] as const)
+    );
+    const skippedByUserId = new Map(
+      skippedRows.map((skipped) => [skipped.userId, skipped] as const)
+    );
+
+    const userDetailsEntries = await Promise.all(
+      Array.from(userIds).map(async (userId) => {
+        const [user, profile] = await Promise.all([
+          ctx.db.get(userId),
+          ctx.db
+            .query("userProfiles")
+            .withIndex("by_user", (q) => q.eq("userId", userId))
+            .unique(),
+        ]);
+
+        return [
+          userId,
+          {
+            name: user?.name ?? null,
+            email: user?.email ?? null,
+            role: profile?.role ?? "user",
+            experience: normalizeUserExperience(profile?.experience),
+            isActive: profile?.isActive ?? null,
+          },
+        ] as const;
+      })
+    );
+
+    const userDetailsById = new Map(userDetailsEntries);
+
+    const users = Array.from(userIds)
+      .map((userId) => {
+        const assignment = assignmentByUserId.get(userId) ?? null;
+        const classification = classificationByUserId.get(userId) ?? null;
+        const skipped = skippedByUserId.get(userId) ?? null;
+        const userDetails = userDetailsById.get(userId);
+
+        return {
+          userId,
+          name: userDetails?.name ?? null,
+          email: userDetails?.email ?? null,
+          role: userDetails?.role ?? "user",
+          experience: normalizeUserExperience(userDetails?.experience),
+          isActive: userDetails?.isActive ?? null,
+          currentlyAssigned: assignment !== null,
+          sequencePosition: assignment ? assignment.sequenceIndex + 1 : null,
+          sequenceLength: assignment
+            ? assignment.sequence.galaxyExternalIds?.length ?? 0
+            : null,
+          sequenceState: assignment
+            ? getSequenceState(assignment.sequenceIndex, assignment.sequence.currentIndex)
+            : null,
+          numClassifiedInSequence: assignment ? assignment.sequence.numClassified : null,
+          numSkippedInSequence: assignment ? assignment.sequence.numSkipped : null,
+          classification: classification ? summarizeClassification(classification) : null,
+          skipped: skipped
+            ? {
+                comments: skipped.comments ?? null,
+              }
+            : null,
+        };
+      })
+      .sort((left, right) => {
+        if (left.currentlyAssigned !== right.currentlyAssigned) {
+          return left.currentlyAssigned ? -1 : 1;
+        }
+
+        if (Boolean(left.classification) !== Boolean(right.classification)) {
+          return left.classification ? -1 : 1;
+        }
+
+        const leftLabel = left.name ?? left.email ?? left.userId;
+        const rightLabel = right.name ?? right.email ?? right.userId;
+        return leftLabel.localeCompare(rightLabel, undefined, {
+          sensitivity: "base",
+        });
+      });
+
+    return {
+      assignmentSourceTracked: false,
+      users,
+    };
   },
 });
 

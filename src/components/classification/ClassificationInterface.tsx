@@ -13,6 +13,7 @@ import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { ProgressBar } from "./ProgressBar";
 import { KeyboardShortcuts } from "./KeyboardShortcuts";
 import { GalaxyImages } from "./GalaxyImages";
+import { GalaxyAssignmentDetails } from "./GalaxyAssignmentDetails";
 import { GalaxyInfo } from "./GalaxyInfo";
 import { QuickInput } from "./QuickInput";
 import { ClassificationForm } from "./ClassificationForm";
@@ -110,6 +111,7 @@ export function ClassificationInterface() {
   const [showAdditionalDetails, setShowAdditionalDetails] = useState(false);
   const [additionalDetails, setAdditionalDetails] = useState<any>(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [assignmentDetailsRequested, setAssignmentDetailsRequested] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [numColumns, setNumColumns] = useState(3);
   const [startTime, setStartTime] = useState<number>(Date.now());
@@ -188,6 +190,24 @@ export function ClassificationInterface() {
     api.classification.getUserClassificationForGalaxy,
     displayGalaxy?.id ? { galaxyExternalId: displayGalaxy.id } : "skip"
   );
+  const canViewGalaxyAssignmentDetails = Boolean(
+    userProfile?.permissions?.viewGalaxyAssignmentDetails
+  );
+  const galaxyAssignmentDetails = useQuery(
+    api.classification.getGalaxyAssignmentDetails,
+    canViewGalaxyAssignmentDetails &&
+      showAdditionalDetails &&
+      assignmentDetailsRequested &&
+      displayGalaxy?.id
+      ? { galaxyExternalId: displayGalaxy.id }
+      : "skip"
+  );
+  const loadingGalaxyAssignmentDetails =
+    canViewGalaxyAssignmentDetails &&
+    showAdditionalDetails &&
+    assignmentDetailsRequested &&
+    Boolean(displayGalaxy?.id) &&
+    galaxyAssignmentDetails === undefined;
 
   // Custom hooks
   const failedFittingMode = (systemSettings?.failedFittingMode as "legacy" | "checkbox") || "checkbox";
@@ -399,6 +419,7 @@ export function ClassificationInterface() {
     setShowAdditionalDetails(false);
     setAdditionalDetails(null);
     setLoadingDetails(false);
+    setAssignmentDetailsRequested(false);
     setShowImageUrlsModal(false);
   }, [displayGalaxy?.id]);
 
@@ -438,6 +459,23 @@ export function ClassificationInterface() {
       setLoadingDetails(false);
     }
   };
+
+  const handleLoadGalaxyAssignmentDetails = useCallback(() => {
+    if (!displayGalaxy?.id) {
+      return;
+    }
+
+    setAssignmentDetailsRequested(true);
+  }, [displayGalaxy?.id]);
+
+  const detailsExtraContent = showAdditionalDetails && canViewGalaxyAssignmentDetails ? (
+    <GalaxyAssignmentDetails
+      requested={assignmentDetailsRequested}
+      loading={loadingGalaxyAssignmentDetails}
+      details={galaxyAssignmentDetails}
+      onLoad={handleLoadGalaxyAssignmentDetails}
+    />
+  ) : null;
 
   const handleSubmit = useCallback(async () => {
     if (submitInFlightRef.current) {
@@ -1294,9 +1332,10 @@ export function ClassificationInterface() {
         additionalDetails={additionalDetails}
         loadingDetails={loadingDetails}
         onToggleDetails={handleToggleDetails}
-          onOpenImageUrls={() => setShowImageUrlsModal(true)}
+        onOpenImageUrls={() => setShowImageUrlsModal(true)}
         showGalaxyHeader={true}
         navigation={navigation}
+        detailsExtraContent={detailsExtraContent}
       />
     </div>
   );
@@ -1336,6 +1375,7 @@ export function ClassificationInterface() {
           loadingDetails={loadingDetails}
           onToggleDetails={handleToggleDetails}
           onOpenImageUrls={() => setShowImageUrlsModal(true)}
+          detailsExtraContent={detailsExtraContent}
         />
       </div>
 
