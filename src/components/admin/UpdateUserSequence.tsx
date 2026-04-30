@@ -268,6 +268,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
     userDisplayName: string,
     userIdShort: string,
     selectedGalaxyIds: string[] | undefined,
+    selectedGalaxyIdsCount: number | undefined,
     dryRunMode: boolean
   ) => {
     if (!selectedGalaxyIds || selectedGalaxyIds.length === 0) {
@@ -275,9 +276,10 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
     }
 
     const previewIds = selectedGalaxyIds.slice(0, DEFAULT_ASSIGNMENT_PREVIEW_COUNT);
+    const totalSelectedCount = selectedGalaxyIdsCount ?? selectedGalaxyIds.length;
     appendLog(
       "info",
-      `[${userDisplayName} (${userIdShort})] Showing first ${previewIds.length} of ${selectedGalaxyIds.length} galaxies ${dryRunMode ? "that would be added" : "added to the sequence"}`
+      `[${userDisplayName} (${userIdShort})] Showing first ${previewIds.length} of ${totalSelectedCount} galaxies ${dryRunMode ? "that would be added" : "added to the sequence"}`
     );
     appendLog(
       "info",
@@ -548,17 +550,30 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
         }
 
         if (dryRun) {
+          const projectedNewSequenceSize = result.projectedNewSequenceSize ?? result.newSequenceSize;
           appendLog(
             "success",
-            `[${userDisplayName} (${userIdShort})] Dry run would add ${result.generated} galaxies (${previousSize} → ${result.newSequenceSize}) using the classification-based procedure; no sequence, counters, or emails were changed`
+            `[${userDisplayName} (${userIdShort})] Dry run would add ${result.generated} galaxies (${previousSize} → ${projectedNewSequenceSize}) using the classification-based procedure; no sequence, counters, or emails were changed`
           );
-          appendAssignedGalaxyPreviewLogs(userDisplayName, userIdShort, result.selectedGalaxyIds, true);
+          appendAssignedGalaxyPreviewLogs(
+            userDisplayName,
+            userIdShort,
+            result.selectedGalaxyIds,
+            result.selectedGalaxyIds?.length,
+            true
+          );
         } else {
         appendLog(
           "success",
           `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize}) using the classification-based procedure`
         );
-          appendAssignedGalaxyPreviewLogs(userDisplayName, userIdShort, result.selectedGalaxyIds, false);
+          appendAssignedGalaxyPreviewLogs(
+            userDisplayName,
+            userIdShort,
+            result.selectedGalaxyIds,
+            result.selectedGalaxyIds?.length,
+            false
+          );
 
         if (sendExtendEmail && result.newSequenceSize) {
           try {
@@ -619,14 +634,16 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
         }
 
         if (dryRun) {
+          const projectedNewSequenceSize = result.projectedNewSequenceSize ?? result.newSequenceSize;
           appendLog(
             "success",
-            `[${userDisplayName} (${userIdShort})] Dry run would add ${result.generated} galaxies (${previousSize} → ${result.newSequenceSize}); no sequence, counters, or emails were changed`
+            `[${userDisplayName} (${userIdShort})] Dry run would add ${result.generated} galaxies (${previousSize} → ${projectedNewSequenceSize}); no sequence, counters, or emails were changed`
           );
           appendAssignedGalaxyPreviewLogs(
             userDisplayName,
             userIdShort,
-            result.selectedGalaxyIds,
+            result.selectedGalaxyIdsPreview,
+            result.selectedGalaxyIdsCount,
             true
           );
         } else {
@@ -637,7 +654,8 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           appendAssignedGalaxyPreviewLogs(
             userDisplayName,
             userIdShort,
-            result.selectedGalaxyIds,
+            result.selectedGalaxyIdsPreview,
+            result.selectedGalaxyIdsCount,
             false
           );
 

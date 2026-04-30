@@ -22,6 +22,7 @@ type StatsDoc = {
 };
 
 const MAX_SEQUENCE = 8192;
+const SELECTED_GALAXY_PREVIEW_SIZE = 5;
 
 /**
  * Get information about a user's current sequence for the update UI
@@ -404,13 +405,16 @@ export const extendUserSequence = mutation({
     // Calculate batches needed for stats update
     const STATS_BATCH_SIZE = 500;
     const statsBatchesNeeded = dryRun ? 0 : Math.ceil(selectedIds.length / STATS_BATCH_SIZE);
+    const projectedNewSequenceSize = currentSize + selectedIds.length;
 
     return {
       success: selectedIds.length > 0,
       requested: requestedAdd,
       generated: selectedIds.length,
-      selectedGalaxyIds: selectedIds,
-      newSequenceSize: currentSize + selectedIds.length,
+      selectedGalaxyIdsPreview: selectedIds.slice(0, SELECTED_GALAXY_PREVIEW_SIZE),
+      selectedGalaxyIdsCount: selectedIds.length,
+      newSequenceSize: dryRun ? currentSize : projectedNewSequenceSize,
+      projectedNewSequenceSize,
       previousSize: currentSize,
       statsBatchesNeeded,
       statsBatchSize: STATS_BATCH_SIZE,

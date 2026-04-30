@@ -186,6 +186,7 @@ describe("UpdateUserSequence", () => {
       generated: 3,
       previousSize: 10,
       newSequenceSize: 13,
+      projectedNewSequenceSize: 13,
     });
 
     configureUpdateHooks({
@@ -221,6 +222,8 @@ describe("UpdateUserSequence", () => {
       generated: 2,
       previousSize: 10,
       newSequenceSize: 12,
+      projectedNewSequenceSize: 12,
+      selectedGalaxyIds: ["gal-1", "gal-2"],
       diagnostics: {
         effectiveBlacklistCount: 9,
         systemBlacklistedCount: 4,
@@ -294,8 +297,10 @@ describe("UpdateUserSequence", () => {
       requested: 50,
       generated: 6,
       previousSize: 10,
-      newSequenceSize: 16,
-      selectedGalaxyIds: ["gal-1", "gal-2", "gal-3", "gal-4", "gal-5", "gal-6"],
+      newSequenceSize: 10,
+      projectedNewSequenceSize: 16,
+      selectedGalaxyIdsPreview: ["gal-1", "gal-2", "gal-3", "gal-4", "gal-5"],
+      selectedGalaxyIdsCount: 6,
       statsBatchesNeeded: 0,
     });
     const sendSequenceExtendedEmail = vi.fn().mockResolvedValue({ success: true, to: "target@example.com" });
