@@ -243,7 +243,7 @@ export function UsersTab({ users }: UsersTabProps) {
               onToggle={() => setShowEmails((current) => !current)}
             />
             <button
-              title={"Download CSV of users (Name, Email, Role, Experience, Classifications, Active, Confirmed)"}
+              title={"Download CSV of users (Name, Email, Role, Experience, Classifications, Assigned Galaxies, Joined At, Active, Confirmed)"}
               onClick={handleDownloadUsers}
               className="inline-flex items-center gap-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600"
             >
