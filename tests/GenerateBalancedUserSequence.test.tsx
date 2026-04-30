@@ -139,6 +139,7 @@ function getNumberInputByLabelText(labelText: RegExp): HTMLInputElement {
 describe("GenerateBalancedUserSequence", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it("prefills expected users with the greater of 10 and the total user count", () => {
@@ -285,5 +286,47 @@ describe("GenerateBalancedUserSequence", () => {
     for (const [payload] of sendEmailAction.mock.calls) {
       expect(payload.procedureType).toBe("classificationBased");
     }
+  });
+
+  it("forwards dry-run classification-based generation and logs only the first five preview galaxies", async () => {
+    const classificationAction = vi.fn().mockResolvedValue({
+      success: true,
+      requested: 50,
+      generated: 6,
+      selectedGalaxyIds: ["gal-1", "gal-2", "gal-3", "gal-4", "gal-5", "gal-6"],
+    });
+    const sendEmailAction = vi.fn().mockResolvedValue({ success: true, to: "target@example.com" });
+
+    configureGenerateHooks({
+      usersWithoutSequences: [
+        { userId: "user-a", user: { name: "User A", email: "a@example.com" } },
+      ],
+      classificationAction,
+      sendEmailAction,
+    });
+
+    render(
+      <GenerateBalancedUserSequence
+        users={[]}
+        systemSettings={{ availablePapers: ["paper-a", "paper-b"] }}
+      />
+    );
+
+    await userEvent.click(screen.getByLabelText(/Classification-based assignment/i));
+    await userEvent.selectOptions(screen.getByRole("combobox"), "user-a");
+    await userEvent.click(screen.getByLabelText(/Send email notification to user/i));
+    await userEvent.click(screen.getByLabelText(/Dry run only/i));
+    await userEvent.click(screen.getByRole("button", { name: /Dry Run Classification-Based Sequence/i }));
+
+    await waitFor(() => expect(classificationAction).toHaveBeenCalledTimes(1));
+    expect(classificationAction.mock.calls[0][0]).toMatchObject({
+      targetUserId: "user-a",
+      dryRun: true,
+    });
+
+    expect(sendEmailAction).not.toHaveBeenCalled();
+    expect(screen.getByText(/Showing first 5 of 6 galaxies that would be assigned/i)).toBeTruthy();
+    expect(screen.getByText(/Dry-run preview galaxies: gal-1, gal-2, gal-3, gal-4, gal-5/i)).toBeTruthy();
+    expect(screen.queryByText(/gal-6/i)).toBeNull();
   });
 });

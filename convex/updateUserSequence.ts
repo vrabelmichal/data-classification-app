@@ -210,6 +210,7 @@ export const extendUserSequence = mutation({
     minAssignmentsPerEntry: v.number(), // K
     maxAssignmentsPerUserPerEntry: v.optional(v.number()), // M
     allowOverAssign: v.optional(v.boolean()),
+    dryRun: v.optional(v.boolean()),
     paperFilter: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -221,6 +222,7 @@ export const extendUserSequence = mutation({
     const M = Math.max(1, Math.floor(args.maxAssignmentsPerUserPerEntry ?? 1));
     const requestedAdd = Math.max(1, Math.floor(args.additionalSize));
     const allowOverAssign = !!args.allowOverAssign;
+    const dryRun = !!args.dryRun;
     const paperFilter = args.paperFilter && args.paperFilter.length > 0 ? args.paperFilter : null;
 
     // Helper to format paper filter for logging (handles empty strings)
@@ -276,7 +278,7 @@ export const extendUserSequence = mutation({
 
     console.log(
       `Extending sequence: adding up to ${S} galaxies, K=${K}, M=${M}, ` +
-      `allowOverAssign=${allowOverAssign}, paperFilter=${formatPaperFilter(paperFilter)}`
+      `allowOverAssign=${allowOverAssign}, dryRun=${dryRun}, paperFilter=${formatPaperFilter(paperFilter)}`
     );
 
     // Get blacklisted galaxies
@@ -287,8 +289,7 @@ export const extendUserSequence = mutation({
     async function* underKStream(): AsyncIterable<StatsDoc> {
       const iterator = ctx.db
         .query("galaxies")
-        .withIndex("by_totalAssigned_numericId", (q) => q.lt("totalAssigned", BigInt(K)))
-        [Symbol.asyncIterator]();
+        .withIndex("by_totalAssigned_numericId", (q) => q.lt("totalAssigned", BigInt(K)))[Symbol.asyncIterator]();
 
       while (true) {
         const result = await iterator.next();
@@ -319,8 +320,7 @@ export const extendUserSequence = mutation({
 
       const iterator = ctx.db
         .query("galaxies")
-        .withIndex("by_totalAssigned_numericId", (q) => q.gte("totalAssigned", BigInt(K)))
-        [Symbol.asyncIterator]();
+        .withIndex("by_totalAssigned_numericId", (q) => q.gte("totalAssigned", BigInt(K)))[Symbol.asyncIterator]();
 
       while (true) {
         const result = await iterator.next();
@@ -393,7 +393,7 @@ export const extendUserSequence = mutation({
     }
 
     // Append new galaxies to sequence
-    if (selectedIds.length > 0) {
+    if (!dryRun && selectedIds.length > 0) {
       const newGalaxyIds = [...(sequence.galaxyExternalIds || []), ...selectedIds];
       await ctx.db.patch(sequence._id, {
         galaxyExternalIds: newGalaxyIds,
@@ -403,12 +403,13 @@ export const extendUserSequence = mutation({
 
     // Calculate batches needed for stats update
     const STATS_BATCH_SIZE = 500;
-    const statsBatchesNeeded = Math.ceil(selectedIds.length / STATS_BATCH_SIZE);
+    const statsBatchesNeeded = dryRun ? 0 : Math.ceil(selectedIds.length / STATS_BATCH_SIZE);
 
     return {
       success: selectedIds.length > 0,
       requested: requestedAdd,
       generated: selectedIds.length,
+      selectedGalaxyIds: selectedIds,
       newSequenceSize: currentSize + selectedIds.length,
       previousSize: currentSize,
       statsBatchesNeeded,
@@ -417,6 +418,7 @@ export const extendUserSequence = mutation({
       perUserCap: M,
       expectedUsers,
       allowOverAssign,
+      dryRun,
       paperFilter: paperFilter ?? undefined,
       warnings: warnings.length ? warnings : undefined,
       errors: errors.length ? errors : undefined,

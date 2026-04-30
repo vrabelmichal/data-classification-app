@@ -110,6 +110,11 @@ export const DEFAULT_USER_EXPORT_LIMIT = 1000;
 export const DEFAULT_EXPECTED_USERS = 10;
 
 /**
+ * Number of galaxy IDs shown in admin logs as assignment examples.
+ */
+export const DEFAULT_ASSIGNMENT_PREVIEW_COUNT = 5;
+
+/**
  * Default state for admin-triggered Cloudflare image cache invalidation
  */
 export const DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED = false;

@@ -512,7 +512,6 @@ export const generateBalancedUserSequence = action({
     let exhaustedUnderK = false;
     let exhaustedOverK = false;
     let totalScanned = 0;
-    let batchCount = 0;
     let cancelled = false;
 
     // Phase 1: Under-K galaxies
@@ -526,7 +525,6 @@ export const generateBalancedUserSequence = action({
         break;
       }
 
-      batchCount++;
       const neededCount = S - selectedIds.length;
       
       const batchResult: SelectGalaxiesBatchResult = await ctx.runQuery(internal.generateBalancedUserSequence.selectGalaxiesBatch, {
@@ -561,7 +559,6 @@ export const generateBalancedUserSequence = action({
     if (!cancelled && selectedIds.length < S && allowOverAssign) {
       await updateProgress("overK", "Scanning over-K galaxies...", selectedIds.length, totalScanned);
       cursor = undefined; // Reset cursor for new phase
-      batchCount = 0;
 
       while (selectedIds.length < S && !exhaustedOverK) {
         // Check for cancellation between batches
@@ -571,7 +568,6 @@ export const generateBalancedUserSequence = action({
           break;
         }
 
-        batchCount++;
         const neededCount = S - selectedIds.length;
 
         const batchResult: SelectGalaxiesBatchResult = await ctx.runQuery(internal.generateBalancedUserSequence.selectGalaxiesBatch, {
@@ -698,7 +694,7 @@ export const generateBalancedUserSequence = action({
       success: dryRun ? true : success,
       requested: S,
       generated: selectedIds.length,
-      selectedIds: dryRun ? undefined : selectedIds,
+      selectedIds,
       statsBatchesNeeded: dryRun ? 0 : statsBatchesNeeded,
       statsBatchSize: STATS_BATCH_SIZE,
       minAssignmentsPerEntry: K,

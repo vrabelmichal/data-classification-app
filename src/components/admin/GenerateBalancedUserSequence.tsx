@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { DEFAULT_AVAILABLE_PAPERS, DEFAULT_EXPECTED_USERS } from "../../lib/defaults";
+import {
+  DEFAULT_ASSIGNMENT_PREVIEW_COUNT,
+  DEFAULT_AVAILABLE_PAPERS,
+  DEFAULT_EXPECTED_USERS,
+} from "../../lib/defaults";
 import { Id } from "../../../convex/_generated/dataModel";
 
 interface GenerateBalancedUserSequenceProps {
@@ -43,6 +47,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
   const [excludedSequenceUserIds, setExcludedSequenceUserIds] = useState<Set<string>>(new Set());
   const [excludePreviouslyAssignedInBatch, setExcludePreviouslyAssignedInBatch] = useState(true);
   const [generatingSequence, setGeneratingSequence] = useState(false);
+  const [dryRun, setDryRun] = useState(false);
   const [sendEmailNotification, setSendEmailNotification] = useState(false);
   const [logs, setLogs] = useState<
     Array<{ level: "info" | "warning" | "error" | "success"; message: string; timestamp: number }>
@@ -106,7 +111,6 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
     } catch (err) {
       console.warn("Failed to load logs from localStorage", err);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Persist logs to local storage
@@ -148,6 +152,13 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
   const handleExpectedUsersChange = (value: string) => {
     expectedUsersEditedRef.current = true;
     setExpectedUsers(Number(value));
+  };
+
+  const handleDryRunChange = (checked: boolean) => {
+    setDryRun(checked);
+    if (checked) {
+      setSendEmailNotification(false);
+    }
   };
 
   const generateBalancedUserSequence = useAction(api.generateBalancedUserSequence.generateBalancedUserSequence);
@@ -285,6 +296,27 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
     );
   };
 
+  const appendAssignedGalaxyPreviewLogs = (
+    userDisplayName: string,
+    userIdShort: string,
+    selectedGalaxyIds: string[] | undefined,
+    dryRunMode: boolean
+  ) => {
+    if (!selectedGalaxyIds || selectedGalaxyIds.length === 0) {
+      return;
+    }
+
+    const previewIds = selectedGalaxyIds.slice(0, DEFAULT_ASSIGNMENT_PREVIEW_COUNT);
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] Showing first ${previewIds.length} of ${selectedGalaxyIds.length} galaxies ${dryRunMode ? "that would be assigned" : "assigned"}`
+    );
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] ${dryRunMode ? "Dry-run preview galaxies" : "Assigned galaxies"}: ${previewIds.join(", ")}`
+    );
+  };
+
   const runSequenceForUser = async (
     targetUserId: string,
     effectiveSequenceSize: number,
@@ -303,7 +335,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
 
       appendLog(
         "info",
-        `[${userDisplayName} (${userIdShort})] Starting classification-based sequence generation (S=${effectiveSequenceSize}, N=${expectedUsers}, C=${targetClassificationCount}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, paperFilter=[${formatPaperFilter(paperFilter)}], extraBlacklist=${additionalBlacklistIds.length}, excludedSequenceUsers=${excludedSequenceUserIds.size}, batchCarryForwardBlacklist=${carryForwardBlacklistIds.length})`
+        `[${userDisplayName} (${userIdShort})] Starting classification-based sequence generation (S=${effectiveSequenceSize}, N=${expectedUsers}, C=${targetClassificationCount}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, dryRun=${dryRun}, paperFilter=[${formatPaperFilter(paperFilter)}], extraBlacklist=${additionalBlacklistIds.length}, excludedSequenceUsers=${excludedSequenceUserIds.size}, batchCarryForwardBlacklist=${carryForwardBlacklistIds.length})`
       );
 
       if (allowOverAssign) {
@@ -321,6 +353,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
         maxAssignmentsPerUserPerEntry,
         sequenceSize: effectiveSequenceSize,
         allowOverAssign,
+        dryRun,
         paperFilter,
         additionalBlacklistedIds: Array.from(new Set([...additionalBlacklistIds, ...carryForwardBlacklistIds])),
         excludedSequenceUserIds: Array.from(excludedSequenceUserIds) as Id<"users">[],
@@ -343,10 +376,21 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
       }
 
       result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+
+      if (dryRun) {
+        appendLog(
+          "success",
+          `[${userDisplayName} (${userIdShort})] Dry run selected ${result.generated}/${result.requested} galaxies using the classification-based procedure; no sequence, counters, or emails were changed`
+        );
+        appendAssignedGalaxyPreviewLogs(userDisplayName, userIdShort, result.selectedGalaxyIds, true);
+        return result.selectedGalaxyIds ?? [];
+      }
+
       appendLog(
         "success",
         `[${userDisplayName} (${userIdShort})] Generated ${result.generated}/${result.requested} galaxies using the classification-based procedure`
       );
+      appendAssignedGalaxyPreviewLogs(userDisplayName, userIdShort, result.selectedGalaxyIds, false);
 
       if (sendEmailNotification) {
         try {
@@ -380,11 +424,11 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
       return result.selectedGalaxyIds ?? [];
     }
 
-    setActiveGenerationUserId(targetUserId as Id<"users">);
+    setActiveGenerationUserId(dryRun ? null : targetUserId as Id<"users">);
 
     appendLog(
       "info",
-        `[${userDisplayName} (${userIdShort})] Starting sequence generation (S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign})`
+        `[${userDisplayName} (${userIdShort})] Starting sequence generation (S=${effectiveSequenceSize}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, dryRun=${dryRun})`
     );
 
     const result = await generateBalancedUserSequence({
@@ -394,6 +438,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
       maxAssignmentsPerUserPerEntry,
       sequenceSize: effectiveSequenceSize,
       allowOverAssign,
+      dryRun,
       paperFilter,
     });
 
@@ -413,10 +458,21 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
     }
 
     result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+
+    if (dryRun) {
+      appendLog(
+        "success",
+        `[${userDisplayName} (${userIdShort})] Dry run selected ${result.generated}/${result.requested} galaxies; no sequence, counters, or emails were changed`
+      );
+      appendAssignedGalaxyPreviewLogs(userDisplayName, userIdShort, result.selectedIds, true);
+      return result.selectedIds ?? [];
+    }
+
     appendLog(
       "success",
       `[${userDisplayName} (${userIdShort})] Generated ${result.generated}/${result.requested} galaxies`
     );
+    appendAssignedGalaxyPreviewLogs(userDisplayName, userIdShort, result.selectedIds, false);
 
     if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
       const totalBatches = result.statsBatchesNeeded;
@@ -503,7 +559,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
       }
     }
 
-    return [];
+    return result.selectedIds ?? [];
   };
 
   const handleGenerateSequence = async () => {
@@ -543,6 +599,13 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
         if (assignmentProcedure === "classificationBased" && excludePreviouslyAssignedInBatch) {
           appendLog("info", "Batch carry-forward blacklist is enabled for classification-based assignment.");
         }
+      }
+
+      if (dryRun) {
+        appendLog(
+          "info",
+          `Dry run is enabled. This run will preview selections and log the first ${DEFAULT_ASSIGNMENT_PREVIEW_COUNT} galaxies per user without creating sequences, updating counters, or sending emails.`
+        );
       }
 
       for (const target of selectedUsers) {
@@ -995,10 +1058,28 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
             <label className="flex items-center">
               <input
                 type="checkbox"
+                checked={dryRun}
+                onChange={(e) => handleDryRunChange(e.target.checked)}
+                className="mr-2"
+                disabled={generatingSequence}
+              />
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Dry run only
+              </span>
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+              Preview the selection and log the first {DEFAULT_ASSIGNMENT_PREVIEW_COUNT} galaxies without creating sequences, updating counters, or sending emails.
+            </p>
+          </div>
+
+          <div>
+            <label className="flex items-center">
+              <input
+                type="checkbox"
                 checked={sendEmailNotification}
                 onChange={(e) => setSendEmailNotification(e.target.checked)}
                 className="mr-2"
-                disabled={generatingSequence}
+                disabled={generatingSequence || dryRun}
               />
               <span className="text-sm font-medium text-gray-900 dark:text-white">
                 Send email notification to user
@@ -1073,11 +1154,17 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
               )}
               {generatingSequence
                 ? 'Generating...'
-                : batchMode
-                  ? 'Generate Sequences (Batch)'
-                  : assignmentProcedure === 'classificationBased'
-                    ? 'Generate Classification-Based Sequence'
-                    : 'Generate Balanced Sequence'}
+                : dryRun
+                  ? batchMode
+                    ? 'Dry Run Sequences (Batch)'
+                    : assignmentProcedure === 'classificationBased'
+                      ? 'Dry Run Classification-Based Sequence'
+                      : 'Dry Run Balanced Sequence'
+                  : batchMode
+                    ? 'Generate Sequences (Batch)'
+                    : assignmentProcedure === 'classificationBased'
+                      ? 'Generate Classification-Based Sequence'
+                      : 'Generate Balanced Sequence'}
             </button>
             
             {generatingSequence && assignmentProcedure === "balanced" && (

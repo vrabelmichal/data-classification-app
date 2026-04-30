@@ -821,7 +821,7 @@ async function planGenerateClassificationBasedSequence(
 
   const systemBlacklistedIds = dedupeValues(
     (preconditions.blacklistedIds ??
-      (await ctx.runQuery(internal.classificationBasedAssignment.getSystemBlacklistedGalaxyIdsInternal, {}))) as string[]
+      (await ctx.runQuery(internal.classificationBasedAssignment.getSystemBlacklistedGalaxyIdsInternal, {})))
   );
   const blacklistResult = await buildEffectiveBlacklistIds(ctx, {
     systemBlacklistedIds,
@@ -1953,6 +1953,7 @@ export const generateClassificationBasedUserSequence = action({
     maxAssignmentsPerUserPerEntry: v.optional(v.number()),
     sequenceSize: v.optional(v.number()),
     allowOverAssign: v.optional(v.boolean()),
+    dryRun: v.optional(v.boolean()),
     paperFilter: v.optional(v.array(v.string())),
     additionalBlacklistedIds: v.optional(v.array(v.string())),
     excludedSequenceUserIds: v.optional(v.array(v.id("users"))),
@@ -1990,6 +1991,10 @@ export const generateClassificationBasedUserSequence = action({
       return planResult;
     }
 
+    if (args.dryRun) {
+      return planResult;
+    }
+
     const persistResult = await persistGeneratedClassificationBasedSequence(ctx, {
       targetUserId: normalizedArgs.targetUserId,
       selectedIds,
@@ -2022,6 +2027,7 @@ export const extendSequenceByClassificationTarget = action({
     minAssignmentsPerEntry: v.number(),
     maxAssignmentsPerUserPerEntry: v.optional(v.number()),
     allowOverAssign: v.optional(v.boolean()),
+    dryRun: v.optional(v.boolean()),
     paperFilter: v.optional(v.array(v.string())),
     additionalBlacklistedIds: v.optional(v.array(v.string())),
     excludedSequenceUserIds: v.optional(v.array(v.id("users"))),
@@ -2056,6 +2062,10 @@ export const extendSequenceByClassificationTarget = action({
     const plan = await planExtendClassificationBasedSequence(ctx, normalizedArgs);
     const { selectedIds, existingIds, ...planResult } = plan;
     if (!plan.success) {
+      return planResult;
+    }
+
+    if (args.dryRun) {
       return planResult;
     }
 

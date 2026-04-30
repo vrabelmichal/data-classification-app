@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { DEFAULT_AVAILABLE_PAPERS, DEFAULT_EXPECTED_USERS } from "../../lib/defaults";
+import {
+  DEFAULT_ASSIGNMENT_PREVIEW_COUNT,
+  DEFAULT_AVAILABLE_PAPERS,
+  DEFAULT_EXPECTED_USERS,
+} from "../../lib/defaults";
 import { Id } from "../../../convex/_generated/dataModel";
 
 interface UpdateUserSequenceProps {
@@ -52,6 +56,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   const [assignmentProcedure, setAssignmentProcedure] = useState<AssignmentProcedure>("balanced");
   const [additionalSize, setAdditionalSize] = useState(50);
   const [sendExtendEmail, setSendExtendEmail] = useState(false);
+  const [dryRun, setDryRun] = useState(false);
   const [expectedUsers, setExpectedUsers] = useState(DEFAULT_EXPECTED_USERS);
   const [minAssignmentsPerEntry, setMinAssignmentsPerEntry] = useState(3);
   const [maxAssignmentsPerUserPerEntry, setMaxAssignmentsPerUserPerEntry] = useState(1);
@@ -208,6 +213,13 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
     setExpectedUsers(Number(value));
   };
 
+  const handleDryRunChange = (checked: boolean) => {
+    setDryRun(checked);
+    if (checked) {
+      setSendExtendEmail(false);
+    }
+  };
+
   const handlePaperToggle = (paper: string) => {
     setSelectedPapers((prev) => {
       const newSet = new Set(prev);
@@ -249,6 +261,27 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
     appendLog(
       "info",
       `[${userDisplayName} (${userIdShort})] Selection details: classificationPriority=${diagnostics.classificationPrioritySelectedCount}, fallbackUnderK=${diagnostics.balancedFallbackUnderAssignedCount}, overAssignFallback=${diagnostics.balancedFallbackOverAssignedCount}`
+    );
+  };
+
+  const appendAssignedGalaxyPreviewLogs = (
+    userDisplayName: string,
+    userIdShort: string,
+    selectedGalaxyIds: string[] | undefined,
+    dryRunMode: boolean
+  ) => {
+    if (!selectedGalaxyIds || selectedGalaxyIds.length === 0) {
+      return;
+    }
+
+    const previewIds = selectedGalaxyIds.slice(0, DEFAULT_ASSIGNMENT_PREVIEW_COUNT);
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] Showing first ${previewIds.length} of ${selectedGalaxyIds.length} galaxies ${dryRunMode ? "that would be added" : "added to the sequence"}`
+    );
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] ${dryRunMode ? "Dry-run preview galaxies" : "Added galaxies"}: ${previewIds.join(", ")}`
     );
   };
 
@@ -463,10 +496,17 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
       const previousSize = currentSequenceInfo.totalGalaxies;
 
+      if (dryRun) {
+        appendLog(
+          "info",
+          `[${userDisplayName} (${userIdShort})] Dry run is enabled. This extension will only preview the first ${DEFAULT_ASSIGNMENT_PREVIEW_COUNT} galaxies and will not change the sequence, counters, or emails.`
+        );
+      }
+
       if (assignmentProcedure === "classificationBased") {
         appendLog(
           "info",
-          `[${userDisplayName} (${userIdShort})] Starting classification-based sequence extension: adding up to ${additionalSize} galaxies, currentSequenceSize=${previousSize}, N=${expectedUsers}, C=${targetClassificationCount}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, paperFilter=[${formatPaperFilter(paperFilter)}], extraBlacklist=${additionalBlacklistIds.length}, excludedSequenceUsers=${excludedSequenceUserIds.size}`
+          `[${userDisplayName} (${userIdShort})] Starting classification-based sequence extension: adding up to ${additionalSize} galaxies, currentSequenceSize=${previousSize}, N=${expectedUsers}, C=${targetClassificationCount}, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, dryRun=${dryRun}, paperFilter=[${formatPaperFilter(paperFilter)}], extraBlacklist=${additionalBlacklistIds.length}, excludedSequenceUsers=${excludedSequenceUserIds.size}`
         );
 
         if (allowOverAssign) {
@@ -484,6 +524,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           minAssignmentsPerEntry,
           maxAssignmentsPerUserPerEntry,
           allowOverAssign,
+          dryRun,
           paperFilter,
           additionalBlacklistedIds: additionalBlacklistIds,
           excludedSequenceUserIds: Array.from(excludedSequenceUserIds) as Id<"users">[],
@@ -506,10 +547,18 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           return;
         }
 
+        if (dryRun) {
+          appendLog(
+            "success",
+            `[${userDisplayName} (${userIdShort})] Dry run would add ${result.generated} galaxies (${previousSize} → ${result.newSequenceSize}) using the classification-based procedure; no sequence, counters, or emails were changed`
+          );
+          appendAssignedGalaxyPreviewLogs(userDisplayName, userIdShort, result.selectedGalaxyIds, true);
+        } else {
         appendLog(
           "success",
           `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize}) using the classification-based procedure`
         );
+          appendAssignedGalaxyPreviewLogs(userDisplayName, userIdShort, result.selectedGalaxyIds, false);
 
         if (sendExtendEmail && result.newSequenceSize) {
           try {
@@ -540,10 +589,11 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
             appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
           }
         }
+        }
       } else {
         appendLog(
           "info",
-          `[${userDisplayName} (${userIdShort})] Starting sequence extension: adding up to ${additionalSize} galaxies, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}`
+          `[${userDisplayName} (${userIdShort})] Starting sequence extension: adding up to ${additionalSize} galaxies, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, dryRun=${dryRun}`
         );
 
         const result = await extendUserSequence({
@@ -553,6 +603,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           minAssignmentsPerEntry,
           maxAssignmentsPerUserPerEntry,
           allowOverAssign,
+          dryRun,
           paperFilter,
         });
 
@@ -567,101 +618,122 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           return;
         }
 
-        appendLog(
-          "success",
-          `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize})`
-        );
-
-        if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
-          const totalBatches = result.statsBatchesNeeded;
-          const batchSize = result.statsBatchSize || 500;
-
-          setProgress({
-            currentBatch: 1,
-            totalBatches,
-            processedItems: 0,
-            totalItems: result.generated,
-            message: "Starting stats updates...",
+        if (dryRun) {
+          appendLog(
+            "success",
+            `[${userDisplayName} (${userIdShort})] Dry run would add ${result.generated} galaxies (${previousSize} → ${result.newSequenceSize}); no sequence, counters, or emails were changed`
+          );
+          appendAssignedGalaxyPreviewLogs(
             userDisplayName,
             userIdShort,
-          });
+            result.selectedGalaxyIds,
+            true
+          );
+        } else {
+          appendLog(
+            "success",
+            `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize})`
+          );
+          appendAssignedGalaxyPreviewLogs(
+            userDisplayName,
+            userIdShort,
+            result.selectedGalaxyIds,
+            false
+          );
 
-          for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
-            const statsResult = await updateExtendedSequenceStats({
-              targetUserId: selectedUserId as any,
-              startIndex: previousSize,
-              batchIndex,
-              batchSize,
-              perUserCapM: maxAssignmentsPerUserPerEntry,
-            });
-
-            if (!statsResult.success) {
-              throw new Error(`Failed to update stats batch ${batchIndex + 1}`);
-            }
+          if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
+            const totalBatches = result.statsBatchesNeeded;
+            const batchSize = result.statsBatchSize || 500;
 
             setProgress({
-              currentBatch: batchIndex + 1,
+              currentBatch: 1,
               totalBatches,
-              processedItems: statsResult.totalProcessed,
+              processedItems: 0,
               totalItems: result.generated,
-              message: statsResult.isComplete
-                ? "Completed stats updates"
-                : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`,
+              message: "Starting stats updates...",
               userDisplayName,
               userIdShort,
             });
 
-            appendLog(
-              "info",
-              statsResult.isComplete
-                ? `[${userDisplayName} (${userIdShort})] Completed stats updates`
-                : `[${userDisplayName} (${userIdShort})] Updated stats for batch ${batchIndex + 1}/${totalBatches}`
-            );
+            for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+              const statsResult = await updateExtendedSequenceStats({
+                targetUserId: selectedUserId as any,
+                startIndex: previousSize,
+                batchIndex,
+                batchSize,
+                perUserCapM: maxAssignmentsPerUserPerEntry,
+              });
 
-            if (statsResult.isComplete) {
-              break;
+              if (!statsResult.success) {
+                throw new Error(`Failed to update stats batch ${batchIndex + 1}`);
+              }
+
+              setProgress({
+                currentBatch: batchIndex + 1,
+                totalBatches,
+                processedItems: statsResult.totalProcessed,
+                totalItems: result.generated,
+                message: statsResult.isComplete
+                  ? "Completed stats updates"
+                  : `Updated stats for batch ${batchIndex + 1}/${totalBatches}`,
+                userDisplayName,
+                userIdShort,
+              });
+
+              appendLog(
+                "info",
+                statsResult.isComplete
+                  ? `[${userDisplayName} (${userIdShort})] Completed stats updates`
+                  : `[${userDisplayName} (${userIdShort})] Updated stats for batch ${batchIndex + 1}/${totalBatches}`
+              );
+
+              if (statsResult.isComplete) {
+                break;
+              }
             }
+
+            appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension and stats updates completed!`);
+          } else {
+            appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension completed (no stats updates needed)`);
           }
 
-          appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension and stats updates completed!`);
-        } else {
-          appendLog("success", `[${userDisplayName} (${userIdShort})] Sequence extension completed (no stats updates needed)`);
-        }
+          if (sendExtendEmail && result.newSequenceSize) {
+            try {
+              appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
+              const emailResult = await sendSequenceExtendedEmail({
+                targetUserId: selectedUserId as any,
+                previousSize,
+                newSize: result.newSequenceSize,
+                galaxiesAdded: result.generated,
+                procedureType: "balanced",
+              });
 
-        if (sendExtendEmail && result.newSequenceSize) {
-          try {
-            appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
-            const emailResult = await sendSequenceExtendedEmail({
-              targetUserId: selectedUserId as any,
-              previousSize,
-              newSize: result.newSequenceSize,
-              galaxiesAdded: result.generated,
-              procedureType: "balanced",
-            });
-
-            if (!emailResult.success) {
-              appendLog(
-                "warning",
-                emailResult.details
-                  ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
-                  : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
-              );
-            } else {
-              appendLog(
-                "success",
-                `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
-              );
+              if (!emailResult.success) {
+                appendLog(
+                  "warning",
+                  emailResult.details
+                    ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+                    : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
+                );
+              } else {
+                appendLog(
+                  "success",
+                  `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+                );
+              }
+            } catch (emailError) {
+              const message = (emailError as Error)?.message || "Unknown error";
+              appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
             }
-          } catch (emailError) {
-            const message = (emailError as Error)?.message || "Unknown error";
-            appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
           }
         }
       }
 
       // Refresh sequence info
-      const newInfo = await sequenceInfo({ targetUserId: selectedUserId as any });
-      setCurrentSequenceInfo(newInfo);
+      if (!dryRun) {
+        const newInfo = await sequenceInfo({ targetUserId: selectedUserId as any });
+        setCurrentSequenceInfo(newInfo);
+      }
     } catch (error) {
       const message = (error as Error)?.message || "Unknown error";
       const userInfoErr = usersWithSequences?.find((u) => u.userId === selectedUserId);
@@ -676,8 +748,6 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
       setProgress(null);
     }
   };
-
-  const selectedUserInfo = usersWithSequences?.find((u) => u.userId === selectedUserId);
 
   return (
     <div className="space-y-6">
@@ -1184,10 +1254,28 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                   <label className="flex items-center">
                     <input
                       type="checkbox"
+                      checked={dryRun}
+                      onChange={(e) => handleDryRunChange(e.target.checked)}
+                      className="mr-2"
+                      disabled={isProcessing}
+                    />
+                    <span className="text-sm font-medium text-green-900 dark:text-green-100">
+                      Dry run only
+                    </span>
+                  </label>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1 ml-6">
+                    Preview the extension and log the first {DEFAULT_ASSIGNMENT_PREVIEW_COUNT} galaxies without changing the sequence, counters, or emails.
+                  </p>
+                </div>
+
+                <div>
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
                       checked={sendExtendEmail}
                       onChange={(e) => setSendExtendEmail(e.target.checked)}
                       className="mr-2"
-                      disabled={isProcessing}
+                      disabled={isProcessing || dryRun}
                     />
                     <span className="text-sm font-medium text-green-900 dark:text-green-100">
                       Send email notification to user
@@ -1213,9 +1301,13 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                   )}
                   {isProcessing && updateMode === "extend"
                     ? "Extending..."
-                    : assignmentProcedure === "classificationBased"
-                      ? "Extend Sequence (Classification-Based)"
-                      : "Extend Sequence"}
+                    : dryRun
+                      ? assignmentProcedure === "classificationBased"
+                        ? "Dry Run Extend (Classification-Based)"
+                        : "Dry Run Extend Sequence"
+                      : assignmentProcedure === "classificationBased"
+                        ? "Extend Sequence (Classification-Based)"
+                        : "Extend Sequence"}
                 </button>
               </div>
             </div>

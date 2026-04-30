@@ -154,6 +154,7 @@ describe("UpdateUserSequence", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it("prefills expected users with the greater of 10 and the number of users with sequences", async () => {
@@ -285,5 +286,50 @@ describe("UpdateUserSequence", () => {
       galaxiesAdded: 2,
       procedureType: "classificationBased",
     });
+  });
+
+  it("forwards balanced dry-run extension and logs only the first five preview galaxies", async () => {
+    const balancedExtendMutation = vi.fn().mockResolvedValue({
+      success: true,
+      requested: 50,
+      generated: 6,
+      previousSize: 10,
+      newSequenceSize: 16,
+      selectedGalaxyIds: ["gal-1", "gal-2", "gal-3", "gal-4", "gal-5", "gal-6"],
+      statsBatchesNeeded: 0,
+    });
+    const sendSequenceExtendedEmail = vi.fn().mockResolvedValue({ success: true, to: "target@example.com" });
+
+    const { extendUserSequence, updateExtendedSequenceStats } = configureUpdateHooks({
+      usersWithSequences,
+      balancedExtendMutation,
+      sendExtendedEmail: sendSequenceExtendedEmail,
+    });
+
+    render(
+      <UpdateUserSequence
+        users={[]}
+        systemSettings={{ availablePapers: ["paper-a", "paper-b"] }}
+      />
+    );
+
+    await userEvent.selectOptions(screen.getByRole("combobox"), "target-user");
+    await waitFor(() => expect(screen.getByText(/Current Sequence Status/i)).toBeTruthy());
+
+    await userEvent.click(screen.getByLabelText(/Send email notification to user/i));
+    await userEvent.click(screen.getByLabelText(/Dry run only/i));
+    await userEvent.click(screen.getByRole("button", { name: /Dry Run Extend Sequence/i }));
+
+    await waitFor(() => expect(extendUserSequence).toHaveBeenCalledTimes(1));
+    expect(extendUserSequence.mock.calls[0][0]).toMatchObject({
+      targetUserId: "target-user",
+      dryRun: true,
+    });
+
+    expect(updateExtendedSequenceStats).not.toHaveBeenCalled();
+    expect(sendSequenceExtendedEmail).not.toHaveBeenCalled();
+    expect(screen.getByText(/Showing first 5 of 6 galaxies that would be added/i)).toBeTruthy();
+    expect(screen.getByText(/Dry-run preview galaxies: gal-1, gal-2, gal-3, gal-4, gal-5/i)).toBeTruthy();
+    expect(screen.queryByText(/gal-6/i)).toBeNull();
   });
 });
