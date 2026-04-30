@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { cn } from "../../lib/utils";
 import { getExperienceLabel, getRoleLabel } from "../../lib/permissions";
 import { LSB_OPTIONS_CHECKBOX, LSB_OPTIONS_LEGACY, MORPHOLOGY_OPTIONS } from "./constants";
@@ -58,8 +59,11 @@ function stripShortcutSuffix(label: string) {
   return label.replace(/\s*\[[^\]]+\]$/, "");
 }
 
-function getDisplayName(user: GalaxyAssignmentDetailsData["users"][number]) {
-  return user.name?.trim() || user.email?.trim() || user.userId;
+function getDisplayName(
+  user: GalaxyAssignmentDetailsData["users"][number],
+  showEmails: boolean
+) {
+  return user.name?.trim() || (showEmails ? user.email?.trim() : "") || user.userId;
 }
 
 function getLsbLabel(classification: NonNullable<GalaxyAssignmentDetailsData["users"][number]["classification"]>) {
@@ -136,6 +140,7 @@ export function GalaxyAssignmentDetails({
   details,
   onLoad,
 }: GalaxyAssignmentDetailsProps) {
+  const [showEmails, setShowEmails] = useState(false);
   const users = details?.users ?? [];
   const assignedCount = users.filter((user) => user.currentlyAssigned).length;
   const classifiedCount = users.filter((user) => user.classification !== null).length;
@@ -155,7 +160,17 @@ export function GalaxyAssignmentDetails({
             Loads separately so opening a galaxy stays on the existing fast path. Once loaded, it updates live while open.
           </p>
         </div>
-        {!requested && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {requested && !loading && details && users.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowEmails((current) => !current)}
+              className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              {showEmails ? "Hide emails" : "Show emails"}
+            </button>
+          )}
+          {!requested && (
           <button
             type="button"
             onClick={onLoad}
@@ -163,7 +178,8 @@ export function GalaxyAssignmentDetails({
           >
             Load assignment details
           </button>
-        )}
+          )}
+        </div>
       </div>
 
       {requested && loading && (
@@ -205,8 +221,9 @@ export function GalaxyAssignmentDetails({
           ) : (
             <div className="space-y-3">
               {users.map((user) => {
-                const displayName = getDisplayName(user);
-                const secondaryEmail = user.email && user.email !== displayName ? user.email : null;
+                const displayName = getDisplayName(user, showEmails);
+                const secondaryEmail =
+                  showEmails && user.email && user.email !== displayName ? user.email : null;
 
                 return (
                   <div

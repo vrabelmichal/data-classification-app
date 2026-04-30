@@ -2,7 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { getOptionalUserId, requireConfirmedUser, requirePermission } from "./lib/auth";
 import { Doc } from "./_generated/dataModel";
-import { normalizeUserExperience } from "./lib/permissions";
+import { normalizeUserExperience, userExperienceValidator } from "./lib/permissions";
 import {
   classificationsByCreated,
   classificationsByAwesomeFlag,
@@ -499,8 +499,47 @@ function summarizeClassification(classification: Doc<"classifications">) {
   };
 }
 
+const galaxyAssignmentDetailsClassificationValidator = v.object({
+  lsb_class: v.number(),
+  morphology: v.number(),
+  awesome_flag: v.boolean(),
+  valid_redshift: v.boolean(),
+  visible_nucleus: v.union(v.null(), v.boolean()),
+  failed_fitting: v.boolean(),
+  comments: v.union(v.null(), v.string()),
+  timeSpent: v.number(),
+  createdAt: v.number(),
+});
+
+const galaxyAssignmentDetailsSkippedValidator = v.object({
+  comments: v.union(v.null(), v.string()),
+});
+
+const galaxyAssignmentDetailsUserValidator = v.object({
+  userId: v.string(),
+  name: v.union(v.null(), v.string()),
+  email: v.union(v.null(), v.string()),
+  role: v.string(),
+  experience: userExperienceValidator,
+  isActive: v.union(v.null(), v.boolean()),
+  currentlyAssigned: v.boolean(),
+  sequencePosition: v.union(v.null(), v.number()),
+  sequenceLength: v.union(v.null(), v.number()),
+  sequenceState: v.union(v.null(), v.literal("passed"), v.literal("current"), v.literal("upcoming")),
+  numClassifiedInSequence: v.union(v.null(), v.number()),
+  numSkippedInSequence: v.union(v.null(), v.number()),
+  classification: v.union(v.null(), galaxyAssignmentDetailsClassificationValidator),
+  skipped: v.union(v.null(), galaxyAssignmentDetailsSkippedValidator),
+});
+
+const galaxyAssignmentDetailsValidator = v.object({
+  assignmentSourceTracked: v.boolean(),
+  users: v.array(galaxyAssignmentDetailsUserValidator),
+});
+
 export const getGalaxyAssignmentDetails = query({
   args: { galaxyExternalId: v.string() },
+  returns: galaxyAssignmentDetailsValidator,
   handler: async (ctx, { galaxyExternalId }) => {
     await requirePermission(ctx, "viewGalaxyAssignmentDetails", {
       notAuthorizedMessage: "Galaxy assignment details are not available for this account",
