@@ -13,7 +13,11 @@ import { getDefaultImageQuality } from "./lib/settings";
 import { sendPasswordResetEmail } from "./ResendOTPPasswordReset";
 import { api, internal } from "./_generated/api";
 import { Doc, Id } from "./_generated/dataModel";
-import { userRoleValidator, userExperienceValidator } from "./lib/permissions";
+import {
+  normalizeUserExperience,
+  userRoleValidator,
+  userExperienceValidator,
+} from "./lib/permissions";
 import {
   classificationsByCreated,
   classificationsByAwesomeFlag,
@@ -416,6 +420,7 @@ export const getUserProfile = query({
     return {
       user,
       ...profile,
+      experience: normalizeUserExperience(profile.experience),
       permissions,
       canAccessAdminPanel,
     };
@@ -1227,6 +1232,9 @@ export const updateUserExperience = mutation({
     targetUserId: v.id("users"),
     experience: userExperienceValidator,
   },
+  returns: v.object({
+    success: v.boolean(),
+  }),
   handler: async (ctx, args) => {
     await requirePermission(ctx, "manageUsers", {
       notAuthorizedMessage: "Only users with user-management access can update experience",

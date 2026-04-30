@@ -11,6 +11,7 @@ export type UserExperience = (typeof USER_EXPERIENCE_LEVELS)[number];
 export const APP_PERMISSION_KEYS = [
   "manageUsers",
   "manageGalaxyAssignments",
+  "viewGalaxyAssignmentDetails",
   "manageSettings",
   "manageMaintenance",
   "manageSystem",
@@ -64,6 +65,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
   }),
   maintainer: buildPermissionRecord({
     manageGalaxyAssignments: true,
+    viewGalaxyAssignmentDetails: true,
     viewOverviewStatistics: true,
     viewLiveOverviewStatistics: true,
     viewAssignmentStatistics: true,
@@ -84,6 +86,7 @@ export const userExperienceValidator = v.union(v.literal("normal"), v.literal("s
 export const permissionRecordValidator = v.object({
   manageUsers: v.boolean(),
   manageGalaxyAssignments: v.boolean(),
+  viewGalaxyAssignmentDetails: v.boolean(),
   manageSettings: v.boolean(),
   manageMaintenance: v.boolean(),
   manageSystem: v.boolean(),
@@ -125,6 +128,10 @@ function normalizePermissionRecord(
 
 export function normalizeRole(role: unknown): UserRole {
   return USER_ROLES.includes(role as UserRole) ? (role as UserRole) : "user";
+}
+
+export function normalizeUserExperience(experience: unknown): UserExperience {
+  return experience === "senior" ? "senior" : "normal";
 }
 
 export function normalizeRolePermissions(
