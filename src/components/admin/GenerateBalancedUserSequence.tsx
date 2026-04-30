@@ -30,6 +30,8 @@ type ClassificationAssignmentDiagnostics = {
 
 export function GenerateBalancedUserSequence({ users, systemSettings }: GenerateBalancedUserSequenceProps) {
   const LOG_STORAGE_KEY = "generateBalancedUserSequenceLogs";
+  const truncateString = (str: string, maxLen: number) =>
+    str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
 
   const [assignmentProcedure, setAssignmentProcedure] = useState<AssignmentProcedure>("balanced");
   const [sequenceSize, setSequenceSize] = useState(50);
@@ -159,6 +161,18 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
     if (checked) {
       setSendEmailNotification(false);
     }
+  };
+
+  const getButtonLabel = () => {
+    if (generatingSequence) return 'Generating...';
+
+    const prefix = dryRun ? 'Dry Run' : 'Generate';
+    if (batchMode) return `${prefix} Sequences (Batch)`;
+
+    const procedureName = assignmentProcedure === 'classificationBased'
+      ? 'Classification-Based Sequence'
+      : 'Balanced Sequence';
+    return `${prefix} ${procedureName}`;
   };
 
   const generateBalancedUserSequence = useAction(api.generateBalancedUserSequence.generateBalancedUserSequence);
@@ -327,7 +341,6 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
     const userInfo = resolvedUsers.find((u: { userId: string }) => u.userId === targetUserId);
     const userEmail = userInfo?.user?.email || '';
     const userName = userInfo?.user?.name || '';
-    const truncateString = (str: string, maxLen: number) => str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
     const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : 'Unknown');
     const userIdShort = targetUserId.substring(0, 8);
     if (assignmentProcedure === "classificationBased") {
@@ -636,7 +649,6 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
           const userInfo = resolvedUsers.find((u: { userId: string }) => u.userId === target);
           const userEmail = userInfo?.user?.email || '';
           const userName = userInfo?.user?.name || '';
-          const truncateString = (str: string, maxLen: number) => str.length > maxLen ? str.substring(0, maxLen) + '...' : str;
           const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : 'Unknown');
           const userIdShort = target.substring(0, 8);
           appendLog("error", `[${userDisplayName} (${userIdShort})] Failed during processing: ${message}`);
@@ -1152,19 +1164,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
               {generatingSequence && (
                 <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               )}
-              {generatingSequence
-                ? 'Generating...'
-                : dryRun
-                  ? batchMode
-                    ? 'Dry Run Sequences (Batch)'
-                    : assignmentProcedure === 'classificationBased'
-                      ? 'Dry Run Classification-Based Sequence'
-                      : 'Dry Run Balanced Sequence'
-                  : batchMode
-                    ? 'Generate Sequences (Batch)'
-                    : assignmentProcedure === 'classificationBased'
-                      ? 'Generate Classification-Based Sequence'
-                      : 'Generate Balanced Sequence'}
+              {getButtonLabel()}
             </button>
             
             {generatingSequence && assignmentProcedure === "balanced" && (

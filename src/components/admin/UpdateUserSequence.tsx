@@ -220,6 +220,16 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
     }
   };
 
+  const getExtendButtonLabel = () => {
+    if (isProcessing && updateMode === "extend") return "Extending...";
+
+    const prefix = dryRun ? "Dry Run " : "";
+    const suffix = assignmentProcedure === "classificationBased"
+      ? "Extend (Classification-Based)"
+      : "Extend Sequence";
+    return prefix + suffix;
+  };
+
   const handlePaperToggle = (paper: string) => {
     setSelectedPapers((prev) => {
       const newSet = new Set(prev);
@@ -1317,15 +1327,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                   {isProcessing && updateMode === "extend" && (
                     <span className="mr-2 inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                   )}
-                  {isProcessing && updateMode === "extend"
-                    ? "Extending..."
-                    : dryRun
-                      ? assignmentProcedure === "classificationBased"
-                        ? "Dry Run Extend (Classification-Based)"
-                        : "Dry Run Extend Sequence"
-                      : assignmentProcedure === "classificationBased"
-                        ? "Extend Sequence (Classification-Based)"
-                        : "Extend Sequence"}
+                  {getExtendButtonLabel()}
                 </button>
               </div>
             </div>
