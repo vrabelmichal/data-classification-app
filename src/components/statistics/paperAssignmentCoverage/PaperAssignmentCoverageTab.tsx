@@ -285,6 +285,14 @@ function sumCountsToTarget(counts: number[], targetClassifications: number) {
   return counts.slice(0, targetClassifications).reduce((sum, count) => sum + count, 0);
 }
 
+function sumAllCounts(counts: number[]) {
+  return counts.reduce((sum, count) => sum + count, 0);
+}
+
+function sumClassifiedCounts(counts: number[]) {
+  return counts.slice(1).reduce((sum, count) => sum + count, 0);
+}
+
 function buildAssignmentRows(
   scopeSnapshot: ScopeSnapshot,
   userDirectory: UserDirectoryEntry[],
@@ -295,8 +303,9 @@ function buildAssignmentRows(
   const rows: AssignmentRow[] = scopeSnapshot.userAssignmentCounts
     .map((entry) => {
       const user = userDirectoryById.get(entry.userId);
-      const assignedCount = sumCountsToTarget(entry.counts, targetClassifications);
-      const unclassifiedCount = entry.counts[0] ?? 0;
+      const assignedCount = sumAllCounts(entry.counts);
+      const classifiedCount = sumClassifiedCounts(entry.counts);
+      const unclassifiedCount = sumCountsToTarget(entry.counts, targetClassifications);
       const identity = getUserIdentity(user, entry.userId, showEmails);
       return {
         key: entry.userId,
@@ -308,13 +317,13 @@ function buildAssignmentRows(
         roleLabel: getRoleLabel(user?.role),
         experienceLabel: getExperienceLabel(user?.experience ?? "normal"),
         assignedCount,
-        classifiedCount: Math.max(assignedCount - unclassifiedCount, 0),
+        classifiedCount,
         unclassifiedCount,
         isActive: user?.isActive,
       };
     })
-    .filter((entry) => entry.assignedCount > 0)
-    .sort((left, right) => right.assignedCount - left.assignedCount || left.label.localeCompare(right.label));
+    .filter((entry) => entry.unclassifiedCount > 0)
+    .sort((left, right) => right.unclassifiedCount - left.unclassifiedCount || left.label.localeCompare(right.label));
 
   const unassignedCount = sumCountsToTarget(scopeSnapshot.unassignedCounts, targetClassifications);
 
@@ -328,8 +337,8 @@ function buildAssignmentRows(
       secondaryKind: "identifier",
       roleLabel: "Pending",
       experienceLabel: "N/A",
-      assignedCount: unassignedCount,
-      classifiedCount: 0,
+      assignedCount: sumAllCounts(scopeSnapshot.unassignedCounts),
+      classifiedCount: sumClassifiedCounts(scopeSnapshot.unassignedCounts),
       unclassifiedCount: unassignedCount,
       isSpecial: true,
     });
@@ -661,7 +670,7 @@ function AssignmentCoverageTableSection({
     scopeSnapshot.classificationBuckets,
     targetClassifications,
   );
-  const infoMessage = "Calculated subset of this row that still has 0 classifications.";
+  const infoMessage = "Calculated subset of this row that is still below the selected repeat-classification target.";
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">

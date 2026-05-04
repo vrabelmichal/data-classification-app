@@ -124,17 +124,27 @@ These are the galaxies that still need more classifications to reach the current
 
 The page then looks at the current user sequences.
 
-For each user sequence, it checks which galaxy IDs in that sequence belong to the under-target subset.
+For each user sequence, it records the user’s current sequence galaxies from the selected non-blacklisted scope into classification-count buckets.
 
-Each user receives a count equal to:
+The table then derives three count columns from those per-user buckets:
 
-- the number of unique under-target galaxies from the selected scope that currently appear in that user’s sequence
+- Assigned galaxies: all unique current sequence galaxies for that user in the selected scope, regardless of the current target
+- Classified galaxies: the subset of those assigned galaxies that already have at least one classification
+- Unclassified galaxies: the subset of those assigned galaxies that are still below the selected target $T$
 
-This produces the main user rows in the table.
+This last column is the target-aware planning metric that determines whether a user appears in the table at all.
+
+A user row is shown only if that user currently has at least one galaxy below target in their sequence.
 
 ### Step 3: compute the unassigned row
 
-The page also reports a special row for galaxies in the under-target subset that do not appear in any current sequence.
+The page also reports a special row for galaxies that do not appear in any current sequence.
+
+That row uses the same column logic:
+
+- Assigned galaxies: all non-blacklisted galaxies in the selected scope that are not currently present in any sequence
+- Classified galaxies: the unassigned subset that already has at least one classification
+- Unclassified galaxies: the unassigned subset that is still below the selected target
 
 This row answers a different planning question:
 
@@ -144,12 +154,14 @@ This row answers a different planning question:
 
 The table shows current sequence ownership, not guaranteed future work completion.
 
-So a galaxy listed under a user means:
+So a galaxy contributing to the highlighted target-aware count for a user means:
 
 - it is below target now
 - it is currently present in that user’s active sequence
 
 It does **not** guarantee that the user will actually classify it next, or ever, because the sequence may change or the galaxy may be skipped.
+
+Meanwhile, the `Assigned galaxies` and `Classified galaxies` columns provide broader context about that user’s current sequence ownership in the selected scope and are not themselves filtered down to only below-target galaxies.
 
 ## Why The Table Changes When The Target Changes
 
@@ -168,6 +180,8 @@ If the target is decreased:
 - the unassigned count may decrease
 
 So the table is not a static assignment overview. It is a target-aware view of assignment coverage.
+
+One subtle consequence of the current implementation is that only the highlighted `Unclassified galaxies` column is directly target-aware. The `Assigned galaxies` and `Classified galaxies` columns are scope-aware context columns, so users may appear or disappear as the target changes even though those two context columns do not change in lockstep with the target.
 
 ## Reading The Page In Practice
 
