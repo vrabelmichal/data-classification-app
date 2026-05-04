@@ -4,6 +4,7 @@ import {
   paperCountValidator,
   totalsValidator,
 } from "../labelingOverview/cacheValidators";
+import { userExperienceValidator } from "../../lib/permissions";
 
 export const PAPER_ASSIGNMENT_COVERAGE_MAX_TARGET_CLASSIFICATIONS = 25;
 export const PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT =
@@ -19,8 +20,10 @@ export const paperAssignmentCoverageCatalogValidator = v.object({
 export const paperAssignmentCoverageUserDirectoryEntryValidator = v.object({
   userId: v.string(),
   name: v.optional(v.union(v.string(), v.null())),
+  email: v.optional(v.union(v.string(), v.null())),
   role: v.string(),
   isActive: v.boolean(),
+  experience: v.optional(userExperienceValidator),
 });
 
 export const paperAssignmentCoverageUserCountsValidator = v.object({

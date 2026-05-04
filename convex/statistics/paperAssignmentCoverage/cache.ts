@@ -15,6 +15,7 @@ import {
   DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED,
   DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES,
 } from "../../lib/defaults";
+import { normalizeUserExperience } from "../../lib/permissions";
 import {
   PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT,
   PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY,
@@ -23,6 +24,7 @@ import {
   paperAssignmentCoverageSharedSnapshotValidator,
   paperAssignmentCoverageSnapshotPayloadValidator,
   paperAssignmentCoverageScopeSnapshotValidator,
+  paperAssignmentCoverageUserDirectoryEntryValidator,
 } from "./validators";
 
 type Totals = {
@@ -81,8 +83,10 @@ type SharedSnapshot = {
   userDirectory: Array<{
     userId: string;
     name?: string | null;
+    email?: string | null;
     role: string;
     isActive: boolean;
+    experience?: "normal" | "senior";
   }>;
   updatedAt: number;
 };
@@ -269,11 +273,18 @@ function finalizeTotals(totals: ScopeAccumulator["totals"]): Totals {
 }
 
 function sortUserDirectory(
-  userDirectory: Array<{ userId: string; name?: string | null; role: string; isActive: boolean }>
+  userDirectory: Array<{
+    userId: string;
+    name?: string | null;
+    email?: string | null;
+    role: string;
+    isActive: boolean;
+    experience?: "normal" | "senior";
+  }>
 ) {
   return [...userDirectory].sort((left, right) => {
-    const leftLabel = (left.name ?? left.userId).toLowerCase();
-    const rightLabel = (right.name ?? right.userId).toLowerCase();
+    const leftLabel = (left.name ?? left.email ?? left.userId).toLowerCase();
+    const rightLabel = (right.name ?? right.email ?? right.userId).toLowerCase();
     return leftLabel.localeCompare(rightLabel) || left.userId.localeCompare(right.userId);
   });
 }
@@ -424,7 +435,14 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
 
   const userDirectoryById = new Map<
     string,
-    { userId: string; name?: string | null; role: string; isActive: boolean }
+    {
+      userId: string;
+      name?: string | null;
+      email?: string | null;
+      role: string;
+      isActive: boolean;
+      experience: "normal" | "senior";
+    }
   >();
   const assignedGalaxyIds = new Set<string>();
 
@@ -439,8 +457,10 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
       userDirectoryById.set(row.userId, {
         userId: row.userId,
         name: row.name,
+          email: row.email,
         role: row.role,
         isActive: row.isActive,
+        experience: normalizeUserExperience(row.experience),
       });
 
       if (row.galaxyExternalIds.length === 0) {
@@ -611,8 +631,10 @@ export const getSequencePage = internalQuery({
     rows: v.array(v.object({
       userId: v.string(),
       name: v.optional(v.union(v.string(), v.null())),
+      email: v.optional(v.union(v.string(), v.null())),
       role: v.string(),
       isActive: v.boolean(),
+      experience: v.optional(v.union(v.literal("normal"), v.literal("senior"))),
       galaxyExternalIds: v.array(v.string()),
     })),
     isDone: v.boolean(),
@@ -636,8 +658,10 @@ export const getSequencePage = internalQuery({
         return {
           userId: String(sequence.userId),
           name: (user as { name?: string | null } | null)?.name ?? null,
+          email: (user as { email?: string | null } | null)?.email ?? null,
           role: profile?.role ?? "user",
           isActive: profile?.isActive ?? false,
+          experience: normalizeUserExperience(profile?.experience),
           galaxyExternalIds: sequence.galaxyExternalIds ?? [],
         };
       })
@@ -648,6 +672,56 @@ export const getSequencePage = internalQuery({
       isDone: page.isDone,
       continueCursor: page.isDone ? null : page.continueCursor,
     };
+  },
+});
+
+export const getCurrentUserDirectory = action({
+  args: {},
+  returns: v.array(paperAssignmentCoverageUserDirectoryEntryValidator),
+  handler: async (ctx) => {
+    const callerProfile = await ctx.runQuery(api.users.getUserProfile);
+    if (!callerProfile?.permissions?.viewAssignmentStatistics) {
+      throw new Error("Paper assignment coverage is not available for this account");
+    }
+
+    const userDirectoryById = new Map<
+      string,
+      {
+        userId: string;
+        name?: string | null;
+        email?: string | null;
+        role: string;
+        isActive: boolean;
+        experience?: "normal" | "senior";
+      }
+    >();
+
+    let sequenceCursor: string | undefined;
+    while (true) {
+      const page = await ctx.runQuery(
+        internal.statistics.paperAssignmentCoverage.cache.getSequencePage,
+        { cursor: sequenceCursor }
+      );
+
+      for (const row of page.rows) {
+        userDirectoryById.set(row.userId, {
+          userId: row.userId,
+          name: row.name,
+          email: row.email,
+          role: row.role,
+          isActive: row.isActive,
+          experience: normalizeUserExperience(row.experience),
+        });
+      }
+
+      if (page.isDone || page.continueCursor === null) {
+        break;
+      }
+
+      sequenceCursor = page.continueCursor;
+    }
+
+    return sortUserDirectory(Array.from(userDirectoryById.values()));
   },
 });
 

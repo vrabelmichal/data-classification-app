@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router";
 import { useAction, useQuery } from "convex/react";
 import { toast } from "sonner";
@@ -16,7 +17,7 @@ import type {
   Totals,
 } from "../overview/types";
 import { cn } from "../../../lib/utils";
-import { getRoleLabel } from "../../../lib/permissions";
+import { getExperienceLabel, getRoleLabel } from "../../../lib/permissions";
 
 const DEFAULT_TARGET_CLASSIFICATIONS = 3;
 const MAX_TARGET_CLASSIFICATIONS = 25;
@@ -29,8 +30,10 @@ type CoverageSystemSettings = {
 type UserDirectoryEntry = {
   userId: string;
   name?: string | null;
+  email?: string | null;
   role: string;
   isActive: boolean;
+  experience?: "normal" | "senior";
 };
 
 type ScopeSnapshot = {
@@ -76,9 +79,16 @@ type DashboardProps = {
 
 type AssignmentRow = {
   key: string;
+  userId: string;
   label: string;
+  labelKind: "name" | "email" | "identifier" | "special";
+  secondaryLabel?: string | null;
+  secondaryKind?: "email" | "identifier" | null;
   roleLabel: string;
-  count: number;
+  experienceLabel: string;
+  assignedCount: number;
+  classifiedCount: number;
+  unclassifiedCount: number;
   isActive?: boolean;
   isSpecial?: boolean;
 };
@@ -94,6 +104,57 @@ function sanitizeTargetClassifications(value: number | string | null | undefined
 
 function paperLabel(value: string) {
   return value === "" ? "Unassigned" : value;
+}
+
+function obfuscateEmail(email: string) {
+  const trimmed = email.trim();
+  const atIndex = trimmed.indexOf("@");
+
+  if (atIndex <= 0) {
+    return trimmed;
+  }
+
+  const localPart = trimmed.slice(0, atIndex);
+  const domainPart = trimmed.slice(atIndex + 1);
+  const [domainName, ...domainTail] = domainPart.split(".");
+  const localPrefix = localPart.slice(0, Math.min(2, localPart.length));
+  const domainPrefix = domainName.slice(0, Math.min(2, domainName.length));
+
+  return `${localPrefix}${localPart.length > 2 ? "***" : ""}@${domainPrefix}${domainName.length > 2 ? "***" : ""}${domainTail.length > 0 ? `.${domainTail.join(".")}` : ""}`;
+}
+
+function getUserIdentity(
+  user: UserDirectoryEntry | undefined,
+  fallbackUserId: string,
+  showEmails: boolean,
+) {
+  const displayName = user?.name?.trim() || null;
+  const email = user?.email?.trim() || null;
+
+  if (displayName) {
+    return {
+      label: displayName,
+      labelKind: "name" as const,
+      secondaryLabel: showEmails && email ? email : null,
+      secondaryKind: showEmails && email ? ("email" as const) : null,
+    };
+  }
+
+  if (email) {
+    return {
+      label: showEmails ? email : obfuscateEmail(email),
+      labelKind: "email" as const,
+      secondaryLabel: fallbackUserId,
+      secondaryKind: "identifier" as const,
+    };
+  }
+
+  return {
+    label: fallbackUserId,
+    labelKind: "identifier" as const,
+    secondaryLabel: null,
+    secondaryKind: null,
+  };
 }
 
 function buildModeLink(path: string, searchParams: URLSearchParams) {
@@ -228,35 +289,356 @@ function buildAssignmentRows(
   scopeSnapshot: ScopeSnapshot,
   userDirectory: UserDirectoryEntry[],
   targetClassifications: number,
+  showEmails: boolean,
 ) {
   const userDirectoryById = new Map(userDirectory.map((entry) => [entry.userId, entry] as const));
   const rows: AssignmentRow[] = scopeSnapshot.userAssignmentCounts
     .map((entry) => {
       const user = userDirectoryById.get(entry.userId);
+      const assignedCount = sumCountsToTarget(entry.counts, targetClassifications);
+      const unclassifiedCount = entry.counts[0] ?? 0;
+      const identity = getUserIdentity(user, entry.userId, showEmails);
       return {
         key: entry.userId,
-        label: user?.name?.trim() || entry.userId,
+        userId: entry.userId,
+        label: identity.label,
+        labelKind: identity.labelKind,
+        secondaryLabel: identity.secondaryLabel,
+        secondaryKind: identity.secondaryKind,
         roleLabel: getRoleLabel(user?.role),
-        count: sumCountsToTarget(entry.counts, targetClassifications),
+        experienceLabel: getExperienceLabel(user?.experience ?? "normal"),
+        assignedCount,
+        classifiedCount: Math.max(assignedCount - unclassifiedCount, 0),
+        unclassifiedCount,
         isActive: user?.isActive,
       };
     })
-    .filter((entry) => entry.count > 0)
-    .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
+    .filter((entry) => entry.assignedCount > 0)
+    .sort((left, right) => right.assignedCount - left.assignedCount || left.label.localeCompare(right.label));
 
   const unassignedCount = sumCountsToTarget(scopeSnapshot.unassignedCounts, targetClassifications);
 
   if (unassignedCount > 0) {
     rows.push({
       key: "__unassigned__",
+      userId: "__unassigned__",
       label: "Not assigned to any user",
+      labelKind: "special",
+      secondaryLabel: "No matching sequence owner",
+      secondaryKind: "identifier",
       roleLabel: "Pending",
-      count: unassignedCount,
+      experienceLabel: "N/A",
+      assignedCount: unassignedCount,
+      classifiedCount: 0,
+      unclassifiedCount: unassignedCount,
       isSpecial: true,
     });
   }
 
   return rows;
+}
+
+function SmallInfoButton({
+  label,
+  onMouseEnter,
+  onMouseLeave,
+  onFocus,
+  onBlur,
+  onClick,
+  ariaExpanded,
+}: {
+  label: string;
+  onMouseEnter: () => void;
+  onMouseLeave: () => void;
+  onFocus: () => void;
+  onBlur: () => void;
+  onClick: () => void;
+  ariaExpanded: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      aria-expanded={ariaExpanded}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      onFocus={onFocus}
+      onBlur={onBlur}
+      onClick={onClick}
+      className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-gray-300 text-gray-500 transition hover:border-gray-400 hover:text-gray-700 dark:border-gray-600 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-200"
+    >
+      <svg className="h-2.5 w-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 8h.01" />
+        <path d="M11 12h1v4h1" />
+      </svg>
+    </button>
+  );
+}
+
+function InfoPopupButton({ message }: { message: string }) {
+  const triggerRef = useRef<HTMLSpanElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const closeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isHovered, setIsHovered] = useState(false);
+  const [isPinned, setIsPinned] = useState(false);
+  const [isPopupHovered, setIsPopupHovered] = useState(false);
+  const [popupStyle, setPopupStyle] = useState<{ top: number; left: number; visibility: "hidden" | "visible" }>({
+    top: 0,
+    left: 0,
+    visibility: "hidden",
+  });
+  const isOpen = isHovered || isPinned || isPopupHovered;
+
+  const clearCloseTimeout = () => {
+    if (closeTimeoutRef.current !== null) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
+    }
+  };
+
+  const scheduleHoverClose = () => {
+    clearCloseTimeout();
+    closeTimeoutRef.current = setTimeout(() => {
+      setIsHovered(false);
+      setIsPopupHovered(false);
+    }, 90);
+  };
+
+  useEffect(() => {
+    if (!isPinned) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: MouseEvent | TouchEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) {
+        return;
+      }
+
+      if (triggerRef.current?.contains(target) || popupRef.current?.contains(target)) {
+        return;
+      }
+
+      setIsPinned(false);
+      setIsHovered(false);
+      setIsPopupHovered(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+    };
+  }, [isPinned]);
+
+  useEffect(() => () => clearCloseTimeout(), []);
+
+  useLayoutEffect(() => {
+    if (!isOpen) {
+      return undefined;
+    }
+
+    const updatePosition = () => {
+      const trigger = triggerRef.current;
+      const popup = popupRef.current;
+      if (!trigger || !popup) {
+        return;
+      }
+
+      const triggerRect = trigger.getBoundingClientRect();
+      const popupRect = popup.getBoundingClientRect();
+      const padding = 12;
+      const offset = 8;
+
+      let left = triggerRect.left + triggerRect.width / 2 - popupRect.width / 2;
+      left = Math.min(Math.max(padding, left), window.innerWidth - popupRect.width - padding);
+
+      let top = triggerRect.bottom + offset;
+      if (top + popupRect.height > window.innerHeight - padding) {
+        top = Math.max(padding, triggerRect.top - popupRect.height - offset);
+      }
+
+      setPopupStyle({ top, left, visibility: "visible" });
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [isOpen]);
+
+  return (
+    <span ref={triggerRef} className="inline-flex items-center">
+      <SmallInfoButton
+        label={message}
+        ariaExpanded={isOpen}
+        onMouseEnter={() => {
+          clearCloseTimeout();
+          setIsHovered(true);
+        }}
+        onMouseLeave={() => {
+          if (!isPinned) {
+            scheduleHoverClose();
+          }
+        }}
+        onFocus={() => {
+          clearCloseTimeout();
+          setIsHovered(true);
+        }}
+        onBlur={() => {
+          if (!isPinned) {
+            setIsHovered(false);
+            setIsPopupHovered(false);
+          }
+        }}
+        onClick={() =>
+          setIsPinned((value) => {
+            const nextPinned = !value;
+            if (!nextPinned) {
+              setIsHovered(false);
+              setIsPopupHovered(false);
+            }
+            return nextPinned;
+          })
+        }
+      />
+      {isOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              ref={popupRef}
+              style={{
+                position: "fixed",
+                top: popupStyle.top,
+                left: popupStyle.left,
+                visibility: popupStyle.visibility,
+              }}
+              onMouseEnter={() => {
+                clearCloseTimeout();
+                setIsHovered(true);
+                setIsPopupHovered(true);
+              }}
+              onMouseLeave={() => {
+                setIsPopupHovered(false);
+                if (!isPinned) {
+                  scheduleHoverClose();
+                }
+              }}
+              className="z-[70] w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 bg-white px-3 py-2 text-[11px] normal-case tracking-normal text-gray-600 shadow-lg dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            >
+              {message}
+            </div>,
+            document.body,
+          )
+        : null}
+    </span>
+  );
+}
+
+function UserIdentityCell({
+  row,
+  mobile = false,
+}: {
+  row: AssignmentRow;
+  mobile?: boolean;
+}) {
+  const primaryClassName = cn(
+    "font-medium text-gray-900 dark:text-white",
+    row.labelKind === "identifier" && "text-[11px] tracking-wide text-gray-700 dark:text-gray-200",
+    row.labelKind === "email" && "text-sm",
+    mobile ? "max-w-full" : "max-w-[15em]"
+  );
+
+  const secondaryClassName = cn(
+    "mt-0.5 break-words text-xs text-gray-500 dark:text-gray-400",
+    row.secondaryKind === "identifier" && "text-[11px] text-gray-400 dark:text-gray-500"
+  );
+
+  return (
+    <div className={cn("whitespace-normal break-words", mobile ? "max-w-full" : "max-w-[15em]") }>
+      <div className={primaryClassName}>{row.label}</div>
+      {row.secondaryLabel && <div className={secondaryClassName}>{row.secondaryLabel}</div>}
+    </div>
+  );
+}
+
+function UserAssignmentCard({
+  row,
+}: {
+  row: AssignmentRow;
+}) {
+  return (
+    <div
+      className={cn(
+        "rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800",
+        row.isSpecial && "border-amber-200 bg-amber-50/70 dark:border-amber-900/60 dark:bg-amber-950/20",
+      )}
+    >
+      <div className="min-w-0">
+          <UserIdentityCell row={row} mobile />
+          <div className="mt-2 flex flex-wrap gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <span>{row.experienceLabel}</span>
+            <span>•</span>
+            <span>{row.roleLabel}</span>
+          </div>
+          {!row.isSpecial && row.isActive === false && (
+            <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">Inactive account</div>
+          )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm">
+        <div className="rounded-lg bg-gray-50 px-2 py-2 dark:bg-gray-900/50">
+          <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Assigned</div>
+          <div className="mt-1 font-semibold text-gray-900 dark:text-white">{row.assignedCount.toLocaleString()}</div>
+        </div>
+        <div className="rounded-lg bg-gray-50 px-2 py-2 dark:bg-gray-900/50">
+          <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Classified</div>
+          <div className="mt-1 font-semibold text-gray-900 dark:text-white">{row.classifiedCount.toLocaleString()}</div>
+        </div>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-2 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+          <div className="text-[11px] uppercase tracking-wide">Unclassified</div>
+          <div className="mt-1 font-semibold">{row.unclassifiedCount.toLocaleString()}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmailVisibilityToggle({
+  showEmails,
+  onToggle,
+}: {
+  showEmails: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={showEmails}
+      title={showEmails ? "Hide emails" : "Show emails"}
+      className={cn(
+        "inline-flex items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm font-medium transition",
+        showEmails
+          ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/60"
+          : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+      )}
+    >
+      <svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6-10-6-10-6Z" />
+        <circle cx="12" cy="12" r="3" />
+        {!showEmails ? <path d="M3 3l18 18" /> : null}
+      </svg>
+      <span>{showEmails ? "Hide emails" : "Show emails"}</span>
+      <span className="sr-only">{showEmails ? "Emails visible" : "Emails hidden"}</span>
+    </button>
+  );
 }
 
 function AssignmentCoverageTableSection({
@@ -270,14 +652,16 @@ function AssignmentCoverageTableSection({
   userDirectory: UserDirectoryEntry[];
   targetClassifications: number;
 }) {
+  const [showEmails, setShowEmails] = useState(false);
   const rows = useMemo(
-    () => buildAssignmentRows(scopeSnapshot, userDirectory, targetClassifications),
-    [scopeSnapshot, targetClassifications, userDirectory],
+    () => buildAssignmentRows(scopeSnapshot, userDirectory, targetClassifications, showEmails),
+    [scopeSnapshot, showEmails, targetClassifications, userDirectory],
   );
   const underTargetGalaxies = sumCountsToTarget(
     scopeSnapshot.classificationBuckets,
     targetClassifications,
   );
+  const infoMessage = "Calculated subset of this row that still has 0 classifications.";
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -313,38 +697,68 @@ function AssignmentCoverageTableSection({
             : "No current sequence entries match the under-target subset."}
         </div>
       ) : (
-        <div className="mt-5 overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead>
-              <tr className="text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                <th className="px-3 py-3">User</th>
-                <th className="px-3 py-3">Role</th>
-                <th className="px-3 py-3 text-right">Galaxies In Sequence</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {rows.map((row) => (
-                <tr
-                  key={row.key}
-                  className={cn(row.isSpecial && "bg-amber-50/60 dark:bg-amber-950/10")}
-                >
-                  <td className="px-3 py-3">
-                    <div className="font-medium text-gray-900 dark:text-white">{row.label}</div>
-                    {!row.isSpecial && row.isActive === false && (
-                      <div className="text-xs text-amber-700 dark:text-amber-300">Inactive account</div>
-                    )}
-                    {row.isSpecial && (
-                      <div className="text-xs text-amber-700 dark:text-amber-300">Galaxies with no current sequence owner</div>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 text-sm text-gray-600 dark:text-gray-300">{row.roleLabel}</td>
-                  <td className="px-3 py-3 text-right text-sm font-semibold text-gray-900 dark:text-white">
-                    {row.count.toLocaleString()}
-                  </td>
+        <div className="mt-5 space-y-4">
+          <div className="hidden overflow-x-auto md:block">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead>
+                <tr className="text-left text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th className="w-[15em] max-w-[15em] px-3 py-3">User</th>
+                  <th className="px-3 py-3">Experience</th>
+                  <th className="px-3 py-3">Role</th>
+                  <th className="px-3 py-3 text-right">Assigned galaxies</th>
+                  <th className="px-3 py-3 text-right">Classified galaxies</th>
+                  <th className="px-3 py-3 text-right bg-amber-50/70 text-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
+                    <div className="inline-flex items-center justify-end gap-1">
+                      <span>Unclassified galaxies</span>
+                      <InfoPopupButton message={infoMessage} />
+                    </div>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                {rows.map((row) => (
+                  <tr
+                    key={row.key}
+                    className={cn(row.isSpecial && "bg-amber-50/60 dark:bg-amber-950/10")}
+                  >
+                    <td className="w-[15em] max-w-[15em] px-3 py-3 align-top">
+                      <UserIdentityCell row={row} />
+                      {!row.isSpecial && row.isActive === false && (
+                        <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">Inactive account</div>
+                      )}
+                      {row.isSpecial && (
+                        <div className="mt-1 text-xs text-amber-700 dark:text-amber-300">Galaxies with no current sequence owner</div>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 text-sm text-gray-600 dark:text-gray-300 align-top">{row.experienceLabel}</td>
+                    <td className="px-3 py-3 text-sm text-gray-600 dark:text-gray-300 align-top">{row.roleLabel}</td>
+                    <td className="px-3 py-3 text-right text-sm font-semibold text-gray-900 dark:text-white align-top">
+                      {row.assignedCount.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-3 text-right text-sm font-semibold text-gray-900 dark:text-white align-top">
+                      {row.classifiedCount.toLocaleString()}
+                    </td>
+                    <td className="px-3 py-3 text-right text-sm font-semibold text-amber-800 bg-amber-50/70 dark:bg-amber-950/20 dark:text-amber-200 align-top">
+                      {row.unclassifiedCount.toLocaleString()}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="space-y-3 md:hidden">
+            {rows.map((row) => (
+              <UserAssignmentCard key={row.key} row={row} />
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+            <EmailVisibilityToggle
+              showEmails={showEmails}
+              onToggle={() => setShowEmails((value) => !value)}
+            />
+          </div>
         </div>
       )}
     </div>
@@ -424,6 +838,35 @@ function PaperAssignmentCoverageDashboard({
   scopeSnapshots,
   defaultPaper,
 }: DashboardProps) {
+  const loadCurrentUserDirectory = useAction(
+    api.statistics.paperAssignmentCoverage.cache.getCurrentUserDirectory,
+  );
+  const [currentUserDirectory, setCurrentUserDirectory] = useState<UserDirectoryEntry[] | undefined>(undefined);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    const fetchCurrentUserDirectory = async () => {
+      try {
+        const result = await loadCurrentUserDirectory({}) as UserDirectoryEntry[];
+        if (!isCancelled) {
+          setCurrentUserDirectory(result);
+        }
+      } catch (error) {
+        console.error(error);
+        if (!isCancelled) {
+          setCurrentUserDirectory(undefined);
+        }
+      }
+    };
+
+    void fetchCurrentUserDirectory();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [loadCurrentUserDirectory]);
+
   const {
     searchParams,
     selectedPaper,
@@ -439,6 +882,7 @@ function PaperAssignmentCoverageDashboard({
   const currentScopeKey = selectedPaper ?? GLOBAL_SCOPE_KEY;
   const currentScope = scopeSnapshotsByKey.get(currentScopeKey);
   const paperFilter = buildPaperFilter(selectedPaper, sharedSnapshot.catalog.paperCounts);
+  const effectiveUserDirectory = currentUserDirectory ?? sharedSnapshot.userDirectory;
   const targetProgress = currentScope
     ? deriveTargetProgressFromBuckets({
         targetClassifications,
@@ -502,7 +946,7 @@ function PaperAssignmentCoverageDashboard({
       <AssignmentCoverageTableSection
         selectedPaper={selectedPaper}
         scopeSnapshot={currentScope}
-        userDirectory={sharedSnapshot.userDirectory}
+        userDirectory={effectiveUserDirectory}
         targetClassifications={targetClassifications}
       />
     </div>
