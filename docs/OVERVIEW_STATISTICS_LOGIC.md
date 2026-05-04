@@ -376,10 +376,10 @@ Let `now` be the time at which the overview is generated.
 
 ### Past 24h
 
-Count classification records with timestamps in the closed interval:
+Count classification records with timestamps in the half-open interval:
 
 $$
-[\text{now} - 24\text{h}, \text{now}]
+[\text{now} - 24\text{h}, \text{now})
 $$
 
 ### Past 7d
@@ -387,7 +387,7 @@ $$
 Count classification records with timestamps in:
 
 $$
-[\text{now} - 7\text{d}, \text{now}]
+[\text{now} - 7\text{d}, \text{now})
 $$
 
 ### Daily activity series
@@ -604,10 +604,10 @@ Then:
 If the target is one classification per galaxy, then:
 
 $$
-M_1 = 34{,}340 - 32{,}946 = 1{,}394
+R_1 = 34{,}340 - 32{,}946 = 1{,}394
 $$
 
-Here $M_1$ is the remaining number of classifications needed to reach target $k=1$.
+Here $R_1$ is the remaining number of classifications needed to reach target $k=1$.
 
 That is the correct result because the blacklist has already been removed from the scope.
 

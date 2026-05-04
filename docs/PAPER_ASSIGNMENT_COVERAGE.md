@@ -74,7 +74,7 @@ Each galaxy is then placed into a classification-count bucket:
 - 0 classifications
 - 1 classification
 - 2 classifications
-- and so on, with high counts grouped into the final bucket
+- and so on, with counts greater than or equal to 25 grouped into the final bucket; that threshold comes from the backend constant `PAPER_ASSIGNMENT_COVERAGE_MAX_TARGET_CLASSIFICATIONS` and is not currently admin-configurable.
 
 From those buckets, the page derives the main progress statistics.
 
