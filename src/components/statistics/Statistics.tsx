@@ -100,14 +100,14 @@ export function Statistics() {
     ...(canAccessUsersStatistics
       ? [{ id: "users", label: "Users", icon: "👥", path: "/statistics/users" }]
       : []),
-    ...(canAccessDataAnalysis
-      ? [{ id: "analysis", label: "Data Analysis", icon: "🧭", path: "/statistics/analysis" }]
-      : []),
     ...(canAccessAssignmentStats
       ? [
-          { id: "assignment-stats", label: "Assignment Stats", icon: "🧮", path: "/statistics/assignment-stats" },
           { id: "paper-assignment-coverage", label: "Paper Assignment", icon: "🕸️", path: "/statistics/paper-assignment-coverage" },
+          { id: "assignment-stats", label: "Assignment Stats", icon: "🧮", path: "/statistics/assignment-stats" },
         ]
+      : []),
+    ...(canAccessDataAnalysis
+      ? [{ id: "analysis", label: "Data Analysis", icon: "🧭", path: "/statistics/analysis" }]
       : []),
   ];
 
