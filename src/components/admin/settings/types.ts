@@ -20,6 +20,11 @@ export interface SettingsFormState {
   availablePapers: string[];
   userExportLimit: number;
   overviewDefaultPaper: string | null;
+  paperAssignmentCoverageDefaultPaper: string | null;
+  overviewAutoRefreshEnabled: boolean;
+  overviewAutoRefreshIntervalMinutes: number;
+  paperAssignmentCoverageAutoRefreshEnabled: boolean;
+  paperAssignmentCoverageAutoRefreshIntervalMinutes: number;
   cloudflareCachePurgeEnabled: boolean;
   cloudflareZoneId: string;
   cloudflareApiToken: string;

@@ -94,6 +94,14 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         debugAdminMode: localSettings.debugAdminMode,
         allowPublicOverview: localSettings.allowPublicOverview,
         allowPublicDataAnalysis: localSettings.allowPublicDataAnalysis,
+        overviewAutoRefreshEnabled:
+          localSettings.overviewAutoRefreshEnabled,
+        overviewAutoRefreshIntervalMinutes:
+          localSettings.overviewAutoRefreshIntervalMinutes,
+        paperAssignmentCoverageAutoRefreshEnabled:
+          localSettings.paperAssignmentCoverageAutoRefreshEnabled,
+        paperAssignmentCoverageAutoRefreshIntervalMinutes:
+          localSettings.paperAssignmentCoverageAutoRefreshIntervalMinutes,
         appVersion: localSettings.appVersion,
         failedFittingMode: localSettings.failedFittingMode,
         failedFittingFallbackLsbClass:
@@ -106,6 +114,8 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         availablePapers: localSettings.availablePapers,
         userExportLimit: localSettings.userExportLimit,
         overviewDefaultPaper: localSettings.overviewDefaultPaper,
+        paperAssignmentCoverageDefaultPaper:
+          localSettings.paperAssignmentCoverageDefaultPaper,
         cloudflareCachePurgeEnabled: localSettings.cloudflareCachePurgeEnabled,
         cloudflareZoneId: localSettings.cloudflareZoneId,
         cloudflareApiToken: localSettings.cloudflareApiToken,

@@ -2,6 +2,7 @@ import { usePageTitle } from "../../../hooks/usePageTitle";
 import type { PapersOverviewSettingsPageProps } from "./types";
 
 const OVERVIEW_DEFAULT_NONE_SENTINEL = "__overview_default_none__";
+const PAPER_ASSIGNMENT_DEFAULT_NONE_SENTINEL = "__paper_assignment_default_none__";
 
 export function PapersOverviewSettingsPage({
   localSettings,
@@ -16,6 +17,7 @@ export function PapersOverviewSettingsPage({
     const trimmed = rawValue.trim();
     if (
       trimmed === OVERVIEW_DEFAULT_NONE_SENTINEL ||
+      trimmed === PAPER_ASSIGNMENT_DEFAULT_NONE_SENTINEL ||
       localSettings.availablePapers.includes(trimmed)
     ) {
       return;
@@ -167,6 +169,155 @@ export function PapersOverviewSettingsPage({
             paper value.
           </p>
         </label>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+          Paper Assignment Default Filter
+        </h4>
+        <label className="mt-4 block">
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            Default Paper Filter for Paper Assignment Coverage Tab
+          </span>
+          <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+            Pre-select a paper in the Paper Assignment Coverage tab when the page is opened without a URL parameter. Users can still switch to any paper or to All.
+          </p>
+          <select
+            value={
+              localSettings.paperAssignmentCoverageDefaultPaper === null
+                ? PAPER_ASSIGNMENT_DEFAULT_NONE_SENTINEL
+                : localSettings.paperAssignmentCoverageDefaultPaper
+            }
+            onChange={(e) => {
+              const value = e.target.value;
+              handleSettingChange(
+                "paperAssignmentCoverageDefaultPaper",
+                value === PAPER_ASSIGNMENT_DEFAULT_NONE_SENTINEL ? null : value,
+              );
+            }}
+            className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+          >
+            <option value={PAPER_ASSIGNMENT_DEFAULT_NONE_SENTINEL}>
+              None - show all papers by default
+            </option>
+            {localSettings.availablePapers.map((paper, index) => (
+              <option key={`${paper}-${index}`} value={paper}>
+                {paper === "" ? "(empty - unassigned galaxies)" : paper}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            The reserved token used for the None option cannot be added as a paper value.
+          </p>
+        </label>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+          Overview Cache
+        </h4>
+        <div className="mt-4 space-y-4">
+          <label className="flex items-center justify-between gap-4">
+            <div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Enable automatic snapshot refresh
+              </span>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Refresh cached snapshots for /statistics/overview on a background schedule.
+                Disable this to rely only on live overview loads to populate cached data.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={localSettings.overviewAutoRefreshEnabled}
+              onChange={(e) =>
+                handleSettingChange(
+                  "overviewAutoRefreshEnabled",
+                  e.target.checked,
+                )
+              }
+              className="h-4 w-4 rounded border-gray-300 bg-gray-100 text-blue-600 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-blue-600"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              Refresh interval (minutes)
+            </span>
+            <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+              Minimum 5 minutes. The background scheduler checks whether a refresh is due every 5 minutes.
+            </p>
+            <input
+              type="number"
+              min={5}
+              step={5}
+              value={localSettings.overviewAutoRefreshIntervalMinutes}
+              onChange={(e) => {
+                const parsed = Number(e.target.value);
+                handleSettingChange(
+                  "overviewAutoRefreshIntervalMinutes",
+                  Number.isFinite(parsed) ? Math.max(5, Math.floor(parsed)) : 5,
+                );
+              }}
+              disabled={!localSettings.overviewAutoRefreshEnabled}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+          </label>
+        </div>
+      </div>
+
+      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
+        <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
+          Paper Assignment Coverage Cache
+        </h4>
+        <div className="mt-4 space-y-4">
+          <label className="flex items-center justify-between gap-4">
+            <div>
+              <span className="text-sm font-medium text-gray-900 dark:text-white">
+                Enable automatic snapshot refresh
+              </span>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Refresh cached snapshots for /statistics/paper-assignment-coverage on a background schedule.
+                Disable this to keep only manual live calculations available.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={localSettings.paperAssignmentCoverageAutoRefreshEnabled}
+              onChange={(e) =>
+                handleSettingChange(
+                  "paperAssignmentCoverageAutoRefreshEnabled",
+                  e.target.checked,
+                )
+              }
+              className="h-4 w-4 rounded border-gray-300 bg-gray-100 text-blue-600 focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:ring-offset-gray-800 dark:focus:ring-blue-600"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">
+              Refresh interval (minutes)
+            </span>
+            <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
+              Minimum 5 minutes. The background scheduler checks whether a refresh is due every 5 minutes.
+            </p>
+            <input
+              type="number"
+              min={5}
+              step={5}
+              value={localSettings.paperAssignmentCoverageAutoRefreshIntervalMinutes}
+              onChange={(e) => {
+                const parsed = Number(e.target.value);
+                handleSettingChange(
+                  "paperAssignmentCoverageAutoRefreshIntervalMinutes",
+                  Number.isFinite(parsed) ? Math.max(5, Math.floor(parsed)) : 5,
+                );
+              }}
+              disabled={!localSettings.paperAssignmentCoverageAutoRefreshEnabled}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+            />
+          </label>
+        </div>
       </div>
     </div>
   );

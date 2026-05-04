@@ -15,11 +15,16 @@ import {
   DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
   DEFAULT_ALLOW_PUBLIC_OVERVIEW,
   DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS,
+  DEFAULT_OVERVIEW_AUTO_REFRESH_ENABLED,
+  DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES,
+  DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED,
+  DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES,
   DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
   DEFAULT_CLOUDFLARE_ZONE_ID,
   DEFAULT_CLOUDFLARE_API_TOKEN,
   DEFAULT_USER_EXPORT_LIMIT,
   DEFAULT_OVERVIEW_DEFAULT_PAPER,
+  DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER,
 } from "../../../lib/defaults";
 import { cloneRolePermissions, DEFAULT_ROLE_PERMISSIONS } from "../../../lib/permissions";
 import type { SettingsFormState } from "./types";
@@ -58,6 +63,21 @@ export function createSettingsFormState(systemSettings: any): SettingsFormState 
     userExportLimit: systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT,
     overviewDefaultPaper:
       systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER,
+    paperAssignmentCoverageDefaultPaper:
+      systemSettings.paperAssignmentCoverageDefaultPaper
+      ?? DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER,
+    overviewAutoRefreshEnabled:
+      systemSettings.overviewAutoRefreshEnabled
+      ?? DEFAULT_OVERVIEW_AUTO_REFRESH_ENABLED,
+    overviewAutoRefreshIntervalMinutes:
+      systemSettings.overviewAutoRefreshIntervalMinutes
+      ?? DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES,
+    paperAssignmentCoverageAutoRefreshEnabled:
+      systemSettings.paperAssignmentCoverageAutoRefreshEnabled
+      ?? DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED,
+    paperAssignmentCoverageAutoRefreshIntervalMinutes:
+      systemSettings.paperAssignmentCoverageAutoRefreshIntervalMinutes
+      ?? DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES,
     cloudflareCachePurgeEnabled:
       systemSettings.cloudflareCachePurgeEnabled ??
       DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
@@ -98,6 +118,16 @@ export function hasSettingsChanges(
       originalSettings.galaxyBrowserImageQuality ||
     localSettings.userExportLimit !== originalSettings.userExportLimit ||
     localSettings.overviewDefaultPaper !== originalSettings.overviewDefaultPaper ||
+    localSettings.paperAssignmentCoverageDefaultPaper !==
+      originalSettings.paperAssignmentCoverageDefaultPaper ||
+    localSettings.overviewAutoRefreshEnabled !==
+      originalSettings.overviewAutoRefreshEnabled ||
+    localSettings.overviewAutoRefreshIntervalMinutes !==
+      originalSettings.overviewAutoRefreshIntervalMinutes ||
+    localSettings.paperAssignmentCoverageAutoRefreshEnabled !==
+      originalSettings.paperAssignmentCoverageAutoRefreshEnabled ||
+    localSettings.paperAssignmentCoverageAutoRefreshIntervalMinutes !==
+      originalSettings.paperAssignmentCoverageAutoRefreshIntervalMinutes ||
     localSettings.cloudflareCachePurgeEnabled !==
       originalSettings.cloudflareCachePurgeEnabled ||
     localSettings.cloudflareZoneId !== originalSettings.cloudflareZoneId ||

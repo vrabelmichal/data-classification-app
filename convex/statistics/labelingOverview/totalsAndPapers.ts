@@ -2,12 +2,18 @@ import { query, internalQuery, type QueryCtx } from "../../_generated/server";
 import { v } from "convex/values";
 import { requirePermission } from "../../lib/auth";
 import { classificationsByCreated, galaxiesById, galaxiesByTotalClassifications } from "../../galaxies/aggregates";
-import { getPaperCountsPayload } from "./shared";
+import { getPaperCountsPayload, getUniqueBlacklistedGalaxyExternalIds } from "./shared";
 import { MAX_TARGET_CLASSIFICATIONS, OVERVIEW_BUCKET_COUNT } from "./cacheValidators";
 
 // Batch size for getPaperClassificationStats pagination.
 // Kept small enough to stay well under the 1 s query deadline per page.
 const PAPER_CLASSIFICATION_PAGE_SIZE = 1000;
+
+type GalaxyClassificationRow = {
+  id: string;
+  totalClassifications?: number | bigint | null;
+};
+
 function clampTargetClassifications(targetClassifications: number) {
   if (!Number.isFinite(targetClassifications)) {
     return 1;
@@ -38,10 +44,80 @@ export function buildClassificationBucketsFromHistogram(
   return buckets;
 }
 
+function bucketIndexForClassificationCount(classificationCount: number) {
+  if (!Number.isFinite(classificationCount) || classificationCount <= 0) {
+    return 0;
+  }
+
+  if (classificationCount >= MAX_TARGET_CLASSIFICATIONS) {
+    return OVERVIEW_BUCKET_COUNT - 1;
+  }
+
+  return Math.max(0, Math.floor(classificationCount));
+}
+
+export function summarizeClassificationRows(
+  rows: GalaxyClassificationRow[],
+  blacklistedIds?: Iterable<string>
+) {
+  const blacklistedIdSet = blacklistedIds ? new Set(blacklistedIds) : null;
+  let classifiedGalaxies = 0;
+  let totalClassifications = 0;
+  let processedGalaxies = 0;
+  const classificationHistogram: Record<string, number> = {};
+
+  for (const row of rows) {
+    if (blacklistedIdSet?.has(row.id)) {
+      continue;
+    }
+
+    processedGalaxies += 1;
+    const tc = Number(row.totalClassifications ?? 0);
+    if (tc > 0) {
+      classifiedGalaxies += 1;
+    }
+    totalClassifications += tc;
+    const histogramKey = String(tc);
+    classificationHistogram[histogramKey] = (classificationHistogram[histogramKey] ?? 0) + 1;
+  }
+
+  return {
+    classifiedGalaxies,
+    totalClassifications,
+    processedGalaxies,
+    classificationHistogram,
+  };
+}
+
+async function loadBlacklistedGalaxyRows(
+  ctx: any
+): Promise<Array<GalaxyClassificationRow>> {
+  const blacklistedExternalIds = await getUniqueBlacklistedGalaxyExternalIds(ctx);
+  if (blacklistedExternalIds.length === 0) {
+    return [];
+  }
+
+  const galaxies = await Promise.all(
+    blacklistedExternalIds.map(async (externalId) =>
+      ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q: any) => q.eq("id", externalId))
+        .unique()
+    )
+  );
+
+  return galaxies
+    .filter((galaxy): galaxy is NonNullable<typeof galaxy> => galaxy !== null)
+    .map((galaxy) => ({
+      id: galaxy.id,
+      totalClassifications: galaxy.totalClassifications,
+    }));
+}
+
 export async function loadGlobalTotals(
   ctx: Parameters<typeof galaxiesById.count>[0]
 ) {
-  const [totalGalaxies, classifiedGalaxies, totalClassifications] = await Promise.all([
+  const [rawTotalGalaxies, rawClassifiedGalaxies, rawTotalClassifications, blacklistedGalaxies] = await Promise.all([
     galaxiesById.count(ctx),
     galaxiesByTotalClassifications.count(ctx, {
       bounds: {
@@ -50,7 +126,25 @@ export async function loadGlobalTotals(
       },
     }),
     classificationsByCreated.count(ctx),
+    loadBlacklistedGalaxyRows(ctx),
   ]);
+
+  const blacklistedGalaxyCount = blacklistedGalaxies.length;
+  const blacklistedClassifiedCount = blacklistedGalaxies.reduce(
+    (sum, galaxy) => sum + (Number(galaxy.totalClassifications ?? 0) > 0 ? 1 : 0),
+    0
+  );
+  const blacklistedTotalClassifications = blacklistedGalaxies.reduce(
+    (sum, galaxy) => sum + Number(galaxy.totalClassifications ?? 0),
+    0
+  );
+
+  const totalGalaxies = Math.max(rawTotalGalaxies - blacklistedGalaxyCount, 0);
+  const classifiedGalaxies = Math.max(rawClassifiedGalaxies - blacklistedClassifiedCount, 0);
+  const totalClassifications = Math.max(
+    rawTotalClassifications - blacklistedTotalClassifications,
+    0
+  );
 
   const unclassifiedGalaxies = Math.max(totalGalaxies - classifiedGalaxies, 0);
   const progress = totalGalaxies > 0 ? (classifiedGalaxies / totalGalaxies) * 100 : 0;
@@ -69,54 +163,58 @@ export async function loadGlobalTotals(
 export async function loadGlobalClassificationBuckets(
   ctx: Parameters<typeof galaxiesByTotalClassifications.count>[0]
 ) {
-  const exactCounts = await Promise.all(
+  const [exactCounts, atOrAboveTarget, blacklistedGalaxies] = await Promise.all([
+    Promise.all(
     Array.from({ length: MAX_TARGET_CLASSIFICATIONS }, (_, classificationCount) =>
       galaxiesByTotalClassifications
         .count(ctx, { bounds: exactClassificationCountBounds(classificationCount) })
         .then((count) => ({ classificationCount, count }))
     )
-  );
-
-  const atOrAboveTarget = await galaxiesByTotalClassifications.count(ctx, {
-    bounds: {
-      lower: { key: MAX_TARGET_CLASSIFICATIONS, inclusive: true },
-      upper: { key: Number.MAX_SAFE_INTEGER - 1, inclusive: true },
-    },
-  });
+    ),
+    galaxiesByTotalClassifications.count(ctx, {
+      bounds: {
+        lower: { key: MAX_TARGET_CLASSIFICATIONS, inclusive: true },
+        upper: { key: Number.MAX_SAFE_INTEGER - 1, inclusive: true },
+      },
+    }),
+    loadBlacklistedGalaxyRows(ctx),
+  ]);
 
   const buckets = Array.from({ length: OVERVIEW_BUCKET_COUNT }, () => 0);
   for (const entry of exactCounts) {
     buckets[entry.classificationCount] = entry.count;
   }
   buckets[OVERVIEW_BUCKET_COUNT - 1] = atOrAboveTarget;
+
+  for (const galaxy of blacklistedGalaxies) {
+    const bucketIndex = bucketIndexForClassificationCount(
+      Number(galaxy.totalClassifications ?? 0)
+    );
+    buckets[bucketIndex] = Math.max(buckets[bucketIndex] - 1, 0);
+  }
+
   return buckets;
 }
 
 export async function queryPaperClassificationStatsPage(
   ctx: QueryCtx,
-  args: { paper: string; cursor?: string }
+  args: { paper: string; cursor?: string; blacklistedIds?: string[] }
 ) {
   const { page, isDone, continueCursor } = await ctx.db
     .query("galaxies")
     .withIndex("by_misc_paper", (q) => q.eq("misc.paper", args.paper))
     .paginate({ numItems: PAPER_CLASSIFICATION_PAGE_SIZE, cursor: args.cursor ?? null });
 
-  let classifiedGalaxies = 0;
-  let totalClassifications = 0;
-  const classificationHistogram: Record<string, number> = {};
-  for (const g of page) {
-    const tc = Number(g.totalClassifications ?? 0);
-    if (tc > 0) classifiedGalaxies++;
-    totalClassifications += tc;
-    const histogramKey = String(tc);
-    classificationHistogram[histogramKey] = (classificationHistogram[histogramKey] ?? 0) + 1;
-  }
+  const blacklistedIds =
+    args.blacklistedIds
+    ?? await getUniqueBlacklistedGalaxyExternalIds(ctx);
+  const summary = summarizeClassificationRows(page, blacklistedIds);
 
   return {
-    classifiedGalaxies,
-    totalClassifications,
-    processedGalaxies: page.length,
-    classificationHistogram,
+    classifiedGalaxies: summary.classifiedGalaxies,
+    totalClassifications: summary.totalClassifications,
+    processedGalaxies: summary.processedGalaxies,
+    classificationHistogram: summary.classificationHistogram,
     isDone,
     continueCursor: isDone ? null : continueCursor,
   };
@@ -176,7 +274,7 @@ export const get = query({
       // skipped here — a full table scan via .collect() easily hits the 1 s query
       // deadline for large catalogues.  The client side fetches these incrementally
       // via `getPaperClassificationStats` below and merges them into the display.
-      totalGalaxies = paperPayload.paperFilter?.galaxies ?? 0;
+      totalGalaxies = paperPayload.paperFilter?.adjusted ?? 0;
       classifiedGalaxies = 0;
       totalClassifications = 0;
     } else {
@@ -223,6 +321,7 @@ export const getPaperClassificationStats = query({
   args: {
     paper: v.string(),
     cursor: v.optional(v.string()),
+    blacklistedIds: v.optional(v.array(v.string())),
   },
   returns: v.object({
     classifiedGalaxies: v.number(),
@@ -244,6 +343,7 @@ export const getPaperClassificationStatsPageInternal = internalQuery({
   args: {
     paper: v.string(),
     cursor: v.optional(v.string()),
+    blacklistedIds: v.optional(v.array(v.string())),
   },
   returns: v.object({
     classifiedGalaxies: v.number(),

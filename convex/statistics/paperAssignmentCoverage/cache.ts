@@ -1,0 +1,846 @@
+import { v } from "convex/values";
+import {
+  action,
+  internalAction,
+  internalMutation,
+  internalQuery,
+  query,
+  type ActionCtx,
+  type MutationCtx,
+} from "../../_generated/server";
+import { api, internal } from "../../_generated/api";
+import { requirePermission } from "../../lib/auth";
+import {
+  DEFAULT_AVAILABLE_PAPERS,
+  DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED,
+  DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES,
+} from "../../lib/defaults";
+import {
+  PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT,
+  PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY,
+  PAPER_ASSIGNMENT_COVERAGE_SHARED_SNAPSHOT_KEY,
+  paperAssignmentCoverageCachedResponseValidator,
+  paperAssignmentCoverageSharedSnapshotValidator,
+  paperAssignmentCoverageSnapshotPayloadValidator,
+  paperAssignmentCoverageScopeSnapshotValidator,
+} from "./validators";
+
+type Totals = {
+  galaxies: number;
+  classifiedGalaxies: number;
+  unclassifiedGalaxies: number;
+  totalClassifications: number;
+  progress: number;
+  avgClassificationsPerGalaxy: number;
+};
+
+type ClassificationStats = {
+  flags: {
+    awesome: number;
+    visibleNucleus: number;
+    failedFitting: number;
+    validRedshift: number;
+  };
+  lsbClass: {
+    nonLSB: number;
+    LSB: number;
+  };
+  morphology: {
+    featureless: number;
+    irregular: number;
+    spiral: number;
+    elliptical: number;
+  };
+};
+
+type ScopeAccumulator = {
+  scopeKey: string;
+  paper: string | null;
+  totals: {
+    galaxies: number;
+    classifiedGalaxies: number;
+    totalClassifications: number;
+  };
+  classificationBuckets: number[];
+  classificationStats: ClassificationStats;
+  activeClassifierIds: Set<string>;
+  userCountsByUserId: Map<string, number[]>;
+  assignedBucketCounts: number[];
+};
+
+type GalaxyMeta = {
+  paper: string;
+  bucketIndex: number;
+};
+
+type SharedSnapshot = {
+  catalog: {
+    availablePapers: string[];
+    paperCounts: Record<string, { total: number; blacklisted: number; adjusted: number }>;
+  };
+  userDirectory: Array<{
+    userId: string;
+    name?: string | null;
+    role: string;
+    isActive: boolean;
+  }>;
+  updatedAt: number;
+};
+
+type ScopeSnapshot = {
+  scopeKey: string;
+  paper: string | null;
+  totals: Totals;
+  classificationBuckets: number[];
+  classificationStats: ClassificationStats;
+  activeClassifiers: number;
+  userAssignmentCounts: Array<{ userId: string; counts: number[] }>;
+  unassignedCounts: number[];
+  updatedAt: number;
+};
+
+const GALAXY_PAGE_SIZE = 2000;
+const CLASSIFICATION_PAGE_SIZE = 5000;
+const SEQUENCE_PAGE_SIZE = 128;
+const MIN_AUTO_REFRESH_INTERVAL_MINUTES = 5;
+const MAX_AUTO_REFRESH_INTERVAL_MINUTES = 7 * 24 * 60;
+
+function buildEmptyCounts() {
+  return Array.from({ length: PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT }, () => 0);
+}
+
+function createEmptyClassificationStats(): ClassificationStats {
+  return {
+    flags: {
+      awesome: 0,
+      visibleNucleus: 0,
+      failedFitting: 0,
+      validRedshift: 0,
+    },
+    lsbClass: {
+      nonLSB: 0,
+      LSB: 0,
+    },
+    morphology: {
+      featureless: 0,
+      irregular: 0,
+      spiral: 0,
+      elliptical: 0,
+    },
+  };
+}
+
+function scopeKeyFromPaper(paper: string | null) {
+  return paper ?? PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY;
+}
+
+function normalizePaper(value: string | null | undefined) {
+  return value ?? "";
+}
+
+function normalizeBucketIndex(totalClassifications: number) {
+  if (!Number.isFinite(totalClassifications) || totalClassifications <= 0) {
+    return 0;
+  }
+
+  const normalized = Math.floor(totalClassifications);
+  if (normalized >= PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT - 1) {
+    return PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT - 1;
+  }
+
+  return normalized;
+}
+
+function createScopeAccumulator(paper: string | null): ScopeAccumulator {
+  return {
+    scopeKey: scopeKeyFromPaper(paper),
+    paper,
+    totals: {
+      galaxies: 0,
+      classifiedGalaxies: 0,
+      totalClassifications: 0,
+    },
+    classificationBuckets: buildEmptyCounts(),
+    classificationStats: createEmptyClassificationStats(),
+    activeClassifierIds: new Set<string>(),
+    userCountsByUserId: new Map<string, number[]>(),
+    assignedBucketCounts: buildEmptyCounts(),
+  };
+}
+
+function getOrCreateScopeAccumulator(
+  scopeAccumulators: Map<string, ScopeAccumulator>,
+  paper: string | null
+) {
+  const scopeKey = scopeKeyFromPaper(paper);
+  const existing = scopeAccumulators.get(scopeKey);
+  if (existing) {
+    return existing;
+  }
+
+  const created = createScopeAccumulator(paper);
+  scopeAccumulators.set(scopeKey, created);
+  return created;
+}
+
+function getOrCreateUserCounts(scope: ScopeAccumulator, userId: string) {
+  const existing = scope.userCountsByUserId.get(userId);
+  if (existing) {
+    return existing;
+  }
+
+  const created = buildEmptyCounts();
+  scope.userCountsByUserId.set(userId, created);
+  return created;
+}
+
+function addGalaxyToScope(scope: ScopeAccumulator, totalClassifications: number) {
+  const numericTotalClassifications = Number.isFinite(totalClassifications)
+    ? Math.max(0, Math.floor(totalClassifications))
+    : 0;
+  const bucketIndex = normalizeBucketIndex(numericTotalClassifications);
+
+  scope.totals.galaxies += 1;
+  scope.totals.totalClassifications += numericTotalClassifications;
+  if (numericTotalClassifications > 0) {
+    scope.totals.classifiedGalaxies += 1;
+  }
+  scope.classificationBuckets[bucketIndex] += 1;
+}
+
+function addClassificationToStats(
+  stats: ClassificationStats,
+  row: {
+    lsbClass: number;
+    morphology: number;
+    awesomeFlag: boolean;
+    visibleNucleus: boolean;
+    failedFitting: boolean;
+    validRedshift: boolean;
+  }
+) {
+  if (row.awesomeFlag) {
+    stats.flags.awesome += 1;
+  }
+  if (row.visibleNucleus) {
+    stats.flags.visibleNucleus += 1;
+  }
+  if (row.failedFitting) {
+    stats.flags.failedFitting += 1;
+  }
+  if (row.validRedshift) {
+    stats.flags.validRedshift += 1;
+  }
+
+  if (row.lsbClass === 1) {
+    stats.lsbClass.LSB += 1;
+  } else if (row.lsbClass === 0 || row.lsbClass === -1) {
+    stats.lsbClass.nonLSB += 1;
+  }
+
+  if (row.morphology === -1) {
+    stats.morphology.featureless += 1;
+  } else if (row.morphology === 0) {
+    stats.morphology.irregular += 1;
+  } else if (row.morphology === 1) {
+    stats.morphology.spiral += 1;
+  } else if (row.morphology === 2) {
+    stats.morphology.elliptical += 1;
+  }
+}
+
+function finalizeTotals(totals: ScopeAccumulator["totals"]): Totals {
+  const unclassifiedGalaxies = Math.max(totals.galaxies - totals.classifiedGalaxies, 0);
+  const progress = totals.galaxies > 0
+    ? (totals.classifiedGalaxies / totals.galaxies) * 100
+    : 0;
+  const avgClassificationsPerGalaxy = totals.galaxies > 0
+    ? totals.totalClassifications / totals.galaxies
+    : 0;
+
+  return {
+    galaxies: totals.galaxies,
+    classifiedGalaxies: totals.classifiedGalaxies,
+    unclassifiedGalaxies,
+    totalClassifications: totals.totalClassifications,
+    progress,
+    avgClassificationsPerGalaxy,
+  };
+}
+
+function sortUserDirectory(
+  userDirectory: Array<{ userId: string; name?: string | null; role: string; isActive: boolean }>
+) {
+  return [...userDirectory].sort((left, right) => {
+    const leftLabel = (left.name ?? left.userId).toLowerCase();
+    const rightLabel = (right.name ?? right.userId).toLowerCase();
+    return leftLabel.localeCompare(rightLabel) || left.userId.localeCompare(right.userId);
+  });
+}
+
+function finalizeScopeSnapshot(
+  scope: ScopeAccumulator,
+  updatedAt: number
+): ScopeSnapshot {
+  const userAssignmentCounts = Array.from(scope.userCountsByUserId.entries())
+    .map(([userId, counts]) => ({ userId, counts: [...counts] }))
+    .filter((entry) => entry.counts.some((count) => count > 0));
+  const unassignedCounts = scope.classificationBuckets.map((count, index) =>
+    Math.max(count - scope.assignedBucketCounts[index], 0)
+  );
+
+  return {
+    scopeKey: scope.scopeKey,
+    paper: scope.paper,
+    totals: finalizeTotals(scope.totals),
+    classificationBuckets: [...scope.classificationBuckets],
+    classificationStats: scope.classificationStats,
+    activeClassifiers: scope.activeClassifierIds.size,
+    userAssignmentCounts,
+    unassignedCounts,
+    updatedAt,
+  };
+}
+
+function normalizeConfiguredPapers(value: unknown) {
+  const configured = Array.isArray(value)
+    ? value.filter((paper): paper is string => typeof paper === "string")
+    : DEFAULT_AVAILABLE_PAPERS;
+  const deduped = Array.from(new Set(configured));
+  return deduped.includes("") ? deduped : ["", ...deduped];
+}
+
+function normalizeRefreshIntervalMinutes(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES;
+  }
+
+  return Math.min(
+    MAX_AUTO_REFRESH_INTERVAL_MINUTES,
+    Math.max(MIN_AUTO_REFRESH_INTERVAL_MINUTES, Math.floor(parsed))
+  );
+}
+
+async function computeSnapshotPayload(ctx: ActionCtx) {
+  const settings = await ctx.runQuery(
+    internal.system_settings.loadMergedSystemSettingsInternal,
+    {}
+  );
+  const configuredPapers = normalizeConfiguredPapers(settings.availablePapers);
+  const blacklistedIds = await ctx.runQuery(
+    internal.statistics.paperAssignmentCoverage.cache.getBlacklistedIds,
+    {}
+  );
+  const blacklistedIdSet = new Set(blacklistedIds);
+  const scopeAccumulators = new Map<string, ScopeAccumulator>([
+    [
+      PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY,
+      createScopeAccumulator(null),
+    ],
+  ]);
+  const discoveredPapers: string[] = [...configuredPapers];
+  const paperCounts = new Map<string, { total: number; blacklisted: number }>();
+  const galaxyMetaById = new Map<string, GalaxyMeta>();
+
+  for (const paper of configuredPapers) {
+    getOrCreateScopeAccumulator(scopeAccumulators, paper);
+    paperCounts.set(paper, { total: 0, blacklisted: 0 });
+  }
+
+  let galaxyCursor: string | undefined;
+  while (true) {
+    const page = await ctx.runQuery(
+      internal.statistics.paperAssignmentCoverage.cache.getGalaxyPage,
+      { cursor: galaxyCursor }
+    );
+
+    for (const row of page.rows) {
+      const paper = normalizePaper(row.paper);
+      const paperCount = paperCounts.get(paper) ?? { total: 0, blacklisted: 0 };
+      paperCount.total += 1;
+      if (blacklistedIdSet.has(row.externalId)) {
+        paperCount.blacklisted += 1;
+      }
+      paperCounts.set(paper, paperCount);
+
+      if (!discoveredPapers.includes(paper)) {
+        discoveredPapers.push(paper);
+      }
+
+      if (blacklistedIdSet.has(row.externalId)) {
+        continue;
+      }
+
+      const totalClassifications = Math.max(0, Math.floor(row.totalClassifications));
+      const bucketIndex = normalizeBucketIndex(totalClassifications);
+      galaxyMetaById.set(row.externalId, { paper, bucketIndex });
+
+      addGalaxyToScope(
+        getOrCreateScopeAccumulator(scopeAccumulators, null),
+        totalClassifications
+      );
+      addGalaxyToScope(
+        getOrCreateScopeAccumulator(scopeAccumulators, paper),
+        totalClassifications
+      );
+    }
+
+    if (page.isDone || page.continueCursor === null) {
+      break;
+    }
+
+    galaxyCursor = page.continueCursor;
+  }
+
+  let classificationCursor: string | undefined;
+  while (true) {
+    const page = await ctx.runQuery(
+      internal.statistics.paperAssignmentCoverage.cache.getClassificationPage,
+      { cursor: classificationCursor }
+    );
+
+    for (const row of page.rows) {
+      const galaxyMeta = galaxyMetaById.get(row.galaxyExternalId);
+      if (!galaxyMeta) {
+        continue;
+      }
+
+      const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
+      const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxyMeta.paper);
+
+      addClassificationToStats(globalScope.classificationStats, row);
+      addClassificationToStats(paperScope.classificationStats, row);
+      globalScope.activeClassifierIds.add(row.userId);
+      paperScope.activeClassifierIds.add(row.userId);
+    }
+
+    if (page.isDone || page.continueCursor === null) {
+      break;
+    }
+
+    classificationCursor = page.continueCursor;
+  }
+
+  const userDirectoryById = new Map<
+    string,
+    { userId: string; name?: string | null; role: string; isActive: boolean }
+  >();
+  const assignedGalaxyIds = new Set<string>();
+
+  let sequenceCursor: string | undefined;
+  while (true) {
+    const page = await ctx.runQuery(
+      internal.statistics.paperAssignmentCoverage.cache.getSequencePage,
+      { cursor: sequenceCursor }
+    );
+
+    for (const row of page.rows) {
+      userDirectoryById.set(row.userId, {
+        userId: row.userId,
+        name: row.name,
+        role: row.role,
+        isActive: row.isActive,
+      });
+
+      if (row.galaxyExternalIds.length === 0) {
+        continue;
+      }
+
+      const seenInSequence = new Set<string>();
+      for (const externalId of row.galaxyExternalIds) {
+        if (seenInSequence.has(externalId)) {
+          continue;
+        }
+        seenInSequence.add(externalId);
+
+        const galaxyMeta = galaxyMetaById.get(externalId);
+        if (!galaxyMeta) {
+          continue;
+        }
+
+        const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
+        const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxyMeta.paper);
+        getOrCreateUserCounts(globalScope, row.userId)[galaxyMeta.bucketIndex] += 1;
+        getOrCreateUserCounts(paperScope, row.userId)[galaxyMeta.bucketIndex] += 1;
+
+        if (!assignedGalaxyIds.has(externalId)) {
+          assignedGalaxyIds.add(externalId);
+          globalScope.assignedBucketCounts[galaxyMeta.bucketIndex] += 1;
+          paperScope.assignedBucketCounts[galaxyMeta.bucketIndex] += 1;
+        }
+      }
+    }
+
+    if (page.isDone || page.continueCursor === null) {
+      break;
+    }
+
+    sequenceCursor = page.continueCursor;
+  }
+
+  const availablePapers = Array.from(new Set(discoveredPapers));
+  const orderedAvailablePapers = availablePapers.includes("")
+    ? availablePapers
+    : ["", ...availablePapers];
+  const updatedAt = Date.now();
+  const catalogCounts: Record<string, { total: number; blacklisted: number; adjusted: number }> = {};
+
+  for (const paper of orderedAvailablePapers) {
+    const counts = paperCounts.get(paper) ?? { total: 0, blacklisted: 0 };
+    catalogCounts[paper] = {
+      total: counts.total,
+      blacklisted: counts.blacklisted,
+      adjusted: Math.max(counts.total - counts.blacklisted, 0),
+    };
+    getOrCreateScopeAccumulator(scopeAccumulators, paper);
+  }
+
+  const scopeSnapshots: ScopeSnapshot[] = [
+    finalizeScopeSnapshot(
+      getOrCreateScopeAccumulator(scopeAccumulators, null),
+      updatedAt
+    ),
+    ...orderedAvailablePapers.map((paper) =>
+      finalizeScopeSnapshot(
+        getOrCreateScopeAccumulator(scopeAccumulators, paper),
+        updatedAt
+      )
+    ),
+  ];
+
+  const sharedSnapshot: SharedSnapshot = {
+    catalog: {
+      availablePapers: orderedAvailablePapers,
+      paperCounts: catalogCounts,
+    },
+    userDirectory: sortUserDirectory(Array.from(userDirectoryById.values())),
+    updatedAt,
+  };
+
+  return {
+    sharedSnapshot,
+    scopeSnapshots,
+  };
+}
+
+export const getBlacklistedIds = internalQuery({
+  args: {},
+  returns: v.array(v.string()),
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("galaxyBlacklist").collect();
+    return Array.from(new Set(rows.map((row) => row.galaxyExternalId)));
+  },
+});
+
+export const getGalaxyPage = internalQuery({
+  args: {
+    cursor: v.optional(v.string()),
+  },
+  returns: v.object({
+    rows: v.array(v.object({
+      externalId: v.string(),
+      paper: v.string(),
+      totalClassifications: v.number(),
+    })),
+    isDone: v.boolean(),
+    continueCursor: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("galaxies")
+      .paginate({ numItems: GALAXY_PAGE_SIZE, cursor: args.cursor ?? null });
+
+    return {
+      rows: page.page.map((doc) => ({
+        externalId: doc.id,
+        paper: normalizePaper(doc.misc?.paper),
+        totalClassifications: Number(doc.totalClassifications ?? 0),
+      })),
+      isDone: page.isDone,
+      continueCursor: page.isDone ? null : page.continueCursor,
+    };
+  },
+});
+
+export const getClassificationPage = internalQuery({
+  args: {
+    cursor: v.optional(v.string()),
+  },
+  returns: v.object({
+    rows: v.array(v.object({
+      userId: v.string(),
+      galaxyExternalId: v.string(),
+      lsbClass: v.number(),
+      morphology: v.number(),
+      awesomeFlag: v.boolean(),
+      validRedshift: v.boolean(),
+      visibleNucleus: v.boolean(),
+      failedFitting: v.boolean(),
+    })),
+    isDone: v.boolean(),
+    continueCursor: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("classifications")
+      .paginate({ numItems: CLASSIFICATION_PAGE_SIZE, cursor: args.cursor ?? null });
+
+    return {
+      rows: page.page.map((doc) => ({
+        userId: String(doc.userId),
+        galaxyExternalId: doc.galaxyExternalId,
+        lsbClass: doc.lsb_class,
+        morphology: doc.morphology,
+        awesomeFlag: doc.awesome_flag,
+        validRedshift: doc.valid_redshift,
+        visibleNucleus: Boolean(doc.visible_nucleus),
+        failedFitting: Boolean(doc.failed_fitting),
+      })),
+      isDone: page.isDone,
+      continueCursor: page.isDone ? null : page.continueCursor,
+    };
+  },
+});
+
+export const getSequencePage = internalQuery({
+  args: {
+    cursor: v.optional(v.string()),
+  },
+  returns: v.object({
+    rows: v.array(v.object({
+      userId: v.string(),
+      name: v.optional(v.union(v.string(), v.null())),
+      role: v.string(),
+      isActive: v.boolean(),
+      galaxyExternalIds: v.array(v.string()),
+    })),
+    isDone: v.boolean(),
+    continueCursor: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("galaxySequences")
+      .paginate({ numItems: SEQUENCE_PAGE_SIZE, cursor: args.cursor ?? null });
+
+    const rows = await Promise.all(
+      page.page.map(async (sequence) => {
+        const [user, profile] = await Promise.all([
+          ctx.db.get(sequence.userId),
+          ctx.db
+            .query("userProfiles")
+            .withIndex("by_user", (q) => q.eq("userId", sequence.userId))
+            .unique(),
+        ]);
+
+        return {
+          userId: String(sequence.userId),
+          name: (user as { name?: string | null } | null)?.name ?? null,
+          role: profile?.role ?? "user",
+          isActive: profile?.isActive ?? false,
+          galaxyExternalIds: sequence.galaxyExternalIds ?? [],
+        };
+      })
+    );
+
+    return {
+      rows,
+      isDone: page.isDone,
+      continueCursor: page.isDone ? null : page.continueCursor,
+    };
+  },
+});
+
+export const getSharedSnapshotUpdatedAtInternal = internalQuery({
+  args: {},
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx) => {
+    const sharedSnapshot = await ctx.db
+      .query("paperAssignmentCoverageSharedSnapshots")
+      .withIndex("by_key", (q) =>
+        q.eq("key", PAPER_ASSIGNMENT_COVERAGE_SHARED_SNAPSHOT_KEY)
+      )
+      .unique();
+
+    return sharedSnapshot?.updatedAt ?? null;
+  },
+});
+
+export const saveAllSnapshotsInternal = internalMutation({
+  args: paperAssignmentCoverageSnapshotPayloadValidator.fields,
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const sharedSnapshot = await ctx.db
+      .query("paperAssignmentCoverageSharedSnapshots")
+      .withIndex("by_key", (q) =>
+        q.eq("key", PAPER_ASSIGNMENT_COVERAGE_SHARED_SNAPSHOT_KEY)
+      )
+      .unique();
+
+    if (sharedSnapshot) {
+      await ctx.db.patch(sharedSnapshot._id, {
+        catalog: args.sharedSnapshot.catalog,
+        userDirectory: args.sharedSnapshot.userDirectory,
+        updatedAt: args.sharedSnapshot.updatedAt,
+      });
+    } else {
+      await ctx.db.insert("paperAssignmentCoverageSharedSnapshots", {
+        key: PAPER_ASSIGNMENT_COVERAGE_SHARED_SNAPSHOT_KEY,
+        catalog: args.sharedSnapshot.catalog,
+        userDirectory: args.sharedSnapshot.userDirectory,
+        updatedAt: args.sharedSnapshot.updatedAt,
+      });
+    }
+
+    const existingScopes = await ctx.db
+      .query("paperAssignmentCoverageScopeSnapshots")
+      .collect();
+    const existingByScopeKey = new Map(
+      existingScopes.map((doc) => [doc.scopeKey, doc] as const)
+    );
+    const nextScopeKeys = new Set(args.scopeSnapshots.map((snapshot) => snapshot.scopeKey));
+
+    for (const snapshot of args.scopeSnapshots) {
+      const existing = existingByScopeKey.get(snapshot.scopeKey);
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          paper: snapshot.paper,
+          totals: snapshot.totals,
+          classificationBuckets: snapshot.classificationBuckets,
+          classificationStats: snapshot.classificationStats,
+          activeClassifiers: snapshot.activeClassifiers,
+          userAssignmentCounts: snapshot.userAssignmentCounts,
+          unassignedCounts: snapshot.unassignedCounts,
+          updatedAt: snapshot.updatedAt,
+        });
+      } else {
+        await ctx.db.insert("paperAssignmentCoverageScopeSnapshots", snapshot);
+      }
+    }
+
+    for (const doc of existingScopes) {
+      if (!nextScopeKeys.has(doc.scopeKey)) {
+        await ctx.db.delete(doc._id);
+      }
+    }
+
+    return null;
+  },
+});
+
+export const computeLiveSnapshot = action({
+  args: {},
+  returns: paperAssignmentCoverageSnapshotPayloadValidator,
+  handler: async (ctx) => {
+    const callerProfile = await ctx.runQuery(api.users.getUserProfile);
+    if (!callerProfile?.permissions?.viewAssignmentStatistics) {
+      throw new Error("Not authorized");
+    }
+
+    return await computeSnapshotPayload(ctx);
+  },
+});
+
+export const computeSnapshotInternal = internalAction({
+  args: {},
+  returns: paperAssignmentCoverageSnapshotPayloadValidator,
+  handler: async (ctx) => {
+    return await computeSnapshotPayload(ctx);
+  },
+});
+
+export const refreshSnapshotsIfDue = internalAction({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx) => {
+    const settings = await ctx.runQuery(
+      internal.system_settings.loadMergedSystemSettingsInternal,
+      {}
+    );
+    const autoRefreshEnabled =
+      settings.paperAssignmentCoverageAutoRefreshEnabled
+      ?? DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED;
+
+    if (!autoRefreshEnabled) {
+      return null;
+    }
+
+    const intervalMinutes = normalizeRefreshIntervalMinutes(
+      settings.paperAssignmentCoverageAutoRefreshIntervalMinutes
+    );
+    const lastUpdatedAt = await ctx.runQuery(
+      internal.statistics.paperAssignmentCoverage.cache.getSharedSnapshotUpdatedAtInternal,
+      {}
+    );
+
+    if (
+      lastUpdatedAt !== null
+      && Date.now() - lastUpdatedAt < intervalMinutes * 60 * 1000
+    ) {
+      return null;
+    }
+
+    const snapshots = await ctx.runAction(
+      internal.statistics.paperAssignmentCoverage.cache.computeSnapshotInternal,
+      {}
+    );
+    await ctx.runMutation(
+      internal.statistics.paperAssignmentCoverage.cache.saveAllSnapshotsInternal,
+      snapshots
+    );
+
+    return null;
+  },
+});
+
+export const getCachedSnapshot = query({
+  args: {},
+  returns: paperAssignmentCoverageCachedResponseValidator,
+  handler: async (ctx) => {
+    await requirePermission(ctx, "viewAssignmentStatistics", {
+      notAuthorizedMessage: "Paper assignment coverage is not available for this account",
+    });
+
+    const [sharedSnapshot, scopeSnapshots] = await Promise.all([
+      ctx.db
+        .query("paperAssignmentCoverageSharedSnapshots")
+        .withIndex("by_key", (q) =>
+          q.eq("key", PAPER_ASSIGNMENT_COVERAGE_SHARED_SNAPSHOT_KEY)
+        )
+        .unique(),
+      ctx.db.query("paperAssignmentCoverageScopeSnapshots").collect(),
+    ]);
+
+    const orderedScopeSnapshots = [...scopeSnapshots].sort((left, right) => {
+      if (left.scopeKey === PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY) {
+        return -1;
+      }
+      if (right.scopeKey === PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY) {
+        return 1;
+      }
+
+      return normalizePaper(left.paper).localeCompare(normalizePaper(right.paper));
+    });
+
+    return {
+      sharedSnapshot: sharedSnapshot
+        ? {
+            catalog: sharedSnapshot.catalog,
+            userDirectory: sharedSnapshot.userDirectory,
+            updatedAt: sharedSnapshot.updatedAt,
+          }
+        : null,
+      scopeSnapshots: orderedScopeSnapshots.map((snapshot) => ({
+        scopeKey: snapshot.scopeKey,
+        paper: snapshot.paper,
+        totals: snapshot.totals,
+        classificationBuckets: snapshot.classificationBuckets,
+        classificationStats: snapshot.classificationStats,
+        activeClassifiers: snapshot.activeClassifiers,
+        userAssignmentCounts: snapshot.userAssignmentCounts,
+        unassignedCounts: snapshot.unassignedCounts,
+        updatedAt: snapshot.updatedAt,
+      })),
+    };
+  },
+});

@@ -72,6 +72,8 @@ import type * as statistics_labelingOverview_recency from "../statistics/labelin
 import type * as statistics_labelingOverview_shared from "../statistics/labelingOverview/shared.js";
 import type * as statistics_labelingOverview_topClassifiers from "../statistics/labelingOverview/topClassifiers.js";
 import type * as statistics_labelingOverview_totalsAndPapers from "../statistics/labelingOverview/totalsAndPapers.js";
+import type * as statistics_paperAssignmentCoverage_cache from "../statistics/paperAssignmentCoverage/cache.js";
+import type * as statistics_paperAssignmentCoverage_validators from "../statistics/paperAssignmentCoverage/validators.js";
 import type * as system_settings from "../system_settings.js";
 import type * as testEmail from "../testEmail.js";
 import type * as updateUserSequence from "../updateUserSequence.js";
@@ -148,6 +150,8 @@ declare const fullApi: ApiFromModules<{
   "statistics/labelingOverview/shared": typeof statistics_labelingOverview_shared;
   "statistics/labelingOverview/topClassifiers": typeof statistics_labelingOverview_topClassifiers;
   "statistics/labelingOverview/totalsAndPapers": typeof statistics_labelingOverview_totalsAndPapers;
+  "statistics/paperAssignmentCoverage/cache": typeof statistics_paperAssignmentCoverage_cache;
+  "statistics/paperAssignmentCoverage/validators": typeof statistics_paperAssignmentCoverage_validators;
   system_settings: typeof system_settings;
   testEmail: typeof testEmail;
   updateUserSequence: typeof updateUserSequence;

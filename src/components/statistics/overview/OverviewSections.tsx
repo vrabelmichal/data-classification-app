@@ -1207,6 +1207,7 @@ export function ClassificationBreakdownsSection({
   loading,
   selectedPaper,
   updatedAt,
+  scopeBadgeMode = "global",
 }: {
   lsbItems: Array<{ label: string; value: number; accentColor: string; icon: ReactNode }>;
   morphologyItems: Array<{ label: string; value: number; accentColor: string; icon: ReactNode }>;
@@ -1215,6 +1216,7 @@ export function ClassificationBreakdownsSection({
   loading: boolean;
   selectedPaper: string | undefined;
   updatedAt?: number | null;
+  scopeBadgeMode?: "global" | "filtered";
 }) {
   const lsbTotal = lsbItems.reduce((sum, item) => sum + item.value, 0);
   const morphologyTotal = morphologyItems.reduce((sum, item) => sum + item.value, 0);
@@ -1243,7 +1245,7 @@ export function ClassificationBreakdownsSection({
               <div className="mb-4 space-y-2">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">LSB Classification</h3>
                 <div className="flex flex-wrap items-center gap-2">
-                  {selectedPaper !== undefined && <GlobalBadge />}
+                  {selectedPaper !== undefined && (scopeBadgeMode === "filtered" ? <FilteredBadge paper={selectedPaper} /> : <GlobalBadge />)}
                   <TimestampBadge timestamp={updatedAt} />
                 </div>
               </div>
@@ -1263,7 +1265,7 @@ export function ClassificationBreakdownsSection({
               <div className="mb-4 space-y-2">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Morphology Classification</h3>
                 <div className="flex flex-wrap items-center gap-2">
-                  {selectedPaper !== undefined && <GlobalBadge />}
+                  {selectedPaper !== undefined && (scopeBadgeMode === "filtered" ? <FilteredBadge paper={selectedPaper} /> : <GlobalBadge />)}
                   <TimestampBadge timestamp={updatedAt} />
                 </div>
               </div>
@@ -1283,7 +1285,7 @@ export function ClassificationBreakdownsSection({
               <div className="mb-4 space-y-2">
                 <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Classification Flags</h3>
                 <div className="flex flex-wrap items-center gap-2">
-                  {selectedPaper !== undefined && <GlobalBadge />}
+                  {selectedPaper !== undefined && (scopeBadgeMode === "filtered" ? <FilteredBadge paper={selectedPaper} /> : <GlobalBadge />)}
                   <TimestampBadge timestamp={updatedAt} />
                 </div>
               </div>

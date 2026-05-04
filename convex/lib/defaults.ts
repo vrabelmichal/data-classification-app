@@ -20,12 +20,37 @@ export const DEFAULT_ALLOW_PUBLIC_OVERVIEW = false;
 export const DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS = false;
 
 /**
+ * Default state for automatically refreshing cached paper-assignment coverage snapshots.
+ */
+export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED = true;
+
+/**
+ * Default refresh interval, in minutes, for cached paper-assignment coverage snapshots.
+ */
+export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES = 60;
+
+/**
+ * Default state for automatically refreshing cached overview snapshots.
+ */
+export const DEFAULT_OVERVIEW_AUTO_REFRESH_ENABLED = true;
+
+/**
+ * Default refresh interval, in minutes, for cached overview snapshots.
+ */
+export const DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES = 60;
+
+/**
  * Default system settings values
  */
 /**
  * Default maximum number of entries a regular (non-admin) user can export at once
  */
 export const DEFAULT_USER_EXPORT_LIMIT = 1000;
+
+/**
+ * Default paper pre-selected in the Paper Assignment Coverage tab (null = no default, show all papers)
+ */
+export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER = null as string | null;
 
 export const DEFAULT_SYSTEM_SETTINGS = {
   allowAnonymous: false,
@@ -43,8 +68,17 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   galaxyBrowserImageQuality: "low" as const,
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
   overviewDefaultPaper: null as string | null,
+  paperAssignmentCoverageDefaultPaper:
+    DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
   allowPublicDataAnalysis: DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS,
+  overviewAutoRefreshEnabled: DEFAULT_OVERVIEW_AUTO_REFRESH_ENABLED,
+  overviewAutoRefreshIntervalMinutes:
+    DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES,
+  paperAssignmentCoverageAutoRefreshEnabled:
+    DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED,
+  paperAssignmentCoverageAutoRefreshIntervalMinutes:
+    DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES,
   userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
   cloudflareCachePurgeEnabled: false,
   cloudflareZoneId: "",

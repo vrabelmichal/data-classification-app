@@ -9,6 +9,11 @@ import {
   recencyStatsValidator,
 } from "./statistics/labelingOverview/cacheValidators";
 import {
+  paperAssignmentCoverageCatalogValidator,
+  paperAssignmentCoverageUserCountsValidator,
+  paperAssignmentCoverageUserDirectoryEntryValidator,
+} from "./statistics/paperAssignmentCoverage/validators";
+import {
   galaxyBrowserViewScopeValidator,
   galaxyBrowserViewStateValidator,
 } from "./galaxies/browser/viewState";
@@ -514,6 +519,25 @@ const applicationTables = {
     paper: v.union(v.string(), v.null()),
     totals: totalsValidator,
     classificationBuckets: v.array(v.number()),
+    updatedAt: v.number(),
+  }).index("by_scope_key", ["scopeKey"]),
+
+  paperAssignmentCoverageSharedSnapshots: defineTable({
+    key: v.string(),
+    catalog: paperAssignmentCoverageCatalogValidator,
+    userDirectory: v.array(paperAssignmentCoverageUserDirectoryEntryValidator),
+    updatedAt: v.number(),
+  }).index("by_key", ["key"]),
+
+  paperAssignmentCoverageScopeSnapshots: defineTable({
+    scopeKey: v.string(),
+    paper: v.union(v.string(), v.null()),
+    totals: totalsValidator,
+    classificationBuckets: v.array(v.number()),
+    classificationStats: classificationStatsValidator,
+    activeClassifiers: v.number(),
+    userAssignmentCounts: v.array(paperAssignmentCoverageUserCountsValidator),
+    unassignedCounts: v.array(v.number()),
     updatedAt: v.number(),
   }).index("by_scope_key", ["scopeKey"]),
 

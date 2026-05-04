@@ -830,14 +830,15 @@ export function LiveOverviewTab({ systemSettings, isAdmin }: OverviewRouteProps)
     const baseCounts = paperFilter;
     if (!baseCounts) return undefined;
 
+    const eligibleGalaxies = baseCounts.adjusted;
     const classifiedGalaxies = paperClassStats.classifiedGalaxies;
     const totalClassifications = paperClassStats.totalClassifications;
-    const unclassifiedGalaxies = Math.max(baseCounts.galaxies - classifiedGalaxies, 0);
-    const progress = baseCounts.galaxies > 0 ? (classifiedGalaxies / baseCounts.galaxies) * 100 : 0;
+    const unclassifiedGalaxies = Math.max(eligibleGalaxies - classifiedGalaxies, 0);
+    const progress = eligibleGalaxies > 0 ? (classifiedGalaxies / eligibleGalaxies) * 100 : 0;
     const avgClassificationsPerGalaxy =
-      baseCounts.galaxies > 0 ? totalClassifications / baseCounts.galaxies : 0;
+      eligibleGalaxies > 0 ? totalClassifications / eligibleGalaxies : 0;
     return {
-      galaxies: baseCounts.galaxies,
+      galaxies: eligibleGalaxies,
       classifiedGalaxies,
       unclassifiedGalaxies,
       totalClassifications,

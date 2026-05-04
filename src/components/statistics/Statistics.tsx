@@ -20,6 +20,18 @@ const DataAnalysisTab = lazy(() =>
   }))
 );
 
+const PaperAssignmentCoverageTab = lazy(() =>
+  import("./paperAssignmentCoverage/PaperAssignmentCoverageTab").then((module) => ({
+    default: module.CachedPaperAssignmentCoverageTab,
+  }))
+);
+
+const LivePaperAssignmentCoverageTab = lazy(() =>
+  import("./paperAssignmentCoverage/PaperAssignmentCoverageTab").then((module) => ({
+    default: module.LivePaperAssignmentCoverageTab,
+  }))
+);
+
 function StatisticsTabLoading() {
   return (
     <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
@@ -36,19 +48,25 @@ export function Statistics() {
   const isOverview = location.pathname.startsWith("/statistics/overview");
   const isUsersStatistics = location.pathname.startsWith("/statistics/users");
   const isAssignmentStats = location.pathname.startsWith("/statistics/assignment-stats");
+  const isLivePaperAssignmentCoverage = location.pathname.startsWith("/statistics/paper-assignment-coverage-live");
+  const isPaperAssignmentCoverage = location.pathname.startsWith("/statistics/paper-assignment-coverage");
   const isDataAnalysis = location.pathname.startsWith("/statistics/analysis");
   usePageTitle(
-    isAssignmentStats
-      ? "Assignment Statistics"
-      : isDataAnalysis
-        ? "Classification Data Analysis"
-      : isLiveOverview
-        ? "Overview Statistics (Live)"
-        : isOverview
-        ? "Overview Statistics"
-        : isUsersStatistics
-          ? "Users Statistics"
-          : "My Statistics"
+    isLivePaperAssignmentCoverage
+      ? "Paper Assignment Coverage (Live)"
+      : isPaperAssignmentCoverage
+        ? "Paper Assignment Coverage"
+      : isAssignmentStats
+        ? "Assignment Statistics"
+        : isDataAnalysis
+          ? "Classification Data Analysis"
+        : isLiveOverview
+          ? "Overview Statistics (Live)"
+          : isOverview
+            ? "Overview Statistics"
+            : isUsersStatistics
+              ? "Users Statistics"
+              : "My Statistics"
   );
 
   const isAdmin = userProfile?.role === "admin";
@@ -63,6 +81,10 @@ export function Statistics() {
   const restrictedTabRedirect = canAccessOverview ? "/statistics/overview" : "/statistics";
   const headerDescription = isAssignmentStats
     ? "Assignment coverage and sequence planning across the full dataset"
+    : isLivePaperAssignmentCoverage
+      ? "Live paper-scoped assignment coverage across under-target galaxies"
+    : isPaperAssignmentCoverage
+      ? "Cached paper-scoped assignment coverage across under-target galaxies"
     : isDataAnalysis
       ? "Local, interactive analysis of per-galaxy classification outcomes"
     : isLiveOverview
@@ -82,7 +104,10 @@ export function Statistics() {
       ? [{ id: "analysis", label: "Data Analysis", icon: "🧭", path: "/statistics/analysis" }]
       : []),
     ...(canAccessAssignmentStats
-      ? [{ id: "assignment-stats", label: "Assignment Stats", icon: "🧮", path: "/statistics/assignment-stats" }]
+      ? [
+          { id: "assignment-stats", label: "Assignment Stats", icon: "🧮", path: "/statistics/assignment-stats" },
+          { id: "paper-assignment-coverage", label: "Paper Assignment", icon: "🕸️", path: "/statistics/paper-assignment-coverage" },
+        ]
       : []),
   ];
 
@@ -170,6 +195,30 @@ export function Statistics() {
             canAccessAssignmentStats ? (
               <Suspense fallback={<StatisticsTabLoading />}>
                 <AssignmentStatsTab />
+              </Suspense>
+            ) : (
+              <Navigate to={restrictedTabRedirect} replace />
+            )
+          }
+        />
+        <Route
+          path="paper-assignment-coverage"
+          element={
+            canAccessAssignmentStats ? (
+              <Suspense fallback={<StatisticsTabLoading />}>
+                <PaperAssignmentCoverageTab systemSettings={systemSettings} />
+              </Suspense>
+            ) : (
+              <Navigate to={restrictedTabRedirect} replace />
+            )
+          }
+        />
+        <Route
+          path="paper-assignment-coverage-live"
+          element={
+            canAccessAssignmentStats ? (
+              <Suspense fallback={<StatisticsTabLoading />}>
+                <LivePaperAssignmentCoverageTab systemSettings={systemSettings} />
               </Suspense>
             ) : (
               <Navigate to={restrictedTabRedirect} replace />

@@ -5,6 +5,20 @@ import { galaxiesByPaper, userProfilesByClassificationsCount } from "../../galax
 const BLACKLIST_LOOKUP_BATCH_SIZE = 200;
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
+export async function getUniqueBlacklistedGalaxyExternalIds(ctx: any): Promise<string[]> {
+  const rawBlacklistRows = await ctx.db.query("galaxyBlacklist").collect();
+  const blacklistRows: Array<{ galaxyExternalId: string }> =
+    rawBlacklistRows as Array<{ galaxyExternalId: string }>;
+
+  return Array.from(
+    new Set(
+      blacklistRows
+        .map((row) => row.galaxyExternalId)
+        .filter((externalId): externalId is string => typeof externalId === "string" && externalId.length > 0)
+    )
+  );
+}
+
 export async function mapBlacklistedIdsToPaper(
   ctx: any,
   externalIds: string[]
@@ -21,13 +35,15 @@ export async function mapBlacklistedIdsToPaper(
           .unique();
         return {
           externalId,
-          paper: galaxy ? (galaxy.misc?.paper ?? "") : "",
+          paper: galaxy ? (galaxy.misc?.paper ?? "") : undefined,
         };
       })
     );
 
     for (const entry of resolved) {
-      paperByExternalId[entry.externalId] = entry.paper;
+      if (entry.paper !== undefined) {
+        paperByExternalId[entry.externalId] = entry.paper;
+      }
     }
   }
 
@@ -93,25 +109,21 @@ export async function getAvailablePapers(ctx: any): Promise<string[]> {
 }
 
 export async function getPaperCountsPayload(ctx: any, selectedPaper: string | undefined) {
-  const [allPapers, rawBlacklistRows] = await Promise.all([
+  const [allPapers, uniqueBlacklistedExternalIds] = await Promise.all([
     getAvailablePapers(ctx),
-    ctx.db.query("galaxyBlacklist").collect(),
+    getUniqueBlacklistedGalaxyExternalIds(ctx),
   ]);
-
-  const blacklistRows: Array<{ galaxyExternalId: string }> =
-    rawBlacklistRows as Array<{ galaxyExternalId: string }>;
-
-  const uniqueBlacklistedExternalIds = Array.from(
-    new Set(blacklistRows.map((row) => row.galaxyExternalId))
-  );
   const paperByBlacklistedExternalId = await mapBlacklistedIdsToPaper(
     ctx,
     uniqueBlacklistedExternalIds
   );
 
   const blacklistedPerPaper: Record<string, number> = {};
-  for (const row of blacklistRows) {
-    const paper = paperByBlacklistedExternalId[row.galaxyExternalId] ?? "";
+  for (const externalId of uniqueBlacklistedExternalIds) {
+    const paper = paperByBlacklistedExternalId[externalId];
+    if (paper === undefined) {
+      continue;
+    }
     blacklistedPerPaper[paper] = (blacklistedPerPaper[paper] ?? 0) + 1;
   }
 

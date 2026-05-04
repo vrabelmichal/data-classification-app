@@ -13,7 +13,12 @@ import { internal } from "../../_generated/api";
 import { requireAdmin, requireConfirmedUser } from "../../lib/auth";
 import { hasPermissionForRole } from "../../lib/permissions";
 import { loadMergedSystemSettings } from "../../lib/systemSettings";
-import { getPaperCountsPayload, getAvailablePapers, getTopClassifiers } from "./shared";
+import {
+  getPaperCountsPayload,
+  getAvailablePapers,
+  getTopClassifiers,
+  getUniqueBlacklistedGalaxyExternalIds,
+} from "./shared";
 import {
   buildClassificationBucketsFromHistogram,
   loadGlobalClassificationBuckets,
@@ -32,6 +37,10 @@ import {
   topClassifierValidator,
   totalsValidator,
 } from "./cacheValidators";
+import {
+  DEFAULT_OVERVIEW_AUTO_REFRESH_ENABLED,
+  DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES,
+} from "../../lib/defaults";
 
 type CatalogPayload = {
   availablePapers: string[];
@@ -221,7 +230,8 @@ async function ensureCanAccessCachedOverview(ctx: QueryCtx) {
 
 async function buildPaperScopeSnapshot(
   ctx: ActionCtx,
-  paper: string
+  paper: string,
+  blacklistedIds: string[]
 ): Promise<ScopeSnapshotWriteArgs> {
   let cursor: string | undefined;
   let classifiedGalaxies = 0;
@@ -232,7 +242,7 @@ async function buildPaperScopeSnapshot(
   while (true) {
     const page: PaperClassificationPage = await ctx.runQuery(
       internal.statistics.labelingOverview.totalsAndPapers.getPaperClassificationStatsPageInternal,
-      { paper, cursor }
+      { paper, cursor, blacklistedIds }
     );
 
     classifiedGalaxies += page.classifiedGalaxies;
@@ -398,17 +408,92 @@ export const refreshAllSnapshots = internalAction({
       globalScopeSnapshot
     );
 
-    const availablePapers = Array.from(
+    const [availablePapers, blacklistedIds] = await Promise.all([
+      Promise.resolve(Array.from(
       new Set(sharedSnapshot.catalog?.availablePapers ?? [])
-    );
+      )),
+      ctx.runQuery(
+        internal.statistics.labelingOverview.cache.getBlacklistedIdsForRefresh,
+        {}
+      ),
+    ]);
 
     for (const paper of availablePapers) {
-      const paperScopeSnapshot = await buildPaperScopeSnapshot(ctx, paper);
+      const paperScopeSnapshot = await buildPaperScopeSnapshot(ctx, paper, blacklistedIds);
       await ctx.runMutation(
         internal.statistics.labelingOverview.cache.saveScopeSnapshotInternal,
         paperScopeSnapshot
       );
     }
+
+    return null;
+  },
+});
+
+export const getBlacklistedIdsForRefresh = internalQuery({
+  args: {},
+  returns: v.array(v.string()),
+  handler: async (ctx) => {
+    return await getUniqueBlacklistedGalaxyExternalIds(ctx);
+  },
+});
+
+function normalizeRefreshIntervalMinutes(rawValue: number | null | undefined) {
+  if (!Number.isFinite(rawValue)) {
+    return DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES;
+  }
+
+  return Math.max(5, Math.floor(rawValue as number));
+}
+
+export const getSharedSnapshotUpdatedAtInternal = internalQuery({
+  args: {},
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx) => {
+    const existing = await ctx.db
+      .query("overviewSharedSnapshots")
+      .withIndex("by_key", (q) => q.eq("key", OVERVIEW_SHARED_SNAPSHOT_KEY))
+      .unique();
+
+    return existing?.updatedAt ?? null;
+  },
+});
+
+export const refreshSnapshotsIfDue = internalAction({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx): Promise<null> => {
+    const settings = await ctx.runQuery(
+      internal.system_settings.loadMergedSystemSettingsInternal,
+      {}
+    );
+    const autoRefreshEnabled =
+      settings.overviewAutoRefreshEnabled
+      ?? DEFAULT_OVERVIEW_AUTO_REFRESH_ENABLED;
+
+    if (!autoRefreshEnabled) {
+      return null;
+    }
+
+    const intervalMinutes = normalizeRefreshIntervalMinutes(
+      settings.overviewAutoRefreshIntervalMinutes
+    );
+    const lastUpdatedAt = await ctx.runQuery(
+      internal.statistics.labelingOverview.cache.getSharedSnapshotUpdatedAtInternal,
+      {}
+    );
+
+    if (
+      lastUpdatedAt !== null
+      && Date.now() - lastUpdatedAt < intervalMinutes * 60 * 1000
+    ) {
+      return null;
+    }
+
+    await ctx.runAction(
+      internal.statistics.labelingOverview.cache.refreshAllSnapshots,
+      {}
+    );
 
     return null;
   },

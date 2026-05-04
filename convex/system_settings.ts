@@ -45,6 +45,7 @@ export const getPublicSystemSettings = query({
     cloudflareCachePurgeEnabled: v.boolean(),
     maintenanceDisableClassifications: v.boolean(),
     overviewDefaultPaper: v.union(v.string(), v.null()),
+    paperAssignmentCoverageDefaultPaper: v.union(v.string(), v.null()),
   }),
   handler: async (ctx) => {
     const mergedSettings = await loadMergedSystemSettings(ctx);
@@ -69,6 +70,8 @@ export const getPublicSystemSettings = query({
       cloudflareCachePurgeEnabled: mergedSettings.cloudflareCachePurgeEnabled,
       maintenanceDisableClassifications: mergedSettings.maintenanceDisableClassifications,
       overviewDefaultPaper: mergedSettings.overviewDefaultPaper,
+      paperAssignmentCoverageDefaultPaper:
+        mergedSettings.paperAssignmentCoverageDefaultPaper,
     };
   },
 });
@@ -85,6 +88,10 @@ export const updateSystemSettings = mutation({
     debugAdminMode: v.optional(v.boolean()),
     allowPublicOverview: v.optional(v.boolean()),
     allowPublicDataAnalysis: v.optional(v.boolean()),
+    overviewAutoRefreshEnabled: v.optional(v.boolean()),
+    overviewAutoRefreshIntervalMinutes: v.optional(v.number()),
+    paperAssignmentCoverageAutoRefreshEnabled: v.optional(v.boolean()),
+    paperAssignmentCoverageAutoRefreshIntervalMinutes: v.optional(v.number()),
     appVersion: v.optional(v.string()),
     failedFittingMode: v.optional(v.union(v.literal("checkbox"), v.literal("legacy"))),
     failedFittingFallbackLsbClass: v.optional(v.number()),
@@ -95,6 +102,7 @@ export const updateSystemSettings = mutation({
     galaxyBrowserImageQuality: v.optional(v.union(v.literal("high"), v.literal("low"))),
     availablePapers: v.optional(v.array(v.string())),
     overviewDefaultPaper: v.optional(v.union(v.string(), v.null())),
+    paperAssignmentCoverageDefaultPaper: v.optional(v.union(v.string(), v.null())),
     userExportLimit: v.optional(v.number()),
     cloudflareCachePurgeEnabled: v.optional(v.boolean()),
     cloudflareZoneId: v.optional(v.string()),
@@ -216,6 +224,106 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "allowPublicDataAnalysis",
           value: args.allowPublicDataAnalysis,
+        });
+      }
+    }
+
+    if (args.paperAssignmentCoverageDefaultPaper !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) =>
+          q.eq("key", "paperAssignmentCoverageDefaultPaper")
+        )
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          value: args.paperAssignmentCoverageDefaultPaper,
+        });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "paperAssignmentCoverageDefaultPaper",
+          value: args.paperAssignmentCoverageDefaultPaper,
+        });
+      }
+    }
+
+    if (args.overviewAutoRefreshEnabled !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) =>
+          q.eq("key", "overviewAutoRefreshEnabled")
+        )
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          value: args.overviewAutoRefreshEnabled,
+        });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "overviewAutoRefreshEnabled",
+          value: args.overviewAutoRefreshEnabled,
+        });
+      }
+    }
+
+    if (args.overviewAutoRefreshIntervalMinutes !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) =>
+          q.eq("key", "overviewAutoRefreshIntervalMinutes")
+        )
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          value: args.overviewAutoRefreshIntervalMinutes,
+        });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "overviewAutoRefreshIntervalMinutes",
+          value: args.overviewAutoRefreshIntervalMinutes,
+        });
+      }
+    }
+
+    if (args.paperAssignmentCoverageAutoRefreshEnabled !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) =>
+          q.eq("key", "paperAssignmentCoverageAutoRefreshEnabled")
+        )
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          value: args.paperAssignmentCoverageAutoRefreshEnabled,
+        });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "paperAssignmentCoverageAutoRefreshEnabled",
+          value: args.paperAssignmentCoverageAutoRefreshEnabled,
+        });
+      }
+    }
+
+    if (args.paperAssignmentCoverageAutoRefreshIntervalMinutes !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) =>
+          q.eq("key", "paperAssignmentCoverageAutoRefreshIntervalMinutes")
+        )
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          value: args.paperAssignmentCoverageAutoRefreshIntervalMinutes,
+        });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "paperAssignmentCoverageAutoRefreshIntervalMinutes",
+          value: args.paperAssignmentCoverageAutoRefreshIntervalMinutes,
         });
       }
     }

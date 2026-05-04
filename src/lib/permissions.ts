@@ -38,6 +38,18 @@ function buildPermissionRecord(
   }, {} as PermissionRecord);
 }
 
+function normalizePermissionRecord(
+  value: Partial<PermissionRecord> | undefined,
+  fallback: PermissionRecord
+): PermissionRecord {
+  const source = value ?? {};
+
+  return APP_PERMISSION_KEYS.reduce((record, key) => {
+    record[key] = typeof source[key] === "boolean" ? source[key] : fallback[key];
+    return record;
+  }, {} as PermissionRecord);
+}
+
 export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
   user: buildPermissionRecord(),
   analyst: buildPermissionRecord({
@@ -173,12 +185,16 @@ export const PERMISSION_METADATA: Record<
 };
 
 export function cloneRolePermissions(
-  rolePermissions: RolePermissionsMatrix
+  rolePermissions: Partial<RolePermissionsMatrix> | undefined
 ): RolePermissionsMatrix {
-  return USER_ROLES.reduce((matrix, role) => {
-    matrix[role] = { ...rolePermissions[role] };
-    return matrix;
-  }, {} as RolePermissionsMatrix);
+  const source = rolePermissions ?? {};
+
+  return {
+    user: normalizePermissionRecord(source.user, DEFAULT_ROLE_PERMISSIONS.user),
+    analyst: normalizePermissionRecord(source.analyst, DEFAULT_ROLE_PERMISSIONS.analyst),
+    maintainer: normalizePermissionRecord(source.maintainer, DEFAULT_ROLE_PERMISSIONS.maintainer),
+    admin: normalizePermissionRecord(source.admin, DEFAULT_ROLE_PERMISSIONS.admin),
+  };
 }
 
 export function canAccessAdminPanel(

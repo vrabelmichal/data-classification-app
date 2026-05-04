@@ -49,6 +49,26 @@ export const DEFAULT_ALLOW_PUBLIC_OVERVIEW = false;
 export const DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS = false;
 
 /**
+ * Default state for automatically refreshing cached overview snapshots.
+ */
+export const DEFAULT_OVERVIEW_AUTO_REFRESH_ENABLED = true;
+
+/**
+ * Default refresh interval, in minutes, for cached overview snapshots.
+ */
+export const DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES = 60;
+
+/**
+ * Default state for automatically refreshing cached paper-assignment coverage snapshots.
+ */
+export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED = true;
+
+/**
+ * Default refresh interval, in minutes, for cached paper-assignment coverage snapshots.
+ */
+export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES = 60;
+
+/**
  * Default failed fitting mode: "checkbox" or "legacy"
  */
 export const DEFAULT_FAILED_FITTING_MODE = "checkbox" as const;
@@ -93,6 +113,11 @@ export const DEFAULT_AVAILABLE_PAPERS = ["", "new", "old"];
  * Default paper pre-selected in the Overview tab (null = no default, show all papers)
  */
 export const DEFAULT_OVERVIEW_DEFAULT_PAPER = null as string | null;
+
+/**
+ * Default paper pre-selected in the Paper Assignment Coverage tab (null = no default, show all papers)
+ */
+export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER = null as string | null;
 
 /**
  * Maintenance mode: disable new classifications
@@ -152,8 +177,17 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   galaxyBrowserImageQuality: DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
   availablePapers: DEFAULT_AVAILABLE_PAPERS,
   overviewDefaultPaper: DEFAULT_OVERVIEW_DEFAULT_PAPER,
+  paperAssignmentCoverageDefaultPaper:
+    DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER,
   allowPublicOverview: DEFAULT_ALLOW_PUBLIC_OVERVIEW,
   allowPublicDataAnalysis: DEFAULT_ALLOW_PUBLIC_DATA_ANALYSIS,
+  overviewAutoRefreshEnabled: DEFAULT_OVERVIEW_AUTO_REFRESH_ENABLED,
+  overviewAutoRefreshIntervalMinutes:
+    DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES,
+  paperAssignmentCoverageAutoRefreshEnabled:
+    DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED,
+  paperAssignmentCoverageAutoRefreshIntervalMinutes:
+    DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES,
   userExportLimit: DEFAULT_USER_EXPORT_LIMIT,
   cloudflareCachePurgeEnabled: DEFAULT_CLOUDFLARE_CACHE_PURGE_ENABLED,
   cloudflareZoneId: DEFAULT_CLOUDFLARE_ZONE_ID,
