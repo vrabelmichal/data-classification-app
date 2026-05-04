@@ -104,6 +104,17 @@ type ScopeSnapshot = {
   updatedAt: number;
 };
 
+type SequencePageRow = {
+  userId: string;
+  name?: string | null;
+  email?: string | null;
+  role: string;
+  isActive: boolean;
+  experience?: "normal" | "senior";
+  galaxyExternalIds: string[];
+  sequenceCreatedAt: number;
+};
+
 const GALAXY_PAGE_SIZE = 2000;
 const CLASSIFICATION_PAGE_SIZE = 5000;
 const SEQUENCE_PAGE_SIZE = 128;
@@ -426,7 +437,7 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
     }
   >();
   const assignedGalaxyIds = new Set<string>();
-  const currentSequenceGalaxyIdsByUserId = new Map<string, Set<string>>();
+  const latestSequenceByUserId = new Map<string, SequencePageRow>();
 
   let sequenceCursor: string | undefined;
   while (true) {
@@ -436,48 +447,9 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
     );
 
     for (const row of page.rows) {
-      userDirectoryById.set(row.userId, {
-        userId: row.userId,
-        name: row.name,
-          email: row.email,
-        role: row.role,
-        isActive: row.isActive,
-        experience: normalizeUserExperience(row.experience),
-      });
-
-      if (row.galaxyExternalIds.length === 0) {
-        continue;
-      }
-
-      const seenInSequence = new Set<string>();
-      for (const externalId of row.galaxyExternalIds) {
-        if (seenInSequence.has(externalId)) {
-          continue;
-        }
-        seenInSequence.add(externalId);
-
-        const galaxyMeta = galaxyMetaById.get(externalId);
-        if (!galaxyMeta) {
-          continue;
-        }
-
-        let currentSequenceGalaxyIds = currentSequenceGalaxyIdsByUserId.get(row.userId);
-        if (!currentSequenceGalaxyIds) {
-          currentSequenceGalaxyIds = new Set<string>();
-          currentSequenceGalaxyIdsByUserId.set(row.userId, currentSequenceGalaxyIds);
-        }
-        currentSequenceGalaxyIds.add(externalId);
-
-        const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
-        const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxyMeta.paper);
-        getOrCreateUserCounts(globalScope, row.userId)[galaxyMeta.bucketIndex] += 1;
-        getOrCreateUserCounts(paperScope, row.userId)[galaxyMeta.bucketIndex] += 1;
-
-        if (!assignedGalaxyIds.has(externalId)) {
-          assignedGalaxyIds.add(externalId);
-          globalScope.assignedBucketCounts[galaxyMeta.bucketIndex] += 1;
-          paperScope.assignedBucketCounts[galaxyMeta.bucketIndex] += 1;
-        }
+      const existing = latestSequenceByUserId.get(row.userId);
+      if (!existing || row.sequenceCreatedAt > existing.sequenceCreatedAt) {
+        latestSequenceByUserId.set(row.userId, row);
       }
     }
 
@@ -486,6 +458,54 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
     }
 
     sequenceCursor = page.continueCursor;
+  }
+
+  const currentSequenceGalaxyIdsByUserId = new Map<string, Set<string>>();
+
+  for (const row of latestSequenceByUserId.values()) {
+    userDirectoryById.set(row.userId, {
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+      role: row.role,
+      isActive: row.isActive,
+      experience: normalizeUserExperience(row.experience),
+    });
+
+    if (row.galaxyExternalIds.length === 0) {
+      continue;
+    }
+
+    const seenInSequence = new Set<string>();
+    for (const externalId of row.galaxyExternalIds) {
+      if (seenInSequence.has(externalId)) {
+        continue;
+      }
+      seenInSequence.add(externalId);
+
+      const galaxyMeta = galaxyMetaById.get(externalId);
+      if (!galaxyMeta) {
+        continue;
+      }
+
+      let currentSequenceGalaxyIds = currentSequenceGalaxyIdsByUserId.get(row.userId);
+      if (!currentSequenceGalaxyIds) {
+        currentSequenceGalaxyIds = new Set<string>();
+        currentSequenceGalaxyIdsByUserId.set(row.userId, currentSequenceGalaxyIds);
+      }
+      currentSequenceGalaxyIds.add(externalId);
+
+      const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
+      const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxyMeta.paper);
+      getOrCreateUserCounts(globalScope, row.userId)[galaxyMeta.bucketIndex] += 1;
+      getOrCreateUserCounts(paperScope, row.userId)[galaxyMeta.bucketIndex] += 1;
+
+      if (!assignedGalaxyIds.has(externalId)) {
+        assignedGalaxyIds.add(externalId);
+        globalScope.assignedBucketCounts[galaxyMeta.bucketIndex] += 1;
+        paperScope.assignedBucketCounts[galaxyMeta.bucketIndex] += 1;
+      }
+    }
   }
 
   const countedClassificationsByUserAndGalaxy = new Set<string>();
@@ -510,6 +530,11 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
       addClassificationToStats(paperScope.classificationStats, row);
       globalScope.activeClassifierIds.add(row.userId);
       paperScope.activeClassifierIds.add(row.userId);
+
+      const currentSequence = latestSequenceByUserId.get(row.userId);
+      if (!currentSequence || row.createdAt < currentSequence.sequenceCreatedAt) {
+        continue;
+      }
 
       const currentSequenceGalaxyIds = currentSequenceGalaxyIdsByUserId.get(row.userId);
       if (!currentSequenceGalaxyIds?.has(row.galaxyExternalId)) {
@@ -625,6 +650,7 @@ export const getClassificationPage = internalQuery({
     rows: v.array(v.object({
       userId: v.string(),
       galaxyExternalId: v.string(),
+      createdAt: v.number(),
       lsbClass: v.number(),
       morphology: v.number(),
       awesomeFlag: v.boolean(),
@@ -644,6 +670,7 @@ export const getClassificationPage = internalQuery({
       rows: page.page.map((doc) => ({
         userId: String(doc.userId),
         galaxyExternalId: doc.galaxyExternalId,
+        createdAt: doc._creationTime,
         lsbClass: doc.lsb_class,
         morphology: doc.morphology,
         awesomeFlag: doc.awesome_flag,
@@ -670,6 +697,7 @@ export const getSequencePage = internalQuery({
       isActive: v.boolean(),
       experience: v.optional(v.union(v.literal("normal"), v.literal("senior"))),
       galaxyExternalIds: v.array(v.string()),
+      sequenceCreatedAt: v.number(),
     })),
     isDone: v.boolean(),
     continueCursor: v.union(v.string(), v.null()),
@@ -697,6 +725,7 @@ export const getSequencePage = internalQuery({
           isActive: profile?.isActive ?? false,
           experience: normalizeUserExperience(profile?.experience),
           galaxyExternalIds: sequence.galaxyExternalIds ?? [],
+          sequenceCreatedAt: sequence._creationTime,
         };
       })
     );
@@ -729,6 +758,7 @@ export const getCurrentUserDirectory = action({
         experience?: "normal" | "senior";
       }
     >();
+    const latestSequenceCreatedAtByUserId = new Map<string, number>();
 
     let sequenceCursor: string | undefined;
     while (true) {
@@ -738,6 +768,12 @@ export const getCurrentUserDirectory = action({
       );
 
       for (const row of page.rows) {
+        const existingCreatedAt = latestSequenceCreatedAtByUserId.get(row.userId) ?? -1;
+        if (row.sequenceCreatedAt < existingCreatedAt) {
+          continue;
+        }
+
+        latestSequenceCreatedAtByUserId.set(row.userId, row.sequenceCreatedAt);
         userDirectoryById.set(row.userId, {
           userId: row.userId,
           name: row.name,

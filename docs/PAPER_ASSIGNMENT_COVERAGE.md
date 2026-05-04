@@ -129,7 +129,7 @@ For each user sequence, it records the user’s current sequence galaxies from t
 The table then derives three count columns from those per-user buckets:
 
 - Assigned galaxies: all unique current sequence galaxies for that user in the selected scope, regardless of the current target
-- Classified galaxies: the subset of those assigned galaxies that the same user has already classified
+- Classified galaxies: the subset of those assigned galaxies that the same user classified during that current sequence
 - Below-target galaxies: the subset of those assigned galaxies that are still below the selected target $T$
 
 This last column is the target-aware planning metric that determines whether a user appears in the table at all.
@@ -161,7 +161,7 @@ So a galaxy contributing to the highlighted target-aware count for a user means:
 
 It does **not** guarantee that the user will actually classify it next, or ever, because the sequence may change or the galaxy may be skipped.
 
-Meanwhile, the `Assigned galaxies` column provides broader context about that user’s current sequence ownership in the selected scope, and the `Classified galaxies` column shows how much of that same in-scope sequence the user has already completed by classification. Neither column is itself filtered down to only below-target galaxies.
+Meanwhile, the `Assigned galaxies` column provides broader context about that user’s current sequence ownership in the selected scope, and the `Classified galaxies` column shows how much of that same in-scope current sequence the user has already completed by classification. Neither column is itself filtered down to only below-target galaxies.
 
 ## Why The Table Changes When The Target Changes
 
