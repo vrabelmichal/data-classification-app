@@ -29,6 +29,7 @@ export const paperAssignmentCoverageUserDirectoryEntryValidator = v.object({
 export const paperAssignmentCoverageUserCountsValidator = v.object({
   userId: v.string(),
   counts: v.array(v.number()),
+  classifiedByUserCount: v.optional(v.number()),
 });
 
 export const paperAssignmentCoverageSharedSnapshotValidator = v.object({

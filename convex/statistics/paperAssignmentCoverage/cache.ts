@@ -67,6 +67,7 @@ type ScopeAccumulator = {
   classificationStats: ClassificationStats;
   activeClassifierIds: Set<string>;
   userCountsByUserId: Map<string, number[]>;
+  classifiedByUserId: Map<string, number>;
   assignedBucketCounts: number[];
 };
 
@@ -98,7 +99,7 @@ type ScopeSnapshot = {
   classificationBuckets: number[];
   classificationStats: ClassificationStats;
   activeClassifiers: number;
-  userAssignmentCounts: Array<{ userId: string; counts: number[] }>;
+  userAssignmentCounts: Array<{ userId: string; counts: number[]; classifiedByUserCount?: number }>;
   unassignedCounts: number[];
   updatedAt: number;
 };
@@ -168,6 +169,7 @@ function createScopeAccumulator(paper: string | null): ScopeAccumulator {
     classificationStats: createEmptyClassificationStats(),
     activeClassifierIds: new Set<string>(),
     userCountsByUserId: new Map<string, number[]>(),
+    classifiedByUserId: new Map<string, number>(),
     assignedBucketCounts: buildEmptyCounts(),
   };
 }
@@ -196,6 +198,10 @@ function getOrCreateUserCounts(scope: ScopeAccumulator, userId: string) {
   const created = buildEmptyCounts();
   scope.userCountsByUserId.set(userId, created);
   return created;
+}
+
+function incrementUserClassifiedCount(scope: ScopeAccumulator, userId: string) {
+  scope.classifiedByUserId.set(userId, (scope.classifiedByUserId.get(userId) ?? 0) + 1);
 }
 
 function addGalaxyToScope(scope: ScopeAccumulator, totalClassifications: number) {
@@ -294,7 +300,11 @@ function finalizeScopeSnapshot(
   updatedAt: number
 ): ScopeSnapshot {
   const userAssignmentCounts = Array.from(scope.userCountsByUserId.entries())
-    .map(([userId, counts]) => ({ userId, counts: [...counts] }))
+    .map(([userId, counts]) => ({
+      userId,
+      counts: [...counts],
+      classifiedByUserCount: scope.classifiedByUserId.get(userId) ?? 0,
+    }))
     .filter((entry) => entry.counts.some((count) => count > 0));
   const unassignedCounts = scope.classificationBuckets.map((count, index) =>
     Math.max(count - scope.assignedBucketCounts[index], 0)
@@ -404,35 +414,6 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
     galaxyCursor = page.continueCursor;
   }
 
-  let classificationCursor: string | undefined;
-  while (true) {
-    const page = await ctx.runQuery(
-      internal.statistics.paperAssignmentCoverage.cache.getClassificationPage,
-      { cursor: classificationCursor }
-    );
-
-    for (const row of page.rows) {
-      const galaxyMeta = galaxyMetaById.get(row.galaxyExternalId);
-      if (!galaxyMeta) {
-        continue;
-      }
-
-      const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
-      const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxyMeta.paper);
-
-      addClassificationToStats(globalScope.classificationStats, row);
-      addClassificationToStats(paperScope.classificationStats, row);
-      globalScope.activeClassifierIds.add(row.userId);
-      paperScope.activeClassifierIds.add(row.userId);
-    }
-
-    if (page.isDone || page.continueCursor === null) {
-      break;
-    }
-
-    classificationCursor = page.continueCursor;
-  }
-
   const userDirectoryById = new Map<
     string,
     {
@@ -445,6 +426,7 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
     }
   >();
   const assignedGalaxyIds = new Set<string>();
+  const currentSequenceGalaxyIdsByUserId = new Map<string, Set<string>>();
 
   let sequenceCursor: string | undefined;
   while (true) {
@@ -479,6 +461,13 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
           continue;
         }
 
+        let currentSequenceGalaxyIds = currentSequenceGalaxyIdsByUserId.get(row.userId);
+        if (!currentSequenceGalaxyIds) {
+          currentSequenceGalaxyIds = new Set<string>();
+          currentSequenceGalaxyIdsByUserId.set(row.userId, currentSequenceGalaxyIds);
+        }
+        currentSequenceGalaxyIds.add(externalId);
+
         const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
         const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxyMeta.paper);
         getOrCreateUserCounts(globalScope, row.userId)[galaxyMeta.bucketIndex] += 1;
@@ -497,6 +486,51 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
     }
 
     sequenceCursor = page.continueCursor;
+  }
+
+  const countedClassificationsByUserAndGalaxy = new Set<string>();
+
+  let classificationCursor: string | undefined;
+  while (true) {
+    const page = await ctx.runQuery(
+      internal.statistics.paperAssignmentCoverage.cache.getClassificationPage,
+      { cursor: classificationCursor }
+    );
+
+    for (const row of page.rows) {
+      const galaxyMeta = galaxyMetaById.get(row.galaxyExternalId);
+      if (!galaxyMeta) {
+        continue;
+      }
+
+      const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
+      const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxyMeta.paper);
+
+      addClassificationToStats(globalScope.classificationStats, row);
+      addClassificationToStats(paperScope.classificationStats, row);
+      globalScope.activeClassifierIds.add(row.userId);
+      paperScope.activeClassifierIds.add(row.userId);
+
+      const currentSequenceGalaxyIds = currentSequenceGalaxyIdsByUserId.get(row.userId);
+      if (!currentSequenceGalaxyIds?.has(row.galaxyExternalId)) {
+        continue;
+      }
+
+      const classificationKey = `${row.userId}:${row.galaxyExternalId}`;
+      if (countedClassificationsByUserAndGalaxy.has(classificationKey)) {
+        continue;
+      }
+      countedClassificationsByUserAndGalaxy.add(classificationKey);
+
+      incrementUserClassifiedCount(globalScope, row.userId);
+      incrementUserClassifiedCount(paperScope, row.userId);
+    }
+
+    if (page.isDone || page.continueCursor === null) {
+      break;
+    }
+
+    classificationCursor = page.continueCursor;
   }
 
   const availablePapers = Array.from(new Set(discoveredPapers));

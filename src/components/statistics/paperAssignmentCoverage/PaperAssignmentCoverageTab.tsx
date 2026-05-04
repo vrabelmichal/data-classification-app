@@ -42,7 +42,7 @@ type ScopeSnapshot = {
   totals: Totals;
   classificationBuckets: number[];
   activeClassifiers: number;
-  userAssignmentCounts: Array<{ userId: string; counts: number[] }>;
+  userAssignmentCounts: Array<{ userId: string; counts: number[]; classifiedByUserCount?: number }>;
   unassignedCounts: number[];
   updatedAt: number;
 };
@@ -304,8 +304,9 @@ function buildAssignmentRows(
     .map((entry) => {
       const user = userDirectoryById.get(entry.userId);
       const assignedCount = sumAllCounts(entry.counts);
-      const classifiedCount = sumClassifiedCounts(entry.counts);
       const unclassifiedCount = sumCountsToTarget(entry.counts, targetClassifications);
+      const classifiedCount = entry.classifiedByUserCount
+        ?? Math.max(assignedCount - unclassifiedCount, 0);
       const identity = getUserIdentity(user, entry.userId, showEmails);
       return {
         key: entry.userId,
@@ -611,7 +612,7 @@ function UserAssignmentCard({
           <div className="mt-1 font-semibold text-gray-900 dark:text-white">{row.classifiedCount.toLocaleString()}</div>
         </div>
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-2 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
-          <div className="text-[11px] uppercase tracking-wide">Unclassified</div>
+          <div className="text-[11px] uppercase tracking-wide">Below target</div>
           <div className="mt-1 font-semibold">{row.unclassifiedCount.toLocaleString()}</div>
         </div>
       </div>
@@ -670,7 +671,7 @@ function AssignmentCoverageTableSection({
     scopeSnapshot.classificationBuckets,
     targetClassifications,
   );
-  const infoMessage = "Calculated subset of this row that is still below the selected repeat-classification target.";
+  const infoMessage = "Unique galaxies in this row's current sequence that still have fewer classifications than the selected target.";
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -718,7 +719,7 @@ function AssignmentCoverageTableSection({
                   <th className="px-3 py-3 text-right">Classified galaxies</th>
                   <th className="px-3 py-3 text-right bg-amber-50/70 text-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
                     <div className="inline-flex items-center justify-end gap-1">
-                      <span>Unclassified galaxies</span>
+                      <span>Below-target galaxies</span>
                       <InfoPopupButton message={infoMessage} />
                     </div>
                   </th>
