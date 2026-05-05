@@ -2,229 +2,517 @@
 
 ## Purpose
 
-The Paper Assignment Coverage statistics page answers a practical question:
+The Paper Assignment Coverage module answers a target-driven planning question:
 
-Which galaxies are still below the current target number of classifications, and which users still have current-sequence work left on those under-target galaxies?
+Which non-blacklisted galaxies are still below a chosen classification target, how are those galaxies distributed across paper scopes, and how much of that under-target work is already present in users' current sequences?
 
-The page is designed to support assignment planning on top of the existing paper-based catalog view. It combines three perspectives into one place:
+This document is written as an implementation specification. The goal is to describe the data inputs, transformations, formulas, and interpretation rules precisely enough that the same analysis could be rebuilt in another stack without needing this codebase.
 
-- catalog size by paper
-- classification progress for the selected paper subset
-- current-sequence remaining work on galaxies that are still under target
+## What The Module Reports
 
-This document focuses on the calculation logic and interpretation rules rather than implementation details.
+For a selected paper scope and a selected target classification count $T$, the module reports four groups of results:
 
-## Two Modes
+1. catalog composition by paper, including total, blacklisted, and adjusted counts
+2. progress totals for the effective non-blacklisted scope
+3. target-progress metrics derived from classification-count buckets
+4. a user-facing assignment table showing current-sequence ownership and remaining under-target work
 
-The page exists in two variants.
+The assignment table also supports a detailed drilldown modal that lists the actual remaining galaxies contributing to a row.
+
+## Modes And Refresh Semantics
+
+The page exists in two routes:
+
+- cached mode at `/statistics/paper-assignment-coverage`
+- live mode at `/statistics/paper-assignment-coverage-live`
+
+Both modes use the same computation rules.
 
 ### Cached mode
 
-- Uses snapshots refreshed on a background schedule.
-- Opens at `/statistics/paper-assignment-coverage`.
-- Intended for quick repeated review.
+- reads a previously stored snapshot
+- is intended for fast repeated review
+- can be refreshed automatically by a scheduled background job
 
 ### Live mode
 
-- Recomputes the statistics only when the user clicks the calculation button.
-- Opens at `/statistics/paper-assignment-coverage-live`.
-- Intended when an up-to-the-minute view is needed.
+- recomputes the snapshot on demand when the user clicks the calculate button
+- returns the fresh result immediately
+- also persists the successful live result into the cached snapshot store
 
-Both modes use the same calculation rules and present the same metrics. The only difference is when the numbers are refreshed.
+So the semantic difference between the two modes is freshness, not methodology.
 
-## Scope Selection By Paper
+## Required Inputs
 
-The page starts from the same paper catalog split used elsewhere in the statistics area.
+An external implementation needs the following source data.
 
-- Every galaxy belongs either to a specific `misc.paper` value or to the empty-paper bucket.
-- The paper cards and stacked bar show the full catalog composition by paper.
-- Selecting a paper changes the rest of the page to that paper-specific subset.
-- Choosing “All papers” switches back to the full effective catalog.
+### 1. Galaxy catalog
 
-An administration setting can define which paper is selected by default when the page is opened without a paper parameter in the URL.
+For every galaxy:
 
-- The default can be All papers.
-- The default can also be a specific paper category.
-- Users can still change the paper selection after the page loads.
+- stable external identifier
+- paper label, equivalent to `misc.paper`
+- stored total classification count
+- detailed fields used only by the modal detail table: numeric id, RA, Dec, Reff, q, nucleus, magnitude, mean surface brightness, paper, and optional `thur_cls_n`
 
-## Blacklist Rule
+### 2. Blacklist
 
-All reported progress and assignment coverage statistics on this page exclude blacklisted galaxies.
+A set of galaxy external ids that must be excluded from all progress and assignment calculations.
 
-This means:
+### 3. Classifications
 
-- blacklisted galaxies are still counted in the paper catalog cards as part of the raw catalog totals
-- blacklisted galaxies are removed from the effective subset used for progress statistics
-- blacklisted galaxies are removed from the under-target assignment table
+For every classification record:
 
-As a result, the page distinguishes between:
+- galaxy external id
+- user id
+- creation time
+- the flags and class labels used for aggregate classification breakdowns:
+  - awesome
+  - visible nucleus
+  - failed fitting
+  - valid redshift
+  - LSB vs non-LSB
+  - morphology class
 
-- total galaxies in a paper
-- blacklisted galaxies in that paper
-- adjusted galaxies after blacklist removal
+### 4. Skips
 
-The adjusted count is the effective scope for the rest of the page.
+For every skip record:
 
-## Core Per-Galaxy Progress Logic
+- galaxy external id
+- user id
+- creation time
 
-For every non-blacklisted galaxy in the selected scope, the page reads its stored total classification count.
+Skips do not contribute to classified totals, but they do count as a user having already handled that galaxy in the current sequence.
 
-Each galaxy is then placed into a classification-count bucket:
+### 5. Sequences
 
-- 0 classifications
-- 1 classification
-- 2 classifications
-- and so on, with counts greater than or equal to 25 grouped into the final bucket; that threshold comes from the backend constant `PAPER_ASSIGNMENT_COVERAGE_MAX_TARGET_CLASSIFICATIONS` and is not currently admin-configurable.
+For every sequence record:
 
-From those buckets, the page derives the main progress statistics.
+- user id
+- sequence creation time
+- ordered list of assigned galaxy external ids
+- user display metadata associated with that sequence snapshot: name, email, role, active flag, experience
 
-### Summary statistics
+Only the latest sequence per user is used.
 
-For the selected scope, the page reports:
+### 6. System settings
 
-- number of effective galaxies
-- number of galaxies with at least one classification
-- number of unclassified galaxies
-- total number of classifications
-- percentage of galaxies with at least one classification
-- average number of classifications per galaxy
+The calculation uses:
 
-### Target progress statistics
+- the configured paper list
+- the default paper selection for the page
+- cached auto-refresh enable/disable flag
+- cached auto-refresh interval
 
-The target slider defines the current desired number of classifications per galaxy.
+The configured paper list is used as a baseline catalog of expected paper scopes, but additional paper labels discovered in the galaxy catalog are also included.
 
-For a selected target $T$, the page computes:
+## Core Concepts
 
-- galaxies at target: galaxies with at least $T$ classifications
-- galaxies below target: galaxies with fewer than $T$ classifications
-- repeat classifications: total classifications beyond the first one on classified galaxies
-- remaining classifications to target: the total number of additional classifications still needed for all below-target galaxies
+### Raw catalog vs effective catalog
 
-The remaining classifications to target are computed as:
+For each paper and for the global scope, the module distinguishes:
+
+- `total`: all galaxies in the catalog for that paper label
+- `blacklisted`: galaxies in that paper that appear in the blacklist
+- `adjusted`: `total - blacklisted`
+
+Only the adjusted subset participates in progress totals, target metrics, sequence coverage, and remaining-work analysis.
+
+### Scope
+
+A scope is either:
+
+- global, meaning all papers combined after blacklist removal
+- one specific paper label after blacklist removal
+
+Every metric except the raw paper catalog card counts is computed per scope.
+
+### Classification bucket
+
+Every non-blacklisted galaxy is assigned to a classification-count bucket based on its current total classification count.
+
+If the bucket limit constant is $B = 25$, then:
+
+- bucket `0` means 0 classifications
+- bucket `1` means 1 classification
+- ...
+- bucket `24` means 24 classifications
+- bucket `25` means 25 or more classifications
+
+Formally:
 
 $$
-\sum_{g \in \text{below target}} (T - c_g)
+\mathrm{bucket}(g) = \min(\lfloor c_g \rfloor, B)
 $$
 
-where $c_g$ is the current classification count of galaxy $g$.
+where $c_g$ is the stored total classification count for galaxy $g$.
 
-## Assignment Coverage Logic
+These buckets are the foundation for both progress charts and target-dependent calculations.
 
-The assignment table is the key new part of this page.
+### Current sequence
 
-It focuses only on galaxies that are still below the current target.
+For each user, only the latest sequence by creation time is considered active.
 
-### Step 1: identify the under-target subset
+If a user has several historical sequences, all earlier sequences are ignored for assignment-coverage purposes.
 
-For the selected paper scope and current target $T$, the page collects all non-blacklisted galaxies whose classification count is less than $T$.
+### Handled galaxy
 
-These are the galaxies that still need more classifications to reach the current target.
+For a given user and a galaxy currently present in that user's latest sequence, the galaxy is treated as already handled by that user if either of the following is true:
 
-### Step 2: inspect active sequences
+- the user submitted at least one classification for that galaxy at or after the sequence creation time
+- the user submitted at least one skip for that galaxy at or after the sequence creation time
 
-The page then looks at the current user sequences.
+Multiple classifications or multiple skips for the same user-galaxy pair still count as only one handled event for the assignment-coverage table.
 
-For each user sequence, it records the user’s current sequence galaxies from the selected non-blacklisted scope into classification-count buckets.
+## Full Calculation Algorithm
 
-The table then derives three count columns from those per-user buckets:
+The easiest way to reproduce the module is to compute one snapshot for the full effective catalog, then derive per-scope outputs from that snapshot.
 
-- Assigned galaxies: all unique current sequence galaxies for that user in the selected scope, regardless of the current target
-- Classified galaxies: the subset of those assigned galaxies that the same user classified during that current sequence
-- Remaining below-target galaxies: the subset of those assigned galaxies that are still below the selected target $T$ and have not yet been handled by that same user
+### Step 1: build the blacklist set
 
-For this page, a galaxy is treated as already handled by the user if that user has either classified it or skipped it during the current sequence.
+Load all blacklisted galaxy ids into a set.
 
-This last column is the target-aware planning metric that determines whether a user appears in the table at all.
+### Step 2: scan the galaxy catalog
 
-A user row is shown only if that user currently still has at least one below-target galaxy in their sequence that they have not yet handled.
+For every galaxy:
 
-### Step 3: compute the unassigned row
+1. normalize the paper label so missing or null values map to the empty-paper bucket
+2. increment the raw paper total for that paper
+3. if the galaxy is blacklisted, increment that paper's blacklisted count and stop there for this galaxy
+4. otherwise:
+	- compute its classification bucket from its stored total classification count
+	- store `{paper, bucketIndex}` keyed by galaxy external id
+	- add the galaxy into the global scope accumulator
+	- add the galaxy into its paper scope accumulator
 
-The page also reports a special row for galaxies that do not appear in any current sequence.
+At the end of this step, each scope has:
 
-That row uses the same column logic:
+- total effective galaxies
+- effective classified galaxies
+- total effective classifications
+- classification-count bucket histogram
 
-- Assigned galaxies: all non-blacklisted galaxies in the selected scope that are not currently present in any sequence
-- Classified galaxies: for this special non-user row, the number shown is the unassigned subset that already has at least one classification
-- Remaining below-target galaxies: the unassigned subset that is still below the selected target
+### Step 3: determine the latest sequence per user
 
-This row answers a different planning question:
+Scan all sequences and keep only the sequence with the greatest creation time for each user.
 
-- how much of the under-target work has not yet been queued for any user at all
+Call this mapping:
 
-### Important interpretation rule
+$$
+\mathrm{latestSequence}(u)
+$$
 
-The table shows remaining current-sequence work for the present owner, not guaranteed future work completion.
+### Step 4: derive current-sequence assignment membership
 
-So a galaxy contributing to the highlighted target-aware count for a user means:
+For each user's latest sequence:
 
-- it is below target now
-- it is currently present in that user’s active sequence
-- that user has not yet classified or skipped it in that sequence
+1. deduplicate repeated galaxy ids inside the sequence itself
+2. ignore any galaxy id that is blacklisted or absent from the effective galaxy map
+3. record each remaining galaxy under that user as a current-sequence assignment in both:
+	- the global scope
+	- the galaxy's paper scope
+4. bucket the assignment using the galaxy's current stored classification bucket
 
-It does **not** guarantee that the user will actually classify it next, or ever, because the sequence may change or the galaxy may be skipped.
+This produces per user and per scope:
 
-Meanwhile, the `Assigned galaxies` column provides broader context about that user’s current sequence ownership in the selected scope, and the `Classified galaxies` column shows how much of that same in-scope current sequence the user has already completed by classification. Only the highlighted `Remaining below-target galaxies` column is filtered down to actionable below-target work for that same user.
+- `counts[b]`: number of unique current-sequence galaxies currently sitting in bucket `b`
 
-## Why The Table Changes When The Target Changes
+It also builds a global set of galaxies assigned to at least one latest sequence, used later for the special unassigned row.
 
-The under-target subset depends directly on the selected target.
+Important:
 
-If the target is increased:
+- per-user assignment counts are unique within a user sequence
+- the same galaxy may still appear in multiple users' latest sequences, so summing user rows does not yield a distinct-galaxy total across users
+- the `assignedBucketCounts` array used for the unassigned row counts each galaxy at most once across all users by consulting the distinct assigned-galaxy set
 
-- more galaxies can become under-target
-- more sequence entries may start contributing to user counts
-- the unassigned count may increase
+### Step 5: scan classifications
 
-If the target is decreased:
+For every classification on a non-blacklisted galaxy:
 
-- fewer galaxies remain under-target
-- some sequence entries stop contributing to the table
-- the unassigned count may decrease
+1. add its categorical values into the global and paper-specific classification breakdown accumulators
+2. mark the classifier as active for the galaxy's scope
+3. check whether the classification belongs to the user's latest sequence context:
+	- the user must have a latest sequence
+	- the classification timestamp must be greater than or equal to that sequence's creation time
+	- the classified galaxy must be present in that user's latest sequence
+4. if those conditions hold:
+	- increment `classifiedByUserCount` once per distinct `(user, galaxy)` pair
+	- increment `processedByUserCounts[bucket]` once per distinct `(user, galaxy)` pair
 
-So the table is not a static assignment overview. It is a target-aware view of assignment coverage.
+This produces two different concepts:
 
-One subtle consequence of the current implementation is that only the highlighted `Remaining below-target galaxies` column is directly target-aware. The `Assigned galaxies` and `Classified galaxies` columns are scope-aware context columns, so users may appear or disappear as the target changes even though those two context columns do not change in lockstep with the target.
+- `classifiedByUserCount`: how many assigned current-sequence galaxies the user classified during the current sequence
+- `processedByUserCounts`: how many assigned current-sequence galaxies the user has handled by classification, bucketed by the galaxy's current stored total classification count
 
-## Reading The Page In Practice
+The active-classifier metric does not use current-sequence filtering. It counts distinct users who have any classification in the non-blacklisted scope.
 
-The page is usually most useful as a three-step workflow.
+### Step 6: scan skips
 
-1. Choose a paper or keep the global view.
-2. Set the target classifications per galaxy.
-3. Read the user table together with the remaining-to-target metric.
+For every skip on a non-blacklisted galaxy:
 
-This helps distinguish between three situations:
+1. require the same current-sequence conditions as above:
+	- the user has a latest sequence
+	- the skip timestamp is greater than or equal to the sequence creation time
+	- the skipped galaxy is present in the user's latest sequence
+2. if the `(user, galaxy)` pair has not already been counted as processed, increment `processedByUserCounts[bucket]`
 
-- the scope is mostly complete because most galaxies already reached target
-- the scope is incomplete, but much of the remaining work is already sitting in user sequences
-- the scope is incomplete and a meaningful part of the remaining work is still unassigned
+Skips affect only the processed/handled state. They do not increment `classifiedByUserCount`.
 
-## Cached Refresh Settings
+### Step 7: derive remaining current-sequence galaxy ids
 
-The cached version can be refreshed automatically on a configurable interval.
+After classifications and skips are processed, iterate over each galaxy still present in each user's latest sequence.
 
-The admin settings allow:
+If a `(user, galaxy)` pair has not been marked as processed, add that galaxy id to:
 
-- enabling or disabling automatic refresh
-- adjusting the refresh interval in minutes
+- the global scope's remaining-id buckets for that user
+- the paper scope's remaining-id buckets for that user
 
-If automatic refresh is disabled, the cached page may stay outdated until a later manual or administrative refresh path is used. The live page remains the explicit way to compute a fresh snapshot on demand.
+These remaining-id buckets are stored by the galaxy's current classification bucket, not by target.
 
-## Main Limitations
+This design matters:
 
-The page should be interpreted with a few constraints in mind.
+- the snapshot stores target-independent bucketed state once
+- any target $T$ can later be answered by summing or flattening only buckets `< T`
 
-- It reflects the current snapshot of classification counts and user sequences, not future outcomes.
-- The user table measures sequence inclusion, not eventual completion.
-- A single galaxy may appear in multiple users’ sequences, so user row totals do not represent distinct galaxy counts across users.
-- The unassigned row counts galaxies not present in any current sequence, but those galaxies may still be picked up in a future assignment run.
+### Step 8: derive unassigned galaxy ids
+
+Independently of user rows, iterate over every non-blacklisted galaxy in the effective catalog.
+
+If the galaxy is absent from the distinct assigned-galaxy set built in step 4, add it to:
+
+- the global unassigned-id bucket map
+- its paper scope's unassigned-id bucket map
+
+These ids drive the special `Not assigned to any user` row.
+
+### Step 9: finalize the per-scope snapshot
+
+For each scope, write:
+
+- finalized progress totals
+- classification bucket histogram
+- classification breakdown totals
+- active classifier count
+- `userAssignmentCounts` rows containing assignment buckets, classified count, processed buckets, and remaining-id buckets
+- `unassignedCounts`
+- optional `unassignedGalaxyIdsByBucket`
+
+The shared snapshot additionally stores:
+
+- available paper labels
+- paper raw/blacklisted/adjusted counts
+- a sorted user directory derived from the latest sequences
+
+## Exact Reported Metrics
+
+### Paper catalog section
+
+For each paper label `p`:
+
+- `total_p`: all galaxies with paper `p`
+- `blacklisted_p`: all blacklisted galaxies with paper `p`
+- `adjusted_p = max(total_p - blacklisted_p, 0)`
+
+The global paper selector changes downstream scope-sensitive panels, but these card counts themselves come from the raw catalog split.
+
+### Summary cards
+
+For the selected scope:
+
+- effective galaxies
+- classified galaxies, defined as galaxies with at least one classification
+- unclassified galaxies
+- total classifications
+- progress percent, defined as classified galaxies divided by effective galaxies
+- average classifications per galaxy
+
+Formally, if $G$ is the effective selected-scope galaxy set:
+
+$$
+\mathrm{classifiedGalaxies} = |\{g \in G : c_g > 0\}|
+$$
+
+$$
+\mathrm{progress} =
+\begin{cases}
+100 \cdot \frac{\mathrm{classifiedGalaxies}}{|G|}, & |G| > 0 \\
+0, & |G| = 0
+\end{cases}
+$$
+
+$$
+\mathrm{avgClassificationsPerGalaxy} =
+\begin{cases}
+\frac{\sum_{g \in G} c_g}{|G|}, & |G| > 0 \\
+0, & |G| = 0
+\end{cases}
+$$
+
+### Progress section
+
+Given target $T$ and bucket histogram $h_b$:
+
+- galaxies at target:
+
+$$
+\sum_{b = T}^{B} h_b
+$$
+
+- galaxies below target:
+
+$$
+\sum_{b = 0}^{T-1} h_b
+$$
+
+- repeat classifications:
+
+$$
+\max(\mathrm{totalClassifications} - \mathrm{classifiedGalaxies}, 0)
+$$
+
+- remaining classifications to target:
+
+$$
+\sum_{b = 0}^{T-1} (T - b) \cdot h_b
+$$
+
+- target completion percent:
+
+$$
+\begin{cases}
+100 \cdot \frac{\mathrm{totalClassifications}}{|G| \cdot T}, & |G| > 0 \\
+0, & |G| = 0
+\end{cases}
+$$
+
+- active classifiers: number of distinct users with at least one classification on a non-blacklisted galaxy in the selected scope
+
+### Assignment table rows
+
+For each user `u` in a scope:
+
+- `Assigned galaxies`:
+
+$$
+\sum_{b = 0}^{B} \mathrm{assignedCounts}_{u,b}
+$$
+
+This is all unique current-sequence galaxies for that user in the selected scope, regardless of target.
+
+- `Classified galaxies`:
+
+the number of distinct assigned current-sequence galaxies that the same user classified at or after the creation time of that user's latest sequence
+
+- `Remaining below-target galaxies`:
+
+all remaining current-sequence galaxy ids in buckets below the selected target:
+
+$$
+\sum_{b = 0}^{T-1} \mathrm{remainingIdsCount}_{u,b}
+$$
+
+where a galaxy contributes only if:
+
+- it is in the user's latest sequence
+- it is non-blacklisted
+- its current total classification count is below $T$
+- the user has not classified it during that latest sequence
+- the user has not skipped it during that latest sequence
+
+### Row inclusion rule
+
+A normal user row is shown only if its `Remaining below-target galaxies` count is greater than zero.
+
+So a user can have non-zero assigned or classified context counts but still be absent from the table if they no longer have actionable under-target work.
+
+### Special unassigned row
+
+The special row labeled `Not assigned to any user` is computed per scope from galaxies absent from every latest sequence.
+
+Its columns mean:
+
+- `Assigned galaxies`: all effective galaxies in this scope that are not present in any latest sequence
+- `Classified galaxies`: the subset of those unassigned galaxies with at least one classification, derived from the unassigned bucket histogram by summing buckets `>= 1`
+- `Remaining below-target galaxies`: the subset of those unassigned galaxies whose bucket is `< T`
+
+This row is included only when the last metric is positive.
+
+## Remaining-Galaxy Drilldown Modal
+
+When a row has explicit remaining galaxy ids, clicking the `Remaining below-target galaxies` count opens a detail modal.
+
+### Which ids are shown
+
+The modal uses the row's bucketed remaining ids and flattens only buckets below the currently selected target:
+
+$$
+\bigcup_{b=0}^{T-1} \mathrm{remainingIds}_{b}
+$$
+
+The same rule is used for both user rows and the special unassigned row.
+
+### Which details are fetched
+
+For the selected ids, the modal loads the current galaxy metadata and shows:
+
+- preview image
+- external id and numeric id
+- current total classifications
+- additional classifications still needed to reach target
+- paper label
+- RA, Dec, Reff, q, magnitude, mean surface brightness, nucleus flag
+- a direct classification link
+
+The modal paginates this list and offers export of:
+
+- plain text ids
+- a CSV containing the displayed metadata plus target-derived remaining-to-target counts
+
+The exports are a convenience layer over the same remaining-id set. They do not use different semantics.
+
+## User Directory Semantics
+
+The snapshot stores a sorted user directory derived from the latest sequence scan. The UI then tries to refresh that directory through a live action so display names, emails, roles, active flags, and experience values do not remain stale in cached mode.
+
+This user directory refresh changes labels only. It does not change any numeric statistics.
+
+## Storage Notes That Do Not Change Semantics
+
+The snapshot stores remaining and unassigned galaxy ids bucketed by current classification count. In large environments, those bucket arrays can become very large, so the stored representation may further chunk each bucket into smaller arrays for persistence.
+
+That chunking is only a storage optimization to satisfy backend limits. For analytical reimplementation, treat each bucket as the flat set of galaxy ids assigned to that bucket.
+
+## Practical Reimplementation Outline
+
+An independent implementation can follow this sequence:
+
+1. load galaxies, blacklist, latest sequences, classifications, and skips
+2. drop blacklisted galaxies from every analytical step after raw paper totals are computed
+3. assign every effective galaxy to a current classification bucket
+4. build global and per-paper scope accumulators
+5. keep only the latest sequence per user
+6. bucket each user's current-sequence galaxies into the relevant scopes
+7. mark processed `(user, galaxy)` pairs from classifications and skips that belong to the latest sequence window
+8. compute remaining current-sequence ids as `assigned - processed`
+9. compute unassigned ids as `effective galaxies - galaxies present in any latest sequence`
+10. derive target-specific metrics at query/render time by summing or flattening only buckets below the selected target
+
+If another system reproduces those steps and interpretation rules, it should reproduce the same reported statistics.
+
+## Limitations And Interpretation Warnings
+
+- The module is a snapshot of current state, not a forecast.
+- It depends on stored galaxy classification totals rather than replaying classification history to rebuild those totals.
+- The same galaxy may appear in multiple users' latest sequences, so summing user rows across the table does not produce a distinct-galaxy total.
+- `Assigned galaxies` and `Classified galaxies` are context columns, while `Remaining below-target galaxies` is target-aware. This is why row membership changes as the target changes.
+- A galaxy in a user's remaining count means only that the user still has current-sequence responsibility for it and has not yet handled it; it does not guarantee that the user will classify it next.
 
 ## Summary
 
-Conceptually, the page is built from one filtered galaxy subset and two follow-up questions.
+The page combines one effective catalog filter with one ownership model.
 
-1. After removing blacklisted galaxies, how large is the selected paper subset and how far is it from the current classification target?
-2. Within the galaxies still below target, which ones are already queued in user sequences and which ones are not assigned anywhere?
+1. Filter the catalog to non-blacklisted galaxies within the selected paper scope.
+2. Measure current progress from stored total classification counts.
+3. Overlay each user's latest sequence to determine which below-target galaxies are already in active sequences, which have already been handled by the assigned user, and which are still unassigned.
 
-That combination makes the page a planning tool for target-driven assignment coverage rather than a general-purpose activity dashboard.
+That makes Paper Assignment Coverage a planning-oriented, target-aware allocation view rather than a generic activity dashboard.

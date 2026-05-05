@@ -10,6 +10,7 @@ import {
 } from "./statistics/labelingOverview/cacheValidators";
 import {
   paperAssignmentCoverageCatalogValidator,
+  paperAssignmentCoverageGalaxyIdsByBucketValidator,
   paperAssignmentCoverageUserCountsValidator,
   paperAssignmentCoverageUserDirectoryEntryValidator,
 } from "./statistics/paperAssignmentCoverage/validators";
@@ -538,7 +539,7 @@ const applicationTables = {
     activeClassifiers: v.number(),
     userAssignmentCounts: v.array(paperAssignmentCoverageUserCountsValidator),
     unassignedCounts: v.array(v.number()),
-    unassignedGalaxyIdsByBucket: v.optional(v.array(v.array(v.string()))),
+    unassignedGalaxyIdsByBucket: v.optional(paperAssignmentCoverageGalaxyIdsByBucketValidator),
     updatedAt: v.number(),
   }).index("by_scope_key", ["scopeKey"]),
 

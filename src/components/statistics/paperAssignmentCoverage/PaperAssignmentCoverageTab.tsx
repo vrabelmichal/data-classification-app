@@ -37,6 +37,8 @@ type UserDirectoryEntry = {
   experience?: "normal" | "senior";
 };
 
+type GalaxyIdBucketChunks = string[][][];
+
 type ScopeSnapshot = {
   scopeKey: string;
   paper: string | null;
@@ -48,10 +50,10 @@ type ScopeSnapshot = {
     counts: number[];
     classifiedByUserCount?: number;
     processedByUserCounts?: number[];
-    remainingGalaxyIdsByBucket?: string[][];
+    remainingGalaxyIdsByBucket?: GalaxyIdBucketChunks;
   }>;
   unassignedCounts: number[];
-  unassignedGalaxyIdsByBucket?: string[][];
+  unassignedGalaxyIdsByBucket?: GalaxyIdBucketChunks;
   updatedAt: number;
 };
 
@@ -97,7 +99,7 @@ type AssignmentRow = {
   assignedCount: number;
   classifiedCount: number;
   remainingCount: number;
-  remainingGalaxyIdsByBucket?: string[][];
+  remainingGalaxyIdsByBucket?: GalaxyIdBucketChunks;
   isActive?: boolean;
   isSpecial?: boolean;
 };
@@ -294,14 +296,19 @@ function sumCountsToTarget(counts: number[], targetClassifications: number) {
   return counts.slice(0, targetClassifications).reduce((sum, count) => sum + count, 0);
 }
 
-function sumGalaxyIdBucketsToTarget(galaxyIdsByBucket: string[][], targetClassifications: number) {
+function sumGalaxyIdBucketsToTarget(galaxyIdsByBucket: GalaxyIdBucketChunks, targetClassifications: number) {
   return galaxyIdsByBucket
     .slice(0, targetClassifications)
-    .reduce((sum, bucket) => sum + bucket.length, 0);
+    .reduce(
+      (sum, bucket) => sum + bucket.reduce((bucketSum, chunk) => bucketSum + chunk.length, 0),
+      0,
+    );
 }
 
-function flattenGalaxyIdBucketsToTarget(galaxyIdsByBucket: string[][], targetClassifications: number) {
-  return galaxyIdsByBucket.slice(0, targetClassifications).flatMap((bucket) => bucket);
+function flattenGalaxyIdBucketsToTarget(galaxyIdsByBucket: GalaxyIdBucketChunks, targetClassifications: number) {
+  return galaxyIdsByBucket
+    .slice(0, targetClassifications)
+    .flatMap((bucket) => bucket.flatMap((chunk) => chunk));
 }
 
 function sumAllCounts(counts: number[]) {

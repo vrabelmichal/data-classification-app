@@ -26,12 +26,20 @@ export const paperAssignmentCoverageUserDirectoryEntryValidator = v.object({
   experience: v.optional(userExperienceValidator),
 });
 
+const legacyGalaxyIdsByBucketValidator = v.array(v.array(v.string()));
+const chunkedGalaxyIdsByBucketValidator = v.array(v.array(v.array(v.string())));
+
+export const paperAssignmentCoverageGalaxyIdsByBucketValidator = v.union(
+  legacyGalaxyIdsByBucketValidator,
+  chunkedGalaxyIdsByBucketValidator,
+);
+
 export const paperAssignmentCoverageUserCountsValidator = v.object({
   userId: v.string(),
   counts: v.array(v.number()),
   classifiedByUserCount: v.optional(v.number()),
   processedByUserCounts: v.optional(v.array(v.number())),
-  remainingGalaxyIdsByBucket: v.optional(v.array(v.array(v.string()))),
+  remainingGalaxyIdsByBucket: v.optional(paperAssignmentCoverageGalaxyIdsByBucketValidator),
 });
 
 export const paperAssignmentCoverageSharedSnapshotValidator = v.object({
@@ -49,7 +57,7 @@ export const paperAssignmentCoverageScopeSnapshotValidator = v.object({
   activeClassifiers: v.number(),
   userAssignmentCounts: v.array(paperAssignmentCoverageUserCountsValidator),
   unassignedCounts: v.array(v.number()),
-  unassignedGalaxyIdsByBucket: v.optional(v.array(v.array(v.string()))),
+  unassignedGalaxyIdsByBucket: v.optional(paperAssignmentCoverageGalaxyIdsByBucketValidator),
   updatedAt: v.number(),
 });
 

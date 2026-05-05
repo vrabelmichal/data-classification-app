@@ -73,6 +73,8 @@ type ScopeAccumulator = {
   assignedBucketCounts: number[];
 };
 
+type GalaxyIdBucketChunks = string[][][];
+
 type GalaxyMeta = {
   paper: string;
   bucketIndex: number;
@@ -106,10 +108,10 @@ type ScopeSnapshot = {
     counts: number[];
     classifiedByUserCount?: number;
     processedByUserCounts?: number[];
-    remainingGalaxyIdsByBucket?: string[][];
+    remainingGalaxyIdsByBucket?: GalaxyIdBucketChunks;
   }>;
   unassignedCounts: number[];
-  unassignedGalaxyIdsByBucket?: string[][];
+  unassignedGalaxyIdsByBucket?: GalaxyIdBucketChunks;
   updatedAt: number;
 };
 
@@ -130,6 +132,7 @@ const SKIPPED_PAGE_SIZE = 5000;
 const SEQUENCE_PAGE_SIZE = 128;
 const MIN_AUTO_REFRESH_INTERVAL_MINUTES = 5;
 const MAX_AUTO_REFRESH_INTERVAL_MINUTES = 7 * 24 * 60;
+const MAX_GALAXY_ID_CHUNK_SIZE = 4000;
 
 function buildEmptyCounts() {
   return Array.from({ length: PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT }, () => 0);
@@ -140,6 +143,47 @@ function buildEmptyIdBuckets() {
     { length: PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT },
     () => [] as string[]
   );
+}
+
+function chunkGalaxyIds(ids: string[]) {
+  if (ids.length === 0) {
+    return [] as string[][];
+  }
+
+  const chunks = [] as string[][];
+  for (let startIndex = 0; startIndex < ids.length; startIndex += MAX_GALAXY_ID_CHUNK_SIZE) {
+    chunks.push(ids.slice(startIndex, startIndex + MAX_GALAXY_ID_CHUNK_SIZE));
+  }
+
+  return chunks;
+}
+
+function chunkGalaxyIdBuckets(galaxyIdsByBucket: string[][]) {
+  if (!galaxyIdsByBucket.some((bucket) => bucket.length > 0)) {
+    return undefined;
+  }
+
+  return galaxyIdsByBucket.map((bucket) => chunkGalaxyIds(bucket));
+}
+
+function isChunkedGalaxyIdsByBucket(
+  value: string[][] | string[][][]
+): value is string[][][] {
+  return value.some((bucket) => Array.isArray(bucket[0]));
+}
+
+function normalizeGalaxyIdBuckets(
+  value: string[][] | string[][][] | undefined
+): GalaxyIdBucketChunks | undefined {
+  if (!value || value.length === 0) {
+    return undefined;
+  }
+
+  if (isChunkedGalaxyIdsByBucket(value)) {
+    return value.map((bucket) => bucket.map((chunk) => [...chunk]));
+  }
+
+  return value.map((bucket) => chunkGalaxyIds(bucket));
 }
 
 function createEmptyClassificationStats(): ClassificationStats {
@@ -359,10 +403,9 @@ function finalizeScopeSnapshot(
         counts: [...counts],
         classifiedByUserCount: scope.classifiedByUserId.get(userId) ?? 0,
         processedByUserCounts: [...(scope.processedCountsByUserId.get(userId) ?? buildEmptyCounts())],
-        remainingGalaxyIdsByBucket:
-          remainingGalaxyIdsByBucket?.some((bucket) => bucket.length > 0)
-            ? remainingGalaxyIdsByBucket.map((bucket) => [...bucket])
-            : undefined,
+        remainingGalaxyIdsByBucket: chunkGalaxyIdBuckets(
+          remainingGalaxyIdsByBucket ?? buildEmptyIdBuckets()
+        ),
       };
     })
     .filter((entry) => entry.counts.some((count) => count > 0));
@@ -388,13 +431,15 @@ function applyUnassignedGalaxyIdsToScopeSnapshot(
   scopeSnapshot: ScopeSnapshot,
   unassignedGalaxyIdsByBucket: string[][]
 ) {
-  if (!unassignedGalaxyIdsByBucket.some((bucket) => bucket.length > 0)) {
+  const chunkedGalaxyIdsByBucket = chunkGalaxyIdBuckets(unassignedGalaxyIdsByBucket);
+
+  if (!chunkedGalaxyIdsByBucket) {
     return scopeSnapshot;
   }
 
   return {
     ...scopeSnapshot,
-    unassignedGalaxyIdsByBucket: unassignedGalaxyIdsByBucket.map((bucket) => [...bucket]),
+    unassignedGalaxyIdsByBucket: chunkedGalaxyIdsByBucket,
   };
 }
 
@@ -1270,9 +1315,16 @@ export const getCachedSnapshot = query({
         classificationBuckets: snapshot.classificationBuckets,
         classificationStats: snapshot.classificationStats,
         activeClassifiers: snapshot.activeClassifiers,
-        userAssignmentCounts: snapshot.userAssignmentCounts,
+        userAssignmentCounts: snapshot.userAssignmentCounts.map((entry) => ({
+          ...entry,
+          remainingGalaxyIdsByBucket: normalizeGalaxyIdBuckets(
+            entry.remainingGalaxyIdsByBucket,
+          ),
+        })),
         unassignedCounts: snapshot.unassignedCounts,
-        unassignedGalaxyIdsByBucket: snapshot.unassignedGalaxyIdsByBucket,
+        unassignedGalaxyIdsByBucket: normalizeGalaxyIdBuckets(
+          snapshot.unassignedGalaxyIdsByBucket,
+        ),
         updatedAt: snapshot.updatedAt,
       })),
     };
