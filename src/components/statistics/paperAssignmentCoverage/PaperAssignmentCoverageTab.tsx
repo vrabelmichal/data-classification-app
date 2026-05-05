@@ -42,7 +42,12 @@ type ScopeSnapshot = {
   totals: Totals;
   classificationBuckets: number[];
   activeClassifiers: number;
-  userAssignmentCounts: Array<{ userId: string; counts: number[]; classifiedByUserCount?: number }>;
+  userAssignmentCounts: Array<{
+    userId: string;
+    counts: number[];
+    classifiedByUserCount?: number;
+    processedByUserCounts?: number[];
+  }>;
   unassignedCounts: number[];
   updatedAt: number;
 };
@@ -88,7 +93,7 @@ type AssignmentRow = {
   experienceLabel: string;
   assignedCount: number;
   classifiedCount: number;
-  unclassifiedCount: number;
+  remainingCount: number;
   isActive?: boolean;
   isSpecial?: boolean;
 };
@@ -293,6 +298,47 @@ function sumClassifiedCounts(counts: number[]) {
   return counts.slice(1).reduce((sum, count) => sum + count, 0);
 }
 
+function estimateProcessedCounts(
+  counts: number[],
+  classifiedByUserCount: number | null | undefined,
+) {
+  const remainingToAllocate = Math.max(
+    0,
+    Math.min(classifiedByUserCount ?? 0, sumAllCounts(counts)),
+  );
+
+  if (remainingToAllocate === 0) {
+    return buildZeroCounts(counts.length);
+  }
+
+  const estimated = buildZeroCounts(counts.length);
+  let leftToAllocate = remainingToAllocate;
+
+  for (let index = 0; index < counts.length && leftToAllocate > 0; index += 1) {
+    const nextCount = Math.min(counts[index] ?? 0, leftToAllocate);
+    estimated[index] = nextCount;
+    leftToAllocate -= nextCount;
+  }
+
+  return estimated;
+}
+
+function buildZeroCounts(length: number) {
+  return Array.from({ length }, () => 0);
+}
+
+function sumRemainingCountsToTarget(
+  counts: number[],
+  processedByUserCounts: number[],
+  targetClassifications: number,
+) {
+  return Math.max(
+    sumCountsToTarget(counts, targetClassifications)
+      - sumCountsToTarget(processedByUserCounts, targetClassifications),
+    0,
+  );
+}
+
 function buildAssignmentRows(
   scopeSnapshot: ScopeSnapshot,
   userDirectory: UserDirectoryEntry[],
@@ -304,9 +350,15 @@ function buildAssignmentRows(
     .map((entry) => {
       const user = userDirectoryById.get(entry.userId);
       const assignedCount = sumAllCounts(entry.counts);
-      const unclassifiedCount = sumCountsToTarget(entry.counts, targetClassifications);
+      const processedByUserCounts = entry.processedByUserCounts
+        ?? estimateProcessedCounts(entry.counts, entry.classifiedByUserCount);
+      const remainingCount = sumRemainingCountsToTarget(
+        entry.counts,
+        processedByUserCounts,
+        targetClassifications,
+      );
       const classifiedCount = entry.classifiedByUserCount
-        ?? Math.max(assignedCount - unclassifiedCount, 0);
+        ?? Math.max(assignedCount - sumCountsToTarget(entry.counts, targetClassifications), 0);
       const identity = getUserIdentity(user, entry.userId, showEmails);
       return {
         key: entry.userId,
@@ -319,12 +371,12 @@ function buildAssignmentRows(
         experienceLabel: getExperienceLabel(user?.experience ?? "normal"),
         assignedCount,
         classifiedCount,
-        unclassifiedCount,
+        remainingCount,
         isActive: user?.isActive,
       };
     })
-    .filter((entry) => entry.unclassifiedCount > 0)
-    .sort((left, right) => right.unclassifiedCount - left.unclassifiedCount || left.label.localeCompare(right.label));
+    .filter((entry) => entry.remainingCount > 0)
+    .sort((left, right) => right.remainingCount - left.remainingCount || left.label.localeCompare(right.label));
 
   const unassignedCount = sumCountsToTarget(scopeSnapshot.unassignedCounts, targetClassifications);
 
@@ -340,7 +392,7 @@ function buildAssignmentRows(
       experienceLabel: "N/A",
       assignedCount: sumAllCounts(scopeSnapshot.unassignedCounts),
       classifiedCount: sumClassifiedCounts(scopeSnapshot.unassignedCounts),
-      unclassifiedCount: unassignedCount,
+      remainingCount: unassignedCount,
       isSpecial: true,
     });
   }
@@ -612,8 +664,8 @@ function UserAssignmentCard({
           <div className="mt-1 font-semibold text-gray-900 dark:text-white">{row.classifiedCount.toLocaleString()}</div>
         </div>
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-2 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
-          <div className="text-[11px] uppercase tracking-wide">Below target</div>
-          <div className="mt-1 font-semibold">{row.unclassifiedCount.toLocaleString()}</div>
+          <div className="text-[11px] uppercase tracking-wide">Remaining below target</div>
+          <div className="mt-1 font-semibold">{row.remainingCount.toLocaleString()}</div>
         </div>
       </div>
     </div>
@@ -671,7 +723,7 @@ function AssignmentCoverageTableSection({
     scopeSnapshot.classificationBuckets,
     targetClassifications,
   );
-  const infoMessage = "Unique galaxies in this row's current sequence that still have fewer classifications than the selected target.";
+  const infoMessage = "Unique galaxies in this row's current sequence that are still below the selected target and have not yet been handled by that same user. A handled galaxy is either classified or skipped by that user.";
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -681,8 +733,8 @@ function AssignmentCoverageTableSection({
             Under-target assignment coverage
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            Current sequence entries for galaxies below the selected repeat-classification target,
-            excluding blacklisted galaxies.
+            Current-sequence work that still needs attention from the assigned user for galaxies below
+            the selected repeat-classification target, excluding blacklisted galaxies.
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {selectedPaper === undefined
@@ -704,7 +756,7 @@ function AssignmentCoverageTableSection({
         <div className="mt-5 rounded-xl border border-gray-200 bg-gray-50/80 px-4 py-6 text-center text-sm text-gray-500 dark:border-gray-700 dark:bg-gray-900/40 dark:text-gray-400">
           {underTargetGalaxies === 0
             ? `Every galaxy in this scope already reached ${targetClassifications} classifications.`
-            : "No current sequence entries match the under-target subset."}
+            : "No current sequence entries still need user action in the under-target subset."}
         </div>
       ) : (
         <div className="mt-5 space-y-4">
@@ -719,7 +771,7 @@ function AssignmentCoverageTableSection({
                   <th className="px-3 py-3 text-right">Classified galaxies</th>
                   <th className="px-3 py-3 text-right bg-amber-50/70 text-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
                     <div className="inline-flex items-center justify-end gap-1">
-                      <span>Below-target galaxies</span>
+                      <span>Remaining below-target galaxies</span>
                       <InfoPopupButton message={infoMessage} />
                     </div>
                   </th>
@@ -749,7 +801,7 @@ function AssignmentCoverageTableSection({
                       {row.classifiedCount.toLocaleString()}
                     </td>
                     <td className="px-3 py-3 text-right text-sm font-semibold text-amber-800 bg-amber-50/70 dark:bg-amber-950/20 dark:text-amber-200 align-top">
-                      {row.unclassifiedCount.toLocaleString()}
+                      {row.remainingCount.toLocaleString()}
                     </td>
                   </tr>
                 ))}
@@ -806,8 +858,8 @@ function PageIntroCard({
           </div>
           <p className="max-w-3xl text-sm text-gray-600 dark:text-gray-300">
             Paper-scoped coverage statistics for the effective catalog. All totals exclude blacklisted galaxies,
-            and the user table shows who currently owns galaxies that are still below the selected
-            repeat-classification target.
+            and the user table shows who still has current-sequence work left on galaxies that are below
+            the selected repeat-classification target.
           </p>
           {updatedLabel && (
             <p className="text-xs text-gray-500 dark:text-gray-400">

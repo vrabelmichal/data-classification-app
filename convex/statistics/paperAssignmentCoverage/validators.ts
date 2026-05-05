@@ -30,6 +30,7 @@ export const paperAssignmentCoverageUserCountsValidator = v.object({
   userId: v.string(),
   counts: v.array(v.number()),
   classifiedByUserCount: v.optional(v.number()),
+  processedByUserCounts: v.optional(v.array(v.number())),
 });
 
 export const paperAssignmentCoverageSharedSnapshotValidator = v.object({

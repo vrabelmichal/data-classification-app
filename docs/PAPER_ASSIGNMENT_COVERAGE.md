@@ -4,13 +4,13 @@
 
 The Paper Assignment Coverage statistics page answers a practical question:
 
-Which galaxies are still below the current target number of classifications, and to which users are those under-target galaxies currently assigned?
+Which galaxies are still below the current target number of classifications, and which users still have current-sequence work left on those under-target galaxies?
 
 The page is designed to support assignment planning on top of the existing paper-based catalog view. It combines three perspectives into one place:
 
 - catalog size by paper
 - classification progress for the selected paper subset
-- current sequence ownership of galaxies that are still under target
+- current-sequence remaining work on galaxies that are still under target
 
 This document focuses on the calculation logic and interpretation rules rather than implementation details.
 
@@ -130,11 +130,13 @@ The table then derives three count columns from those per-user buckets:
 
 - Assigned galaxies: all unique current sequence galaxies for that user in the selected scope, regardless of the current target
 - Classified galaxies: the subset of those assigned galaxies that the same user classified during that current sequence
-- Below-target galaxies: the subset of those assigned galaxies that are still below the selected target $T$
+- Remaining below-target galaxies: the subset of those assigned galaxies that are still below the selected target $T$ and have not yet been handled by that same user
+
+For this page, a galaxy is treated as already handled by the user if that user has either classified it or skipped it during the current sequence.
 
 This last column is the target-aware planning metric that determines whether a user appears in the table at all.
 
-A user row is shown only if that user currently has at least one galaxy below target in their sequence.
+A user row is shown only if that user currently still has at least one below-target galaxy in their sequence that they have not yet handled.
 
 ### Step 3: compute the unassigned row
 
@@ -144,7 +146,7 @@ That row uses the same column logic:
 
 - Assigned galaxies: all non-blacklisted galaxies in the selected scope that are not currently present in any sequence
 - Classified galaxies: for this special non-user row, the number shown is the unassigned subset that already has at least one classification
-- Below-target galaxies: the unassigned subset that is still below the selected target
+- Remaining below-target galaxies: the unassigned subset that is still below the selected target
 
 This row answers a different planning question:
 
@@ -152,16 +154,17 @@ This row answers a different planning question:
 
 ### Important interpretation rule
 
-The table shows current sequence ownership, not guaranteed future work completion.
+The table shows remaining current-sequence work for the present owner, not guaranteed future work completion.
 
 So a galaxy contributing to the highlighted target-aware count for a user means:
 
 - it is below target now
 - it is currently present in that user’s active sequence
+- that user has not yet classified or skipped it in that sequence
 
 It does **not** guarantee that the user will actually classify it next, or ever, because the sequence may change or the galaxy may be skipped.
 
-Meanwhile, the `Assigned galaxies` column provides broader context about that user’s current sequence ownership in the selected scope, and the `Classified galaxies` column shows how much of that same in-scope current sequence the user has already completed by classification. Neither column is itself filtered down to only below-target galaxies.
+Meanwhile, the `Assigned galaxies` column provides broader context about that user’s current sequence ownership in the selected scope, and the `Classified galaxies` column shows how much of that same in-scope current sequence the user has already completed by classification. Only the highlighted `Remaining below-target galaxies` column is filtered down to actionable below-target work for that same user.
 
 ## Why The Table Changes When The Target Changes
 
@@ -181,7 +184,7 @@ If the target is decreased:
 
 So the table is not a static assignment overview. It is a target-aware view of assignment coverage.
 
-One subtle consequence of the current implementation is that only the highlighted `Below-target galaxies` column is directly target-aware. The `Assigned galaxies` and `Classified galaxies` columns are scope-aware context columns, so users may appear or disappear as the target changes even though those two context columns do not change in lockstep with the target.
+One subtle consequence of the current implementation is that only the highlighted `Remaining below-target galaxies` column is directly target-aware. The `Assigned galaxies` and `Classified galaxies` columns are scope-aware context columns, so users may appear or disappear as the target changes even though those two context columns do not change in lockstep with the target.
 
 ## Reading The Page In Practice
 

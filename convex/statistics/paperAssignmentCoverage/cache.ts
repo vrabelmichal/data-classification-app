@@ -68,6 +68,7 @@ type ScopeAccumulator = {
   activeClassifierIds: Set<string>;
   userCountsByUserId: Map<string, number[]>;
   classifiedByUserId: Map<string, number>;
+  processedCountsByUserId: Map<string, number[]>;
   assignedBucketCounts: number[];
 };
 
@@ -99,7 +100,12 @@ type ScopeSnapshot = {
   classificationBuckets: number[];
   classificationStats: ClassificationStats;
   activeClassifiers: number;
-  userAssignmentCounts: Array<{ userId: string; counts: number[]; classifiedByUserCount?: number }>;
+  userAssignmentCounts: Array<{
+    userId: string;
+    counts: number[];
+    classifiedByUserCount?: number;
+    processedByUserCounts?: number[];
+  }>;
   unassignedCounts: number[];
   updatedAt: number;
 };
@@ -117,6 +123,7 @@ type SequencePageRow = {
 
 const GALAXY_PAGE_SIZE = 2000;
 const CLASSIFICATION_PAGE_SIZE = 5000;
+const SKIPPED_PAGE_SIZE = 5000;
 const SEQUENCE_PAGE_SIZE = 128;
 const MIN_AUTO_REFRESH_INTERVAL_MINUTES = 5;
 const MAX_AUTO_REFRESH_INTERVAL_MINUTES = 7 * 24 * 60;
@@ -181,6 +188,7 @@ function createScopeAccumulator(paper: string | null): ScopeAccumulator {
     activeClassifierIds: new Set<string>(),
     userCountsByUserId: new Map<string, number[]>(),
     classifiedByUserId: new Map<string, number>(),
+    processedCountsByUserId: new Map<string, number[]>(),
     assignedBucketCounts: buildEmptyCounts(),
   };
 }
@@ -208,6 +216,17 @@ function getOrCreateUserCounts(scope: ScopeAccumulator, userId: string) {
 
   const created = buildEmptyCounts();
   scope.userCountsByUserId.set(userId, created);
+  return created;
+}
+
+function getOrCreateProcessedCounts(scope: ScopeAccumulator, userId: string) {
+  const existing = scope.processedCountsByUserId.get(userId);
+  if (existing) {
+    return existing;
+  }
+
+  const created = buildEmptyCounts();
+  scope.processedCountsByUserId.set(userId, created);
   return created;
 }
 
@@ -315,6 +334,7 @@ function finalizeScopeSnapshot(
       userId,
       counts: [...counts],
       classifiedByUserCount: scope.classifiedByUserId.get(userId) ?? 0,
+      processedByUserCounts: [...(scope.processedCountsByUserId.get(userId) ?? buildEmptyCounts())],
     }))
     .filter((entry) => entry.counts.some((count) => count > 0));
   const unassignedCounts = scope.classificationBuckets.map((count, index) =>
@@ -509,6 +529,7 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
   }
 
   const countedClassificationsByUserAndGalaxy = new Set<string>();
+  const countedProcessedByUserAndGalaxy = new Set<string>();
 
   let classificationCursor: string | undefined;
   while (true) {
@@ -542,13 +563,19 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
       }
 
       const classificationKey = `${row.userId}:${row.galaxyExternalId}`;
-      if (countedClassificationsByUserAndGalaxy.has(classificationKey)) {
+      if (!countedClassificationsByUserAndGalaxy.has(classificationKey)) {
+        countedClassificationsByUserAndGalaxy.add(classificationKey);
+        incrementUserClassifiedCount(globalScope, row.userId);
+        incrementUserClassifiedCount(paperScope, row.userId);
+      }
+
+      if (countedProcessedByUserAndGalaxy.has(classificationKey)) {
         continue;
       }
-      countedClassificationsByUserAndGalaxy.add(classificationKey);
 
-      incrementUserClassifiedCount(globalScope, row.userId);
-      incrementUserClassifiedCount(paperScope, row.userId);
+      countedProcessedByUserAndGalaxy.add(classificationKey);
+      getOrCreateProcessedCounts(globalScope, row.userId)[galaxyMeta.bucketIndex] += 1;
+      getOrCreateProcessedCounts(paperScope, row.userId)[galaxyMeta.bucketIndex] += 1;
     }
 
     if (page.isDone || page.continueCursor === null) {
@@ -556,6 +583,49 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
     }
 
     classificationCursor = page.continueCursor;
+  }
+
+  let skippedCursor: string | undefined;
+  while (true) {
+    const page = await ctx.runQuery(
+      internal.statistics.paperAssignmentCoverage.cache.getSkippedPage,
+      { cursor: skippedCursor }
+    );
+
+    for (const row of page.rows) {
+      const galaxyMeta = galaxyMetaById.get(row.galaxyExternalId);
+      if (!galaxyMeta) {
+        continue;
+      }
+
+      const currentSequence = latestSequenceByUserId.get(row.userId);
+      if (!currentSequence || row.createdAt < currentSequence.sequenceCreatedAt) {
+        continue;
+      }
+
+      const currentSequenceGalaxyIds = currentSequenceGalaxyIdsByUserId.get(row.userId);
+      if (!currentSequenceGalaxyIds?.has(row.galaxyExternalId)) {
+        continue;
+      }
+
+      const processedKey = `${row.userId}:${row.galaxyExternalId}`;
+      if (countedProcessedByUserAndGalaxy.has(processedKey)) {
+        continue;
+      }
+
+      countedProcessedByUserAndGalaxy.add(processedKey);
+
+      const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
+      const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxyMeta.paper);
+      getOrCreateProcessedCounts(globalScope, row.userId)[galaxyMeta.bucketIndex] += 1;
+      getOrCreateProcessedCounts(paperScope, row.userId)[galaxyMeta.bucketIndex] += 1;
+    }
+
+    if (page.isDone || page.continueCursor === null) {
+      break;
+    }
+
+    skippedCursor = page.continueCursor;
   }
 
   const availablePapers = Array.from(new Set(discoveredPapers));
@@ -732,6 +802,36 @@ export const getSequencePage = internalQuery({
 
     return {
       rows,
+      isDone: page.isDone,
+      continueCursor: page.isDone ? null : page.continueCursor,
+    };
+  },
+});
+
+export const getSkippedPage = internalQuery({
+  args: {
+    cursor: v.optional(v.string()),
+  },
+  returns: v.object({
+    rows: v.array(v.object({
+      userId: v.string(),
+      galaxyExternalId: v.string(),
+      createdAt: v.number(),
+    })),
+    isDone: v.boolean(),
+    continueCursor: v.union(v.string(), v.null()),
+  }),
+  handler: async (ctx, args) => {
+    const page = await ctx.db
+      .query("skippedGalaxies")
+      .paginate({ numItems: SKIPPED_PAGE_SIZE, cursor: args.cursor ?? null });
+
+    return {
+      rows: page.page.map((doc) => ({
+        userId: String(doc.userId),
+        galaxyExternalId: doc.galaxyExternalId,
+        createdAt: doc._creationTime,
+      })),
       isDone: page.isDone,
       continueCursor: page.isDone ? null : page.continueCursor,
     };
