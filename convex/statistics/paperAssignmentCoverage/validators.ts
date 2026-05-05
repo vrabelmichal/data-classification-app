@@ -31,6 +31,7 @@ export const paperAssignmentCoverageUserCountsValidator = v.object({
   counts: v.array(v.number()),
   classifiedByUserCount: v.optional(v.number()),
   processedByUserCounts: v.optional(v.array(v.number())),
+  remainingGalaxyIdsByBucket: v.optional(v.array(v.array(v.string()))),
 });
 
 export const paperAssignmentCoverageSharedSnapshotValidator = v.object({
@@ -48,6 +49,7 @@ export const paperAssignmentCoverageScopeSnapshotValidator = v.object({
   activeClassifiers: v.number(),
   userAssignmentCounts: v.array(paperAssignmentCoverageUserCountsValidator),
   unassignedCounts: v.array(v.number()),
+  unassignedGalaxyIdsByBucket: v.optional(v.array(v.array(v.string()))),
   updatedAt: v.number(),
 });
 

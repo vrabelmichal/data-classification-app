@@ -683,7 +683,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
       {/* Modal + backdrop rendered when zoomed using Portal to escape any container constraints */}
       {isZoomed && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-0 py-2 sm:px-4 sm:py-4"
+          className="fixed inset-0 z-[120] flex items-center justify-center px-0 py-2 sm:px-4 sm:py-4"
           onClick={stopModalEventPropagation}
           onMouseDown={stopModalEventPropagation}
           onMouseMove={stopModalEventPropagation}
@@ -794,7 +794,7 @@ export function ImageViewer({ imageUrl, alt, preferences, contrast = 1.0, reff, 
             </div>
           </div>
 
-          <div className="sm:hidden pointer-events-none fixed inset-x-0 bottom-4 z-[60] flex justify-center ">
+          <div className="sm:hidden pointer-events-none fixed inset-x-0 bottom-4 z-[130] flex justify-center ">
             <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-2 rounded-full bg-white/40 px-2 py-2 text-white backdrop-blur">
               {controlButtons}
             </div>

@@ -69,6 +69,7 @@ type ScopeAccumulator = {
   userCountsByUserId: Map<string, number[]>;
   classifiedByUserId: Map<string, number>;
   processedCountsByUserId: Map<string, number[]>;
+  remainingGalaxyIdsByUserId: Map<string, string[][]>;
   assignedBucketCounts: number[];
 };
 
@@ -105,8 +106,10 @@ type ScopeSnapshot = {
     counts: number[];
     classifiedByUserCount?: number;
     processedByUserCounts?: number[];
+    remainingGalaxyIdsByBucket?: string[][];
   }>;
   unassignedCounts: number[];
+  unassignedGalaxyIdsByBucket?: string[][];
   updatedAt: number;
 };
 
@@ -130,6 +133,13 @@ const MAX_AUTO_REFRESH_INTERVAL_MINUTES = 7 * 24 * 60;
 
 function buildEmptyCounts() {
   return Array.from({ length: PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT }, () => 0);
+}
+
+function buildEmptyIdBuckets() {
+  return Array.from(
+    { length: PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT },
+    () => [] as string[]
+  );
 }
 
 function createEmptyClassificationStats(): ClassificationStats {
@@ -189,6 +199,7 @@ function createScopeAccumulator(paper: string | null): ScopeAccumulator {
     userCountsByUserId: new Map<string, number[]>(),
     classifiedByUserId: new Map<string, number>(),
     processedCountsByUserId: new Map<string, number[]>(),
+    remainingGalaxyIdsByUserId: new Map<string, string[][]>(),
     assignedBucketCounts: buildEmptyCounts(),
   };
 }
@@ -227,6 +238,17 @@ function getOrCreateProcessedCounts(scope: ScopeAccumulator, userId: string) {
 
   const created = buildEmptyCounts();
   scope.processedCountsByUserId.set(userId, created);
+  return created;
+}
+
+function getOrCreateRemainingGalaxyIdBuckets(scope: ScopeAccumulator, userId: string) {
+  const existing = scope.remainingGalaxyIdsByUserId.get(userId);
+  if (existing) {
+    return existing;
+  }
+
+  const created = buildEmptyIdBuckets();
+  scope.remainingGalaxyIdsByUserId.set(userId, created);
   return created;
 }
 
@@ -330,16 +352,24 @@ function finalizeScopeSnapshot(
   updatedAt: number
 ): ScopeSnapshot {
   const userAssignmentCounts = Array.from(scope.userCountsByUserId.entries())
-    .map(([userId, counts]) => ({
-      userId,
-      counts: [...counts],
-      classifiedByUserCount: scope.classifiedByUserId.get(userId) ?? 0,
-      processedByUserCounts: [...(scope.processedCountsByUserId.get(userId) ?? buildEmptyCounts())],
-    }))
+    .map(([userId, counts]) => {
+      const remainingGalaxyIdsByBucket = scope.remainingGalaxyIdsByUserId.get(userId);
+      return {
+        userId,
+        counts: [...counts],
+        classifiedByUserCount: scope.classifiedByUserId.get(userId) ?? 0,
+        processedByUserCounts: [...(scope.processedCountsByUserId.get(userId) ?? buildEmptyCounts())],
+        remainingGalaxyIdsByBucket:
+          remainingGalaxyIdsByBucket?.some((bucket) => bucket.length > 0)
+            ? remainingGalaxyIdsByBucket.map((bucket) => [...bucket])
+            : undefined,
+      };
+    })
     .filter((entry) => entry.counts.some((count) => count > 0));
   const unassignedCounts = scope.classificationBuckets.map((count, index) =>
     Math.max(count - scope.assignedBucketCounts[index], 0)
   );
+  const unassignedGalaxyIdsByBucket = buildEmptyIdBuckets();
 
   return {
     scopeKey: scope.scopeKey,
@@ -351,6 +381,20 @@ function finalizeScopeSnapshot(
     userAssignmentCounts,
     unassignedCounts,
     updatedAt,
+  };
+}
+
+function applyUnassignedGalaxyIdsToScopeSnapshot(
+  scopeSnapshot: ScopeSnapshot,
+  unassignedGalaxyIdsByBucket: string[][]
+) {
+  if (!unassignedGalaxyIdsByBucket.some((bucket) => bucket.length > 0)) {
+    return scopeSnapshot;
+  }
+
+  return {
+    ...scopeSnapshot,
+    unassignedGalaxyIdsByBucket: unassignedGalaxyIdsByBucket.map((bucket) => [...bucket]),
   };
 }
 
@@ -458,6 +502,10 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
   >();
   const assignedGalaxyIds = new Set<string>();
   const latestSequenceByUserId = new Map<string, SequencePageRow>();
+  const currentSequenceGalaxiesByUserId = new Map<
+    string,
+    Array<{ externalId: string; paper: string; bucketIndex: number }>
+  >();
 
   let sequenceCursor: string | undefined;
   while (true) {
@@ -514,6 +562,17 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
         currentSequenceGalaxyIdsByUserId.set(row.userId, currentSequenceGalaxyIds);
       }
       currentSequenceGalaxyIds.add(externalId);
+
+      let currentSequenceGalaxies = currentSequenceGalaxiesByUserId.get(row.userId);
+      if (!currentSequenceGalaxies) {
+        currentSequenceGalaxies = [];
+        currentSequenceGalaxiesByUserId.set(row.userId, currentSequenceGalaxies);
+      }
+      currentSequenceGalaxies.push({
+        externalId,
+        paper: galaxyMeta.paper,
+        bucketIndex: galaxyMeta.bucketIndex,
+      });
 
       const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
       const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxyMeta.paper);
@@ -628,6 +687,24 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
     skippedCursor = page.continueCursor;
   }
 
+  for (const [userId, galaxies] of currentSequenceGalaxiesByUserId.entries()) {
+    for (const galaxy of galaxies) {
+      const processedKey = `${userId}:${galaxy.externalId}`;
+      if (countedProcessedByUserAndGalaxy.has(processedKey)) {
+        continue;
+      }
+
+      const globalScope = getOrCreateScopeAccumulator(scopeAccumulators, null);
+      const paperScope = getOrCreateScopeAccumulator(scopeAccumulators, galaxy.paper);
+      getOrCreateRemainingGalaxyIdBuckets(globalScope, userId)[galaxy.bucketIndex].push(
+        galaxy.externalId,
+      );
+      getOrCreateRemainingGalaxyIdBuckets(paperScope, userId)[galaxy.bucketIndex].push(
+        galaxy.externalId,
+      );
+    }
+  }
+
   const availablePapers = Array.from(new Set(discoveredPapers));
   const orderedAvailablePapers = availablePapers.includes("")
     ? availablePapers
@@ -645,16 +722,46 @@ async function computeSnapshotPayload(ctx: ActionCtx) {
     getOrCreateScopeAccumulator(scopeAccumulators, paper);
   }
 
+  const unassignedGalaxyIdsByBucketByScopeKey = new Map<string, string[][]>();
+
+  for (const [externalId, galaxyMeta] of galaxyMetaById.entries()) {
+    if (assignedGalaxyIds.has(externalId)) {
+      continue;
+    }
+
+    const globalBuckets = unassignedGalaxyIdsByBucketByScopeKey.get(
+      PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY,
+    ) ?? buildEmptyIdBuckets();
+    globalBuckets[galaxyMeta.bucketIndex].push(externalId);
+    unassignedGalaxyIdsByBucketByScopeKey.set(
+      PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY,
+      globalBuckets,
+    );
+
+    const paperScopeKey = scopeKeyFromPaper(galaxyMeta.paper);
+    const paperBuckets = unassignedGalaxyIdsByBucketByScopeKey.get(paperScopeKey) ?? buildEmptyIdBuckets();
+    paperBuckets[galaxyMeta.bucketIndex].push(externalId);
+    unassignedGalaxyIdsByBucketByScopeKey.set(paperScopeKey, paperBuckets);
+  }
+
   const scopeSnapshots: ScopeSnapshot[] = [
-    finalizeScopeSnapshot(
-      getOrCreateScopeAccumulator(scopeAccumulators, null),
-      updatedAt
+    applyUnassignedGalaxyIdsToScopeSnapshot(
+      finalizeScopeSnapshot(
+        getOrCreateScopeAccumulator(scopeAccumulators, null),
+        updatedAt,
+      ),
+      unassignedGalaxyIdsByBucketByScopeKey.get(PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY)
+        ?? buildEmptyIdBuckets(),
     ),
     ...orderedAvailablePapers.map((paper) =>
-      finalizeScopeSnapshot(
-        getOrCreateScopeAccumulator(scopeAccumulators, paper),
-        updatedAt
-      )
+      applyUnassignedGalaxyIdsToScopeSnapshot(
+        finalizeScopeSnapshot(
+          getOrCreateScopeAccumulator(scopeAccumulators, paper),
+          updatedAt,
+        ),
+        unassignedGalaxyIdsByBucketByScopeKey.get(scopeKeyFromPaper(paper))
+          ?? buildEmptyIdBuckets(),
+      ),
     ),
   ];
 
@@ -838,6 +945,90 @@ export const getSkippedPage = internalQuery({
   },
 });
 
+export const getGalaxyDetailsByIds = query({
+  args: {
+    galaxyExternalIds: v.array(v.string()),
+  },
+  returns: v.object({
+    galaxies: v.array(v.object({
+      id: v.string(),
+      numericId: v.union(v.string(), v.null()),
+      ra: v.number(),
+      dec: v.number(),
+      reff: v.number(),
+      q: v.number(),
+      nucleus: v.boolean(),
+      mag: v.union(v.number(), v.null()),
+      meanMue: v.union(v.number(), v.null()),
+      totalClassifications: v.number(),
+      totalAssigned: v.number(),
+      paper: v.union(v.string(), v.null()),
+      thurClsN: v.union(v.number(), v.null()),
+    })),
+  }),
+  handler: async (ctx, args) => {
+    await requirePermission(ctx, "viewAssignmentStatistics", {
+      notAuthorizedMessage: "Paper assignment coverage is not available for this account",
+    });
+
+    const seenGalaxyIds = new Set<string>();
+    const galaxies = [] as Array<{
+      id: string;
+      numericId: string | null;
+      ra: number;
+      dec: number;
+      reff: number;
+      q: number;
+      nucleus: boolean;
+      mag: number | null;
+      meanMue: number | null;
+      totalClassifications: number;
+      totalAssigned: number;
+      paper: string | null;
+      thurClsN: number | null;
+    }>;
+
+    for (const galaxyExternalId of args.galaxyExternalIds) {
+      if (seenGalaxyIds.has(galaxyExternalId)) {
+        continue;
+      }
+      seenGalaxyIds.add(galaxyExternalId);
+
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q) => q.eq("id", galaxyExternalId))
+        .unique();
+
+      if (!galaxy) {
+        continue;
+      }
+
+      galaxies.push({
+        id: galaxy.id,
+        numericId: galaxy.numericId !== undefined && galaxy.numericId !== null
+          ? galaxy.numericId.toString()
+          : null,
+        ra: galaxy.ra,
+        dec: galaxy.dec,
+        reff: galaxy.reff,
+        q: galaxy.q,
+        nucleus: galaxy.nucleus,
+        mag: galaxy.mag ?? null,
+        meanMue: galaxy.mean_mue ?? null,
+        totalClassifications: Number(galaxy.totalClassifications ?? 0),
+        totalAssigned: Number(galaxy.totalAssigned ?? 0),
+        paper: galaxy.misc?.paper ?? null,
+        thurClsN:
+          typeof galaxy.misc?.thur_cls_n === "number"
+            ? galaxy.misc.thur_cls_n
+            : null,
+      });
+    }
+
+    return { galaxies };
+  },
+});
+
 export const getCurrentUserDirectory = action({
   args: {},
   returns: v.array(paperAssignmentCoverageUserDirectoryEntryValidator),
@@ -947,16 +1138,8 @@ export const saveAllSnapshotsInternal = internalMutation({
     for (const snapshot of args.scopeSnapshots) {
       const existing = existingByScopeKey.get(snapshot.scopeKey);
       if (existing) {
-        await ctx.db.patch(existing._id, {
-          paper: snapshot.paper,
-          totals: snapshot.totals,
-          classificationBuckets: snapshot.classificationBuckets,
-          classificationStats: snapshot.classificationStats,
-          activeClassifiers: snapshot.activeClassifiers,
-          userAssignmentCounts: snapshot.userAssignmentCounts,
-          unassignedCounts: snapshot.unassignedCounts,
-          updatedAt: snapshot.updatedAt,
-        });
+        await ctx.db.delete(existing._id);
+        await ctx.db.insert("paperAssignmentCoverageScopeSnapshots", snapshot);
       } else {
         await ctx.db.insert("paperAssignmentCoverageScopeSnapshots", snapshot);
       }
@@ -981,7 +1164,13 @@ export const computeLiveSnapshot = action({
       throw new Error("Not authorized");
     }
 
-    return await computeSnapshotPayload(ctx);
+    const snapshots = await computeSnapshotPayload(ctx);
+    await ctx.runMutation(
+      internal.statistics.paperAssignmentCoverage.cache.saveAllSnapshotsInternal,
+      snapshots
+    );
+
+    return snapshots;
   },
 });
 
@@ -1083,6 +1272,7 @@ export const getCachedSnapshot = query({
         activeClassifiers: snapshot.activeClassifiers,
         userAssignmentCounts: snapshot.userAssignmentCounts,
         unassignedCounts: snapshot.unassignedCounts,
+        unassignedGalaxyIdsByBucket: snapshot.unassignedGalaxyIdsByBucket,
         updatedAt: snapshot.updatedAt,
       })),
     };

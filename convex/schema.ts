@@ -538,6 +538,7 @@ const applicationTables = {
     activeClassifiers: v.number(),
     userAssignmentCounts: v.array(paperAssignmentCoverageUserCountsValidator),
     unassignedCounts: v.array(v.number()),
+    unassignedGalaxyIdsByBucket: v.optional(v.array(v.array(v.string()))),
     updatedAt: v.number(),
   }).index("by_scope_key", ["scopeKey"]),
 

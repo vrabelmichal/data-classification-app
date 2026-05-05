@@ -10,6 +10,7 @@ import {
   SummaryCardsSection,
 } from "../overview/OverviewSections";
 import { LoadingPanel } from "../overview/shared";
+import { RemainingGalaxyDetailsModal } from "./RemainingGalaxyDetailsModal";
 import type {
   PaperCount,
   PaperFilter,
@@ -47,8 +48,10 @@ type ScopeSnapshot = {
     counts: number[];
     classifiedByUserCount?: number;
     processedByUserCounts?: number[];
+    remainingGalaxyIdsByBucket?: string[][];
   }>;
   unassignedCounts: number[];
+  unassignedGalaxyIdsByBucket?: string[][];
   updatedAt: number;
 };
 
@@ -94,6 +97,7 @@ type AssignmentRow = {
   assignedCount: number;
   classifiedCount: number;
   remainingCount: number;
+  remainingGalaxyIdsByBucket?: string[][];
   isActive?: boolean;
   isSpecial?: boolean;
 };
@@ -290,6 +294,16 @@ function sumCountsToTarget(counts: number[], targetClassifications: number) {
   return counts.slice(0, targetClassifications).reduce((sum, count) => sum + count, 0);
 }
 
+function sumGalaxyIdBucketsToTarget(galaxyIdsByBucket: string[][], targetClassifications: number) {
+  return galaxyIdsByBucket
+    .slice(0, targetClassifications)
+    .reduce((sum, bucket) => sum + bucket.length, 0);
+}
+
+function flattenGalaxyIdBucketsToTarget(galaxyIdsByBucket: string[][], targetClassifications: number) {
+  return galaxyIdsByBucket.slice(0, targetClassifications).flatMap((bucket) => bucket);
+}
+
 function sumAllCounts(counts: number[]) {
   return counts.reduce((sum, count) => sum + count, 0);
 }
@@ -352,11 +366,13 @@ function buildAssignmentRows(
       const assignedCount = sumAllCounts(entry.counts);
       const processedByUserCounts = entry.processedByUserCounts
         ?? estimateProcessedCounts(entry.counts, entry.classifiedByUserCount);
-      const remainingCount = sumRemainingCountsToTarget(
-        entry.counts,
-        processedByUserCounts,
-        targetClassifications,
-      );
+      const remainingCount = entry.remainingGalaxyIdsByBucket
+        ? sumGalaxyIdBucketsToTarget(entry.remainingGalaxyIdsByBucket, targetClassifications)
+        : sumRemainingCountsToTarget(
+            entry.counts,
+            processedByUserCounts,
+            targetClassifications,
+          );
       const classifiedCount = entry.classifiedByUserCount
         ?? Math.max(assignedCount - sumCountsToTarget(entry.counts, targetClassifications), 0);
       const identity = getUserIdentity(user, entry.userId, showEmails);
@@ -372,6 +388,7 @@ function buildAssignmentRows(
         assignedCount,
         classifiedCount,
         remainingCount,
+        remainingGalaxyIdsByBucket: entry.remainingGalaxyIdsByBucket,
         isActive: user?.isActive,
       };
     })
@@ -393,11 +410,62 @@ function buildAssignmentRows(
       assignedCount: sumAllCounts(scopeSnapshot.unassignedCounts),
       classifiedCount: sumClassifiedCounts(scopeSnapshot.unassignedCounts),
       remainingCount: unassignedCount,
+      remainingGalaxyIdsByBucket: scopeSnapshot.unassignedGalaxyIdsByBucket,
       isSpecial: true,
     });
   }
 
   return rows;
+}
+
+function RemainingActionIcon() {
+  return (
+    <svg
+      className="h-3.5 w-3.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M8 6h13" />
+      <path d="M8 12h13" />
+      <path d="M8 18h13" />
+      <path d="M3 6h.01" />
+      <path d="M3 12h.01" />
+      <path d="M3 18h.01" />
+    </svg>
+  );
+}
+
+function RemainingCountButton({
+  count,
+  onClick,
+  disabled = false,
+}: {
+  count: number;
+  onClick?: () => void;
+  disabled?: boolean;
+}) {
+  if (!onClick || disabled) {
+    return <span>{count.toLocaleString()}</span>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="inline-flex items-center justify-end gap-1.5 rounded-md px-1.5 py-1 text-right font-semibold text-amber-800 transition hover:bg-amber-100/80 hover:text-amber-900 dark:text-amber-200 dark:hover:bg-amber-900/40 dark:hover:text-amber-100"
+      aria-haspopup="dialog"
+      aria-label={`Open ${count.toLocaleString()} remaining below-target galaxies`}
+      title="Open remaining-galaxy details"
+    >
+      <span>{count.toLocaleString()}</span>
+      <RemainingActionIcon />
+    </button>
+  );
 }
 
 function SmallInfoButton({
@@ -715,15 +783,38 @@ function AssignmentCoverageTableSection({
   targetClassifications: number;
 }) {
   const [showEmails, setShowEmails] = useState(false);
+  const [selectedDetailRowKey, setSelectedDetailRowKey] = useState<string | null>(null);
   const rows = useMemo(
     () => buildAssignmentRows(scopeSnapshot, userDirectory, targetClassifications, showEmails),
     [scopeSnapshot, showEmails, targetClassifications, userDirectory],
   );
+  const selectedDetailRow = useMemo(
+    () => rows.find((row) => row.key === selectedDetailRowKey) ?? null,
+    [rows, selectedDetailRowKey],
+  );
+  const selectedDetailGalaxyIds = useMemo(
+    () => selectedDetailRow?.remainingGalaxyIdsByBucket
+      ? flattenGalaxyIdBucketsToTarget(
+          selectedDetailRow.remainingGalaxyIdsByBucket,
+          targetClassifications,
+        )
+      : [],
+    [selectedDetailRow, targetClassifications],
+  );
+
+  useEffect(() => {
+    if (selectedDetailRowKey !== null && !selectedDetailRow) {
+      setSelectedDetailRowKey(null);
+    }
+  }, [selectedDetailRow, selectedDetailRowKey]);
+
   const underTargetGalaxies = sumCountsToTarget(
     scopeSnapshot.classificationBuckets,
     targetClassifications,
   );
-  const infoMessage = "Unique galaxies in this row's current sequence that are still below the selected target and have not yet been handled by that same user. A handled galaxy is either classified or skipped by that user.";
+  const assignedInfoMessage = "Unique galaxies in this row's current sequence within the selected paper scope, regardless of the current target and regardless of whether the user has already handled them.";
+  const classifiedInfoMessage = "The subset of assigned galaxies that this same user classified during the current sequence. Skipped galaxies are not included in this count.";
+  const remainingInfoMessage = "Unique galaxies in this row's current sequence that are still below the selected target and have not yet been handled by that same user. A handled galaxy is either classified or skipped by that user.";
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-gray-800">
@@ -767,12 +858,22 @@ function AssignmentCoverageTableSection({
                   <th className="w-[15em] max-w-[15em] px-3 py-3">User</th>
                   <th className="px-3 py-3">Experience</th>
                   <th className="px-3 py-3">Role</th>
-                  <th className="px-3 py-3 text-right">Assigned galaxies</th>
-                  <th className="px-3 py-3 text-right">Classified galaxies</th>
+                  <th className="px-3 py-3 text-right">
+                    <div className="inline-flex items-center justify-end gap-1">
+                      <span>Assigned galaxies</span>
+                      <InfoPopupButton message={assignedInfoMessage} />
+                    </div>
+                  </th>
+                  <th className="px-3 py-3 text-right">
+                    <div className="inline-flex items-center justify-end gap-1">
+                      <span>Classified galaxies</span>
+                      <InfoPopupButton message={classifiedInfoMessage} />
+                    </div>
+                  </th>
                   <th className="px-3 py-3 text-right bg-amber-50/70 text-amber-800 dark:bg-amber-950/20 dark:text-amber-200">
                     <div className="inline-flex items-center justify-end gap-1">
                       <span>Remaining below-target galaxies</span>
-                      <InfoPopupButton message={infoMessage} />
+                      <InfoPopupButton message={remainingInfoMessage} />
                     </div>
                   </th>
                 </tr>
@@ -801,7 +902,14 @@ function AssignmentCoverageTableSection({
                       {row.classifiedCount.toLocaleString()}
                     </td>
                     <td className="px-3 py-3 text-right text-sm font-semibold text-amber-800 bg-amber-50/70 dark:bg-amber-950/20 dark:text-amber-200 align-top">
-                      {row.remainingCount.toLocaleString()}
+                      <RemainingCountButton
+                        count={row.remainingCount}
+                        onClick={
+                          row.remainingGalaxyIdsByBucket
+                            ? () => setSelectedDetailRowKey(row.key)
+                            : undefined
+                        }
+                      />
                     </td>
                   </tr>
                 ))}
@@ -811,7 +919,17 @@ function AssignmentCoverageTableSection({
 
           <div className="space-y-3 md:hidden">
             {rows.map((row) => (
-              <UserAssignmentCard key={row.key} row={row} />
+              <div key={row.key} className="space-y-2">
+                <UserAssignmentCard row={row} />
+                {row.remainingGalaxyIdsByBucket ? (
+                  <div className="flex justify-end">
+                    <RemainingCountButton
+                      count={row.remainingCount}
+                      onClick={() => setSelectedDetailRowKey(row.key)}
+                    />
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
 
@@ -823,6 +941,16 @@ function AssignmentCoverageTableSection({
           </div>
         </div>
       )}
+
+      <RemainingGalaxyDetailsModal
+        isOpen={selectedDetailRow !== null}
+        onClose={() => setSelectedDetailRowKey(null)}
+        rowLabel={selectedDetailRow?.label ?? ""}
+        scopeLabel={selectedPaper === undefined ? "All papers" : paperLabel(selectedPaper)}
+        galaxyExternalIds={selectedDetailGalaxyIds}
+        targetClassifications={targetClassifications}
+        isSpecial={selectedDetailRow?.isSpecial ?? false}
+      />
     </div>
   );
 }
