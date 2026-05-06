@@ -7,6 +7,11 @@ import {
   DEFAULT_EXPECTED_USERS,
 } from "../../lib/defaults";
 import { Id } from "../../../convex/_generated/dataModel";
+import {
+  ManualGalaxyIdProcedureFields,
+  getManualGalaxyIdInputState,
+  parseGalaxyIds,
+} from "./ManualGalaxyIdSequenceAssignment";
 
 interface UpdateUserSequenceProps {
   users: any[];
@@ -14,7 +19,7 @@ interface UpdateUserSequenceProps {
 }
 
 type UpdateMode = "shorten" | "extend";
-type AssignmentProcedure = "balanced" | "classificationBased";
+type AssignmentProcedure = "balanced" | "classificationBased" | "manualList";
 
 type ClassificationAssignmentDiagnostics = {
   effectiveBlacklistCount: number;
@@ -65,6 +70,9 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
   const [additionalBlacklistIds, setAdditionalBlacklistIds] = useState<string[]>([]);
   const [additionalBlacklistFileName, setAdditionalBlacklistFileName] = useState("");
+  const [manualGalaxyIdsText, setManualGalaxyIdsText] = useState("");
+  const [manualUploadedGalaxyIds, setManualUploadedGalaxyIds] = useState<string[]>([]);
+  const [manualUploadedFileName, setManualUploadedFileName] = useState("");
   const [excludedSequenceUserIds, setExcludedSequenceUserIds] = useState<Set<string>>(new Set());
 
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -74,6 +82,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   // Queries
   const usersWithSequences = useQuery(api.galaxies.sequence.getUsersWithSequences);
   const sequenceInfo = useMutation(api.updateUserSequence.getUserSequenceInfo);
+  const manualInputState = getManualGalaxyIdInputState(manualGalaxyIdsText, manualUploadedGalaxyIds);
 
   // Current sequence info for the selected user
   const [currentSequenceInfo, setCurrentSequenceInfo] = useState<{
@@ -87,10 +96,12 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   // Mutations
   const shortenUserSequence = useMutation(api.updateUserSequence.shortenUserSequence);
   const extendUserSequence = useMutation(api.updateUserSequence.extendUserSequence);
+  const assignGalaxyIdsToSequence = useMutation(api.updateUserSequence.assignGalaxyIdsToSequence);
   const extendSequenceByClassificationTarget = useAction(
     api.classificationBasedAssignment.extendSequenceByClassificationTarget
   );
   const updateExtendedSequenceStats = useMutation(api.updateUserSequence.updateExtendedSequenceStats);
+  const updateManualSequenceAssignmentStats = useMutation(api.updateUserSequence.updateManualSequenceAssignmentStats);
 
   // Actions (email notifications)
   const sendSequenceShortenedEmail = useAction(api.updateUserSequence.sendSequenceShortenedEmail);
@@ -121,6 +132,14 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
       setExpectedUsers(defaultExpectedUsers);
     }
   }, [defaultExpectedUsers]);
+
+  useEffect(() => {
+    if (assignmentProcedure !== "manualList") {
+      return;
+    }
+
+    setDryRun(false);
+  }, [assignmentProcedure]);
 
   // Load persisted logs once on mount
   useEffect(() => {
@@ -223,9 +242,13 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   const getExtendButtonLabel = () => {
     if (isProcessing && updateMode === "extend") return "Extending...";
 
+    if (assignmentProcedure === "manualList") {
+      return "Append Sequence (Manual ID List)";
+    }
+
     const prefix = dryRun ? "Dry Run " : "";
     const suffix = assignmentProcedure === "classificationBased"
-      ? "Extend (Classification-Based)"
+      ? "Extend Sequence (Classification-Based)"
       : "Extend Sequence";
     return prefix + suffix;
   };
@@ -349,6 +372,37 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   const handleClearAdditionalBlacklist = () => {
     setAdditionalBlacklistIds([]);
     setAdditionalBlacklistFileName("");
+  };
+
+  const handleManualGalaxyIdFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      const parsedIds = parseGalaxyIds(content);
+      setManualUploadedGalaxyIds(parsedIds);
+      setManualUploadedFileName(file.name);
+      appendLog("info", `Loaded ${parsedIds.length} galaxy IDs from ${file.name}`);
+    } catch (error) {
+      const message = (error as Error)?.message || "Unknown error";
+      appendLog("error", `Failed to read galaxy ID file: ${message}`);
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleClearManualGalaxyIdFile = () => {
+    setManualUploadedGalaxyIds([]);
+    setManualUploadedFileName("");
+  };
+
+  const resetManualGalaxyIdInputs = () => {
+    setManualGalaxyIdsText("");
+    setManualUploadedGalaxyIds([]);
+    setManualUploadedFileName("");
   };
 
   const handleShortenSequence = async () => {
@@ -489,12 +543,17 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
     const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : "Unknown");
     const userIdShort = selectedUserId.substring(0, 8);
 
-    if (additionalSize <= 0) {
+    if (assignmentProcedure === "manualList" && manualInputState.combinedGalaxyIds.length === 0) {
+      appendLog("error", "Provide at least one galaxy ID by pasting text or uploading a TXT file.");
+      return;
+    }
+
+    if (assignmentProcedure !== "manualList" && additionalSize <= 0) {
       appendLog("error", "Additional size must be greater than 0");
       return;
     }
 
-    if (selectedPapers.size === 0) {
+    if (assignmentProcedure !== "manualList" && selectedPapers.size === 0) {
       appendLog("error", "Please select at least one paper to include");
       return;
     }
@@ -508,7 +567,97 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
       const previousSize = currentSequenceInfo.totalGalaxies;
 
-      if (dryRun) {
+      if (assignmentProcedure === "manualList") {
+        appendLog(
+          "info",
+          `[${userDisplayName} (${userIdShort})] Starting manual sequence extension from ${manualInputState.combinedGalaxyIds.length} supplied galaxy IDs`
+        );
+
+        const result = await assignGalaxyIdsToSequence({
+          targetUserId: selectedUserId as Id<"users">,
+          galaxyExternalIds: manualInputState.combinedGalaxyIds,
+        });
+
+        result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+
+        if (!result.success) {
+          (result.errors || []).forEach((error: string) => appendLog("error", `[${userDisplayName} (${userIdShort})] ${error}`));
+          if (result.invalidGalaxyIds?.length) {
+            appendLog(
+              "info",
+              `[${userDisplayName} (${userIdShort})] Missing galaxy IDs: ${result.invalidGalaxyIds.slice(0, 5).join(", ")}${result.invalidGalaxyIds.length > 5 ? ", ..." : ""}`
+            );
+          }
+          return;
+        }
+
+        if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
+          for (let batchIndex = 0; batchIndex < result.statsBatchesNeeded; batchIndex++) {
+            const statsResult = await updateManualSequenceAssignmentStats({
+              targetUserId: selectedUserId as Id<"users">,
+              startIndex: result.statsStartIndex,
+              batchIndex,
+              batchSize: result.statsBatchSize,
+            });
+
+            setProgress({
+              currentBatch: batchIndex + 1,
+              totalBatches: result.statsBatchesNeeded,
+              processedItems: statsResult.totalProcessed,
+              totalItems: result.addedCount,
+              message: statsResult.isComplete
+                ? "Completed stats updates"
+                : `Updated stats for batch ${batchIndex + 1}/${result.statsBatchesNeeded}`,
+              userDisplayName,
+              userIdShort,
+            });
+          }
+        }
+
+        appendLog(
+          "success",
+          `[${userDisplayName} (${userIdShort})] Added ${result.addedCount} galaxies from the supplied list (${previousSize} → ${result.newSequenceSize})`
+        );
+        appendAssignedGalaxyPreviewLogs(
+          userDisplayName,
+          userIdShort,
+          result.selectedGalaxyIdsPreview,
+          result.selectedGalaxyIdsCount,
+          false
+        );
+
+        if (sendExtendEmail) {
+          try {
+            appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
+            const emailResult = await sendSequenceExtendedEmail({
+              targetUserId: selectedUserId as Id<"users">,
+              previousSize,
+              newSize: result.newSequenceSize,
+              galaxiesAdded: result.addedCount,
+              procedureType: "manualList",
+            });
+
+            if (!emailResult.success) {
+              appendLog(
+                "warning",
+                emailResult.details
+                  ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+                  : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
+              );
+            } else {
+              appendLog(
+                "success",
+                `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+              );
+            }
+          } catch (emailError) {
+            const message = (emailError as Error)?.message || "Unknown error";
+            appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
+          }
+        }
+
+        resetManualGalaxyIdInputs();
+      } else if (dryRun) {
         appendLog(
           "info",
           `[${userDisplayName} (${userIdShort})] Dry run is enabled. This extension will only preview the first ${DEFAULT_ASSIGNMENT_PREVIEW_COUNT} galaxies and will not change the sequence, counters, or emails.`
@@ -615,7 +764,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
           }
         }
         }
-      } else {
+      } else if (assignmentProcedure === "balanced") {
         appendLog(
           "info",
           `[${userDisplayName} (${userIdShort})] Starting sequence extension: adding up to ${additionalSize} galaxies, K=${minAssignmentsPerEntry}, M=${maxAssignmentsPerUserPerEntry}, overAssign=${allowOverAssign}, dryRun=${dryRun}`
@@ -786,7 +935,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
           Modify an existing user's galaxy sequence by shortening it (remove galaxies from the end)
-          or extending it with either the regular balanced assignment procedure or the classification-based alternative.
+          or extending it with the regular balanced assignment procedure, the classification-based alternative, or a manual galaxy-ID list.
         </p>
 
         <div className="space-y-4">
@@ -979,7 +1128,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                   <label className="block text-sm font-medium text-green-900 dark:text-green-100 mb-3">
                     Assignment Procedure
                   </label>
-                  <div className="grid gap-3 md:grid-cols-2">
+                  <div className="grid gap-3 md:grid-cols-3">
                     <label className="flex items-start gap-3 rounded-md border border-green-200 dark:border-green-700 p-3 cursor-pointer">
                       <input
                         type="radio"
@@ -1014,9 +1163,62 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                         </span>
                       </span>
                     </label>
+                    <label className="flex items-start gap-3 rounded-md border border-green-200 dark:border-green-700 p-3 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="extendAssignmentProcedure"
+                        value="manualList"
+                        checked={assignmentProcedure === "manualList"}
+                        onChange={() => setAssignmentProcedure("manualList")}
+                        disabled={isProcessing}
+                        className="mt-1 h-4 w-4"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-green-900 dark:text-green-100">Manual galaxy ID list</span>
+                        <span className="block text-xs text-green-700 dark:text-green-300 mt-1">
+                          Appends a known list of galaxy IDs directly to the current sequence and skips IDs already present.
+                        </span>
+                      </span>
+                    </label>
                   </div>
                 </div>
 
+                {assignmentProcedure === "manualList" && (
+                  <>
+                    <ManualGalaxyIdProcedureFields
+                      mode="extend"
+                      disabled={isProcessing}
+                      typedGalaxyIds={manualGalaxyIdsText}
+                      uploadedGalaxyIds={manualUploadedGalaxyIds}
+                      uploadedFileName={manualUploadedFileName}
+                      onTypedGalaxyIdsChange={setManualGalaxyIdsText}
+                      onFileChange={handleManualGalaxyIdFileChange}
+                      onClearFile={handleClearManualGalaxyIdFile}
+                      tone="green"
+                    />
+
+                    <div>
+                      <label className="flex items-center">
+                        <input
+                          type="checkbox"
+                          checked={sendExtendEmail}
+                          onChange={(e) => setSendExtendEmail(e.target.checked)}
+                          className="mr-2"
+                          disabled={isProcessing}
+                        />
+                        <span className="text-sm font-medium text-green-900 dark:text-green-100">
+                          Send email notification to user
+                        </span>
+                      </label>
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-1 ml-6">
+                        Notifies the user that galaxies from the supplied list were added to their sequence.
+                      </p>
+                    </div>
+                  </>
+                )}
+
+                {assignmentProcedure !== "manualList" && (
+                <>
                 <div className="grid gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
                   <div className="rounded-lg border border-green-200 dark:border-green-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
                     <label className="block text-sm font-semibold text-green-900 dark:text-green-100 mb-2">
@@ -1313,14 +1515,18 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                     Notifies the user that new galaxies have been added to their sequence.
                   </p>
                 </div>
+                </>
+                )}
 
                 <button
                   onClick={() => void handleExtendSequence()}
                   disabled={
                     isProcessing ||
-                    additionalSize <= 0 ||
-                    selectedPapers.size === 0 ||
-                    currentSequenceInfo.totalGalaxies >= 8192
+                    (assignmentProcedure === "manualList"
+                      ? manualInputState.combinedGalaxyIds.length === 0
+                      : additionalSize <= 0 ||
+                        selectedPapers.size === 0 ||
+                        currentSequenceInfo.totalGalaxies >= 8192)
                   }
                   className="inline-flex items-center bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
                 >

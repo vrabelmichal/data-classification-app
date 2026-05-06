@@ -29,7 +29,9 @@ vi.mock("../convex/_generated/api", () => ({
       getUserSequenceInfo: "getUserSequenceInfo",
       shortenUserSequence: "shortenUserSequence",
       extendUserSequence: "extendUserSequence",
+      assignGalaxyIdsToSequence: "assignGalaxyIdsToSequence",
       updateExtendedSequenceStats: "updateExtendedSequenceStats",
+      updateManualSequenceAssignmentStats: "updateManualSequenceAssignmentStats",
       sendSequenceShortenedEmail: "sendSequenceShortenedEmail",
       sendSequenceExtendedEmail: "sendSequenceExtendedEmail",
     },
@@ -62,6 +64,8 @@ function configureUpdateHooks(options?: {
   sequenceInfo?: any;
   extendAction?: ReturnType<typeof vi.fn>;
   balancedExtendMutation?: ReturnType<typeof vi.fn>;
+  manualAssignMutation?: ReturnType<typeof vi.fn>;
+  manualStatsMutation?: ReturnType<typeof vi.fn>;
   sendExtendedEmail?: ReturnType<typeof vi.fn>;
 }) {
   const sequenceInfo = options?.sequenceInfo ?? {
@@ -74,7 +78,10 @@ function configureUpdateHooks(options?: {
   const getUserSequenceInfo = vi.fn().mockResolvedValue(sequenceInfo);
   const shortenUserSequence = vi.fn();
   const extendUserSequence = options?.balancedExtendMutation ?? vi.fn();
+  const assignGalaxyIdsToSequence = options?.manualAssignMutation ?? vi.fn();
   const updateExtendedSequenceStats = vi.fn();
+  const updateManualSequenceAssignmentStats =
+    options?.manualStatsMutation ?? vi.fn().mockResolvedValue({ success: true, totalProcessed: 2, isComplete: true });
   const extendClassification = options?.extendAction ?? vi.fn();
   const sendSequenceShortenedEmail = vi.fn();
   const sendSequenceExtendedEmail =
@@ -98,8 +105,12 @@ function configureUpdateHooks(options?: {
         return toMutationMock(shortenUserSequence);
       case api.updateUserSequence.extendUserSequence:
         return toMutationMock(extendUserSequence);
+      case api.updateUserSequence.assignGalaxyIdsToSequence:
+        return toMutationMock(assignGalaxyIdsToSequence);
       case api.updateUserSequence.updateExtendedSequenceStats:
         return toMutationMock(updateExtendedSequenceStats);
+      case api.updateUserSequence.updateManualSequenceAssignmentStats:
+        return toMutationMock(updateManualSequenceAssignmentStats);
       default:
         return toMutationMock(vi.fn());
     }
@@ -122,7 +133,9 @@ function configureUpdateHooks(options?: {
     getUserSequenceInfo,
     shortenUserSequence,
     extendUserSequence,
+    assignGalaxyIdsToSequence,
     updateExtendedSequenceStats,
+    updateManualSequenceAssignmentStats,
     extendClassification,
     sendSequenceExtendedEmail,
   };
@@ -336,5 +349,76 @@ describe("UpdateUserSequence", () => {
     expect(screen.getByText(/Showing first 5 of 6 galaxies that would be added/i)).toBeTruthy();
     expect(screen.getByText(/Dry-run preview galaxies: gal-1, gal-2, gal-3, gal-4, gal-5/i)).toBeTruthy();
     expect(screen.queryByText(/gal-6/i)).toBeNull();
+  });
+
+  it("submits manual galaxy IDs through the integrated third extension procedure", async () => {
+    const manualAssignMutation = vi.fn().mockResolvedValue({
+      success: true,
+      createdSequence: false,
+      uniqueRequestedCount: 3,
+      previousSize: 10,
+      newSequenceSize: 12,
+      addedCount: 2,
+      statsStartIndex: 10,
+      statsBatchesNeeded: 1,
+      statsBatchSize: 500,
+      selectedGalaxyIdsPreview: ["gal-7", "gal-8"],
+      selectedGalaxyIdsCount: 2,
+      warnings: ["Skipped 1 IDs already present in the user's current sequence."],
+    });
+    const sendSequenceExtendedEmail = vi.fn().mockResolvedValue({ success: true, to: "target@example.com" });
+
+    const { updateManualSequenceAssignmentStats } = configureUpdateHooks({
+      usersWithSequences,
+      manualAssignMutation,
+      sendExtendedEmail: sendSequenceExtendedEmail,
+    });
+
+    const { container } = render(
+      <UpdateUserSequence
+        users={[]}
+        systemSettings={{ availablePapers: ["paper-a", "paper-b"] }}
+      />
+    );
+
+    await userEvent.selectOptions(screen.getByRole("combobox"), "target-user");
+    await waitFor(() => expect(screen.getByText(/Current Sequence Status/i)).toBeTruthy());
+
+    await userEvent.click(screen.getByLabelText(/Manual galaxy ID list/i));
+    await userEvent.type(screen.getByRole("textbox"), "gal-5\ngal-7");
+    await userEvent.click(screen.getByLabelText(/Send email notification to user/i));
+
+    const fileInput = container.querySelector("input[type='file']");
+    if (!(fileInput instanceof HTMLInputElement)) {
+      throw new Error("Manual galaxy file input not found");
+    }
+    await userEvent.upload(fileInput, new File(["gal-8\n"], "append-galaxies.txt", { type: "text/plain" }));
+
+    await userEvent.click(screen.getByRole("button", { name: /Append Sequence \(Manual ID List\)/i }));
+
+    await waitFor(() => expect(manualAssignMutation).toHaveBeenCalledTimes(1));
+    expect(manualAssignMutation.mock.calls[0][0]).toMatchObject({
+      targetUserId: "target-user",
+      galaxyExternalIds: ["gal-5", "gal-7", "gal-8"],
+    });
+
+    await waitFor(() => expect(updateManualSequenceAssignmentStats).toHaveBeenCalledTimes(1));
+    expect(updateManualSequenceAssignmentStats.mock.calls[0][0]).toMatchObject({
+      targetUserId: "target-user",
+      startIndex: 10,
+      batchIndex: 0,
+    });
+
+    await waitFor(() => expect(sendSequenceExtendedEmail).toHaveBeenCalledTimes(1));
+    expect(sendSequenceExtendedEmail.mock.calls[0][0]).toMatchObject({
+      targetUserId: "target-user",
+      previousSize: 10,
+      newSize: 12,
+      galaxiesAdded: 2,
+      procedureType: "manualList",
+    });
+
+    expect(screen.getByText(/Skipped 1 IDs already present/i)).toBeTruthy();
+    expect(screen.getByText(/Added 2 galaxies from the supplied list/i)).toBeTruthy();
   });
 });

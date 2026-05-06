@@ -23,6 +23,7 @@ type StatsDoc = {
 
 const MAX_SEQUENCE = 8192;
 const SELECTED_GALAXY_PREVIEW_SIZE = 5;
+const STATS_BATCH_SIZE = 500;
 
 /**
  * Get information about a user's current sequence for the update UI
@@ -403,7 +404,6 @@ export const extendUserSequence = mutation({
     }
 
     // Calculate batches needed for stats update
-    const STATS_BATCH_SIZE = 500;
     const statsBatchesNeeded = dryRun ? 0 : Math.ceil(selectedIds.length / STATS_BATCH_SIZE);
     const projectedNewSequenceSize = currentSize + selectedIds.length;
 
@@ -426,6 +426,146 @@ export const extendUserSequence = mutation({
       paperFilter: paperFilter ?? undefined,
       warnings: warnings.length ? warnings : undefined,
       errors: errors.length ? errors : undefined,
+    };
+  },
+});
+
+/**
+ * Create a new user sequence or append to an existing one using a supplied list of galaxy IDs.
+ * Missing IDs are reported and skipped. IDs already present in the current sequence are not added twice.
+ */
+export const assignGalaxyIdsToSequence = mutation({
+  args: {
+    targetUserId: v.id("users"),
+    galaxyExternalIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const { targetUserId } = args;
+
+    if (targetUserId !== userId) {
+      await requirePermission(ctx, "manageGalaxyAssignments", {
+        notAuthorizedMessage: "Only users with galaxy-assignment access can manually assign another user's sequence",
+      });
+    }
+
+    const trimmedInputIds = args.galaxyExternalIds
+      .map((galaxyId) => galaxyId.trim())
+      .filter((galaxyId) => galaxyId.length > 0);
+    const uniqueRequestedIds: string[] = [];
+    const seenRequestedIds = new Set<string>();
+    let duplicateInputCount = 0;
+
+    for (const galaxyId of trimmedInputIds) {
+      if (seenRequestedIds.has(galaxyId)) {
+        duplicateInputCount += 1;
+        continue;
+      }
+      seenRequestedIds.add(galaxyId);
+      uniqueRequestedIds.push(galaxyId);
+    }
+
+    if (uniqueRequestedIds.length === 0) {
+      throw new Error("Provide at least one galaxy ID");
+    }
+
+    const sequence = await ctx.db
+      .query("galaxySequences")
+      .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+      .unique();
+
+    const existingGalaxyIds = sequence?.galaxyExternalIds || [];
+    const existingGalaxyIdSet = new Set(existingGalaxyIds);
+    const invalidGalaxyIds: string[] = [];
+    const candidateIdsToAdd: string[] = [];
+    let alreadyPresentCount = 0;
+
+    for (const galaxyId of uniqueRequestedIds) {
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q) => q.eq("id", galaxyId))
+        .unique();
+
+      if (!galaxy) {
+        invalidGalaxyIds.push(galaxyId);
+        continue;
+      }
+
+      if (existingGalaxyIdSet.has(galaxyId)) {
+        alreadyPresentCount += 1;
+        continue;
+      }
+
+      candidateIdsToAdd.push(galaxyId);
+    }
+
+    const previousSize = existingGalaxyIds.length;
+    const maxAdditional = Math.max(0, MAX_SEQUENCE - previousSize);
+    const truncatedCount = Math.max(0, candidateIdsToAdd.length - maxAdditional);
+    const idsToAdd = candidateIdsToAdd.slice(0, maxAdditional);
+    const warnings: string[] = [];
+    const errors: string[] = [];
+
+    if (duplicateInputCount > 0) {
+      warnings.push(`Skipped ${duplicateInputCount} duplicate IDs from the supplied list.`);
+    }
+    if (invalidGalaxyIds.length > 0) {
+      warnings.push(`Skipped ${invalidGalaxyIds.length} IDs that were not found in the galaxy catalog.`);
+    }
+    if (alreadyPresentCount > 0) {
+      warnings.push(`Skipped ${alreadyPresentCount} IDs already present in the user's current sequence.`);
+    }
+    if (truncatedCount > 0) {
+      warnings.push(`Skipped ${truncatedCount} valid IDs because a sequence cannot exceed ${MAX_SEQUENCE} galaxies.`);
+    }
+    if (idsToAdd.length === 0) {
+      errors.push("No valid new galaxies remained to add to the sequence.");
+    }
+
+    if (idsToAdd.length > 0) {
+      if (sequence) {
+        await ctx.db.patch(sequence._id, {
+          galaxyExternalIds: existingGalaxyIds.concat(idsToAdd),
+        });
+      } else {
+        await ctx.db.insert("galaxySequences", {
+          userId: targetUserId,
+          galaxyExternalIds: idsToAdd,
+          currentIndex: 0,
+          numClassified: 0,
+          numSkipped: 0,
+        });
+
+        const userProfile = await ctx.db
+          .query("userProfiles")
+          .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+          .unique();
+        if (userProfile && !userProfile.sequenceGenerated) {
+          await ctx.db.patch(userProfile._id, { sequenceGenerated: true });
+        }
+      }
+    }
+
+    return {
+      success: idsToAdd.length > 0,
+      createdSequence: !sequence,
+      requestedCount: trimmedInputIds.length,
+      uniqueRequestedCount: uniqueRequestedIds.length,
+      duplicateInputCount,
+      invalidCount: invalidGalaxyIds.length,
+      invalidGalaxyIds: invalidGalaxyIds.length > 0 ? invalidGalaxyIds : undefined,
+      alreadyPresentCount,
+      truncatedCount,
+      addedCount: idsToAdd.length,
+      previousSize,
+      newSequenceSize: previousSize + idsToAdd.length,
+      statsStartIndex: previousSize,
+      statsBatchesNeeded: Math.ceil(idsToAdd.length / STATS_BATCH_SIZE),
+      statsBatchSize: STATS_BATCH_SIZE,
+      selectedGalaxyIdsPreview: idsToAdd.slice(0, SELECTED_GALAXY_PREVIEW_SIZE),
+      selectedGalaxyIdsCount: idsToAdd.length,
+      warnings: warnings.length > 0 ? warnings : undefined,
+      errors: errors.length > 0 ? errors : undefined,
     };
   },
 });
@@ -541,6 +681,92 @@ export const updateExtendedSequenceStats = mutation({
   },
 });
 
+/**
+ * Update galaxy assignment stats after a manual galaxy-ID sequence assignment.
+ */
+export const updateManualSequenceAssignmentStats = mutation({
+  args: {
+    targetUserId: v.id("users"),
+    startIndex: v.number(),
+    batchIndex: v.number(),
+    batchSize: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const userId = await requireUserId(ctx);
+    const { targetUserId, startIndex, batchIndex, batchSize = STATS_BATCH_SIZE } = args;
+
+    if (targetUserId !== userId) {
+      await requirePermission(ctx, "manageGalaxyAssignments", {
+        notAuthorizedMessage: "Only users with galaxy-assignment access can update another user's manual sequence stats",
+      });
+    }
+
+    const sequence = await ctx.db
+      .query("galaxySequences")
+      .withIndex("by_user", (q) => q.eq("userId", targetUserId))
+      .unique();
+
+    if (!sequence) {
+      throw new Error("User does not have a sequence");
+    }
+
+    const allGalaxyIds = sequence.galaxyExternalIds || [];
+    const newGalaxyIds = allGalaxyIds.slice(startIndex);
+    const totalNewGalaxies = newGalaxyIds.length;
+
+    if (totalNewGalaxies === 0) {
+      return {
+        success: true,
+        message: "No new galaxies to update",
+        isComplete: true,
+        totalProcessed: 0,
+        totalGalaxies: 0,
+      };
+    }
+
+    const totalBatches = Math.ceil(totalNewGalaxies / batchSize);
+    const batchStartIdx = batchIndex * batchSize;
+    const batchEndIdx = Math.min(batchStartIdx + batchSize, totalNewGalaxies);
+    const batchGalaxyIds = newGalaxyIds.slice(batchStartIdx, batchEndIdx);
+    const isLastBatch = batchEndIdx >= totalNewGalaxies;
+    const now = Date.now();
+    let processed = 0;
+
+    for (const galaxyExternalId of batchGalaxyIds) {
+      const galaxy = await ctx.db
+        .query("galaxies")
+        .withIndex("by_external_id", (q) => q.eq("id", galaxyExternalId))
+        .unique();
+
+      if (!galaxy) {
+        continue;
+      }
+
+      const perUser = { ...(galaxy.perUser ?? {}) };
+      const previousCount = perUser[targetUserId] ?? BigInt(0);
+      perUser[targetUserId] = previousCount + BigInt(1);
+
+      await ctx.db.patch(galaxy._id, {
+        totalAssigned: (galaxy.totalAssigned ?? BigInt(0)) + BigInt(1),
+        perUser,
+        lastAssignedAt: now,
+      });
+
+      processed += 1;
+    }
+
+    return {
+      success: true,
+      batchIndex,
+      totalBatches,
+      processedInBatch: processed,
+      totalProcessed: batchEndIdx,
+      totalGalaxies: totalNewGalaxies,
+      isComplete: isLastBatch,
+    };
+  },
+});
+
 type SequenceEmailResult = {
   success: boolean;
   message: string;
@@ -558,7 +784,9 @@ export const sendSequenceExtendedEmail = action({
     previousSize: v.number(),
     newSize: v.number(),
     galaxiesAdded: v.number(),
-    procedureType: v.optional(v.union(v.literal("balanced"), v.literal("classificationBased"))),
+    procedureType: v.optional(
+      v.union(v.literal("balanced"), v.literal("classificationBased"), v.literal("manualList"))
+    ),
   },
   handler: async (ctx, args): Promise<SequenceEmailResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);

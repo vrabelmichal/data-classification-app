@@ -25,6 +25,8 @@ Before a user begins regular classification, there are usually three onboarding 
 
 Only after these steps does the main classification workflow begin. Depending on project settings, users may receive a notification when their sequence is ready.
 
+Administrators can prepare sequences in three ways: regular balanced assignment, classification-based assignment, or a manual galaxy-ID list workflow. The manual workflow is useful when a sequence needs to be created or extended from an explicit list of galaxy IDs, while still avoiding duplicates.
+
 ## The Main Classification Process
 
 The core of the application is the classification interface. It is designed around a simple pattern: show one galaxy, provide several complementary images, ask the user a few structured questions, and then move to the next object.

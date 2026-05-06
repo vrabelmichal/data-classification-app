@@ -7,13 +7,18 @@ import {
   DEFAULT_EXPECTED_USERS,
 } from "../../lib/defaults";
 import { Id } from "../../../convex/_generated/dataModel";
+import {
+  ManualGalaxyIdProcedureFields,
+  getManualGalaxyIdInputState,
+  parseGalaxyIds,
+} from "./ManualGalaxyIdSequenceAssignment";
 
 interface GenerateBalancedUserSequenceProps {
   users: any[];
   systemSettings: any;
 }
 
-type AssignmentProcedure = "balanced" | "classificationBased";
+type AssignmentProcedure = "balanced" | "classificationBased" | "manualList";
 
 type ClassificationAssignmentDiagnostics = {
   effectiveBlacklistCount: number;
@@ -46,6 +51,9 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
   const [selectedPapers, setSelectedPapers] = useState<Set<string>>(new Set());
   const [additionalBlacklistIds, setAdditionalBlacklistIds] = useState<string[]>([]);
   const [additionalBlacklistFileName, setAdditionalBlacklistFileName] = useState("");
+  const [manualGalaxyIdsText, setManualGalaxyIdsText] = useState("");
+  const [manualUploadedGalaxyIds, setManualUploadedGalaxyIds] = useState<string[]>([]);
+  const [manualUploadedFileName, setManualUploadedFileName] = useState("");
   const [excludedSequenceUserIds, setExcludedSequenceUserIds] = useState<Set<string>>(new Set());
   const [excludePreviouslyAssignedInBatch, setExcludePreviouslyAssignedInBatch] = useState(true);
   const [generatingSequence, setGeneratingSequence] = useState(false);
@@ -73,6 +81,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
   const usersWithSequences = useQuery(api.galaxies.sequence.getUsersWithSequences);
   const resolvedUsers = usersWithoutSequences ?? [];
   const defaultExpectedUsers = Math.max(DEFAULT_EXPECTED_USERS, users.length);
+  const manualInputState = getManualGalaxyIdInputState(manualGalaxyIdsText, manualUploadedGalaxyIds);
   
   // Get available papers from system settings
   const availablePapers: string[] = systemSettings?.availablePapers || DEFAULT_AVAILABLE_PAPERS;
@@ -99,6 +108,16 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
       setExpectedUsers(defaultExpectedUsers);
     }
   }, [defaultExpectedUsers]);
+
+  useEffect(() => {
+    if (assignmentProcedure !== "manualList") {
+      return;
+    }
+
+    setBatchMode(false);
+    setSelectedBatchUserIds(new Set());
+    setDryRun(false);
+  }, [assignmentProcedure]);
 
   // Load persisted logs once on mount
   useEffect(() => {
@@ -166,6 +185,10 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
   const getButtonLabel = () => {
     if (generatingSequence) return 'Generating...';
 
+    if (assignmentProcedure === "manualList") {
+      return 'Generate Sequence (Manual ID List)';
+    }
+
     const prefix = dryRun ? 'Dry Run' : 'Generate';
     if (batchMode) return `${prefix} Sequences (Batch)`;
 
@@ -180,6 +203,8 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
     api.classificationBasedAssignment.generateClassificationBasedUserSequence
   );
   const updateGalaxyAssignmentStats = useMutation(api.generateBalancedUserSequence.updateGalaxyAssignmentStats);
+  const assignGalaxyIdsToSequence = useMutation(api.updateUserSequence.assignGalaxyIdsToSequence);
+  const updateManualSequenceAssignmentStats = useMutation(api.updateUserSequence.updateManualSequenceAssignmentStats);
   const sendSequenceGeneratedEmail = useAction(api.generateBalancedUserSequence.sendSequenceGeneratedEmail);
   const cancelSequenceGeneration = useMutation(api.generateBalancedUserSequence.cancelSequenceGeneration);
   const rollbackSequence = useMutation(api.generateBalancedUserSequence.rollbackSequence);
@@ -286,6 +311,37 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
     setAdditionalBlacklistFileName("");
   };
 
+  const handleManualGalaxyIdFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const content = await file.text();
+      const parsedIds = parseGalaxyIds(content);
+      setManualUploadedGalaxyIds(parsedIds);
+      setManualUploadedFileName(file.name);
+      appendLog("info", `Loaded ${parsedIds.length} galaxy IDs from ${file.name}`);
+    } catch (error) {
+      const message = (error as Error)?.message || "Unknown error";
+      appendLog("error", `Failed to read galaxy ID file: ${message}`);
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleClearManualGalaxyIdFile = () => {
+    setManualUploadedGalaxyIds([]);
+    setManualUploadedFileName("");
+  };
+
+  const resetManualGalaxyIdInputs = () => {
+    setManualGalaxyIdsText("");
+    setManualUploadedGalaxyIds([]);
+    setManualUploadedFileName("");
+  };
+
   const formatPaperFilter = (papers: string[] | undefined): string => {
     if (!papers) return "all";
     return papers.map((p) => (p === "" ? "(empty)" : p)).join(", ");
@@ -329,6 +385,98 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
       "info",
       `[${userDisplayName} (${userIdShort})] ${dryRunMode ? "Dry-run preview galaxies" : "Assigned galaxies"}: ${previewIds.join(", ")}`
     );
+  };
+
+  const runManualSequenceForUser = async (targetUserId: string): Promise<boolean> => {
+    const userInfo = resolvedUsers.find((u: { userId: string }) => u.userId === targetUserId);
+    const userEmail = userInfo?.user?.email || '';
+    const userName = userInfo?.user?.name || '';
+    const userDisplayName = userName ? truncateString(userName, 20) : (userEmail ? truncateString(userEmail, 30) : 'Unknown');
+    const userIdShort = targetUserId.substring(0, 8);
+
+    appendLog(
+      "info",
+      `[${userDisplayName} (${userIdShort})] Starting manual sequence generation from ${manualInputState.combinedGalaxyIds.length} supplied galaxy IDs`
+    );
+
+    const result = await assignGalaxyIdsToSequence({
+      targetUserId: targetUserId as Id<"users">,
+      galaxyExternalIds: manualInputState.combinedGalaxyIds,
+    });
+
+    result.warnings?.forEach((warning: string) => appendLog("warning", `[${userDisplayName} (${userIdShort})] ${warning}`));
+
+    if (!result.success) {
+      result.errors?.forEach((error: string) => appendLog("error", `[${userDisplayName} (${userIdShort})] ${error}`));
+      if (result.invalidGalaxyIds?.length) {
+        appendLog(
+          "info",
+          `[${userDisplayName} (${userIdShort})] Missing galaxy IDs: ${result.invalidGalaxyIds.slice(0, 5).join(", ")}${result.invalidGalaxyIds.length > 5 ? ", ..." : ""}`
+        );
+      }
+      return false;
+    }
+
+    if (result.statsBatchesNeeded && result.statsBatchesNeeded > 0) {
+      for (let batchIndex = 0; batchIndex < result.statsBatchesNeeded; batchIndex += 1) {
+        const statsResult = await updateManualSequenceAssignmentStats({
+          targetUserId: targetUserId as Id<"users">,
+          startIndex: result.statsStartIndex,
+          batchIndex,
+          batchSize: result.statsBatchSize,
+        });
+
+        setStatsProgress({
+          currentBatch: batchIndex + 1,
+          totalBatches: result.statsBatchesNeeded,
+          processedGalaxies: statsResult.totalProcessed,
+          totalGalaxies: result.addedCount,
+          message: statsResult.isComplete
+            ? "Completed stats updates"
+            : `Updated stats for batch ${batchIndex + 1}/${result.statsBatchesNeeded}`,
+          userId: targetUserId,
+          userDisplayName,
+          userIdShort,
+        });
+      }
+    }
+
+    appendLog(
+      "success",
+      `[${userDisplayName} (${userIdShort})] Created a sequence with ${result.addedCount} galaxies from the supplied list (${result.previousSize} → ${result.newSequenceSize})`
+    );
+    appendAssignedGalaxyPreviewLogs(userDisplayName, userIdShort, result.selectedGalaxyIdsPreview, false);
+
+    if (sendEmailNotification) {
+      try {
+        appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
+        const emailResult = await sendSequenceGeneratedEmail({
+          targetUserId: targetUserId as Id<"users">,
+          generated: result.addedCount,
+          requested: result.uniqueRequestedCount,
+          procedureType: "manualList",
+        });
+
+        if (!emailResult.success) {
+          appendLog(
+            "warning",
+            emailResult.details
+              ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+              : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
+          );
+        } else {
+          appendLog(
+            "success",
+            `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+          );
+        }
+      } catch (emailError) {
+        const message = (emailError as Error)?.message || "Unknown error";
+        appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
+      }
+    }
+
+    return true;
   };
 
   const runSequenceForUser = async (
@@ -576,6 +724,36 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
   };
 
   const handleGenerateSequence = async () => {
+    if (assignmentProcedure === "manualList") {
+      if (!selectedUserId) {
+        appendLog("error", "Please select a user");
+        return;
+      }
+
+      if (manualInputState.combinedGalaxyIds.length === 0) {
+        appendLog("error", "Provide at least one galaxy ID by pasting text or uploading a TXT file.");
+        return;
+      }
+
+      try {
+        setGeneratingSequence(true);
+        setStatsProgress(null);
+        const success = await runManualSequenceForUser(selectedUserId);
+        if (success) {
+          resetManualGalaxyIdInputs();
+        }
+      } catch (error) {
+        const message = (error as Error)?.message || "Unknown error";
+        appendLog("error", `Failed to generate sequence from manual galaxy IDs: ${message}`);
+        console.error(error);
+      } finally {
+        setGeneratingSequence(false);
+        setActiveGenerationUserId(null);
+        setStatsProgress(null);
+      }
+      return;
+    }
+
     const selectedUsers = batchMode
       ? Array.from(selectedBatchUserIds)
       : selectedUserId
@@ -709,7 +887,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
         </h2>
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          Create a user sequence with the regular balanced assignment procedure or switch to the classification-based procedure, which prioritizes galaxies by their current classification counts before falling back to the balanced rules.
+          Create a user sequence with the regular balanced assignment procedure, the classification-based procedure, or a manual galaxy-ID list when the exact assignment set is already known.
         </p>
 
         <div className="space-y-4">
@@ -717,7 +895,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
             <label className="block text-sm font-medium text-gray-900 dark:text-white mb-3">
               Assignment Procedure
             </label>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
               <label className="flex items-start gap-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 cursor-pointer">
                 <input
                   type="radio"
@@ -752,9 +930,27 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
                   </span>
                 </span>
               </label>
+              <label className="flex items-start gap-3 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 cursor-pointer">
+                <input
+                  type="radio"
+                  name="assignmentProcedure"
+                  value="manualList"
+                  checked={assignmentProcedure === "manualList"}
+                  onChange={() => setAssignmentProcedure("manualList")}
+                  disabled={generatingSequence}
+                  className="mt-1 h-4 w-4"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-900 dark:text-white">Manual galaxy ID list</span>
+                  <span className="block text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Builds the sequence directly from pasted or uploaded galaxy IDs instead of selecting candidates automatically.
+                  </span>
+                </span>
+              </label>
             </div>
           </div>
 
+          {assignmentProcedure !== "manualList" && (
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white">Mode</p>
@@ -776,6 +972,7 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
               <span>Batch mode</span>
             </label>
           </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
@@ -841,6 +1038,42 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
             )}
           </div>
 
+          {assignmentProcedure === "manualList" && (
+            <>
+              <ManualGalaxyIdProcedureFields
+                mode="create"
+                disabled={generatingSequence}
+                typedGalaxyIds={manualGalaxyIdsText}
+                uploadedGalaxyIds={manualUploadedGalaxyIds}
+                uploadedFileName={manualUploadedFileName}
+                onTypedGalaxyIdsChange={setManualGalaxyIdsText}
+                onFileChange={handleManualGalaxyIdFileChange}
+                onClearFile={handleClearManualGalaxyIdFile}
+                tone="neutral"
+              />
+
+              <div>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={sendEmailNotification}
+                    onChange={(e) => setSendEmailNotification(e.target.checked)}
+                    className="mr-2"
+                    disabled={generatingSequence}
+                  />
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    Send email notification to user
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Sends a one-time email when the manual sequence has been created.
+                </p>
+              </div>
+            </>
+          )}
+
+          {assignmentProcedure !== "manualList" && (
+          <>
           <div className="grid gap-4 md:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
             <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 p-4 shadow-sm">
               <label className="block text-sm font-semibold text-gray-900 dark:text-white mb-2">
@@ -1154,11 +1387,15 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
               </div>
             )}
           </div>
+          </>
+          )}
 
           <div className="flex gap-3 items-center flex-wrap">
             <button
               onClick={() => void (async () => { await handleGenerateSequence(); })()}
-              disabled={generatingSequence || (batchMode ? selectedBatchUserIds.size === 0 : !selectedUserId)}
+              disabled={generatingSequence || (assignmentProcedure === "manualList"
+                ? (!selectedUserId || manualInputState.combinedGalaxyIds.length === 0)
+                : (batchMode ? selectedBatchUserIds.size === 0 : !selectedUserId))}
               className="inline-flex items-center bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-not-allowed text-white font-medium py-2 px-4 rounded-lg transition-colors"
             >
               {generatingSequence && (

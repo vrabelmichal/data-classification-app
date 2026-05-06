@@ -816,7 +816,9 @@ export const sendSequenceGeneratedEmail = action({
     targetUserId: v.id("users"),
     generated: v.number(),
     requested: v.number(),
-    procedureType: v.optional(v.union(v.literal("balanced"), v.literal("classificationBased"))),
+    procedureType: v.optional(
+      v.union(v.literal("balanced"), v.literal("classificationBased"), v.literal("manualList"))
+    ),
   },
   handler: async (ctx, args): Promise<SequenceEmailResult> => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);

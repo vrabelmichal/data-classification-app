@@ -26,6 +26,10 @@ vi.mock("../convex/_generated/api", () => ({
         getUsersWithSequences: "getUsersWithSequences",
       },
     },
+    updateUserSequence: {
+      assignGalaxyIdsToSequence: "assignGalaxyIdsToSequence",
+      updateManualSequenceAssignmentStats: "updateManualSequenceAssignmentStats",
+    },
     generateBalancedUserSequence: {
       generateBalancedUserSequence: "generateBalancedUserSequence",
       updateGalaxyAssignmentStats: "updateGalaxyAssignmentStats",
@@ -64,9 +68,17 @@ function configureGenerateHooks(options?: {
   jobStatus?: any;
   balancedAction?: ReturnType<typeof vi.fn>;
   classificationAction?: ReturnType<typeof vi.fn>;
+  manualAssignMutation?: ReturnType<typeof vi.fn>;
+  manualStatsMutation?: ReturnType<typeof vi.fn>;
   sendEmailAction?: ReturnType<typeof vi.fn>;
 }) {
   const updateStats = vi.fn();
+  const manualAssignMutation = options?.manualAssignMutation ?? vi.fn();
+  const manualStatsMutation = options?.manualStatsMutation ?? vi.fn().mockResolvedValue({
+    success: true,
+    totalProcessed: 2,
+    isComplete: true,
+  });
   const cancelGeneration = vi.fn();
   const rollbackSequence = vi.fn();
   const balancedAction = options?.balancedAction ?? vi.fn();
@@ -92,6 +104,10 @@ function configureGenerateHooks(options?: {
 
   useMutationMock.mockImplementation((reference) => {
     switch (reference) {
+      case api.updateUserSequence.assignGalaxyIdsToSequence:
+        return toMutationMock(manualAssignMutation);
+      case api.updateUserSequence.updateManualSequenceAssignmentStats:
+        return toMutationMock(manualStatsMutation);
       case api.generateBalancedUserSequence.updateGalaxyAssignmentStats:
         return toMutationMock(updateStats);
       case api.generateBalancedUserSequence.cancelSequenceGeneration:
@@ -118,6 +134,8 @@ function configureGenerateHooks(options?: {
 
   return {
     updateStats,
+    manualAssignMutation,
+    manualStatsMutation,
     cancelGeneration,
     rollbackSequence,
     balancedAction,
@@ -328,5 +346,66 @@ describe("GenerateBalancedUserSequence", () => {
     expect(screen.getByText(/Showing first 5 of 6 galaxies that would be assigned/i)).toBeTruthy();
     expect(screen.getByText(/Dry-run preview galaxies: gal-1, gal-2, gal-3, gal-4, gal-5/i)).toBeTruthy();
     expect(screen.queryByText(/gal-6/i)).toBeNull();
+  });
+
+  it("submits manual galaxy IDs through the integrated third assignment procedure", async () => {
+    const manualAssignMutation = vi.fn().mockResolvedValue({
+      success: true,
+      createdSequence: true,
+      uniqueRequestedCount: 4,
+      previousSize: 0,
+      newSequenceSize: 4,
+      addedCount: 4,
+      statsStartIndex: 0,
+      statsBatchesNeeded: 1,
+      statsBatchSize: 500,
+      selectedGalaxyIdsPreview: ["gal-1", "gal-2", "gal-3", "gal-4"],
+      selectedGalaxyIdsCount: 4,
+    });
+    const sendEmailAction = vi.fn().mockResolvedValue({ success: true, to: "target@example.com" });
+
+    configureGenerateHooks({
+      usersWithoutSequences: [
+        { userId: "user-a", user: { name: "User A", email: "a@example.com" } },
+      ],
+      manualAssignMutation,
+      sendEmailAction,
+    });
+
+    const { container } = render(
+      <GenerateBalancedUserSequence
+        users={[]}
+        systemSettings={{ availablePapers: ["paper-a", "paper-b"] }}
+      />
+    );
+
+    await userEvent.click(screen.getByLabelText(/Manual galaxy ID list/i));
+    await userEvent.selectOptions(screen.getByRole("combobox"), "user-a");
+    await userEvent.type(screen.getByRole("textbox"), "gal-1\ngal-2");
+    await userEvent.click(screen.getByLabelText(/Send email notification to user/i));
+
+    const fileInput = container.querySelector("input[type='file']");
+    if (!(fileInput instanceof HTMLInputElement)) {
+      throw new Error("Manual galaxy file input not found");
+    }
+    await userEvent.upload(fileInput, new File(["gal-3\ngal-4\n"], "manual-galaxies.txt", { type: "text/plain" }));
+
+    await userEvent.click(screen.getByRole("button", { name: /Generate Sequence \(Manual ID List\)/i }));
+
+    await waitFor(() => expect(manualAssignMutation).toHaveBeenCalledTimes(1));
+    expect(manualAssignMutation.mock.calls[0][0]).toMatchObject({
+      targetUserId: "user-a",
+      galaxyExternalIds: ["gal-1", "gal-2", "gal-3", "gal-4"],
+    });
+
+    await waitFor(() => expect(sendEmailAction).toHaveBeenCalledTimes(1));
+    expect(sendEmailAction.mock.calls[0][0]).toMatchObject({
+      targetUserId: "user-a",
+      generated: 4,
+      requested: 4,
+      procedureType: "manualList",
+    });
+
+    expect(screen.getByText(/Created a sequence with 4 galaxies from the supplied list/i)).toBeTruthy();
   });
 });
