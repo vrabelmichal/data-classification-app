@@ -69,7 +69,7 @@ By default:
 - `User` does not receive user email addresses in the Assignment Coverage table by default
 - `Data Analyst` and `Maintainer` can open cached Assignment Coverage, can open live Assignment Coverage, and can receive all rows
 
-The Permissions page exposes three separate role-scoped controls:
+The Permissions page exposes four separate role-scoped controls:
 
 - opening cached Assignment Coverage
 - opening live Assignment Coverage
