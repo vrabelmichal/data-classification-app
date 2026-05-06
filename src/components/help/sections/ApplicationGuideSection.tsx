@@ -1002,7 +1002,9 @@ export function ApplicationGuideSection({
         <SectionCard id="guide-assignment" title="Galaxy Assignment Procedure">
           <Subheading>Overview</Subheading>
           <p>
-            Users do not classify directly from the entire catalog. Instead, the system prepares a personal ordered sequence for each user. This sequence is built with a balanced assignment procedure that prefers galaxies with lower overall assignment counts, filters out blacklisted entries, respects per-user assignment limits, and can optionally fall back to already well-covered galaxies if the ideal candidate pool is too small.
+            Users do not classify directly from the entire catalog. Instead, the system prepares a personal ordered sequence for each user. 
+            Administrators can create that sequence with regular balanced assignment, classification-based assignment, or a manual galaxy-ID list workflow. 
+            The first two modes select galaxies automatically, while the manual mode lets an administrator provide an explicit list of galaxy IDs to create or extend a sequence without adding duplicates.
           </p>
           <p>
              In practice, the sequence generator validates the requested balancing settings, checks that the user can receive a new sequence, loads the blacklist and any subset filters, scans the under-target pool first, applies the necessary candidate filters, and keeps selecting galaxies in assignment-order batches until the requested sequence is filled or the available pool is exhausted.
@@ -1014,7 +1016,7 @@ export function ApplicationGuideSection({
             If over-assignment is permitted and the under-target pool is too small, the system performs a second pass through galaxies already at or above the target threshold. Once selection finishes, the ordered sequence is stored for the user and the assignment counters for those galaxies are updated in follow-up batches.
           </p>
 
-          <Subheading>How The Two Procedures Differ</Subheading>
+          <Subheading>How The Procedures Differ</Subheading>
           <p>
             The <strong>regular balanced procedure</strong> optimizes around <strong>assignment counts</strong>. It asks, in effect, “which galaxies have been assigned the least so far?” and works upward from there.
           </p>
@@ -1022,7 +1024,8 @@ export function ApplicationGuideSection({
             The <strong>classification-based procedure</strong> optimizes around <strong>completed classifications</strong>. It first asks “which galaxies still have fewer than the target number of classifications?” and works upward from there. Within each equal-classification bucket, it prefers galaxies that have received fewer classifications from senior classifiers. This makes the alternative mode useful when the project wants to drive actual completed coverage rather than just queued assignments.
           </p>
           <p>
-            In both modes, the existing K, M, paper-filter, and over-assignment fields remain relevant. In classification-based mode they are not discarded; they become the fallback and constraint layer used after the classification-priority pool is exhausted.
+            In both automated modes, the existing K, M, paper-filter, and over-assignment fields remain relevant. In classification-based mode they are not discarded; they become the fallback and constraint layer used after the classification-priority pool is exhausted. 
+            The manual list mode bypasses those selection rules and uses the supplied galaxy IDs directly.
           </p>
 
           <Subheading>General Idea</Subheading>
