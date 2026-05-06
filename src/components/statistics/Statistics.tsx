@@ -242,7 +242,6 @@ export function Statistics() {
             )
           }
         />
-        <Route path="*" element={<Navigate to="/statistics" replace />} />
         <Route
           path="paper-assignment-coverage"
           element={<Navigate to="/statistics/assignment-coverage" replace />}
@@ -251,6 +250,7 @@ export function Statistics() {
           path="paper-assignment-coverage-live"
           element={<Navigate to="/statistics/assignment-coverage-live" replace />}
         />
+        <Route path="*" element={<Navigate to="/statistics" replace />} />
       </Routes>
     </div>
   );
