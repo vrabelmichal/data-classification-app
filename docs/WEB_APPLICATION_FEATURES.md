@@ -25,7 +25,36 @@ Before a user begins regular classification, there are usually three onboarding 
 
 Only after these steps does the main classification workflow begin. Depending on project settings, users may receive a notification when their sequence is ready.
 
-Administrators can prepare sequences in three ways: regular balanced assignment, classification-based assignment, or a manual galaxy-ID list workflow. The manual workflow is useful when a sequence needs to be created or extended from an explicit list of galaxy IDs, while still avoiding duplicates.
+Administrators can prepare sequences in three ways: regular balanced assignment, classification-based assignment, or a manual galaxy IDs list workflow. The manual workflow is useful when a sequence needs to be created or extended from an explicit list of galaxy IDs, while still avoiding duplicates.
+
+### Manual galaxy IDs list workflow
+
+Administrators invoke this workflow from the existing sequence-management UI. When creating a sequence, they open the generate-sequence form and choose the manual galaxy IDs procedure. When extending a sequence, they open the manage-sequences form and choose the same manual procedure before appending galaxies to the current list. There is no separate import tool for this path in the current application.
+
+The input format is intentionally simple:
+
+- pasted input accepts one galaxy ID per line, or multiple IDs separated by spaces or commas,
+- uploaded files must be plain-text `.txt` files, with one galaxy ID per line,
+- each non-empty token is treated as a galaxy external ID and matched exactly against the catalog.
+
+The current workflow does not define a special header row or a stricter ID pattern. That means entries such as `galaxy-001`, `galaxy-002`, or `galaxy-003` are treated as normal IDs, blank lines are ignored, and a header-like value such as `galaxy_id` is not interpreted specially. If `galaxy_id` does not exist in the catalog, it will be reported as not found rather than being used as metadata.
+
+Examples:
+
+- valid pasted list:
+	`galaxy-001`
+	`galaxy-002`
+	`galaxy-003`
+- valid pasted single line:
+	`galaxy-001, galaxy-002 galaxy-003`
+- invalid or skipped behavior:
+	repeating `galaxy-001` twice keeps one copy,
+	including an unknown ID such as `missing-galaxy` reports it as not found,
+	supplying an ID already present in the target user's sequence leaves the existing sequence entry unchanged.
+
+Duplicate handling happens in two places. The UI merges pasted and uploaded IDs and removes duplicate inputs locally before submission. The backend then checks the deduplicated list against the user's existing sequence and skips any IDs already present there. Warnings are produced when duplicates are removed from the supplied list, when IDs are missing from the catalog, when IDs are already present in the current sequence, or when valid IDs are dropped because the maximum sequence length would be exceeded.
+
+Prefer this manual workflow when the project already knows the exact galaxies that should be assigned, such as reconstructing a prior sequence, targeting follow-up galaxies, or extending an existing sequence with a curated list. Prefer regular balanced assignment when the goal is to spread work across the least-assigned galaxies, and prefer classification-based assignment when the goal is to prioritize galaxies that are still below a target number of completed classifications.
 
 ## The Main Classification Process
 

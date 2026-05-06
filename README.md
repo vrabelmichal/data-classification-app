@@ -6,7 +6,7 @@ A web app for viewing and classifying galaxy images with a simple, responsive UI
 - Browse galaxy catalogs and preview image thumbnails
 - Classify galaxies using a clear UI and multiple image contrast views
 - Admin panels for maintenance (reset data, rebuild indices, etc.)
-- Sequence assignment tools that support regular balanced assignment, classification-based assignment, and a manual galaxy-ID list workflow for creating or extending sequences
+- Sequence assignment tools that support regular balanced assignment, classification-based assignment, and a manual galaxy IDs list workflow for creating or extending sequences
 - Image provider system – local development server or Cloudflare R2 integration
 - Data ingestion tooling for parquet files and mock data generation
 - Built-in support for user sequences and skipped items for classification flow control

@@ -600,6 +600,12 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
               batchSize: result.statsBatchSize,
             });
 
+            if (!statsResult.success) {
+              throw new Error(
+                `Manual stats update failed for targetUserId=${selectedUserId} batchIndex=${batchIndex}: ${statsResult.message ?? (statsResult as { error?: string }).error ?? "Unknown error"}`
+              );
+            }
+
             setProgress({
               currentBatch: batchIndex + 1,
               totalBatches: result.statsBatchesNeeded,

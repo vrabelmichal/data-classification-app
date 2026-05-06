@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react";
+import { useId, type ChangeEvent } from "react";
 
 export type ManualAssignmentMode = "create" | "extend";
 
@@ -78,6 +78,9 @@ export function ManualGalaxyIdProcedureFields({
   onClearFile,
   tone = "neutral",
 }: ManualGalaxyIdProcedureFieldsProps) {
+  const idBase = useId();
+  const fileInputId = `${idBase}-manual-galaxy-ids-file-input`;
+  const textareaId = `${idBase}-manual-galaxy-ids-textarea`;
   const accent = toneClasses[tone];
   const { parsedTypedGalaxyIds, combinedGalaxyIds, duplicateCount } = getManualGalaxyIdInputState(
     typedGalaxyIds,
@@ -100,10 +103,11 @@ export function ManualGalaxyIdProcedureFields({
       <div className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.25fr)]">
         <div className="space-y-4">
           <div>
-            <label className={`block text-sm font-medium mb-2 ${accent.heading}`}>
+            <label htmlFor={fileInputId} className={`block text-sm font-medium mb-2 ${accent.heading}`}>
               Upload TXT File
             </label>
             <input
+              id={fileInputId}
               type="file"
               accept=".txt,text/plain"
               onChange={(event) => void onFileChange(event)}
@@ -133,15 +137,16 @@ export function ManualGalaxyIdProcedureFields({
 
         <div className="space-y-4">
           <div>
-            <label className={`block text-sm font-medium mb-2 ${accent.heading}`}>
+            <label htmlFor={textareaId} className={`block text-sm font-medium mb-2 ${accent.heading}`}>
               Galaxy IDs
             </label>
             <textarea
+              id={textareaId}
               value={typedGalaxyIds}
               onChange={(event) => onTypedGalaxyIdsChange(event.target.value)}
               disabled={disabled}
               rows={10}
-              placeholder="galaxy-001&#10;galaxy-002&#10;galaxy-003"
+              placeholder={"galaxy-001\ngalaxy-002\ngalaxy-003"}
               className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white font-mono text-sm"
             />
             <p className={`mt-2 text-xs ${accent.hint}`}>
