@@ -7,15 +7,17 @@ import {
   query,
   type ActionCtx,
   type MutationCtx,
+  type QueryCtx,
 } from "../../_generated/server";
 import { api, internal } from "../../_generated/api";
-import { requirePermission } from "../../lib/auth";
+import { requireUserProfile } from "../../lib/auth";
 import {
   DEFAULT_AVAILABLE_PAPERS,
   DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED,
   DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES,
 } from "../../lib/defaults";
-import { normalizeUserExperience } from "../../lib/permissions";
+import { loadMergedSystemSettings } from "../../lib/systemSettings";
+import { hasPermissionForRole, normalizeUserExperience } from "../../lib/permissions";
 import {
   PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT,
   PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY,
@@ -133,6 +135,14 @@ const SEQUENCE_PAGE_SIZE = 128;
 const MIN_AUTO_REFRESH_INTERVAL_MINUTES = 5;
 const MAX_AUTO_REFRESH_INTERVAL_MINUTES = 7 * 24 * 60;
 const MAX_GALAXY_ID_CHUNK_SIZE = 4000;
+
+type CoverageAccess = {
+  callerUserId: string;
+  canAccessCached: boolean;
+  canAccessLive: boolean;
+  canViewAllRows: boolean;
+  canViewEmails: boolean;
+};
 
 function buildEmptyCounts() {
   return Array.from({ length: PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT }, () => 0);
@@ -461,6 +471,145 @@ function normalizeRefreshIntervalMinutes(value: unknown) {
     MAX_AUTO_REFRESH_INTERVAL_MINUTES,
     Math.max(MIN_AUTO_REFRESH_INTERVAL_MINUTES, Math.floor(parsed))
   );
+}
+
+function resolveCoverageAccess(args: {
+  callerUserId: string;
+  callerRole: unknown;
+  settings: {
+    rolePermissions?: unknown;
+  };
+}): CoverageAccess {
+  const canAccessCached = hasPermissionForRole(
+    args.callerRole,
+    args.settings,
+    "viewAssignmentCoverage",
+  );
+  const canAccessLive = hasPermissionForRole(
+    args.callerRole,
+    args.settings,
+    "viewLiveAssignmentCoverage",
+  );
+  const canViewAllRows = hasPermissionForRole(
+    args.callerRole,
+    args.settings,
+    "viewAssignmentCoverageAllRows",
+  );
+  const canViewEmails = hasPermissionForRole(
+    args.callerRole,
+    args.settings,
+    "viewAssignmentCoverageUserEmails",
+  );
+
+  return {
+    callerUserId: args.callerUserId,
+    canAccessCached,
+    canAccessLive: canAccessCached && canAccessLive,
+    canViewAllRows: canAccessCached && canViewAllRows,
+    canViewEmails: canAccessCached && canViewEmails,
+  };
+}
+
+async function getAssignmentCoverageQueryAccess(ctx: QueryCtx) {
+  const { userId, profile } = await requireUserProfile(ctx, {
+    missingProfileMessage: "Assignment coverage is not available for this account",
+  });
+  const settings = await loadMergedSystemSettings(ctx);
+  const access = resolveCoverageAccess({
+    callerUserId: String(userId),
+    callerRole: profile.role,
+    settings,
+  });
+
+  if (!access.canAccessCached) {
+    throw new Error("Assignment coverage is not available for this account");
+  }
+
+  return access;
+}
+
+function filterUserDirectoryForAccess(
+  userDirectory: SharedSnapshot["userDirectory"],
+  access: CoverageAccess,
+) {
+  const filteredDirectory = access.canViewAllRows
+    ? userDirectory
+    : userDirectory.filter((entry) => entry.userId === access.callerUserId);
+
+  if (access.canViewEmails) {
+    return filteredDirectory;
+  }
+
+  return filteredDirectory.map((entry) => ({
+    ...entry,
+    email: null,
+  }));
+}
+
+function filterScopeSnapshotForAccess(
+  scopeSnapshot: ScopeSnapshot,
+  access: CoverageAccess,
+): ScopeSnapshot {
+  if (access.canViewAllRows) {
+    return scopeSnapshot;
+  }
+
+  return {
+    ...scopeSnapshot,
+    userAssignmentCounts: scopeSnapshot.userAssignmentCounts.filter(
+      (entry) => entry.userId === access.callerUserId,
+    ),
+    unassignedCounts: buildEmptyCounts(),
+    unassignedGalaxyIdsByBucket: undefined,
+  };
+}
+
+function filterSnapshotPayloadForAccess(
+  snapshots: {
+    sharedSnapshot: SharedSnapshot;
+    scopeSnapshots: ScopeSnapshot[];
+  },
+  access: CoverageAccess,
+) {
+  if (access.canViewAllRows) {
+    return snapshots;
+  }
+
+  return {
+    sharedSnapshot: {
+      ...snapshots.sharedSnapshot,
+      userDirectory: filterUserDirectoryForAccess(
+        snapshots.sharedSnapshot.userDirectory,
+        access,
+      ),
+    },
+    scopeSnapshots: snapshots.scopeSnapshots.map((snapshot) =>
+      filterScopeSnapshotForAccess(snapshot, access)
+    ),
+  };
+}
+
+function filterCachedResponseForAccess(
+  snapshots: {
+    sharedSnapshot: SharedSnapshot | null;
+    scopeSnapshots: ScopeSnapshot[];
+  },
+  access: CoverageAccess,
+) {
+  return {
+    sharedSnapshot: snapshots.sharedSnapshot
+      ? {
+          ...snapshots.sharedSnapshot,
+          userDirectory: filterUserDirectoryForAccess(
+            snapshots.sharedSnapshot.userDirectory,
+            access,
+          ),
+        }
+      : null,
+    scopeSnapshots: snapshots.scopeSnapshots.map((snapshot) =>
+      filterScopeSnapshotForAccess(snapshot, access)
+    ),
+  };
 }
 
 async function computeSnapshotPayload(ctx: ActionCtx) {
@@ -1012,9 +1161,7 @@ export const getGalaxyDetailsByIds = query({
     })),
   }),
   handler: async (ctx, args) => {
-    await requirePermission(ctx, "viewAssignmentStatistics", {
-      notAuthorizedMessage: "Paper assignment coverage is not available for this account",
-    });
+    await getAssignmentCoverageQueryAccess(ctx);
 
     const seenGalaxyIds = new Set<string>();
     const galaxies = [] as Array<{
@@ -1079,8 +1226,20 @@ export const getCurrentUserDirectory = action({
   returns: v.array(paperAssignmentCoverageUserDirectoryEntryValidator),
   handler: async (ctx) => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
-    if (!callerProfile?.permissions?.viewAssignmentStatistics) {
-      throw new Error("Paper assignment coverage is not available for this account");
+    if (!callerProfile?.userId || !callerProfile?.role) {
+      throw new Error("Assignment coverage is not available for this account");
+    }
+    const settings = await ctx.runQuery(
+      internal.system_settings.loadMergedSystemSettingsInternal,
+      {},
+    );
+    const access = resolveCoverageAccess({
+      callerUserId: String(callerProfile.userId),
+      callerRole: callerProfile.role,
+      settings,
+    });
+    if (!access.canAccessCached) {
+      throw new Error("Assignment coverage is not available for this account");
     }
 
     const userDirectoryById = new Map<
@@ -1127,7 +1286,10 @@ export const getCurrentUserDirectory = action({
       sequenceCursor = page.continueCursor;
     }
 
-    return sortUserDirectory(Array.from(userDirectoryById.values()));
+    return filterUserDirectoryForAccess(
+      sortUserDirectory(Array.from(userDirectoryById.values())),
+      access,
+    );
   },
 });
 
@@ -1205,8 +1367,20 @@ export const computeLiveSnapshot = action({
   returns: paperAssignmentCoverageSnapshotPayloadValidator,
   handler: async (ctx) => {
     const callerProfile = await ctx.runQuery(api.users.getUserProfile);
-    if (!callerProfile?.permissions?.viewAssignmentStatistics) {
-      throw new Error("Not authorized");
+    if (!callerProfile?.userId || !callerProfile?.role) {
+      throw new Error("Assignment coverage is not available for this account");
+    }
+    const settings = await ctx.runQuery(
+      internal.system_settings.loadMergedSystemSettingsInternal,
+      {},
+    );
+    const access = resolveCoverageAccess({
+      callerUserId: String(callerProfile.userId),
+      callerRole: callerProfile.role,
+      settings,
+    });
+    if (!access.canAccessLive) {
+      throw new Error("Assignment coverage live view is not available for this account");
     }
 
     const snapshots = await computeSnapshotPayload(ctx);
@@ -1215,7 +1389,7 @@ export const computeLiveSnapshot = action({
       snapshots
     );
 
-    return snapshots;
+    return filterSnapshotPayloadForAccess(snapshots, access);
   },
 });
 
@@ -1275,9 +1449,7 @@ export const getCachedSnapshot = query({
   args: {},
   returns: paperAssignmentCoverageCachedResponseValidator,
   handler: async (ctx) => {
-    await requirePermission(ctx, "viewAssignmentStatistics", {
-      notAuthorizedMessage: "Paper assignment coverage is not available for this account",
-    });
+    const access = await getAssignmentCoverageQueryAccess(ctx);
 
     const [sharedSnapshot, scopeSnapshots] = await Promise.all([
       ctx.db
@@ -1300,7 +1472,7 @@ export const getCachedSnapshot = query({
       return normalizePaper(left.paper).localeCompare(normalizePaper(right.paper));
     });
 
-    return {
+    return filterCachedResponseForAccess({
       sharedSnapshot: sharedSnapshot
         ? {
             catalog: sharedSnapshot.catalog,
@@ -1327,6 +1499,6 @@ export const getCachedSnapshot = query({
         ),
         updatedAt: snapshot.updatedAt,
       })),
-    };
+    }, access);
   },
 });

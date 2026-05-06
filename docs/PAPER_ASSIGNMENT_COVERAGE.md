@@ -1,8 +1,8 @@
-# Paper Assignment Coverage Statistics
+# Assignment Coverage Statistics
 
 ## Purpose
 
-The Paper Assignment Coverage module answers a target-driven planning question:
+The Assignment Coverage module answers a target-driven planning question:
 
 Which non-blacklisted galaxies are still below a chosen classification target, how are those galaxies distributed across paper scopes, and how much of that under-target work is already present in users' current sequences?
 
@@ -23,8 +23,8 @@ The assignment table also supports a detailed drilldown modal that lists the act
 
 The page exists in two routes:
 
-- cached mode at `/statistics/paper-assignment-coverage`
-- live mode at `/statistics/paper-assignment-coverage-live`
+- cached mode at `/statistics/assignment-coverage`
+- live mode at `/statistics/assignment-coverage-live`
 
 Both modes use the same computation rules.
 
@@ -41,6 +41,42 @@ Both modes use the same computation rules.
 - also persists the successful live result into the cached snapshot store
 
 So the semantic difference between the two modes is freshness, not methodology.
+
+## Access Control Semantics
+
+The module has two access layers.
+
+### Full-access viewers
+
+Users with the assignment-statistics permission have full access:
+
+- cached mode
+- live mode
+- all rows in the `Under-target assignment coverage` table
+- the full user directory attached to the snapshot
+
+### Restricted regular users
+
+Assignment Coverage access is controlled by role permissions on the admin Permissions page.
+
+By default:
+
+- `User` cannot open the cached page
+- `User` cannot open the live page
+- `User` does not receive the full user directory
+- `User` does not receive other users' rows from the backend
+- `User` does not receive the special unassigned row from the backend
+- `User` does not receive user email addresses in the Assignment Coverage table by default
+- `Data Analyst` and `Maintainer` can open cached Assignment Coverage, can open live Assignment Coverage, and can receive all rows
+
+The Permissions page exposes three separate role-scoped controls:
+
+- opening cached Assignment Coverage
+- opening live Assignment Coverage
+- receiving all user rows in the under-target table
+- receiving user email addresses in the under-target table
+
+The backend filtering rule is important for security: when a role does not have the `all rows` permission, the complete row list is not merely hidden in the client; it is removed from the server response before the snapshot payload is returned.
 
 ## Required Inputs
 
@@ -515,4 +551,4 @@ The page combines one effective catalog filter with one ownership model.
 2. Measure current progress from stored total classification counts.
 3. Overlay each user's latest sequence to determine which below-target galaxies are already in active sequences, which have already been handled by the assigned user, and which are still unassigned.
 
-That makes Paper Assignment Coverage a planning-oriented, target-aware allocation view rather than a generic activity dashboard.
+That makes Assignment Coverage a planning-oriented, target-aware allocation view rather than a generic activity dashboard.

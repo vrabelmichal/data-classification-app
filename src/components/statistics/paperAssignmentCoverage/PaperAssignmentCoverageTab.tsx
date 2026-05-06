@@ -78,6 +78,7 @@ type LiveCoveragePayload = {
 
 type RouteProps = {
   systemSettings: CoverageSystemSettings;
+  canAccessLiveVariant?: boolean;
 };
 
 type DashboardProps = {
@@ -85,6 +86,8 @@ type DashboardProps = {
   sharedSnapshot: SharedSnapshot;
   scopeSnapshots: ScopeSnapshot[];
   defaultPaper: string | null | undefined;
+  alternateModeLink?: string;
+  alternateModeLabel?: string;
 };
 
 type AssignmentRow = {
@@ -791,6 +794,10 @@ function AssignmentCoverageTableSection({
 }) {
   const [showEmails, setShowEmails] = useState(false);
   const [selectedDetailRowKey, setSelectedDetailRowKey] = useState<string | null>(null);
+  const canToggleEmails = useMemo(
+    () => userDirectory.some((entry) => Boolean(entry.email?.trim())),
+    [userDirectory],
+  );
   const rows = useMemo(
     () => buildAssignmentRows(scopeSnapshot, userDirectory, targetClassifications, showEmails),
     [scopeSnapshot, showEmails, targetClassifications, userDirectory],
@@ -814,6 +821,12 @@ function AssignmentCoverageTableSection({
       setSelectedDetailRowKey(null);
     }
   }, [selectedDetailRow, selectedDetailRowKey]);
+
+  useEffect(() => {
+    if (!canToggleEmails && showEmails) {
+      setShowEmails(false);
+    }
+  }, [canToggleEmails, showEmails]);
 
   const underTargetGalaxies = sumCountsToTarget(
     scopeSnapshot.classificationBuckets,
@@ -940,12 +953,14 @@ function AssignmentCoverageTableSection({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
-            <EmailVisibilityToggle
-              showEmails={showEmails}
-              onToggle={() => setShowEmails((value) => !value)}
-            />
-          </div>
+          {canToggleEmails ? (
+            <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 pt-4 dark:border-gray-700">
+              <EmailVisibilityToggle
+                showEmails={showEmails}
+                onToggle={() => setShowEmails((value) => !value)}
+              />
+            </div>
+          ) : null}
         </div>
       )}
 
@@ -971,8 +986,8 @@ function PageIntroCard({
   updatedAt,
 }: {
   mode: "cached" | "live";
-  switchTo: string;
-  switchLabel: string;
+  switchTo?: string;
+  switchLabel?: string;
   onCompute?: () => void;
   isComputing?: boolean;
   updatedAt?: number | null;
@@ -985,7 +1000,7 @@ function PageIntroCard({
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Paper assignment coverage
+              Assignment coverage
             </h2>
             <span className="rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-300">
               {mode === "cached" ? "Cached snapshot" : "Live calculation"}
@@ -1017,12 +1032,14 @@ function PageIntroCard({
               {isComputing ? "Calculating…" : updatedAt ? "Recompute live snapshot" : "Calculate live snapshot"}
             </button>
           )}
-          <Link
-            to={switchTo}
-            className="rounded-full border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-blue-300 hover:text-blue-700 dark:border-gray-600 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
-          >
-            {switchLabel}
-          </Link>
+          {switchTo && switchLabel ? (
+            <Link
+              to={switchTo}
+              className="rounded-full border border-gray-200 px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:border-blue-300 hover:text-blue-700 dark:border-gray-600 dark:text-gray-300 dark:hover:border-blue-500 dark:hover:text-blue-200"
+            >
+              {switchLabel}
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>
@@ -1034,6 +1051,8 @@ function PaperAssignmentCoverageDashboard({
   sharedSnapshot,
   scopeSnapshots,
   defaultPaper,
+  alternateModeLink,
+  alternateModeLabel,
 }: DashboardProps) {
   const loadCurrentUserDirectory = useAction(
     api.statistics.paperAssignmentCoverage.cache.getCurrentUserDirectory,
@@ -1088,22 +1107,18 @@ function PaperAssignmentCoverageDashboard({
       })
     : undefined;
 
-  const alternateModeLink = mode === "cached"
-    ? buildModeLink("/statistics/paper-assignment-coverage-live", searchParams)
-    : buildModeLink("/statistics/paper-assignment-coverage", searchParams);
-
   if (!currentScope) {
     return (
       <div className="space-y-6">
         <PageIntroCard
           mode={mode}
           switchTo={alternateModeLink}
-          switchLabel={mode === "cached" ? "Open live calculation" : "Open cached snapshot"}
+          switchLabel={alternateModeLabel}
           updatedAt={sharedSnapshot.updatedAt}
         />
         <LoadingPanel>
           {selectedPaper === undefined
-            ? "The global paper-assignment coverage snapshot is not available yet."
+            ? "The global assignment coverage snapshot is not available yet."
             : `No snapshot is available for ${paperLabel(selectedPaper)} yet.`}
         </LoadingPanel>
       </div>
@@ -1150,13 +1165,15 @@ function PaperAssignmentCoverageDashboard({
   );
 }
 
-export function CachedPaperAssignmentCoverageTab({ systemSettings }: RouteProps) {
+export function CachedPaperAssignmentCoverageTab({ systemSettings, canAccessLiveVariant = false }: RouteProps) {
   const cachedPayload = useQuery(
     api.statistics.paperAssignmentCoverage.cache.getCachedSnapshot,
     {},
   ) as CachedCoveragePayload | undefined;
   const { searchParams } = useCoverageFilters(systemSettings.paperAssignmentCoverageDefaultPaper);
-  const liveLink = buildModeLink("/statistics/paper-assignment-coverage-live", searchParams);
+  const liveLink = canAccessLiveVariant
+    ? buildModeLink("/statistics/assignment-coverage-live", searchParams)
+    : undefined;
 
   if (cachedPayload === undefined) {
     return (
@@ -1164,9 +1181,9 @@ export function CachedPaperAssignmentCoverageTab({ systemSettings }: RouteProps)
         <PageIntroCard
           mode="cached"
           switchTo={liveLink}
-          switchLabel="Open live calculation"
+          switchLabel={canAccessLiveVariant ? "Open live calculation" : undefined}
         />
-        <LoadingPanel>Loading cached paper-assignment coverage…</LoadingPanel>
+        <LoadingPanel>Loading cached assignment coverage…</LoadingPanel>
       </div>
     );
   }
@@ -1177,11 +1194,12 @@ export function CachedPaperAssignmentCoverageTab({ systemSettings }: RouteProps)
         <PageIntroCard
           mode="cached"
           switchTo={liveLink}
-          switchLabel="Open live calculation"
+          switchLabel={canAccessLiveVariant ? "Open live calculation" : undefined}
         />
         <LoadingPanel>
-          Cached paper-assignment coverage is not available yet. Open the live calculation page to compute the
-          latest numbers immediately, or wait for the scheduled snapshot refresh.
+          {canAccessLiveVariant
+            ? "Cached assignment coverage is not available yet. Open the live calculation page to compute the latest numbers immediately, or wait for the scheduled snapshot refresh."
+            : "Cached assignment coverage is not available yet. Wait for the scheduled snapshot refresh or ask an administrator to refresh the snapshot."}
         </LoadingPanel>
       </div>
     );
@@ -1192,7 +1210,7 @@ export function CachedPaperAssignmentCoverageTab({ systemSettings }: RouteProps)
       <PageIntroCard
         mode="cached"
         switchTo={liveLink}
-        switchLabel="Open live calculation"
+        switchLabel={canAccessLiveVariant ? "Open live calculation" : undefined}
         updatedAt={cachedPayload.sharedSnapshot.updatedAt}
       />
       <PaperAssignmentCoverageDashboard
@@ -1200,6 +1218,8 @@ export function CachedPaperAssignmentCoverageTab({ systemSettings }: RouteProps)
         sharedSnapshot={cachedPayload.sharedSnapshot}
         scopeSnapshots={cachedPayload.scopeSnapshots}
         defaultPaper={systemSettings.paperAssignmentCoverageDefaultPaper}
+        alternateModeLink={liveLink}
+        alternateModeLabel={canAccessLiveVariant ? "Open live calculation" : undefined}
       />
     </div>
   );
@@ -1212,17 +1232,17 @@ export function LivePaperAssignmentCoverageTab({ systemSettings }: RouteProps) {
   const [snapshot, setSnapshot] = useState<LiveCoveragePayload | null>(null);
   const [isComputing, setIsComputing] = useState(false);
   const { searchParams } = useCoverageFilters(systemSettings.paperAssignmentCoverageDefaultPaper);
-  const cachedLink = buildModeLink("/statistics/paper-assignment-coverage", searchParams);
+  const cachedLink = buildModeLink("/statistics/assignment-coverage", searchParams);
 
   const handleCompute = async () => {
     setIsComputing(true);
     try {
       const nextSnapshot = await computeLiveSnapshot({});
       setSnapshot(nextSnapshot as LiveCoveragePayload);
-      toast.success("Live paper-assignment coverage updated.");
+      toast.success("Live assignment coverage updated.");
     } catch (error) {
       console.error(error);
-      toast.error("Failed to compute live paper-assignment coverage.");
+      toast.error("Failed to compute live assignment coverage.");
     } finally {
       setIsComputing(false);
     }
@@ -1251,6 +1271,8 @@ export function LivePaperAssignmentCoverageTab({ systemSettings }: RouteProps) {
           sharedSnapshot={snapshot.sharedSnapshot}
           scopeSnapshots={snapshot.scopeSnapshots}
           defaultPaper={systemSettings.paperAssignmentCoverageDefaultPaper}
+          alternateModeLink={cachedLink}
+          alternateModeLabel="Open cached snapshot"
         />
       )}
     </div>

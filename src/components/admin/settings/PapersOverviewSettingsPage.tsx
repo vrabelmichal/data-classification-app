@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { usePageTitle } from "../../../hooks/usePageTitle";
 import type { PapersOverviewSettingsPageProps } from "./types";
 
@@ -173,14 +174,14 @@ export function PapersOverviewSettingsPage({
 
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Paper Assignment Default Filter
+          Assignment Coverage Default Filter
         </h4>
         <label className="mt-4 block">
           <span className="text-sm font-medium text-gray-900 dark:text-white">
-            Default Paper Filter for Paper Assignment Coverage Tab
+            Default Paper Filter for Assignment Coverage Tab
           </span>
           <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-            Pre-select a paper in the Paper Assignment Coverage tab when the page is opened without a URL parameter. Users can still switch to any paper or to All.
+            Pre-select a paper in the Assignment Coverage tab when the page is opened without a URL parameter. Users can still switch to any paper or to All.
           </p>
           <select
             value={
@@ -268,16 +269,26 @@ export function PapersOverviewSettingsPage({
 
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Paper Assignment Coverage Cache
+          Assignment Coverage Access & Cache
         </h4>
         <div className="mt-4 space-y-4">
+          <div className="rounded-md border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/20 dark:text-blue-200">
+            Assignment Coverage access is now controlled per role on the Permissions page, including separate controls for cached access, live access, and whether a role can receive all user rows.
+            <span className="ml-1">
+              <Link to="/admin/settings/permissions" className="font-medium underline underline-offset-2 hover:no-underline">
+                Open Permissions settings
+              </Link>
+              .
+            </span>
+          </div>
+
           <label className="flex items-center justify-between gap-4">
             <div>
               <span className="text-sm font-medium text-gray-900 dark:text-white">
                 Enable automatic snapshot refresh
               </span>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Refresh cached snapshots for /statistics/paper-assignment-coverage on a background schedule.
+                Refresh cached Assignment Coverage snapshots for /statistics/assignment-coverage on a background schedule.
                 Disable this to keep only manual live calculations available.
               </p>
             </div>
