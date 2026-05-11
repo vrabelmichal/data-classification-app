@@ -7,6 +7,7 @@ import { CachedOverviewTab, LiveOverviewTab } from "./overview/OverviewTab";
 import { cn } from "../../lib/utils";
 import { StatisticsTab } from "./StatisticsTab";
 import { UsersStatisticsTab } from "./UsersStatisticsTab";
+import type { ClassificationCoverageTabProps } from "./paperAssignmentCoverage/ClassificationCoverageTab";
 
 const AssignmentStatsTab = lazy(() =>
   import("../admin/galaxies/AssignmentStatsPage").then((module) => ({
@@ -20,15 +21,15 @@ const DataAnalysisTab = lazy(() =>
   }))
 );
 
-const PaperAssignmentCoverageTab = lazy(() =>
-  import("./paperAssignmentCoverage/PaperAssignmentCoverageTab").then((module) => ({
-    default: module.CachedPaperAssignmentCoverageTab,
+const ClassificationCoverageTab = lazy(() =>
+  import("./paperAssignmentCoverage/ClassificationCoverageTab").then((module) => ({
+    default: module.CachedClassificationCoverageTab,
   }))
 );
 
-const LivePaperAssignmentCoverageTab = lazy(() =>
-  import("./paperAssignmentCoverage/PaperAssignmentCoverageTab").then((module) => ({
-    default: module.LivePaperAssignmentCoverageTab,
+const LiveClassificationCoverageTab = lazy(() =>
+  import("./paperAssignmentCoverage/ClassificationCoverageTab").then((module) => ({
+    default: module.LiveClassificationCoverageTab,
   }))
 );
 
@@ -48,14 +49,14 @@ export function Statistics() {
   const isOverview = location.pathname.startsWith("/statistics/overview");
   const isUsersStatistics = location.pathname.startsWith("/statistics/users");
   const isAssignmentStats = location.pathname.startsWith("/statistics/assignment-stats");
-  const isLivePaperAssignmentCoverage = location.pathname.startsWith("/statistics/assignment-coverage-live");
-  const isPaperAssignmentCoverage = location.pathname.startsWith("/statistics/assignment-coverage");
+  const isLiveClassificationCoverage = location.pathname.startsWith("/statistics/classification-coverage-live");
+  const isClassificationCoverage = location.pathname.startsWith("/statistics/classification-coverage");
   const isDataAnalysis = location.pathname.startsWith("/statistics/analysis");
   usePageTitle(
-    isLivePaperAssignmentCoverage
-      ? "Assignment Coverage (Live)"
-      : isPaperAssignmentCoverage
-        ? "Assignment Coverage"
+    isLiveClassificationCoverage
+      ? "Classification Coverage (Live)"
+      : isClassificationCoverage
+        ? "Classification Coverage"
       : isAssignmentStats
         ? "Assignment Statistics"
         : isDataAnalysis
@@ -76,22 +77,22 @@ export function Statistics() {
   const canAccessOverview = Boolean(permissions?.viewOverviewStatistics || allowPublicOverview);
   const canAccessUsersStatistics = Boolean(permissions?.viewUserStatistics);
   const canAccessAssignmentStats = Boolean(permissions?.viewAssignmentStatistics);
-  const canAccessAssignmentCoverage = Boolean(permissions?.viewAssignmentCoverage);
-  const canAccessLiveAssignmentCoverage = Boolean(
+  const canAccessClassificationCoverage = Boolean(permissions?.viewAssignmentCoverage);
+  const canAccessLiveClassificationCoverage = Boolean(
     permissions?.viewAssignmentCoverage && permissions?.viewLiveAssignmentCoverage,
   );
   const canAccessLiveOverview = Boolean(permissions?.viewLiveOverviewStatistics);
   const canAccessDataAnalysis = Boolean(permissions?.viewDataAnalysis || allowPublicDataAnalysis);
   const restrictedTabRedirect = canAccessOverview ? "/statistics/overview" : "/statistics";
-  const assignmentCoverageRedirect = canAccessAssignmentCoverage
-    ? "/statistics/assignment-coverage"
+  const classificationCoverageRedirect = canAccessClassificationCoverage
+    ? "/statistics/classification-coverage"
     : restrictedTabRedirect;
   const headerDescription = isAssignmentStats
-    ? "Assignment coverage and sequence planning across the full dataset"
-    : isLivePaperAssignmentCoverage
-      ? "Live assignment coverage across under-target galaxies"
-    : isPaperAssignmentCoverage
-      ? "Cached assignment coverage across under-target galaxies"
+    ? "Assignment stats and sequence planning across the full dataset"
+    : isLiveClassificationCoverage
+      ? "Live classification coverage across under-target galaxies"
+    : isClassificationCoverage
+      ? "Cached classification coverage across under-target galaxies"
     : isDataAnalysis
       ? "Local, interactive analysis of per-galaxy classification outcomes"
     : isLiveOverview
@@ -107,9 +108,9 @@ export function Statistics() {
     ...(canAccessUsersStatistics
       ? [{ id: "users", label: "Users", icon: "👥", path: "/statistics/users" }]
       : []),
-    ...(canAccessAssignmentCoverage
+    ...(canAccessClassificationCoverage
       ? [
-          { id: "assignment-coverage", label: "Assignment Coverage", icon: "🕸️", path: "/statistics/assignment-coverage" },
+          { id: "classification-coverage", label: "Classification Coverage", icon: "🕸️", path: "/statistics/classification-coverage" },
         ]
       : []),
     ...(canAccessAssignmentStats
@@ -174,7 +175,7 @@ export function Statistics() {
             canAccessLiveOverview ? (
               <LiveOverviewTab systemSettings={systemSettings} isAdmin={isAdmin} />
             ) : (
-              <Navigate to={assignmentCoverageRedirect} replace />
+              <Navigate to={classificationCoverageRedirect} replace />
             )
           }
         />
@@ -213,13 +214,13 @@ export function Statistics() {
           }
         />
         <Route
-          path="assignment-coverage"
+          path="classification-coverage"
           element={
-            canAccessAssignmentCoverage ? (
+            canAccessClassificationCoverage ? (
               <Suspense fallback={<StatisticsTabLoading />}>
-                <PaperAssignmentCoverageTab
+                <ClassificationCoverageTab
                   systemSettings={systemSettings}
-                  canAccessLiveVariant={canAccessLiveAssignmentCoverage}
+                  canAccessLiveVariant={canAccessLiveClassificationCoverage}
                 />
               </Suspense>
             ) : (
@@ -228,13 +229,13 @@ export function Statistics() {
           }
         />
         <Route
-          path="assignment-coverage-live"
+          path="classification-coverage-live"
           element={
-            canAccessLiveAssignmentCoverage ? (
+            canAccessLiveClassificationCoverage ? (
               <Suspense fallback={<StatisticsTabLoading />}>
-                <LivePaperAssignmentCoverageTab
+                <LiveClassificationCoverageTab
                   systemSettings={systemSettings}
-                  canAccessLiveVariant={canAccessLiveAssignmentCoverage}
+                  canAccessLiveVariant={canAccessLiveClassificationCoverage}
                 />
               </Suspense>
             ) : (
@@ -244,11 +245,11 @@ export function Statistics() {
         />
         <Route
           path="paper-assignment-coverage"
-          element={<Navigate to="/statistics/assignment-coverage" replace />}
+          element={<Navigate to="/statistics/classification-coverage" replace />}
         />
         <Route
           path="paper-assignment-coverage-live"
-          element={<Navigate to="/statistics/assignment-coverage-live" replace />}
+          element={<Navigate to="/statistics/classification-coverage-live" replace />}
         />
         <Route path="*" element={<Navigate to="/statistics" replace />} />
       </Routes>

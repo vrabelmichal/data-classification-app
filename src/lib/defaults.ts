@@ -59,12 +59,12 @@ export const DEFAULT_OVERVIEW_AUTO_REFRESH_ENABLED = true;
 export const DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES = 60;
 
 /**
- * Default state for automatically refreshing cached paper-assignment coverage snapshots.
+ * Default state for automatically refreshing cached classification coverage snapshots.
  */
 export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_ENABLED = true;
 
 /**
- * Default refresh interval, in minutes, for cached paper-assignment coverage snapshots.
+ * Default refresh interval, in minutes, for cached classification coverage snapshots.
  */
 export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_AUTO_REFRESH_INTERVAL_MINUTES = 60;
 
@@ -115,7 +115,7 @@ export const DEFAULT_AVAILABLE_PAPERS = ["", "new", "old"];
 export const DEFAULT_OVERVIEW_DEFAULT_PAPER = null as string | null;
 
 /**
- * Default paper pre-selected in the Paper Assignment Coverage tab (null = no default, show all papers)
+ * Default paper pre-selected in the Classification Coverage tab (null = no default, show all papers)
  */
 export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER = null as string | null;
 

@@ -24,8 +24,9 @@ const DEFAULT_TARGET_CLASSIFICATIONS = 3;
 const MAX_TARGET_CLASSIFICATIONS = 25;
 const GLOBAL_SCOPE_KEY = "__all__";
 
-type CoverageSystemSettings = {
+type ClassificationCoverageSystemSettings = {
   paperAssignmentCoverageDefaultPaper?: string | null;
+  classificationCoverageDefaultPaper?: string | null;
 };
 
 type UserDirectoryEntry = {
@@ -76,8 +77,8 @@ type LiveCoveragePayload = {
   scopeSnapshots: ScopeSnapshot[];
 };
 
-type RouteProps = {
-  systemSettings: CoverageSystemSettings;
+export type ClassificationCoverageTabProps = {
+  systemSettings: ClassificationCoverageSystemSettings;
   canAccessLiveVariant?: boolean;
 };
 
@@ -781,7 +782,7 @@ function EmailVisibilityToggle({
   );
 }
 
-function AssignmentCoverageTableSection({
+function ClassificationCoverageTableSection({
   selectedPaper,
   scopeSnapshot,
   userDirectory,
@@ -841,7 +842,7 @@ function AssignmentCoverageTableSection({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           <h3 className="text-base font-semibold text-gray-900 dark:text-white">
-            Under-target assignment coverage
+            Under-target classification coverage
           </h3>
           <p className="text-sm text-gray-600 dark:text-gray-300">
             Current-sequence work that still needs attention from the assigned user for galaxies below
@@ -1000,14 +1001,14 @@ function PageIntroCard({
         <div className="space-y-2">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Assignment coverage
+              Classification coverage
             </h2>
             <span className="rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-600 dark:bg-gray-900/50 dark:text-gray-300">
               {mode === "cached" ? "Cached snapshot" : "Live calculation"}
             </span>
           </div>
           <p className="max-w-3xl text-sm text-gray-600 dark:text-gray-300">
-            Paper-scoped coverage statistics for the effective catalog. All totals exclude blacklisted galaxies,
+            Paper-scoped classification coverage statistics for the effective catalog. All totals exclude blacklisted galaxies,
             and the user table shows who still has current-sequence work left on galaxies that are below
             the selected repeat-classification target.
           </p>
@@ -1046,7 +1047,7 @@ function PageIntroCard({
   );
 }
 
-function PaperAssignmentCoverageDashboard({
+function ClassificationCoverageDashboard({
   mode,
   sharedSnapshot,
   scopeSnapshots,
@@ -1118,7 +1119,7 @@ function PaperAssignmentCoverageDashboard({
         />
         <LoadingPanel>
           {selectedPaper === undefined
-            ? "The global assignment coverage snapshot is not available yet."
+            ? "The global classification coverage snapshot is not available yet."
             : `No snapshot is available for ${paperLabel(selectedPaper)} yet.`}
         </LoadingPanel>
       </div>
@@ -1155,7 +1156,7 @@ function PaperAssignmentCoverageDashboard({
         updatedAt={currentScope.updatedAt}
       />
 
-      <AssignmentCoverageTableSection
+      <ClassificationCoverageTableSection
         selectedPaper={selectedPaper}
         scopeSnapshot={currentScope}
         userDirectory={effectiveUserDirectory}
@@ -1165,14 +1166,19 @@ function PaperAssignmentCoverageDashboard({
   );
 }
 
-export function CachedPaperAssignmentCoverageTab({ systemSettings, canAccessLiveVariant = false }: RouteProps) {
+export function CachedClassificationCoverageTab({
+  systemSettings,
+  canAccessLiveVariant = false,
+}: ClassificationCoverageTabProps) {
   const cachedPayload = useQuery(
     api.statistics.paperAssignmentCoverage.cache.getCachedSnapshot,
     {},
   ) as CachedCoveragePayload | undefined;
-  const { searchParams } = useCoverageFilters(systemSettings.paperAssignmentCoverageDefaultPaper);
+  const classificationCoverageDefaultPaper =
+    systemSettings.classificationCoverageDefaultPaper ?? systemSettings.paperAssignmentCoverageDefaultPaper;
+  const { searchParams } = useCoverageFilters(classificationCoverageDefaultPaper);
   const liveLink = canAccessLiveVariant
-    ? buildModeLink("/statistics/assignment-coverage-live", searchParams)
+    ? buildModeLink("/statistics/classification-coverage-live", searchParams)
     : undefined;
 
   if (cachedPayload === undefined) {
@@ -1183,7 +1189,7 @@ export function CachedPaperAssignmentCoverageTab({ systemSettings, canAccessLive
           switchTo={liveLink}
           switchLabel={canAccessLiveVariant ? "Open live calculation" : undefined}
         />
-        <LoadingPanel>Loading cached assignment coverage…</LoadingPanel>
+        <LoadingPanel>Loading cached classification coverage…</LoadingPanel>
       </div>
     );
   }
@@ -1198,8 +1204,8 @@ export function CachedPaperAssignmentCoverageTab({ systemSettings, canAccessLive
         />
         <LoadingPanel>
           {canAccessLiveVariant
-            ? "Cached assignment coverage is not available yet. Open the live calculation page to compute the latest numbers immediately, or wait for the scheduled snapshot refresh."
-            : "Cached assignment coverage is not available yet. Wait for the scheduled snapshot refresh or ask an administrator to refresh the snapshot."}
+            ? "Cached classification coverage is not available yet. Open the live calculation page to compute the latest numbers immediately, or wait for the scheduled snapshot refresh."
+            : "Cached classification coverage is not available yet. Wait for the scheduled snapshot refresh or ask an administrator to refresh the snapshot."}
         </LoadingPanel>
       </div>
     );
@@ -1213,11 +1219,11 @@ export function CachedPaperAssignmentCoverageTab({ systemSettings, canAccessLive
         switchLabel={canAccessLiveVariant ? "Open live calculation" : undefined}
         updatedAt={cachedPayload.sharedSnapshot.updatedAt}
       />
-      <PaperAssignmentCoverageDashboard
+      <ClassificationCoverageDashboard
         mode="cached"
         sharedSnapshot={cachedPayload.sharedSnapshot}
         scopeSnapshots={cachedPayload.scopeSnapshots}
-        defaultPaper={systemSettings.paperAssignmentCoverageDefaultPaper}
+        defaultPaper={classificationCoverageDefaultPaper}
         alternateModeLink={liveLink}
         alternateModeLabel={canAccessLiveVariant ? "Open live calculation" : undefined}
       />
@@ -1225,24 +1231,26 @@ export function CachedPaperAssignmentCoverageTab({ systemSettings, canAccessLive
   );
 }
 
-export function LivePaperAssignmentCoverageTab({ systemSettings }: RouteProps) {
+export function LiveClassificationCoverageTab({ systemSettings }: ClassificationCoverageTabProps) {
   const computeLiveSnapshot = useAction(
     api.statistics.paperAssignmentCoverage.cache.computeLiveSnapshot,
   );
   const [snapshot, setSnapshot] = useState<LiveCoveragePayload | null>(null);
   const [isComputing, setIsComputing] = useState(false);
-  const { searchParams } = useCoverageFilters(systemSettings.paperAssignmentCoverageDefaultPaper);
-  const cachedLink = buildModeLink("/statistics/assignment-coverage", searchParams);
+  const classificationCoverageDefaultPaper =
+    systemSettings.classificationCoverageDefaultPaper ?? systemSettings.paperAssignmentCoverageDefaultPaper;
+  const { searchParams } = useCoverageFilters(classificationCoverageDefaultPaper);
+  const cachedLink = buildModeLink("/statistics/classification-coverage", searchParams);
 
   const handleCompute = async () => {
     setIsComputing(true);
     try {
       const nextSnapshot = await computeLiveSnapshot({});
       setSnapshot(nextSnapshot as LiveCoveragePayload);
-      toast.success("Live assignment coverage updated.");
+      toast.success("Live classification coverage updated.");
     } catch (error) {
       console.error(error);
-      toast.error("Failed to compute live assignment coverage.");
+      toast.error("Failed to compute live classification coverage.");
     } finally {
       setIsComputing(false);
     }
@@ -1266,11 +1274,11 @@ export function LivePaperAssignmentCoverageTab({ systemSettings }: RouteProps) {
           or change the target classifications per galaxy.
         </LoadingPanel>
       ) : (
-        <PaperAssignmentCoverageDashboard
+        <ClassificationCoverageDashboard
           mode="live"
           sharedSnapshot={snapshot.sharedSnapshot}
           scopeSnapshots={snapshot.scopeSnapshots}
-          defaultPaper={systemSettings.paperAssignmentCoverageDefaultPaper}
+          defaultPaper={classificationCoverageDefaultPaper}
           alternateModeLink={cachedLink}
           alternateModeLabel="Open cached snapshot"
         />
@@ -1278,3 +1286,6 @@ export function LivePaperAssignmentCoverageTab({ systemSettings }: RouteProps) {
     </div>
   );
 }
+
+export { CachedClassificationCoverageTab as CachedPaperAssignmentCoverageTab };
+export { LiveClassificationCoverageTab as LivePaperAssignmentCoverageTab };

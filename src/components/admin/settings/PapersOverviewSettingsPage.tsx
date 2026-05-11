@@ -174,14 +174,14 @@ export function PapersOverviewSettingsPage({
 
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Assignment Coverage Default Filter
+          Classification Coverage Default Filter
         </h4>
         <label className="mt-4 block">
           <span className="text-sm font-medium text-gray-900 dark:text-white">
-            Default Paper Filter for Assignment Coverage Tab
+            Default Paper Filter for Classification Coverage Tab
           </span>
           <p className="mb-2 text-sm text-gray-500 dark:text-gray-400">
-            Pre-select a paper in the Assignment Coverage tab when the page is opened without a URL parameter. Users can still switch to any paper or to All.
+            Pre-select a paper in the Classification Coverage tab when the page is opened without a URL parameter. Users can still switch to any paper or to All.
           </p>
           <select
             value={
@@ -269,11 +269,11 @@ export function PapersOverviewSettingsPage({
 
       <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800">
         <h4 className="text-lg font-semibold text-gray-900 dark:text-white">
-          Assignment Coverage Access & Cache
+          Classification Coverage Access & Cache
         </h4>
         <div className="mt-4 space-y-4">
           <div className="rounded-md border border-blue-100 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-900/60 dark:bg-blue-950/20 dark:text-blue-200">
-            Assignment Coverage access is now controlled per role on the Permissions page, including separate controls for cached access, live access, and whether a role can receive all user rows.
+            Classification Coverage access is now controlled per role on the Permissions page, including separate controls for cached access, live access, and whether a role can receive all user rows.
             <span className="ml-1">
               <Link to="/admin/settings/permissions" className="font-medium underline underline-offset-2 hover:no-underline">
                 Open Permissions settings
@@ -288,7 +288,7 @@ export function PapersOverviewSettingsPage({
                 Enable automatic snapshot refresh
               </span>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Refresh cached Assignment Coverage snapshots for /statistics/assignment-coverage on a background schedule.
+                Refresh cached Classification Coverage snapshots for /statistics/classification-coverage on a background schedule.
                 Disable this to keep only manual live calculations available.
               </p>
             </div>

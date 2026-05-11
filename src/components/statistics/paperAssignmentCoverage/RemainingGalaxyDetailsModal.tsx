@@ -184,7 +184,7 @@ export function RemainingGalaxyDetailsModal({
   }
 
   const handleDownloadIds = () => {
-    const fileName = `paper-assignment-remaining-ids-${sanitizeFilenameSegment(rowLabel)}-${sanitizeFilenameSegment(formatScopeLabel(scopeLabel))}-${formatDateForFilename()}.txt`;
+    const fileName = `classification-coverage-remaining-ids-${sanitizeFilenameSegment(rowLabel)}-${sanitizeFilenameSegment(formatScopeLabel(scopeLabel))}-${formatDateForFilename()}.txt`;
     downloadTextFile(`${galaxyExternalIds.join("\n")}\n`, fileName, "text/plain;charset=utf-8");
     toast.success(`Downloaded ${galaxyExternalIds.length.toLocaleString()} galaxy IDs.`);
   };
@@ -212,7 +212,7 @@ export function RemainingGalaxyDetailsModal({
         );
       }
 
-      const fileName = `paper-assignment-remaining-${sanitizeFilenameSegment(rowLabel)}-${sanitizeFilenameSegment(formatScopeLabel(scopeLabel))}-${formatDateForFilename()}.csv`;
+      const fileName = `classification-coverage-remaining-${sanitizeFilenameSegment(rowLabel)}-${sanitizeFilenameSegment(formatScopeLabel(scopeLabel))}-${formatDateForFilename()}.csv`;
       downloadTextFile(`${csvLines.join("\n")}\n`, fileName, "text/csv;charset=utf-8");
       toast.success(`Downloaded ${galaxyExternalIds.length.toLocaleString()} remaining galaxies as CSV.`);
     } catch (error) {
@@ -501,7 +501,7 @@ export function RemainingGalaxyDetailsModal({
                             rel="noreferrer"
                             className="inline-flex flex-1 items-center justify-center rounded-full bg-blue-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-blue-700"
                           >
-                            Open classify tab
+                            Classify
                           </Link>
 
                           <button

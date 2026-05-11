@@ -180,23 +180,23 @@ export const PERMISSION_METADATA: Record<
     group: "statistics",
   },
   viewAssignmentCoverage: {
-    label: "Open Assignment Coverage",
-    description: "Access the cached Assignment Coverage page in Statistics.",
+    label: "Open Classification Coverage",
+    description: "Access the cached Classification Coverage page in Statistics.",
     group: "statistics",
   },
   viewLiveAssignmentCoverage: {
-    label: "Open live Assignment Coverage",
-    description: "Access the live Assignment Coverage page. This only takes effect when the cached Assignment Coverage page is also allowed.",
+    label: "Open live Classification Coverage",
+    description: "Access the live Classification Coverage page. This only takes effect when the cached Classification Coverage page is also allowed.",
     group: "statistics",
   },
   viewAssignmentCoverageAllRows: {
-    label: "See all Assignment Coverage rows",
-    description: "Receive the full under-target table and shared user directory instead of only the caller's own row. This only takes effect when Assignment Coverage is allowed.",
+    label: "See all Classification Coverage rows",
+    description: "Receive the full under-target table and shared user directory instead of only the caller's own row. This only takes effect when Classification Coverage is allowed.",
     group: "statistics",
   },
   viewAssignmentCoverageUserEmails: {
-    label: "See Assignment Coverage user emails",
-    description: "Receive email addresses in the Assignment Coverage under-target table. Without this permission, emails are removed from the server response.",
+    label: "See Classification Coverage user emails",
+    description: "Receive email addresses in the Classification Coverage under-target table. Without this permission, emails are removed from the server response.",
     group: "statistics",
   },
   viewDataAnalysis: {
