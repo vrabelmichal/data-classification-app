@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { renderAdditionalDetails } from "./detailRenderers";
-import type { GalaxyData } from "./types";
+import type { GalaxyData, NavigationState } from "./types";
 
 interface GalaxyInfoProps {
   displayGalaxy: GalaxyData;
@@ -10,7 +10,7 @@ interface GalaxyInfoProps {
   onToggleDetails: () => void;
   onOpenImageUrls?: () => void;
   showGalaxyHeader?: boolean;
-  navigation?: { currentIndex: number; totalGalaxies: number } | null;
+  navigation?: NavigationState | null;
   detailsExtraContent?: ReactNode;
 }
 
@@ -25,15 +25,18 @@ export function GalaxyInfo({
   navigation,
   detailsExtraContent,
 }: GalaxyInfoProps) {
+  const displayNavigationIndex = navigation?.effectiveCurrentIndex ?? navigation?.currentIndex ?? -1;
+  const displayNavigationTotal = navigation?.effectiveTotalGalaxies ?? navigation?.totalGalaxies ?? 0;
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
       {showGalaxyHeader && (
         <div className="mb-3 pb-3 border-b border-gray-200 dark:border-gray-700">
           <div className="text-sm text-gray-600 dark:text-gray-300">
             <span className="font-medium">Galaxy:</span> {displayGalaxy.id}
-            {navigation && navigation.currentIndex !== -1 && (
+            {navigation && displayNavigationIndex !== -1 && (
               <span className="ml-3">
-                <span className="font-medium">Position:</span> {navigation.currentIndex + 1} of {navigation.totalGalaxies}
+                <span className="font-medium">Position:</span> {displayNavigationIndex + 1} of {displayNavigationTotal}
               </span>
             )}
           </div>

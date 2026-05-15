@@ -1,6 +1,14 @@
 import { mutation, query } from "../_generated/server";
 import { v } from "convex/values";
 import { getOptionalUserId, requireUserId } from "../lib/auth";
+import {
+  computeSequenceBlacklistStats,
+  getEffectiveSequenceIndex,
+  getSequenceBlacklistStatsVersion,
+  getStoredSequenceBlacklistStats,
+  listBlacklistedGalaxyExternalIds,
+  shouldUseStoredSequenceBlacklistStats,
+} from "../lib/sequenceBlacklistStats";
 
 
 // Get next galaxy for classification
@@ -104,6 +112,14 @@ export const getGalaxyNavigation = query({
     // Handle new format only for navigation (legacy format doesn't support navigation)
     if (!sequence.galaxyExternalIds) return null;
 
+    const blacklistedExternalIds = new Set(await listBlacklistedGalaxyExternalIds(ctx));
+    const currentVersion = await getSequenceBlacklistStatsVersion(ctx);
+    const stats = shouldUseStoredSequenceBlacklistStats(sequence, currentVersion)
+      ? getStoredSequenceBlacklistStats(sequence)
+      : computeSequenceBlacklistStats(sequence, {
+          blacklistedExternalIds,
+        });
+
     let currentIndex = -1;
 
     if (args.currentGalaxyExternalId) {
@@ -111,15 +127,13 @@ export const getGalaxyNavigation = query({
       currentIndex = sequence.galaxyExternalIds.findIndex(externalId => externalId === args.currentGalaxyExternalId);
     } else {
       // Fetch classified, skipped, and blacklisted external IDs once to avoid many DB queries in a loop
-      const [skippedRecords, classifiedRecords, blacklistedRecords] = await Promise.all([
+      const [skippedRecords, classifiedRecords] = await Promise.all([
         ctx.db.query("skippedGalaxies").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
         ctx.db.query("classifications").withIndex("by_user", (q) => q.eq("userId", userId)).collect(),
-        ctx.db.query("galaxyBlacklist").collect(),
       ]);
 
       const skippedExternalIds = new Set(skippedRecords.map(r => r.galaxyExternalId));
       const classifiedExternalIds = new Set(classifiedRecords.map(r => r.galaxyExternalId));
-      const blacklistedExternalIds = new Set(blacklistedRecords.map(r => r.galaxyExternalId));
 
       // Find first unclassified, unskipped, and non-blacklisted galaxy position using the pre-fetched sets
       for (let i = 0; i < sequence.galaxyExternalIds.length; i++) {
@@ -136,6 +150,9 @@ export const getGalaxyNavigation = query({
     return {
       currentIndex,
       totalGalaxies: sequence.galaxyExternalIds.length,
+      effectiveCurrentIndex: getEffectiveSequenceIndex(sequence.galaxyExternalIds, currentIndex, blacklistedExternalIds),
+      effectiveTotalGalaxies: stats!.effectiveGalaxyCount,
+      blacklistedGalaxies: stats!.blacklistedGalaxyCount,
       hasNext: currentIndex < sequence.galaxyExternalIds.length - 1,
       hasPrevious: currentIndex > 0,
       sequenceId: sequence._id,

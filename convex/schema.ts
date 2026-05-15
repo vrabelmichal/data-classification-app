@@ -350,6 +350,11 @@ const applicationTables = {
     currentIndex: v.number(), // Current position in the sequence
     numClassified: v.number(), // Number of galaxies classified in this sequence
     numSkipped: v.number(), // Number of galaxies skipped in this sequence
+    effectiveGalaxyCount: v.optional(v.number()),
+    blacklistedGalaxyCount: v.optional(v.number()),
+    blacklistedClassifiedCount: v.optional(v.number()),
+    blacklistedSkippedCount: v.optional(v.number()),
+    blacklistStatsVersion: v.optional(v.number()),
   }).index("by_user", ["userId"]),
 
   // Sequence generation jobs - tracks in-progress generation for progress/cancellation

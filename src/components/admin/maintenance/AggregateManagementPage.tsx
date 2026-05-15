@@ -5,6 +5,7 @@ import {
   ClearGalaxyAggregatesSection,
   RebuildGalaxyAggregatesSection,
   RebuildGalaxyBlacklistAggregateSection,
+  RebuildSequenceBlacklistStatsSection,
   LabelingAggregatesSection,
   RebuildTotalClassificationsAggregateSection,
   FastBackfillClassificationAggregatesSection,
@@ -25,6 +26,7 @@ export function AggregateManagementPage() {
         <ClearGalaxyAggregatesSection />
         <RebuildGalaxyAggregatesSection />
         <RebuildGalaxyBlacklistAggregateSection />
+        <RebuildSequenceBlacklistStatsSection />
         <RebuildTotalClassificationsAggregateSection />
         <LabelingAggregatesSection />
         <FastBackfillClassificationAggregatesSection />

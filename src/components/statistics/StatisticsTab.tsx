@@ -507,6 +507,17 @@ export function StatisticsTab() {
   const showFailedFitting = failedFittingMode === "checkbox";
 
   const isRefetching = stats === undefined && !!displayStatsResponse;
+  const progressDisplay = progress
+    ? {
+        classified: progress.effectiveClassified ?? progress.classified,
+        skipped: progress.effectiveSkipped ?? progress.skipped,
+        total: progress.effectiveTotal ?? progress.total,
+        remaining: progress.effectiveRemaining ?? progress.remaining,
+        percentage: progress.effectivePercentage ?? progress.percentage,
+        blacklistedTotal: progress.blacklistedTotal ?? 0,
+        blacklistedClassifiedCount: progress.blacklistedClassifiedCount ?? 0,
+      }
+    : null;
 
   const handleRefreshStats = async () => {
     if (isRefreshingStats) {
@@ -762,14 +773,14 @@ export function StatisticsTab() {
                   strokeWidth="3"
                   strokeLinecap="round"
                   fill="none"
-                  strokeDasharray={`${progress && progress.total > 0 ? (progress.classified / progress.total) * 100 : 0}, 100`}
+                  strokeDasharray={`${progressDisplay ? progressDisplay.percentage : 0}, 100`}
                   d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                 />
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {progress && progress.total > 0 ? Math.round((progress.classified / progress.total) * 100) : 0}%
+                    {progressDisplay ? progressDisplay.percentage : 0}%
                   </div>
                   <div className="text-xs text-gray-500 dark:text-gray-400">Complete</div>
                 </div>
@@ -781,26 +792,26 @@ export function StatisticsTab() {
           <div className="md:col-span-3 grid grid-cols-3 gap-4 text-center">
             <div>
               <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-                {progress?.classified || 0}
+                {progressDisplay?.classified || 0}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-300">Classified</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                {progress?.skipped || 0}
+                {progressDisplay?.skipped || 0}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-300">Skipped</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {progress?.remaining || 0}
+                {progressDisplay?.remaining || 0}
               </div>
               <div className="text-sm text-gray-600 dark:text-gray-300">Remaining</div>
             </div>
           </div>
         </div>
 
-        {progress && progress.remaining > 0 && (
+        {progressDisplay && progressDisplay.remaining > 0 && (
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-600 dark:text-gray-300">
               Keep going! You're making great progress.
@@ -808,6 +819,35 @@ export function StatisticsTab() {
           </div>
         )}
       </div>
+
+      {progressDisplay && progressDisplay.blacklistedTotal > 0 && (
+        <div className="mt-6 rounded-lg border border-gray-200 bg-gray-100/90 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800/50">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                Blacklisted galaxies in your sequence
+              </h3>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                These entries stay in the stored sequence but are excluded from progress totals.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 gap-3 sm:min-w-[16rem]">
+              <div className="rounded-md border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800/80">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">In sequence</div>
+                <div className="mt-1 text-lg font-semibold text-gray-800 dark:text-gray-100">
+                  {progressDisplay.blacklistedTotal.toLocaleString()}
+                </div>
+              </div>
+              <div className="rounded-md border border-gray-200 bg-white px-3 py-2 dark:border-gray-700 dark:bg-gray-800/80">
+                <div className="text-[11px] uppercase tracking-wide text-gray-500 dark:text-gray-400">Classified</div>
+                <div className="mt-1 text-lg font-semibold text-gray-800 dark:text-gray-100">
+                  {progressDisplay.blacklistedClassifiedCount.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {displayCache && (
         <StatisticsRefreshFooter

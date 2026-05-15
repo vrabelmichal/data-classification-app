@@ -11,6 +11,14 @@ import {
 } from "./lib/assignmentCore";
 import { DEFAULT_SYSTEM_SETTINGS } from "./lib/defaults";
 import { getSequenceProcedureCopy } from "./lib/sequenceProcedureMessaging";
+import {
+  buildSequenceBlacklistStatsPatch,
+  computeSequenceBlacklistStats,
+  getSequenceBlacklistStatsVersion,
+  getStoredSequenceBlacklistStats,
+  listBlacklistedGalaxyExternalIds,
+  shouldUseStoredSequenceBlacklistStats,
+} from "./lib/sequenceBlacklistStats";
 
 type StatsDoc = {
   _id: any;
@@ -24,6 +32,65 @@ type StatsDoc = {
 const MAX_SEQUENCE = 8192;
 const SELECTED_GALAXY_PREVIEW_SIZE = 5;
 const STATS_BATCH_SIZE = 500;
+
+async function loadSequenceBlacklistStatsForUser(
+  ctx: any,
+  targetUserId: any,
+  sequence: {
+    galaxyExternalIds?: string[];
+    numClassified: number;
+    numSkipped: number;
+    effectiveGalaxyCount?: number;
+    blacklistedGalaxyCount?: number;
+    blacklistedClassifiedCount?: number;
+    blacklistedSkippedCount?: number;
+    blacklistStatsVersion?: number;
+  }
+) {
+  const currentVersion = await getSequenceBlacklistStatsVersion(ctx);
+
+  if (shouldUseStoredSequenceBlacklistStats(sequence, currentVersion)) {
+    return {
+      currentVersion,
+      stats: getStoredSequenceBlacklistStats(sequence),
+    };
+  }
+
+  const [blacklistedIds, classifiedRecords, skippedRecords] = await Promise.all([
+    listBlacklistedGalaxyExternalIds(ctx),
+    ctx.db.query("classifications").withIndex("by_user", (q: any) => q.eq("userId", targetUserId)).collect(),
+    ctx.db.query("skippedGalaxies").withIndex("by_user", (q: any) => q.eq("userId", targetUserId)).collect(),
+  ]);
+
+  const stats = computeSequenceBlacklistStats(sequence, {
+    blacklistedExternalIds: new Set(blacklistedIds),
+    classifiedExternalIds: new Set(classifiedRecords.map((record: { galaxyExternalId: string }) => record.galaxyExternalId)),
+    skippedExternalIds: new Set(skippedRecords.map((record: { galaxyExternalId: string }) => record.galaxyExternalId)),
+  });
+
+  return {
+    currentVersion,
+    stats,
+  };
+}
+
+async function buildSequenceBlacklistStatsPatchForUser(
+  ctx: any,
+  targetUserId: any,
+  sequence: {
+    galaxyExternalIds?: string[];
+    numClassified: number;
+    numSkipped: number;
+    effectiveGalaxyCount?: number;
+    blacklistedGalaxyCount?: number;
+    blacklistedClassifiedCount?: number;
+    blacklistedSkippedCount?: number;
+    blacklistStatsVersion?: number;
+  }
+) {
+  const { currentVersion, stats } = await loadSequenceBlacklistStatsForUser(ctx, targetUserId, sequence);
+  return buildSequenceBlacklistStatsPatch(stats!, currentVersion);
+}
 
 /**
  * Get information about a user's current sequence for the update UI
@@ -52,13 +119,24 @@ export const getUserSequenceInfo = mutation({
       return null;
     }
 
+    const { stats } = await loadSequenceBlacklistStatsForUser(ctx, targetUserId, sequence);
+    const rawTotalGalaxies = sequence.galaxyExternalIds?.length || 0;
+
     return {
-      totalGalaxies: sequence.galaxyExternalIds?.length || 0,
+      totalGalaxies: rawTotalGalaxies,
+      effectiveTotalGalaxies: stats!.effectiveGalaxyCount,
+      blacklistedGalaxies: stats!.blacklistedGalaxyCount,
+      blacklistedClassifiedCount: stats!.blacklistedClassifiedCount,
+      blacklistedSkippedCount: stats!.blacklistedSkippedCount,
       currentIndex: sequence.currentIndex,
       numClassified: sequence.numClassified,
       numSkipped: sequence.numSkipped,
+      effectiveNumClassified: stats!.effectiveClassifiedCount,
+      effectiveNumSkipped: stats!.effectiveSkippedCount,
       // Calculate remaining (not yet classified/skipped)
-      remaining: Math.max(0, (sequence.galaxyExternalIds?.length || 0) - sequence.currentIndex),
+      remaining: Math.max(0, rawTotalGalaxies - sequence.currentIndex),
+      effectiveRemaining: stats!.effectiveRemainingCount,
+      effectiveCompletionPercent: stats!.effectiveCompletionPercent,
     };
   },
 });
@@ -174,8 +252,13 @@ export const shortenUserSequence = mutation({
     // If this is the last batch, update the sequence
     if (isLastBatch) {
       const newGalaxyIds = galaxyIds.slice(0, newSize);
+      const statsPatch = await buildSequenceBlacklistStatsPatchForUser(ctx, targetUserId, {
+        ...sequence,
+        galaxyExternalIds: newGalaxyIds,
+      });
       await ctx.db.patch(sequence._id, {
         galaxyExternalIds: newGalaxyIds,
+        ...statsPatch,
       });
       console.log(`Sequence shortened from ${currentSize} to ${newSize} galaxies`);
     }
@@ -397,8 +480,13 @@ export const extendUserSequence = mutation({
     // Append new galaxies to sequence
     if (!dryRun && selectedIds.length > 0) {
       const newGalaxyIds = [...(sequence.galaxyExternalIds || []), ...selectedIds];
+      const statsPatch = await buildSequenceBlacklistStatsPatchForUser(ctx, targetUserId, {
+        ...sequence,
+        galaxyExternalIds: newGalaxyIds,
+      });
       await ctx.db.patch(sequence._id, {
         galaxyExternalIds: newGalaxyIds,
+        ...statsPatch,
       });
       console.log(`Extended sequence from ${currentSize} to ${newGalaxyIds.length} galaxies`);
     }
@@ -524,16 +612,27 @@ export const assignGalaxyIdsToSequence = mutation({
 
     if (idsToAdd.length > 0) {
       if (sequence) {
+        const newGalaxyExternalIds = existingGalaxyIds.concat(idsToAdd);
+        const statsPatch = await buildSequenceBlacklistStatsPatchForUser(ctx, targetUserId, {
+          ...sequence,
+          galaxyExternalIds: newGalaxyExternalIds,
+        });
         await ctx.db.patch(sequence._id, {
-          galaxyExternalIds: existingGalaxyIds.concat(idsToAdd),
+          galaxyExternalIds: newGalaxyExternalIds,
+          ...statsPatch,
         });
       } else {
-        await ctx.db.insert("galaxySequences", {
+        const nextSequence = {
           userId: targetUserId,
           galaxyExternalIds: idsToAdd,
           currentIndex: 0,
           numClassified: 0,
           numSkipped: 0,
+        };
+        const statsPatch = await buildSequenceBlacklistStatsPatchForUser(ctx, targetUserId, nextSequence);
+        await ctx.db.insert("galaxySequences", {
+          ...nextSequence,
+          ...statsPatch,
         });
 
         const userProfile = await ctx.db

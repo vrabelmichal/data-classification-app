@@ -6,6 +6,7 @@ import {
   GALAXY_BLACKLIST_AGGREGATE_READY_KEY,
   galaxyBlacklistByExternalId,
 } from "./galaxies/aggregates";
+import { bumpSequenceBlacklistStatsVersion } from "./lib/sequenceBlacklistStats";
 
 const BLACKLIST_COUNT_PAGE_SIZE = 500;
 
@@ -255,6 +256,8 @@ export const addToBlacklist = mutation({
       addedBy: userId,
     });
 
+    await bumpSequenceBlacklistStatsVersion(ctx);
+
     return { success: true, message: "Galaxy added to blacklist" };
   },
 });
@@ -282,6 +285,7 @@ export const removeFromBlacklist = mutation({
 
     await safeDeleteGalaxyBlacklistAggregate(ctx, existing);
     await ctx.db.delete(existing._id);
+    await bumpSequenceBlacklistStatsVersion(ctx);
 
     return { success: true, message: "Galaxy removed from blacklist" };
   },
@@ -347,6 +351,10 @@ export const bulkAddToBlacklist = mutation({
       added++;
     }
 
+    if (added > 0) {
+      await bumpSequenceBlacklistStatsVersion(ctx);
+    }
+
     return {
       success: true,
       added,
@@ -391,6 +399,10 @@ export const bulkRemoveFromBlacklist = mutation({
       removed++;
     }
 
+    if (removed > 0) {
+      await bumpSequenceBlacklistStatsVersion(ctx);
+    }
+
     return {
       success: true,
       removed,
@@ -424,6 +436,10 @@ export const clearBlacklist = mutation({
     for (const item of items) {
       await safeDeleteGalaxyBlacklistAggregate(ctx, item);
       await ctx.db.delete(item._id);
+    }
+
+    if (items.length > 0) {
+      await bumpSequenceBlacklistStatsVersion(ctx);
     }
 
     return {

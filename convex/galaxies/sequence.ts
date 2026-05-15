@@ -23,6 +23,40 @@ import { v } from "convex/values";
 import { mutation, query } from "../_generated/server";
 import { galaxyIdsAggregate } from "./aggregates";
 import { requirePermission, requireUserId } from "../lib/auth";
+import {
+  buildSequenceBlacklistStatsPatch,
+  computeSequenceBlacklistStats,
+  getSequenceBlacklistStatsVersion,
+  listBlacklistedGalaxyExternalIds,
+} from "../lib/sequenceBlacklistStats";
+
+async function buildInitialSequenceBlacklistStatsPatch(
+    ctx: any,
+    targetUserId: any,
+    galaxyExternalIds: string[]
+) {
+    const [currentVersion, blacklistedIds, classifiedRecords, skippedRecords] = await Promise.all([
+        getSequenceBlacklistStatsVersion(ctx),
+        listBlacklistedGalaxyExternalIds(ctx),
+        ctx.db.query("classifications").withIndex("by_user", (q: any) => q.eq("userId", targetUserId)).collect(),
+        ctx.db.query("skippedGalaxies").withIndex("by_user", (q: any) => q.eq("userId", targetUserId)).collect(),
+    ]);
+
+    const stats = computeSequenceBlacklistStats(
+        {
+            galaxyExternalIds,
+            numClassified: 0,
+            numSkipped: 0,
+        },
+        {
+            blacklistedExternalIds: new Set(blacklistedIds),
+            classifiedExternalIds: new Set(classifiedRecords.map((record: { galaxyExternalId: string }) => record.galaxyExternalId)),
+            skippedExternalIds: new Set(skippedRecords.map((record: { galaxyExternalId: string }) => record.galaxyExternalId)),
+        }
+    );
+
+    return buildSequenceBlacklistStatsPatch(stats, currentVersion);
+}
 
 
 
@@ -97,12 +131,15 @@ export const generateRandomUserSequence = mutation({
                 .unique();
             if (existingSequence) await ctx.db.delete(existingSequence._id);
 
+            const statsPatch = await buildInitialSequenceBlacklistStatsPatch(ctx, targetUserId, chosenGalaxyExternalIds);
+
             await ctx.db.insert("galaxySequences", {
                 userId: targetUserId,
                 galaxyExternalIds: chosenGalaxyExternalIds,
                 currentIndex: 0,
                 numClassified: 0,
                 numSkipped: 0,
+                ...statsPatch,
             });
 
             const userProfile = await ctx.db

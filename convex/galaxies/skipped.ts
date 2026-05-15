@@ -1,6 +1,37 @@
 import { v } from "convex/values";
 import { query, mutation } from "../_generated/server";
 import { getOptionalUserId, requireConfirmedUser } from "../lib/auth";
+import {
+  getSequenceBlacklistStatsVersion,
+  shouldUseStoredSequenceBlacklistStats,
+} from "../lib/sequenceBlacklistStats";
+
+async function buildSequenceSkippedPatch(
+  ctx: any,
+  sequence: any,
+  galaxyExternalId: string,
+  delta: 1 | -1
+) {
+  const patch: Record<string, number> = {
+    numSkipped: Math.max((sequence.numSkipped || 0) + delta, 0),
+  };
+
+  const currentVersion = await getSequenceBlacklistStatsVersion(ctx);
+  if (!shouldUseStoredSequenceBlacklistStats(sequence, currentVersion)) {
+    return patch;
+  }
+
+  const blacklistEntry = await ctx.db
+    .query("galaxyBlacklist")
+    .withIndex("by_galaxy", (q: any) => q.eq("galaxyExternalId", galaxyExternalId))
+    .unique();
+
+  if (blacklistEntry) {
+    patch.blacklistedSkippedCount = Math.max((sequence.blacklistedSkippedCount ?? 0) + delta, 0);
+  }
+
+  return patch;
+}
 
 
 // Get skipped galaxies for current user
@@ -75,9 +106,7 @@ export const removeFromSkipped = mutation({
       .first();
 
     if (sequence && sequence.galaxyExternalIds && sequence.galaxyExternalIds.includes(skipped.galaxyExternalId)) {
-      await ctx.db.patch(sequence._id, {
-        numSkipped: Math.max((sequence.numSkipped || 1) - 1, 0),
-      });
+      await ctx.db.patch(sequence._id, await buildSequenceSkippedPatch(ctx, sequence, skipped.galaxyExternalId, -1));
     }
 
     return { success: true };
@@ -118,9 +147,7 @@ export const skipGalaxy = mutation({
       .first();
 
     if (sequence && sequence.galaxyExternalIds && sequence.galaxyExternalIds.includes(args.galaxyExternalId)) {
-      await ctx.db.patch(sequence._id, {
-        numSkipped: (sequence.numSkipped || 0) + 1,
-      });
+      await ctx.db.patch(sequence._id, await buildSequenceSkippedPatch(ctx, sequence, args.galaxyExternalId, 1));
     }
 
     return { success: true };
@@ -157,9 +184,7 @@ export const unskipGalaxy = mutation({
       .first();
 
     if (sequence && sequence.galaxyExternalIds && sequence.galaxyExternalIds.includes(args.galaxyExternalId)) {
-      await ctx.db.patch(sequence._id, {
-        numSkipped: Math.max((sequence.numSkipped || 1) - 1, 0),
-      });
+      await ctx.db.patch(sequence._id, await buildSequenceSkippedPatch(ctx, sequence, args.galaxyExternalId, -1));
     }
 
     return { success: true };

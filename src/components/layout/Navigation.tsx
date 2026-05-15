@@ -50,6 +50,14 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
   const location = useLocation();
   const userDisplayName = userProfile?.user?.name ?? userProfile?.user?.email;
   const { theme, effectiveTheme, toggleTheme } = useTheme();
+  const progressDisplay = progress
+    ? {
+        completed: progress.effectiveCompleted ?? progress.completed,
+        total: progress.effectiveTotal ?? progress.total,
+        percentage: progress.effectivePercentage ?? progress.percentage,
+        blacklistedTotal: progress.blacklistedTotal ?? 0,
+      }
+    : null;
 
   const visibleItems = navigationItems.filter((item) => item.isVisible !== false);
 
@@ -230,15 +238,15 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
           </div>
 
           {/* Progress */}
-          {progress && (
+          {progressDisplay && (
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
-                Progress: {progress.completed}/{progress.total} ({progress.percentage}%)
+                Progress: {progressDisplay.completed}/{progressDisplay.total} ({progressDisplay.percentage}%)
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
                 <div
                   className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${progress.percentage}%` }}
+                  style={{ width: `${progressDisplay.percentage}%` }}
                 />
               </div>
             </div>

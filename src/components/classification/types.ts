@@ -54,6 +54,9 @@ export interface NavigationState {
   hasNext: boolean;
   currentIndex: number;
   totalGalaxies: number;
+  effectiveCurrentIndex?: number;
+  effectiveTotalGalaxies?: number;
+  blacklistedGalaxies?: number;
 }
 
 export type NavigationStateOrNull = NavigationState | null | undefined;
