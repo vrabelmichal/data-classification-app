@@ -3,7 +3,7 @@ import { cn } from "../../lib/utils";
 import { getExperienceLabel, getRoleLabel } from "../../lib/permissions";
 import { LSB_OPTIONS_CHECKBOX, LSB_OPTIONS_LEGACY, MORPHOLOGY_OPTIONS } from "./constants";
 
-type SequenceState = "passed" | "current" | "upcoming";
+type SequenceState = "passed" | "current" | "upcoming" | "completed";
 
 type GalaxyAssignmentDetailsData = {
   assignmentSourceTracked: boolean;
@@ -84,6 +84,8 @@ function getSequenceStateLabel(state: SequenceState) {
       return "Passed in sequence";
     case "current":
       return "Current sequence item";
+    case "completed":
+      return "Already completed";
     case "upcoming":
       return "Upcoming in sequence";
   }
@@ -95,9 +97,32 @@ function getSequenceStateClassName(state: SequenceState) {
       return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200";
     case "current":
       return "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200";
+    case "completed":
+      return "bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-200";
     case "upcoming":
       return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200";
   }
+}
+
+function getCheckedFlags(
+  classification: NonNullable<GalaxyAssignmentDetailsData["users"][number]["classification"]>
+) {
+  const flags: string[] = [];
+
+  if (classification.awesome_flag) {
+    flags.push("Awesome");
+  }
+  if (classification.valid_redshift) {
+    flags.push("Valid redshift");
+  }
+  if (classification.visible_nucleus) {
+    flags.push("Visible nucleus");
+  }
+  if (classification.failed_fitting) {
+    flags.push("Failed fitting");
+  }
+
+  return flags;
 }
 
 function formatDuration(milliseconds: number) {
@@ -287,6 +312,17 @@ export function GalaxyAssignmentDetails({
 
                     {user.classification ? (
                       <div className="mt-3 rounded-md border border-gray-200 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-800/70">
+                        {(() => {
+                          const checkedFlags = getCheckedFlags(user.classification);
+
+                          return (
+                            <div className="mb-2 text-gray-700 dark:text-gray-200">
+                              <span className="font-medium">Flags checked:</span>{" "}
+                              {checkedFlags.length > 0 ? checkedFlags.join(", ") : "None"}
+                            </div>
+                          );
+                        })()}
+
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-gray-700 dark:text-gray-200">
                           <div>
                             <span className="font-medium">LSB:</span> {getLsbLabel(user.classification)}

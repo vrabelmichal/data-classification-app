@@ -473,7 +473,15 @@ export const getUserClassificationForGalaxy = query({
   },
 });
 
-function getSequenceState(sequenceIndex: number, currentIndex: number) {
+function getSequenceState(
+  sequenceIndex: number,
+  currentIndex: number,
+  alreadyHandled: boolean
+) {
+  if (alreadyHandled && sequenceIndex >= currentIndex) {
+    return "completed" as const;
+  }
+
   if (sequenceIndex < currentIndex) {
     return "passed" as const;
   }
@@ -525,7 +533,13 @@ const galaxyAssignmentDetailsUserValidator = v.object({
   currentlyAssigned: v.boolean(),
   sequencePosition: v.union(v.null(), v.number()),
   sequenceLength: v.union(v.null(), v.number()),
-  sequenceState: v.union(v.null(), v.literal("passed"), v.literal("current"), v.literal("upcoming")),
+  sequenceState: v.union(
+    v.null(),
+    v.literal("passed"),
+    v.literal("current"),
+    v.literal("upcoming"),
+    v.literal("completed")
+  ),
   numClassifiedInSequence: v.union(v.null(), v.number()),
   numSkippedInSequence: v.union(v.null(), v.number()),
   classification: v.union(v.null(), galaxyAssignmentDetailsClassificationValidator),
@@ -643,7 +657,11 @@ export const getGalaxyAssignmentDetails = query({
             ? assignment.sequence.galaxyExternalIds?.length ?? 0
             : null,
           sequenceState: assignment
-            ? getSequenceState(assignment.sequenceIndex, assignment.sequence.currentIndex)
+            ? getSequenceState(
+                assignment.sequenceIndex,
+                assignment.sequence.currentIndex,
+                Boolean(classification || skipped)
+              )
             : null,
           numClassifiedInSequence: assignment ? assignment.sequence.numClassified : null,
           numSkippedInSequence: assignment ? assignment.sequence.numSkipped : null,
