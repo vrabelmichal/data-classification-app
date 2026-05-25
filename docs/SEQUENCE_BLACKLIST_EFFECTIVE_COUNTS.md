@@ -88,6 +88,126 @@ That happens in `convex/galaxyBlacklist.ts` for:
 
 If a stored sequence row has an older `blacklistStatsVersion`, reads automatically stop trusting the stored stats and recompute them live until the row is rebuilt.
 
+### What happens to `galaxySequences` when blacklist items are added or removed
+
+This is the key detail for operations and maintenance:
+
+when the blacklist changes, the app does **not** immediately scan all `galaxySequences` rows and patch their persisted blacklist-aware fields.
+
+Instead, the current implementation does this:
+
+1. The blacklist mutation succeeds.
+2. `convex/galaxyBlacklist.ts` calls `bumpSequenceBlacklistStatsVersion(ctx)`.
+3. `systemSettings.sequenceBlacklistStatsVersion` increments.
+4. Any `galaxySequences` row that still carries the older `blacklistStatsVersion` becomes logically stale.
+5. Read paths detect that stale version and recompute effective stats live in memory.
+
+So the persisted fields in `galaxySequences` are **not deleted**, **not recomputed immediately**, and **not updated in place** at the moment a blacklist row is added or removed. They simply become stale and are ignored by the read paths until something explicitly rewrites them.
+
+### Where stale persisted fields are detected
+
+The decision point is `shouldUseStoredSequenceBlacklistStats(...)` in `convex/lib/sequenceBlacklistStats.ts`.
+
+That helper only trusts the persisted sequence fields when both conditions are true:
+
+- the optional persisted fields are present
+- `sequence.blacklistStatsVersion === current systemSettings.sequenceBlacklistStatsVersion`
+
+If either condition is false, the code falls back to live recomputation.
+
+### Where live recomputation happens after blacklist changes
+
+After invalidation, recomputation currently happens on reads in these places:
+
+- `convex/classification.ts`
+  - `loadSequenceBlacklistStatsForUser(...)`
+  - used by `getProgress`
+- `convex/updateUserSequence.ts`
+  - `loadSequenceBlacklistStatsForUser(...)`
+  - used by `getUserSequenceInfo`
+- `convex/galaxies/navigation.ts`
+  - inline recomputation path in `getGalaxyNavigation`
+
+In all of those paths, the code reads the current blacklist, checks the sequence version, and if the row is stale it calls `computeSequenceBlacklistStats(...)` from `convex/lib/sequenceBlacklistStats.ts`.
+
+### Are live recomputation results immediately written back to the database?
+
+No.
+
+The read-path recomputation described above is used to return correct values to the caller, but those read paths do **not** immediately patch `galaxySequences` with the recomputed results.
+
+That means:
+
+- the UI sees correct effective totals right away
+- the stale persisted fields remain stale in the database until another write or rebuild updates them
+
+This is intentional. It keeps blacklist edits cheap and avoids a potentially large fan-out write across every affected sequence.
+
+### Where recomputed results are persisted
+
+Persisted sequence blacklist stats are updated in these situations:
+
+#### 1. Sequence membership changes
+
+When a sequence is created or its `galaxyExternalIds` change, the app recomputes the stats and stores them back into `galaxySequences`.
+
+That happens in:
+
+- `convex/generateBalancedUserSequence.ts`
+  - initial sequence creation path
+- `convex/galaxies/sequence.ts`
+  - random sequence creation path
+- `convex/updateUserSequence.ts`
+  - shorten sequence
+  - extend sequence
+  - manual assign to sequence
+
+Those flows compute fresh stats and then persist them with `buildSequenceBlacklistStatsPatch(...)`.
+
+#### 2. Explicit rebuild / backfill
+
+The bulk recomputation-and-persist path is `convex/sequenceBlacklistStats.ts`.
+
+Specifically:
+
+- `rebuildSequenceBlacklistStatsBatch`
+
+That mutation:
+
+- paginates through `galaxySequences`
+- recomputes blacklist-aware stats using the current blacklist
+- patches each row with `buildSequenceBlacklistStatsPatch(stats, currentVersion)`
+
+This is the main mechanism for bringing historical rows up to date after a blacklist change.
+
+### What happens if users keep classifying or skipping galaxies while a sequence row is stale?
+
+Raw progress counters continue to update, but stale blacklist-aware persisted fields are still not fully refreshed automatically.
+
+Specifically:
+
+- `convex/classification.ts`
+  - `buildSequenceClassificationPatch(...)` always increments `numClassified`
+  - but it only updates `blacklistedClassifiedCount` if the stored sequence stats are still current
+- `convex/galaxies/skipped.ts`
+  - `buildSequenceSkippedPatch(...)` always updates `numSkipped`
+  - but it only updates `blacklistedSkippedCount` if the stored sequence stats are still current
+
+So once a blacklist change has invalidated a sequence row, later classify/skip activity does **not** repair the stale persisted effective fields by itself. Correctness still comes from live recomputation on reads, and persistence still depends on either:
+
+- a sequence rewrite that recomputes the fields, or
+- the explicit rebuild/backfill mutation
+
+### Operational summary
+
+After adding or removing blacklist rows:
+
+- persisted sequence blacklist fields remain in `galaxySequences`
+- those persisted fields may now be stale
+- read paths recompute correct values immediately
+- recomputed read values are not auto-saved back into the database
+- persisted values are refreshed later by sequence rewrites or by `rebuildSequenceBlacklistStatsBatch`
+
 ## Frontend Changes
 
 The user-facing UI now consumes effective counts instead of raw sequence length where that is the right semantic:
