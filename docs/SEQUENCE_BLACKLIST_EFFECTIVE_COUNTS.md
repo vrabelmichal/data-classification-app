@@ -302,7 +302,7 @@ Use the `Rebuild Sequence Blacklist Stats` card under `Admin -> Maintenance -> A
 
 Recommended workflow:
 
-1. Leave `Batch Size` at `25` for the first production run.
+1. Leave `Batch Size` at the default value for the first production run.
 2. Click `Start Rebuild` if no saved cursor exists, or `Resume Rebuild` if a prior run was interrupted.
 3. If you intentionally want to discard saved progress and start from the beginning, click `Restart From Beginning`.
 4. If you need to pause the long-running loop, click `Stop`.
@@ -319,7 +319,7 @@ Start the rebuild from the beginning:
 
 ```ts
 await api.sequenceBlacklistStats.rebuildSequenceBlacklistStatsBatch({
-  batchSize: 25,
+  batchSize: DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE,
   reset: true,
 });
 ```
@@ -328,7 +328,7 @@ Continue calling the same mutation until the response reports `isComplete: true`
 
 ```ts
 await api.sequenceBlacklistStats.rebuildSequenceBlacklistStatsBatch({
-  batchSize: 25,
+  batchSize: DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE,
 });
 ```
 
@@ -356,9 +356,9 @@ If you intentionally want to restart the rebuild from the beginning, run the mut
 
 ## Recommended Batch Size
 
-The current implementation clamps batch size between `1` and `100` and defaults to `25`.
+The current implementation clamps batch size between the default and max batch-size constants.
 
-For production, start with `25` unless you already know the deployment has enough headroom for a larger batch.
+For production, start with the default batch size. Increase only if your deployment can handle it.
 
 ## What Happens If The Blacklist Changes During Migration
 

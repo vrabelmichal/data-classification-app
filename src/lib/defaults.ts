@@ -129,6 +129,11 @@ export const DEFAULT_MAINTENANCE_DISABLE_NEW_CLASSIFICATIONS = false;
  */
 export const DEFAULT_USER_EXPORT_LIMIT = 1000;
 
+export {
+  DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE,
+  SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE,
+} from "../../convex/lib/defaults";
+
 /**
  * Minimum default user count used to prefill assignment balancing inputs.
  */

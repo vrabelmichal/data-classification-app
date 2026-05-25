@@ -2,6 +2,10 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requirePermission } from "./lib/auth";
 import {
+  DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE,
+  SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE,
+} from "./lib/defaults";
+import {
   buildSequenceBlacklistStatsPatch,
   computeSequenceBlacklistStats,
   getSequenceBlacklistStatsBackfillCursor,
@@ -9,9 +13,6 @@ import {
   listBlacklistedGalaxyExternalIds,
   setSequenceBlacklistStatsBackfillCursor,
 } from "./lib/sequenceBlacklistStats";
-
-const DEFAULT_BATCH_SIZE = 25;
-const MAX_BATCH_SIZE = 100;
 
 export const getRebuildSequenceBlacklistStatsState = query({
   args: {},
@@ -57,8 +58,8 @@ export const rebuildSequenceBlacklistStatsBatch = mutation({
     });
 
     const batchSize = Math.min(
-      Math.max(Math.floor(args.batchSize ?? DEFAULT_BATCH_SIZE), 1),
-      MAX_BATCH_SIZE
+      Math.max(Math.floor(args.batchSize ?? DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE), 1),
+      SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE
     );
 
     if (args.reset) {

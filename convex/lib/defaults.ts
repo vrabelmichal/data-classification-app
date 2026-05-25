@@ -48,6 +48,16 @@ export const DEFAULT_OVERVIEW_AUTO_REFRESH_INTERVAL_MINUTES = 60;
 export const DEFAULT_USER_EXPORT_LIMIT = 1000;
 
 /**
+ * Default batch size for rebuilding sequence blacklist stats.
+ */
+export const DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE = 5;
+
+/**
+ * Dedicated maximum batch size for rebuilding sequence blacklist stats.
+ */
+export const SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE = 10;
+
+/**
  * Default paper pre-selected in the Paper Assignment Coverage tab (null = no default, show all papers)
  */
 export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER = null as string | null;

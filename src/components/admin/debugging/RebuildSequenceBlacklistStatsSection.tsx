@@ -2,6 +2,10 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
+import {
+  DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE,
+  SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE,
+} from "../../../lib/defaults";
 
 type RebuildResult = {
   success: boolean;
@@ -12,13 +16,11 @@ type RebuildResult = {
   batchSize: number;
 };
 
-const DEFAULT_BATCH_SIZE = 25;
-
 export function RebuildSequenceBlacklistStatsSection() {
   const rebuildState = useQuery(api.sequenceBlacklistStats.getRebuildSequenceBlacklistStatsState, {});
   const rebuild = useMutation(api.sequenceBlacklistStats.rebuildSequenceBlacklistStatsBatch);
   const [busy, setBusy] = useState(false);
-  const [batchSize, setBatchSize] = useState(DEFAULT_BATCH_SIZE);
+  const [batchSize, setBatchSize] = useState(DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE);
   const [processed, setProcessed] = useState(0);
   const [stopRequested, setStopRequested] = useState(false);
   const stopRequestedRef = useRef(false);
@@ -125,14 +127,21 @@ export function RebuildSequenceBlacklistStatsSection() {
         <input
           type="number"
           min="1"
-          max="100"
+          max={SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE}
           value={batchSize}
-          onChange={(event) => setBatchSize(Math.min(100, Math.max(1, Number(event.target.value) || DEFAULT_BATCH_SIZE)))}
+          onChange={(event) =>
+            setBatchSize(
+              Math.min(
+                SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE,
+                Math.max(1, Number(event.target.value) || SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE)
+              )
+            )
+          }
           disabled={busy}
           className="w-full sm:max-w-xs border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         />
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Recommended starting value: 25. The backend clamps this between 1 and 100.
+          Default batch size: {DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE}. Dedicated maximum batch size: {SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE}.
         </p>
       </div>
 
