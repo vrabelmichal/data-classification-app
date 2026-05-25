@@ -326,6 +326,44 @@ function DuplicateIcon() {
   );
 }
 
+function MoveUpIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m12 5-6 6" />
+      <path d="m12 5 6 6" />
+      <path d="M12 5v14" />
+    </svg>
+  );
+}
+
+function MoveDownIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m12 19-6-6" />
+      <path d="m12 19 6-6" />
+      <path d="M12 5v14" />
+    </svg>
+  );
+}
+
 function VotePreviewRow({
   label,
   values,
@@ -639,10 +677,14 @@ export function DataAnalysisQueryCard({
   imageQuality,
   userPreferences,
   canRemove,
+  canMoveUp,
+  canMoveDown,
   onOpenDetails,
   onDownloadQueryIdsTxt,
   onDownloadQueryMatchesCsv,
   onToggleCollapsed,
+  onMoveUp,
+  onMoveDown,
   onDuplicate,
   onRemove,
   onUpdateQuery,
@@ -655,6 +697,8 @@ export function DataAnalysisQueryCard({
   imageQuality: "high" | "medium" | "low";
   userPreferences: UserPreferences | null | undefined;
   canRemove: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onOpenDetails: (record: AnalysisRecord) => void;
   onDownloadQueryIdsTxt: (
     query: AnalysisQueryConfig,
@@ -665,6 +709,8 @@ export function DataAnalysisQueryCard({
     result: AnalysisQueryResult
   ) => void;
   onToggleCollapsed: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onDuplicate: () => void;
   onRemove: () => void;
   onUpdateQuery: (
@@ -681,7 +727,7 @@ export function DataAnalysisQueryCard({
       className="scroll-mt-32 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-700 dark:bg-gray-800"
     >
       <div className="flex flex-col gap-4 pb-4">
-        <div className="flex flex-col-reverse gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex flex-col-reverse gap-4 min-[1144px]:flex-row min-[1144px]:items-center min-[1144px]:justify-between">
           <div className="flex flex-wrap items-center gap-2 min-w-0">
             {isEditingTitle ? (
               <div className="flex flex-wrap items-center gap-2 min-w-0">
@@ -723,7 +769,7 @@ export function DataAnalysisQueryCard({
             )}
           </div>
 
-          <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-3 md:w-auto md:justify-start">
+          <div className="flex w-full shrink-0 flex-wrap items-center justify-between gap-3 min-[1144px]:w-auto min-[1144px]:justify-start">
             <button
               type="button"
               onClick={onToggleCollapsed}
@@ -743,15 +789,35 @@ export function DataAnalysisQueryCard({
             <div className="flex shrink-0 flex-wrap gap-3">
               <button
                 type="button"
+                onClick={onMoveUp}
+                disabled={!canMoveUp}
+                aria-label="Move query card up"
+                title="Move query card up"
+                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+              >
+                <MoveUpIcon />
+              </button>
+              <button
+                type="button"
+                onClick={onMoveDown}
+                disabled={!canMoveDown}
+                aria-label="Move query card down"
+                title="Move query card down"
+                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+              >
+                <MoveDownIcon />
+              </button>
+              <button
+                type="button"
                 onClick={onDuplicate}
                 aria-label="Duplicate query card"
                 title="Duplicate query card"
-                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 sm:px-4"
+                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 min-[1144px]:px-4"
               >
-                <span className="sm:mr-2">
+                <span className="min-[1144px]:mr-2">
                   <DuplicateIcon />
                 </span>
-                <span className="hidden sm:inline">Duplicate</span>
+                <span className="hidden min-[1144px]:inline">Duplicate</span>
               </button>
               <button
                 type="button"
@@ -759,12 +825,12 @@ export function DataAnalysisQueryCard({
                 disabled={!canRemove}
                 aria-label="Remove query card"
                 title="Remove query card"
-                className="inline-flex items-center justify-center rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-red-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500 sm:px-4"
+                className="inline-flex items-center justify-center rounded-md border border-red-300 bg-white px-3 py-2 text-sm font-medium text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-red-800 dark:bg-gray-800 dark:text-red-300 dark:hover:bg-red-950/20 dark:disabled:border-gray-700 dark:disabled:text-gray-500 min-[1144px]:px-4"
               >
-                <span className="sm:mr-2">
+                <span className="min-[1144px]:mr-2">
                   <TrashIcon />
                 </span>
-                <span className="hidden sm:inline">Remove</span>
+                <span className="hidden min-[1144px]:inline">Remove</span>
               </button>
             </div>
           </div>

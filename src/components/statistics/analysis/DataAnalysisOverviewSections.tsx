@@ -181,6 +181,34 @@ function ZeroBucketToggle({
   );
 }
 
+function VisibilityToggleIcon({ isHidden }: { isHidden: boolean }) {
+  return (
+    <svg
+      className="h-3.5 w-3.5"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {isHidden ? (
+        <>
+          <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" />
+          <circle cx="12" cy="12" r="2.5" />
+        </>
+      ) : (
+        <>
+          <path d="M3 3l18 18" />
+          <path d="M10.6 5.2A10.7 10.7 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-4 4.8" />
+          <path d="M6.7 6.7C4 8.5 2 12 2 12s3.5 6 10 6a9.7 9.7 0 0 0 3-.5" />
+        </>
+      )}
+    </svg>
+  );
+}
+
 function HistogramCard({
   title,
   description,
@@ -241,12 +269,18 @@ export function AnalysisLoadSection({
   canImportDatasetArchive,
   canExportReport,
   analysisSetupName,
+  analysisSetupOptions,
+  selectedAnalysisSetupKey,
   hasSavedAnalysisSetup,
+  savedAnalysisSetupCount,
   analysisSetupStatusMessage,
   analysisSetupStatusTone,
   isAnalysisSetupLoading,
   isAnalysisSetupSaving,
+  onSelectAnalysisSetup,
+  onChangeAnalysisSetupName,
   onSaveAnalysisSetup,
+  onSaveAsNewAnalysisSetup,
   onLoadAnalysisSetup,
   onRestoreDefaultAnalysisSetup,
 }: {
@@ -273,12 +307,22 @@ export function AnalysisLoadSection({
   canImportDatasetArchive: boolean;
   canExportReport: boolean;
   analysisSetupName: string;
+  analysisSetupOptions: Array<{
+    configKey: string;
+    name: string;
+    updatedAt: number;
+  }>;
+  selectedAnalysisSetupKey: string | null;
   hasSavedAnalysisSetup: boolean;
+  savedAnalysisSetupCount: number;
   analysisSetupStatusMessage: string;
   analysisSetupStatusTone: "neutral" | "success" | "warning";
   isAnalysisSetupLoading: boolean;
   isAnalysisSetupSaving: boolean;
+  onSelectAnalysisSetup: (configKey: string | null) => void;
+  onChangeAnalysisSetupName: (name: string) => void;
   onSaveAnalysisSetup: () => void;
+  onSaveAsNewAnalysisSetup: () => void;
   onLoadAnalysisSetup: () => void;
   onRestoreDefaultAnalysisSetup: () => void;
 }) {
@@ -527,11 +571,55 @@ export function AnalysisLoadSection({
                 <span className="inline-flex items-center rounded-full border border-blue-200 bg-white px-2.5 py-0.5 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-200">
                   {analysisSetupName}
                 </span>
-                {hasSavedAnalysisSetup ? (
+                {savedAnalysisSetupCount > 0 ? (
                   <span className="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
-                    Server copy available
+                    {savedAnalysisSetupCount.toLocaleString()} saved
                   </span>
                 ) : null}
+              </div>
+              <div className="grid gap-3 lg:grid-cols-[minmax(0,260px)_minmax(0,1fr)]">
+                <label className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Saved setup
+                  </span>
+                  <select
+                    value={selectedAnalysisSetupKey ?? ""}
+                    onChange={(event) =>
+                      onSelectAnalysisSetup(
+                        event.target.value.length > 0 ? event.target.value : null
+                      )
+                    }
+                    disabled={isAnalysisSetupLoading || isAnalysisSetupSaving}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+                  >
+                    <option value="">No saved setup selected</option>
+                    {analysisSetupOptions.map((option) => {
+                      const savedAtLabel = formatLoadedAt(option.updatedAt);
+
+                      return (
+                        <option key={option.configKey} value={option.configKey}>
+                          {savedAtLabel
+                            ? `${option.name} · saved ${savedAtLabel}`
+                            : option.name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+
+                <label className="space-y-1">
+                  <span className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Setup name
+                  </span>
+                  <input
+                    type="text"
+                    value={analysisSetupName}
+                    onChange={(event) => onChangeAnalysisSetupName(event.target.value)}
+                    placeholder="Analysis 1"
+                    disabled={isAnalysisSetupSaving}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-white dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+                  />
+                </label>
               </div>
               <p className={`text-sm leading-6 ${analysisSetupStatusClass}`}>
                 {analysisSetupStatusMessage}
@@ -550,12 +638,21 @@ export function AnalysisLoadSection({
               </button>
               <button
                 type="button"
+                onClick={onSaveAsNewAnalysisSetup}
+                disabled={isAnalysisSetupSaving}
+                className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500`}
+              >
+                <SaveCacheIcon />
+                <span>Save as new</span>
+              </button>
+              <button
+                type="button"
                 onClick={onLoadAnalysisSetup}
                 disabled={isAnalysisSetupLoading || !hasSavedAnalysisSetup || isAnalysisSetupSaving}
                 className={`${TOOLBAR_BUTTON_CLASS} border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500`}
               >
                 <CacheLoadIcon />
-                <span>{isAnalysisSetupLoading ? "Checking…" : "Load saved"}</span>
+                <span>{isAnalysisSetupLoading ? "Checking…" : "Load selected"}</span>
               </button>
               <button
                 type="button"
@@ -1125,10 +1222,14 @@ export function AnalysisQueryToolbar({
   onAddQuery,
   onCollapseAll,
   onExpandAll,
+  isSectionHidden,
+  onToggleSectionVisibility,
 }: {
   onAddQuery: () => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
+  isSectionHidden: boolean;
+  onToggleSectionVisibility: () => void;
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1145,7 +1246,18 @@ export function AnalysisQueryToolbar({
       <div className="flex shrink-0 gap-2">
         <button
           type="button"
+          onClick={onToggleSectionVisibility}
+          aria-label={isSectionHidden ? "Show query section" : "Hide query section"}
+          title={isSectionHidden ? "Show query section" : "Hide query section"}
+          className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        >
+          <VisibilityToggleIcon isHidden={isSectionHidden} />
+          <span>{isSectionHidden ? "Show" : "Hide"}</span>
+        </button>
+        <button
+          type="button"
           onClick={onAddQuery}
+          disabled={isSectionHidden}
           title="Add query"
           aria-label="Add query"
           className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -1156,6 +1268,7 @@ export function AnalysisQueryToolbar({
         <button
           type="button"
           onClick={onCollapseAll}
+          disabled={isSectionHidden}
           aria-label="Collapse all query cards"
           title="Collapse all query cards"
           className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -1165,6 +1278,7 @@ export function AnalysisQueryToolbar({
         <button
           type="button"
           onClick={onExpandAll}
+          disabled={isSectionHidden}
           aria-label="Expand all query cards"
           title="Expand all query cards"
           className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -1180,10 +1294,14 @@ export function AnalysisDistributionToolbar({
   onAddDistribution,
   onCollapseAll,
   onExpandAll,
+  isSectionHidden,
+  onToggleSectionVisibility,
 }: {
   onAddDistribution: () => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
+  isSectionHidden: boolean;
+  onToggleSectionVisibility: () => void;
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1199,7 +1317,18 @@ export function AnalysisDistributionToolbar({
       <div className="flex shrink-0 gap-2">
         <button
           type="button"
+          onClick={onToggleSectionVisibility}
+          aria-label={isSectionHidden ? "Show distribution section" : "Hide distribution section"}
+          title={isSectionHidden ? "Show distribution section" : "Hide distribution section"}
+          className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        >
+          <VisibilityToggleIcon isHidden={isSectionHidden} />
+          <span>{isSectionHidden ? "Show" : "Hide"}</span>
+        </button>
+        <button
+          type="button"
           onClick={onAddDistribution}
+          disabled={isSectionHidden}
           title="Add distribution split card"
           aria-label="Add distribution split card"
           className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -1210,6 +1339,7 @@ export function AnalysisDistributionToolbar({
         <button
           type="button"
           onClick={onCollapseAll}
+          disabled={isSectionHidden}
           aria-label="Collapse all distribution cards"
           title="Collapse all distribution cards"
           className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -1219,6 +1349,7 @@ export function AnalysisDistributionToolbar({
         <button
           type="button"
           onClick={onExpandAll}
+          disabled={isSectionHidden}
           aria-label="Expand all distribution cards"
           title="Expand all distribution cards"
           className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -1234,10 +1365,14 @@ export function AnalysisClassificationDistributionToolbar({
   onAddDistribution,
   onCollapseAll,
   onExpandAll,
+  isSectionHidden,
+  onToggleSectionVisibility,
 }: {
   onAddDistribution: () => void;
   onCollapseAll: () => void;
   onExpandAll: () => void;
+  isSectionHidden: boolean;
+  onToggleSectionVisibility: () => void;
 }) {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1253,7 +1388,18 @@ export function AnalysisClassificationDistributionToolbar({
       <div className="flex shrink-0 gap-2">
         <button
           type="button"
+          onClick={onToggleSectionVisibility}
+          aria-label={isSectionHidden ? "Show classification distribution section" : "Hide classification distribution section"}
+          title={isSectionHidden ? "Show classification distribution section" : "Hide classification distribution section"}
+          className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+        >
+          <VisibilityToggleIcon isHidden={isSectionHidden} />
+          <span>{isSectionHidden ? "Show" : "Hide"}</span>
+        </button>
+        <button
+          type="button"
           onClick={onAddDistribution}
+          disabled={isSectionHidden}
           title="Add classification distribution split card"
           aria-label="Add classification distribution split card"
           className="inline-flex h-11 items-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -1264,6 +1410,7 @@ export function AnalysisClassificationDistributionToolbar({
         <button
           type="button"
           onClick={onCollapseAll}
+          disabled={isSectionHidden}
           aria-label="Collapse all classification distribution cards"
           title="Collapse all classification distribution cards"
           className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -1273,6 +1420,7 @@ export function AnalysisClassificationDistributionToolbar({
         <button
           type="button"
           onClick={onExpandAll}
+          disabled={isSectionHidden}
           aria-label="Expand all classification distribution cards"
           title="Expand all classification distribution cards"
           className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"

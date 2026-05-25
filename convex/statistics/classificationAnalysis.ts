@@ -159,6 +159,35 @@ export const getAnalysisFrameworkConfig = query({
   },
 });
 
+export const listAnalysisFrameworkConfigs = query({
+  args: {},
+  returns: v.array(analysisFrameworkConfigValidator),
+  handler: async (ctx) => {
+    const { userId } = await requireClassificationAnalysisAccess(ctx);
+
+    const records = await ctx.db
+      .query("analysisFrameworkConfigs")
+      .withIndex("by_owner_config_key", (q) => q.eq("ownerUserId", userId))
+      .collect();
+
+    return records
+      .map((record) => ({
+        configKey: record.configKey,
+        name: record.name,
+        state: record.state,
+        createdAt: record.createdAt,
+        updatedAt: record.updatedAt,
+      }))
+      .sort((left, right) => {
+        if (left.updatedAt !== right.updatedAt) {
+          return right.updatedAt - left.updatedAt;
+        }
+
+        return left.name.localeCompare(right.name);
+      });
+  },
+});
+
 export const saveAnalysisFrameworkConfig = mutation({
   args: {
     configKey: v.string(),

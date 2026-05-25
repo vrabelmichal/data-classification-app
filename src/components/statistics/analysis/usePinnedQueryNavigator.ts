@@ -8,7 +8,8 @@ const PINNED_NAVIGATOR_MARGIN = 16;
 
 export function usePinnedQueryNavigator(
   queries: AnalysisQueryConfig[],
-  hasDataset: boolean
+  hasDataset: boolean,
+  isSectionEnabled: boolean
 ) {
   const [isNavigatorPinned, setIsNavigatorPinned] = useState(false);
   const [navigatorHeight, setNavigatorHeight] = useState(0);
@@ -21,7 +22,8 @@ export function usePinnedQueryNavigator(
   const queriesSectionEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (queries.length === 0) {
+    if (!isSectionEnabled || queries.length === 0) {
+      setActiveQueryId(null);
       return undefined;
     }
 
@@ -63,9 +65,17 @@ export function usePinnedQueryNavigator(
         scrollParent.removeEventListener("scroll", updateActiveQuery);
       }
     };
-  }, [hasDataset, queries]);
+  }, [hasDataset, isSectionEnabled, queries]);
 
   useEffect(() => {
+    if (!isSectionEnabled || queries.length === 0) {
+      setIsNavigatorPinned(false);
+      setNavigatorHeight(0);
+      setPinnedNavigatorStyle(null);
+      setIsSectionVisible(true);
+      return undefined;
+    }
+
     const anchorElement = navigatorAnchorRef.current;
     const navigatorElement = navigatorRef.current;
 
@@ -145,7 +155,7 @@ export function usePinnedQueryNavigator(
       }
       window.removeEventListener("resize", scheduleUpdatePinnedNavigator);
     };
-  }, [hasDataset, queries.length]);
+  }, [hasDataset, isSectionEnabled, queries.length]);
 
   return {
     activeQueryId,

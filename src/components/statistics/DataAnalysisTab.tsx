@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useMemo, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 
@@ -59,6 +59,7 @@ import {
   cloneAnalysisFrameworkState,
   createCollapsedItemMap,
   getAnalysisFrameworkSignature,
+  getNamedAnalysisFrameworkSignature,
   MY_ANALYSIS_FRAMEWORK_KEY,
   MY_ANALYSIS_FRAMEWORK_NAME,
   type AnalysisFrameworkState,
@@ -78,6 +79,81 @@ import { usePinnedQueryNavigator } from "./analysis/usePinnedQueryNavigator";
 import { formatLoadedAt, formatPercent } from "./analysis/tabUtils";
 
 const EMPTY_RECORDS: AnalysisRecord[] = [];
+const DEFAULT_ANALYSIS_SETUP_NAME_PREFIX = "Analysis";
+
+function createAnalysisSetupKey() {
+  const randomSuffix = Math.random().toString(36).slice(2, 8);
+  return `analysis-${Date.now().toString(36)}-${randomSuffix}`;
+}
+
+function normalizeAnalysisSetupName(name: string, fallbackName: string) {
+  const trimmedName = name.trim();
+  return trimmedName.length > 0 ? trimmedName : fallbackName;
+}
+
+function mergeSavedAnalysisFrameworks(
+  fetchedConfigs: SavedAnalysisFrameworkConfig[] | undefined,
+  localOverrides: Record<string, SavedAnalysisFrameworkConfig>
+) {
+  const mergedConfigs = new Map<string, SavedAnalysisFrameworkConfig>();
+
+  for (const config of fetchedConfigs ?? []) {
+    mergedConfigs.set(config.configKey, config);
+  }
+
+  for (const config of Object.values(localOverrides)) {
+    const existingConfig = mergedConfigs.get(config.configKey);
+    if (!existingConfig || config.updatedAt >= existingConfig.updatedAt) {
+      mergedConfigs.set(config.configKey, config);
+    }
+  }
+
+  return [...mergedConfigs.values()].sort((left, right) => {
+    if (left.updatedAt !== right.updatedAt) {
+      return right.updatedAt - left.updatedAt;
+    }
+
+    return left.name.localeCompare(right.name);
+  });
+}
+
+function buildDefaultAnalysisSetupName(
+  savedConfigs: SavedAnalysisFrameworkConfig[]
+) {
+  const usedNames = new Set(
+    savedConfigs
+      .map((config) => config.name.trim().toLowerCase())
+      .filter((name) => name.length > 0)
+  );
+
+  let suffix = 1;
+  while (usedNames.has(`${DEFAULT_ANALYSIS_SETUP_NAME_PREFIX.toLowerCase()} ${suffix}`)) {
+    suffix += 1;
+  }
+
+  return `${DEFAULT_ANALYSIS_SETUP_NAME_PREFIX} ${suffix}`;
+}
+
+function moveItemById<T extends { id: string }>(
+  items: T[],
+  itemId: string,
+  direction: "up" | "down"
+) {
+  const currentIndex = items.findIndex((item) => item.id === itemId);
+  if (currentIndex === -1) {
+    return items;
+  }
+
+  const targetIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+  if (targetIndex < 0 || targetIndex >= items.length) {
+    return items;
+  }
+
+  const nextItems = [...items];
+  const [movedItem] = nextItems.splice(currentIndex, 1);
+  nextItems.splice(targetIndex, 0, movedItem);
+  return nextItems;
+}
 
 function formatNullableNumber(value: number | null | undefined, digits: number) {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -231,10 +307,9 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
   const userDirectory = useQuery(
     api.statistics.classificationAnalysis.getUserDirectory
   ) as AnalysisUserDirectoryEntry[] | undefined;
-  const savedAnalysisFramework = useQuery(
-    api.statistics.classificationAnalysis.getAnalysisFrameworkConfig,
-    { configKey: MY_ANALYSIS_FRAMEWORK_KEY }
-  ) as SavedAnalysisFrameworkConfig | null | undefined;
+  const fetchedSavedAnalysisFrameworks = useQuery(
+    api.statistics.classificationAnalysis.listAnalysisFrameworkConfigs
+  ) as SavedAnalysisFrameworkConfig[] | undefined;
   const defaultAnalysisFramework = useMemo(
     () => buildDefaultAnalysisFrameworkState(),
     []
@@ -268,7 +343,18 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     visibleNucleusAgreementCount: true,
     failedFittingVotes: true,
   });
+  const [savedAnalysisFrameworkOverrides, setSavedAnalysisFrameworkOverrides] = useState<
+    Record<string, SavedAnalysisFrameworkConfig>
+  >({});
+  const [selectedAnalysisSetupKey, setSelectedAnalysisSetupKey] = useState<string | null>(
+    null
+  );
+  const [analysisSetupDraftName, setAnalysisSetupDraftName] = useState("");
   const [isSavingAnalysisFramework, setIsSavingAnalysisFramework] = useState(false);
+  const [areQueryCardsHidden, setAreQueryCardsHidden] = useState(false);
+  const [areComparisonCardsHidden, setAreComparisonCardsHidden] = useState(false);
+  const [areClassificationComparisonCardsHidden, setAreClassificationComparisonCardsHidden] =
+    useState(false);
 
   const {
     dataset,
@@ -299,7 +385,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     navigatorRef,
     queriesSectionEndRef,
     pinnedNavigatorStyle,
-  } = usePinnedQueryNavigator(queries, hasDataset);
+  } = usePinnedQueryNavigator(queries, hasDataset, !areQueryCardsHidden);
 
   const deferredQueries = useDeferredValue(queries);
   const deferredRecords = useDeferredValue(dataset?.records ?? EMPTY_RECORDS);
@@ -324,6 +410,67 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     }),
     [classificationComparisons, comparisons, queries]
   );
+  const savedAnalysisFrameworks = useMemo(
+    () =>
+      mergeSavedAnalysisFrameworks(
+        fetchedSavedAnalysisFrameworks,
+        savedAnalysisFrameworkOverrides
+      ),
+    [fetchedSavedAnalysisFrameworks, savedAnalysisFrameworkOverrides]
+  );
+  const defaultNewAnalysisSetupName = useMemo(
+    () => buildDefaultAnalysisSetupName(savedAnalysisFrameworks),
+    [savedAnalysisFrameworks]
+  );
+  const selectedSavedAnalysisFramework = useMemo(
+    () =>
+      selectedAnalysisSetupKey
+        ? savedAnalysisFrameworks.find(
+            (config) => config.configKey === selectedAnalysisSetupKey
+          ) ?? null
+        : null,
+    [savedAnalysisFrameworks, selectedAnalysisSetupKey]
+  );
+
+  useEffect(() => {
+    if (savedAnalysisFrameworks.length === 0) {
+      return;
+    }
+
+    setSelectedAnalysisSetupKey((currentKey) => {
+      if (
+        currentKey &&
+        savedAnalysisFrameworks.some((config) => config.configKey === currentKey)
+      ) {
+        return currentKey;
+      }
+
+      const legacyConfig = savedAnalysisFrameworks.find(
+        (config) => config.configKey === MY_ANALYSIS_FRAMEWORK_KEY
+      );
+      return legacyConfig?.configKey ?? savedAnalysisFrameworks[0].configKey;
+    });
+  }, [savedAnalysisFrameworks]);
+
+  useEffect(() => {
+    if (selectedSavedAnalysisFramework) {
+      setAnalysisSetupDraftName(selectedSavedAnalysisFramework.name);
+      return;
+    }
+
+    setAnalysisSetupDraftName((currentName) =>
+      currentName.trim().length > 0 ? currentName : defaultNewAnalysisSetupName
+    );
+  }, [defaultNewAnalysisSetupName, selectedSavedAnalysisFramework]);
+
+  const currentAnalysisSetupName = useMemo(
+    () =>
+      normalizeAnalysisSetupName(
+        analysisSetupDraftName,
+        selectedSavedAnalysisFramework?.name ?? defaultNewAnalysisSetupName
+      ),
+    [analysisSetupDraftName, defaultNewAnalysisSetupName, selectedSavedAnalysisFramework]
+  );
 
   const applyAnalysisFrameworkState = useCallback((nextState: AnalysisFrameworkState) => {
     const clonedState = cloneAnalysisFrameworkState(nextState);
@@ -342,23 +489,34 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     () => getAnalysisFrameworkSignature(currentAnalysisFrameworkState),
     [currentAnalysisFrameworkState]
   );
+  const currentAnalysisSetupSignature = useMemo(
+    () =>
+      getNamedAnalysisFrameworkSignature(
+        currentAnalysisSetupName,
+        currentAnalysisFrameworkState
+      ),
+    [currentAnalysisFrameworkState, currentAnalysisSetupName]
+  );
   const defaultAnalysisFrameworkSignature = useMemo(
     () => getAnalysisFrameworkSignature(defaultAnalysisFramework),
     [defaultAnalysisFramework]
   );
   const savedAnalysisFrameworkSignature = useMemo(
     () =>
-      savedAnalysisFramework
-        ? getAnalysisFrameworkSignature(savedAnalysisFramework.state)
+      selectedSavedAnalysisFramework
+        ? getNamedAnalysisFrameworkSignature(
+            selectedSavedAnalysisFramework.name,
+            selectedSavedAnalysisFramework.state
+          )
         : null,
-    [savedAnalysisFramework]
+    [selectedSavedAnalysisFramework]
   );
-  const hasSavedAnalysisFramework =
-    savedAnalysisFramework !== null && savedAnalysisFramework !== undefined;
-  const isSavedAnalysisFrameworkLoading = savedAnalysisFramework === undefined;
+  const hasSavedAnalysisFramework = savedAnalysisFrameworks.length > 0;
+  const hasSelectedSavedAnalysisFramework = selectedSavedAnalysisFramework !== null;
+  const isSavedAnalysisFrameworkLoading = fetchedSavedAnalysisFrameworks === undefined;
   const matchesSavedAnalysisFramework =
     savedAnalysisFrameworkSignature !== null &&
-    currentAnalysisFrameworkSignature === savedAnalysisFrameworkSignature;
+    currentAnalysisSetupSignature === savedAnalysisFrameworkSignature;
   const matchesDefaultAnalysisFramework =
     currentAnalysisFrameworkSignature === defaultAnalysisFrameworkSignature;
 
@@ -366,74 +524,143 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
     if (isSavedAnalysisFrameworkLoading) {
       return {
         tone: "neutral" as const,
-        message: "Checking the saved server copy for My analysis.",
+        message: "Checking saved analysis setups on the server.",
       };
     }
 
-    if (!hasSavedAnalysisFramework) {
+    if (!hasSelectedSavedAnalysisFramework) {
       return {
         tone: matchesDefaultAnalysisFramework ? ("neutral" as const) : ("warning" as const),
         message: matchesDefaultAnalysisFramework
-          ? "Using the built-in local defaults. Save to store My analysis on the server."
-          : "This setup only exists in the current browser session until you save it.",
+          ? hasSavedAnalysisFramework
+            ? `Choose a saved setup to load it, or save the current local setup as ${currentAnalysisSetupName}.`
+            : `Using the built-in local defaults. Save to store ${currentAnalysisSetupName} on the server.`
+          : `This setup only exists in the current browser session until you save it as ${currentAnalysisSetupName}.`,
       };
     }
 
-    const savedAtLabel = formatLoadedAt(savedAnalysisFramework.updatedAt) ?? "recently";
+    const savedAtLabel =
+      formatLoadedAt(selectedSavedAnalysisFramework.updatedAt) ?? "recently";
 
     if (matchesSavedAnalysisFramework) {
       return {
         tone: "success" as const,
-        message: `${savedAnalysisFramework.name} matches the current local setup. Server copy saved ${savedAtLabel}.`,
+        message: `${selectedSavedAnalysisFramework.name} matches the current local setup. Server copy saved ${savedAtLabel}.`,
       };
     }
 
     if (matchesDefaultAnalysisFramework) {
       return {
         tone: "warning" as const,
-        message: `${savedAnalysisFramework.name} is saved on the server from ${savedAtLabel}. The page is currently using local defaults until you load it or save over it.`,
+        message: `${selectedSavedAnalysisFramework.name} is saved on the server from ${savedAtLabel}. The page is currently using local defaults until you load it or save over it.`,
       };
     }
 
     return {
       tone: "warning" as const,
-      message: `${savedAnalysisFramework.name} is saved on the server from ${savedAtLabel}. The current local setup differs and will not overwrite it until you save.`,
+      message: `${selectedSavedAnalysisFramework.name} is saved on the server from ${savedAtLabel}. The current local setup differs and will not overwrite it until you save.`,
     };
   }, [
+    currentAnalysisSetupName,
     hasSavedAnalysisFramework,
+    hasSelectedSavedAnalysisFramework,
     isSavedAnalysisFrameworkLoading,
     matchesDefaultAnalysisFramework,
     matchesSavedAnalysisFramework,
-    savedAnalysisFramework,
+    selectedSavedAnalysisFramework,
   ]);
 
   const handleSaveAnalysisFramework = useCallback(async () => {
     setIsSavingAnalysisFramework(true);
 
+    const fallbackName = selectedSavedAnalysisFramework?.name ?? defaultNewAnalysisSetupName;
+    const setupName = normalizeAnalysisSetupName(analysisSetupDraftName, fallbackName);
+    const configKey = selectedSavedAnalysisFramework?.configKey ?? createAnalysisSetupKey();
+    const createdNewSetup = selectedSavedAnalysisFramework === null;
+
     try {
-      await saveAnalysisFrameworkConfig({
-        configKey: MY_ANALYSIS_FRAMEWORK_KEY,
-        name: MY_ANALYSIS_FRAMEWORK_NAME,
+      const savedConfig = await saveAnalysisFrameworkConfig({
+        configKey,
+        name: setupName,
         state: cloneAnalysisFrameworkState(currentAnalysisFrameworkState),
       });
-      toast.success("Saved My analysis to the server.");
+      setSavedAnalysisFrameworkOverrides((currentOverrides) => ({
+        ...currentOverrides,
+        [savedConfig.configKey]: savedConfig,
+      }));
+      setSelectedAnalysisSetupKey(savedConfig.configKey);
+      setAnalysisSetupDraftName(savedConfig.name);
+      toast.success(
+        createdNewSetup
+          ? `Created ${savedConfig.name} on the server.`
+          : `Saved ${savedConfig.name} to the server.`
+      );
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Failed to save My analysis."
+        error instanceof Error
+          ? error.message
+          : "Failed to save the current analysis setup."
       );
     } finally {
       setIsSavingAnalysisFramework(false);
     }
-  }, [currentAnalysisFrameworkState, saveAnalysisFrameworkConfig]);
+  }, [
+    analysisSetupDraftName,
+    currentAnalysisFrameworkState,
+    defaultNewAnalysisSetupName,
+    saveAnalysisFrameworkConfig,
+    selectedSavedAnalysisFramework,
+  ]);
+
+  const handleSaveAnalysisFrameworkAsNew = useCallback(async () => {
+    setIsSavingAnalysisFramework(true);
+
+    const requestedName = analysisSetupDraftName.trim();
+    const currentSavedName = selectedSavedAnalysisFramework?.name.trim() ?? "";
+    const setupName =
+      requestedName.length === 0 || requestedName === currentSavedName
+        ? defaultNewAnalysisSetupName
+        : requestedName;
+
+    try {
+      const savedConfig = await saveAnalysisFrameworkConfig({
+        configKey: createAnalysisSetupKey(),
+        name: setupName,
+        state: cloneAnalysisFrameworkState(currentAnalysisFrameworkState),
+      });
+      setSavedAnalysisFrameworkOverrides((currentOverrides) => ({
+        ...currentOverrides,
+        [savedConfig.configKey]: savedConfig,
+      }));
+      setSelectedAnalysisSetupKey(savedConfig.configKey);
+      setAnalysisSetupDraftName(savedConfig.name);
+      toast.success(`Created ${savedConfig.name} on the server.`);
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to create a new analysis setup."
+      );
+    } finally {
+      setIsSavingAnalysisFramework(false);
+    }
+  }, [
+    analysisSetupDraftName,
+    currentAnalysisFrameworkState,
+    defaultNewAnalysisSetupName,
+    saveAnalysisFrameworkConfig,
+    selectedSavedAnalysisFramework,
+  ]);
 
   const handleLoadAnalysisFramework = useCallback(() => {
-    if (!savedAnalysisFramework) {
+    if (!selectedSavedAnalysisFramework) {
       return;
     }
 
-    applyAnalysisFrameworkState(savedAnalysisFramework.state);
-    toast.success(`Loaded ${savedAnalysisFramework.name} from the server.`);
-  }, [applyAnalysisFrameworkState, savedAnalysisFramework]);
+    applyAnalysisFrameworkState(selectedSavedAnalysisFramework.state);
+    setAnalysisSetupDraftName(selectedSavedAnalysisFramework.name);
+    toast.success(`Loaded ${selectedSavedAnalysisFramework.name} from the server.`);
+  }, [applyAnalysisFrameworkState, selectedSavedAnalysisFramework]);
 
   const handleRestoreDefaultAnalysisFramework = useCallback(() => {
     applyAnalysisFrameworkState(defaultAnalysisFramework);
@@ -493,6 +720,28 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
       return next;
     });
   }, []);
+
+  const moveQuery = useCallback((queryId: string, direction: "up" | "down") => {
+    setQueries((currentQueries) => moveItemById(currentQueries, queryId, direction));
+  }, []);
+
+  const moveComparison = useCallback(
+    (comparisonId: string, direction: "up" | "down") => {
+      setComparisons((currentComparisons) =>
+        moveItemById(currentComparisons, comparisonId, direction)
+      );
+    },
+    []
+  );
+
+  const moveClassificationComparison = useCallback(
+    (comparisonId: string, direction: "up" | "down") => {
+      setClassificationComparisons((currentComparisons) =>
+        moveItemById(currentComparisons, comparisonId, direction)
+      );
+    },
+    []
+  );
 
   const removeComparison = useCallback((comparisonId: string) => {
     setComparisons((currentComparisons) =>
@@ -801,14 +1050,26 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         canDownloadDatasetArchive={hasDataset && loadState.status !== "loading"}
         canImportDatasetArchive={loadState.status !== "loading"}
         canExportReport={hasDataset && loadState.status !== "loading"}
-        analysisSetupName={MY_ANALYSIS_FRAMEWORK_NAME}
-        hasSavedAnalysisSetup={hasSavedAnalysisFramework}
+        analysisSetupName={currentAnalysisSetupName}
+        analysisSetupOptions={savedAnalysisFrameworks.map((config) => ({
+          configKey: config.configKey,
+          name: config.name,
+          updatedAt: config.updatedAt,
+        }))}
+        selectedAnalysisSetupKey={selectedAnalysisSetupKey}
+        hasSavedAnalysisSetup={hasSelectedSavedAnalysisFramework}
+        savedAnalysisSetupCount={savedAnalysisFrameworks.length}
         analysisSetupStatusMessage={analysisSetupStatus.message}
         analysisSetupStatusTone={analysisSetupStatus.tone}
         isAnalysisSetupLoading={isSavedAnalysisFrameworkLoading}
         isAnalysisSetupSaving={isSavingAnalysisFramework}
+        onSelectAnalysisSetup={setSelectedAnalysisSetupKey}
+        onChangeAnalysisSetupName={setAnalysisSetupDraftName}
         onSaveAnalysisSetup={() => {
           void handleSaveAnalysisFramework();
+        }}
+        onSaveAsNewAnalysisSetup={() => {
+          void handleSaveAnalysisFrameworkAsNew();
         }}
         onLoadAnalysisSetup={handleLoadAnalysisFramework}
         onRestoreDefaultAnalysisSetup={handleRestoreDefaultAnalysisFramework}
@@ -831,56 +1092,66 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         />
       ) : null}
 
-      {isSectionVisible ? (
-        <AnalysisQueryToolbar
-          onAddQuery={() =>
-            setQueries((currentQueries) => [...currentQueries, createBlankAnalysisQuery()])
-          }
-          onCollapseAll={collapseAllQueries}
-          onExpandAll={expandAllQueries}
-        />
-      ) : null}
-
-      <DataAnalysisNavigator
-        queries={queries}
-        queryResults={queryResults}
-        activeQueryId={activeQueryId}
-        hasDataset={hasDataset}
-        isNavigatorPinned={isNavigatorPinned}
-        isSectionVisible={isSectionVisible}
-        navigatorHeight={navigatorHeight}
-        pinnedNavigatorStyle={pinnedNavigatorStyle}
-        navigatorAnchorRef={navigatorAnchorRef}
-        navigatorRef={navigatorRef}
+      <AnalysisQueryToolbar
+        onAddQuery={() =>
+          setQueries((currentQueries) => [...currentQueries, createBlankAnalysisQuery()])
+        }
+        onCollapseAll={collapseAllQueries}
+        onExpandAll={expandAllQueries}
+        isSectionHidden={areQueryCardsHidden}
+        onToggleSectionVisibility={() =>
+          setAreQueryCardsHidden((currentState) => !currentState)
+        }
       />
 
-      <div className="space-y-6">
-        {queries.map((query) => (
-          <DataAnalysisQueryCard
-            key={query.id}
-            query={query}
-            result={queryResults.get(query.id)}
-            summary={summary}
-            isCollapsed={collapsedQueries[query.id] === true}
+      {!areQueryCardsHidden ? (
+        <>
+          <DataAnalysisNavigator
+            queries={queries}
+            queryResults={queryResults}
+            activeQueryId={activeQueryId}
             hasDataset={hasDataset}
-            imageQuality={imageQuality}
-            userPreferences={userPrefs}
-            canRemove={queries.length > 1}
-            onOpenDetails={setSelectedRecord}
-            onDownloadQueryIdsTxt={handleDownloadQueryIdsTxt}
-            onDownloadQueryMatchesCsv={handleDownloadQueryMatchesCsv}
-            onToggleCollapsed={() => toggleQueryCollapsed(query.id)}
-            onDuplicate={() =>
-              setQueries((currentQueries) => [
-                ...currentQueries,
-                duplicateAnalysisQuery(query),
-              ])
-            }
-            onRemove={() => removeQuery(query.id)}
-            onUpdateQuery={updateQuery}
+            isNavigatorPinned={isNavigatorPinned}
+            isSectionVisible={isSectionVisible}
+            navigatorHeight={navigatorHeight}
+            pinnedNavigatorStyle={pinnedNavigatorStyle}
+            navigatorAnchorRef={navigatorAnchorRef}
+            navigatorRef={navigatorRef}
           />
-        ))}
-      </div>
+
+          <div className="space-y-6">
+            {queries.map((query, index) => (
+              <DataAnalysisQueryCard
+                key={query.id}
+                query={query}
+                result={queryResults.get(query.id)}
+                summary={summary}
+                isCollapsed={collapsedQueries[query.id] === true}
+                hasDataset={hasDataset}
+                imageQuality={imageQuality}
+                userPreferences={userPrefs}
+                canRemove={queries.length > 1}
+                canMoveUp={index > 0}
+                canMoveDown={index < queries.length - 1}
+                onOpenDetails={setSelectedRecord}
+                onDownloadQueryIdsTxt={handleDownloadQueryIdsTxt}
+                onDownloadQueryMatchesCsv={handleDownloadQueryMatchesCsv}
+                onToggleCollapsed={() => toggleQueryCollapsed(query.id)}
+                onMoveUp={() => moveQuery(query.id, "up")}
+                onMoveDown={() => moveQuery(query.id, "down")}
+                onDuplicate={() =>
+                  setQueries((currentQueries) => [
+                    ...currentQueries,
+                    duplicateAnalysisQuery(query),
+                  ])
+                }
+                onRemove={() => removeQuery(query.id)}
+                onUpdateQuery={updateQuery}
+              />
+            ))}
+          </div>
+        </>
+      ) : null}
 
       <div ref={queriesSectionEndRef} />
 
@@ -893,33 +1164,43 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         }
         onCollapseAll={collapseAllComparisons}
         onExpandAll={expandAllComparisons}
+        isSectionHidden={areComparisonCardsHidden}
+        onToggleSectionVisibility={() =>
+          setAreComparisonCardsHidden((currentState) => !currentState)
+        }
       />
 
-      <div className="space-y-6">
-        {comparisons.map((comparison) => (
-          <DataAnalysisDistributionCard
-            key={comparison.id}
-            comparison={comparison}
-            result={comparisonResults.get(comparison.id)}
-            summary={summary}
-            isCollapsed={collapsedComparisons[comparison.id] === true}
-            hasDataset={hasDataset}
-            imageQuality={imageQuality}
-            userPreferences={userPrefs}
-            canRemove={true}
-            onOpenDetails={setSelectedRecord}
-            onToggleCollapsed={() => toggleComparisonCollapsed(comparison.id)}
-            onDuplicate={() =>
-              setComparisons((currentComparisons) => [
-                ...currentComparisons,
-                duplicateAnalysisDistributionComparison(comparison),
-              ])
-            }
-            onRemove={() => removeComparison(comparison.id)}
-            onUpdateComparison={updateComparison}
-          />
-        ))}
-      </div>
+      {!areComparisonCardsHidden ? (
+        <div className="space-y-6">
+          {comparisons.map((comparison, index) => (
+            <DataAnalysisDistributionCard
+              key={comparison.id}
+              comparison={comparison}
+              result={comparisonResults.get(comparison.id)}
+              summary={summary}
+              isCollapsed={collapsedComparisons[comparison.id] === true}
+              hasDataset={hasDataset}
+              imageQuality={imageQuality}
+              userPreferences={userPrefs}
+              canRemove={true}
+              canMoveUp={index > 0}
+              canMoveDown={index < comparisons.length - 1}
+              onOpenDetails={setSelectedRecord}
+              onToggleCollapsed={() => toggleComparisonCollapsed(comparison.id)}
+              onMoveUp={() => moveComparison(comparison.id, "up")}
+              onMoveDown={() => moveComparison(comparison.id, "down")}
+              onDuplicate={() =>
+                setComparisons((currentComparisons) => [
+                  ...currentComparisons,
+                  duplicateAnalysisDistributionComparison(comparison),
+                ])
+              }
+              onRemove={() => removeComparison(comparison.id)}
+              onUpdateComparison={updateComparison}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <AnalysisClassificationDistributionToolbar
         onAddDistribution={() =>
@@ -930,36 +1211,50 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         }
         onCollapseAll={collapseAllClassificationComparisons}
         onExpandAll={expandAllClassificationComparisons}
+        isSectionHidden={areClassificationComparisonCardsHidden}
+        onToggleSectionVisibility={() =>
+          setAreClassificationComparisonCardsHidden((currentState) => !currentState)
+        }
       />
 
-      <div className="space-y-6">
-        {classificationComparisons.map((comparison) => (
-          <DataAnalysisClassificationDistributionCard
-            key={comparison.id}
-            comparison={comparison}
-            result={classificationComparisonResults.get(comparison.id)}
-            summary={summary}
-            isCollapsed={
-              collapsedClassificationComparisons[comparison.id] === true
-            }
-            hasDataset={hasDataset}
-            userDisplayNames={userDisplayNames}
-            canRemove={true}
-            onOpenDetails={setSelectedRecord}
-            onToggleCollapsed={() =>
-              toggleClassificationComparisonCollapsed(comparison.id)
-            }
-            onDuplicate={() =>
-              setClassificationComparisons((currentComparisons) => [
-                ...currentComparisons,
-                duplicateAnalysisClassificationDistributionComparison(comparison),
-              ])
-            }
-            onRemove={() => removeClassificationComparison(comparison.id)}
-            onUpdateComparison={updateClassificationComparison}
-          />
-        ))}
-      </div>
+      {!areClassificationComparisonCardsHidden ? (
+        <div className="space-y-6">
+          {classificationComparisons.map((comparison, index) => (
+            <DataAnalysisClassificationDistributionCard
+              key={comparison.id}
+              comparison={comparison}
+              result={classificationComparisonResults.get(comparison.id)}
+              summary={summary}
+              isCollapsed={
+                collapsedClassificationComparisons[comparison.id] === true
+              }
+              hasDataset={hasDataset}
+              userDisplayNames={userDisplayNames}
+              canRemove={true}
+              canMoveUp={index > 0}
+              canMoveDown={
+                index < classificationComparisons.length - 1
+              }
+              onOpenDetails={setSelectedRecord}
+              onToggleCollapsed={() =>
+                toggleClassificationComparisonCollapsed(comparison.id)
+              }
+              onMoveUp={() => moveClassificationComparison(comparison.id, "up")}
+              onMoveDown={() =>
+                moveClassificationComparison(comparison.id, "down")
+              }
+              onDuplicate={() =>
+                setClassificationComparisons((currentComparisons) => [
+                  ...currentComparisons,
+                  duplicateAnalysisClassificationDistributionComparison(comparison),
+                ])
+              }
+              onRemove={() => removeClassificationComparison(comparison.id)}
+              onUpdateComparison={updateClassificationComparison}
+            />
+          ))}
+        </div>
+      ) : null}
 
       <ClassificationDetailsModal
         isOpen={selectedRecord !== null}

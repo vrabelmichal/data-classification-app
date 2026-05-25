@@ -59,6 +59,7 @@ Each classification row contributes these fields:
 - Live loading fetches the full galaxy table and the full classification table in pages of up to 2,500 rows each.
 - The page does not auto-refresh. A loaded snapshot remains fixed until you explicitly reload, upload a ZIP, or load from browser cache.
 - Query edits, split cards, and exports are always local to the current browser session.
+- The analysis framework itself can also be stored on the server as one or more named saved setups. Those setups capture only the analysis cards and split definitions, not the loaded dataset snapshot.
 - The current prepared dataset can be saved to browser cache, exported as a ZIP snapshot, exported as an HTML report, or exported as JSON statistics.
 
 ## Data Sources Available In The UI
@@ -80,6 +81,19 @@ The page can operate from three sources.
 
 - Serializes the prepared dataset so it can be moved to another browser or machine.
 - Useful when you want another person to reproduce the same analysis state without re-running database pagination.
+
+## Saved Analysis Setups
+
+The toolbar includes a server-backed saved-setup area for the analysis framework.
+
+- A saved setup stores the current interactive query cards, galaxy threshold-split cards, and classification threshold-split cards.
+- Multiple saved setups can exist at the same time for one user.
+- Every saved setup has a user-editable name. When you create a new one without typing a name first, the page suggests a short default such as `Analysis 1`, `Analysis 2`, and so on.
+- `Save current` updates the currently selected saved setup. If no saved setup is currently selected, it creates a new one.
+- `Save as new` always creates a separate saved setup from the current local framework and then selects it.
+- Choosing a saved setup in the dropdown does not overwrite the local framework immediately. Use `Load selected` to replace the current local framework with that saved server copy.
+- `Restore defaults` replaces only the local framework with the built-in defaults until you save again.
+- The status line compares the current local framework against the currently selected saved setup, so immediately after saving it should report that the local and saved copies match.
 
 ## Analysis Workflow On The Page
 
@@ -309,6 +323,12 @@ Most other integer metrics use exact buckets from `0` through `12`, with a final
 
 Each query card filters the same loaded dataset, computes a histogram for its selected metric, ranks matching galaxies, and shows summary totals.
 
+### Section controls
+
+- The whole `Interactive query cards` section can be hidden and shown from its header toolbar.
+- When the section is hidden, the pinned query navigator is hidden with it so the navigation overlay does not remain on screen.
+- Individual query cards can be reordered with move-up and move-down buttons in each card header.
+
 ### Shared filters used by every query card
 
 Before the numeric conditions run, every query card can restrict the candidate galaxies by:
@@ -408,6 +428,11 @@ The page initializes with these predefined query cards.
 
 Threshold-split distribution cards compare two subsets of galaxies inside the same scoped population.
 
+### Section controls
+
+- The whole `Threshold-split distributions` section can be hidden and shown from its header toolbar.
+- Individual galaxy threshold-split cards can be reordered with move-up and move-down buttons in each card header.
+
 ### Current default state
 
 The page currently creates no predefined galaxy threshold-split cards by default. These cards are user-created from the "Threshold-split distributions" section.
@@ -453,6 +478,11 @@ Preview galaxies are sorted descending by the selected histogram metric, regardl
 ## Classification Threshold-Split Distributions
 
 Classification split cards operate at the individual-classification level rather than the galaxy level.
+
+### Section controls
+
+- The whole `Classification threshold-split distributions` section can be hidden and shown from its header toolbar.
+- Individual classification threshold-split cards can be reordered with move-up and move-down buttons in each card header.
 
 ### Classification points
 

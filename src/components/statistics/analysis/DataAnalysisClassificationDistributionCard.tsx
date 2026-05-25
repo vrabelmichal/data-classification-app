@@ -273,6 +273,44 @@ function DuplicateIcon() {
   );
 }
 
+function MoveUpIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m12 5-6 6" />
+      <path d="m12 5 6 6" />
+      <path d="M12 5v14" />
+    </svg>
+  );
+}
+
+function MoveDownIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m12 19-6-6" />
+      <path d="m12 19 6-6" />
+      <path d="M12 5v14" />
+    </svg>
+  );
+}
+
 function AddIcon() {
   return (
     <svg
@@ -562,8 +600,12 @@ export function DataAnalysisClassificationDistributionCard({
   hasDataset,
   userDisplayNames,
   canRemove,
+  canMoveUp,
+  canMoveDown,
   onOpenDetails,
   onToggleCollapsed,
+  onMoveUp,
+  onMoveDown,
   onDuplicate,
   onRemove,
   onUpdateComparison,
@@ -575,8 +617,12 @@ export function DataAnalysisClassificationDistributionCard({
   hasDataset: boolean;
   userDisplayNames: Record<string, string>;
   canRemove: boolean;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   onOpenDetails: (record: AnalysisRecord) => void;
   onToggleCollapsed: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onDuplicate: () => void;
   onRemove: () => void;
   onUpdateComparison: (
@@ -689,6 +735,26 @@ export function DataAnalysisClassificationDistributionCard({
               {isCollapsed ? "Expand" : "Minimize"}
             </button>
             <div className="flex shrink-0 flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={onMoveUp}
+                disabled={!canMoveUp}
+                aria-label="Move classification distribution card up"
+                title="Move classification distribution card up"
+                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+              >
+                <MoveUpIcon />
+              </button>
+              <button
+                type="button"
+                onClick={onMoveDown}
+                disabled={!canMoveDown}
+                aria-label="Move classification distribution card down"
+                title="Move classification distribution card down"
+                className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:border-gray-200 disabled:text-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 dark:disabled:border-gray-700 dark:disabled:text-gray-500"
+              >
+                <MoveDownIcon />
+              </button>
               <button
                 type="button"
                 onClick={onDuplicate}

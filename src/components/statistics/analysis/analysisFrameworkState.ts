@@ -96,6 +96,24 @@ export function cloneAnalysisFrameworkState(
   };
 }
 
+function stableJsonReplacer(_key: string, value: unknown) {
+  if (value === null || Array.isArray(value) || typeof value !== "object") {
+    return value;
+  }
+
+  const objectValue = value as Record<string, unknown>;
+  return Object.keys(objectValue)
+    .sort((leftKey, rightKey) => leftKey.localeCompare(rightKey))
+    .reduce<Record<string, unknown>>((accumulator, key) => {
+      accumulator[key] = objectValue[key];
+      return accumulator;
+    }, {});
+}
+
+function stableStringify(value: unknown) {
+  return JSON.stringify(value, stableJsonReplacer);
+}
+
 export function createCollapsedItemMap<T extends { id: string }>(
   items: T[]
 ): Record<string, boolean> {
@@ -103,5 +121,15 @@ export function createCollapsedItemMap<T extends { id: string }>(
 }
 
 export function getAnalysisFrameworkSignature(state: AnalysisFrameworkState) {
-  return JSON.stringify(state);
+  return stableStringify(state);
+}
+
+export function getNamedAnalysisFrameworkSignature(
+  name: string,
+  state: AnalysisFrameworkState
+) {
+  return stableStringify({
+    name: name.trim(),
+    state,
+  });
 }
