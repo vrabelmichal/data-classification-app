@@ -129,14 +129,21 @@ export function RebuildSequenceBlacklistStatsSection() {
           min="1"
           max={SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE}
           value={batchSize}
-          onChange={(event) =>
+          onChange={(event) => {
+            const parsedValue = Number(event.target.value);
+
+            if (Number.isNaN(parsedValue) || parsedValue <= 0) {
+              setBatchSize(DEFAULT_SEQUENCE_BLACKLIST_STATS_BATCH_SIZE);
+              return;
+            }
+
             setBatchSize(
               Math.min(
                 SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE,
-                Math.max(1, Number(event.target.value) || SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE)
+                Math.max(1, parsedValue)
               )
-            )
-          }
+            );
+          }}
           disabled={busy}
           className="w-full sm:max-w-xs border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
         />
