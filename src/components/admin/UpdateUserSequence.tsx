@@ -87,10 +87,14 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   // Current sequence info for the selected user
   const [currentSequenceInfo, setCurrentSequenceInfo] = useState<{
     totalGalaxies: number;
+    effectiveTotalGalaxies?: number;
+    blacklistedGalaxies?: number;
+    blacklistedClassifiedCount?: number;
     currentIndex: number;
     numClassified: number;
     numSkipped: number;
     remaining: number;
+    effectiveRemaining?: number;
   } | null>(null);
 
   // Mutations
@@ -715,10 +719,9 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
         }
 
         if (dryRun) {
-          const projectedNewSequenceSize = result.projectedNewSequenceSize ?? result.newSequenceSize;
           appendLog(
             "success",
-            `[${userDisplayName} (${userIdShort})] Dry run would add ${result.generated} galaxies (${previousSize} → ${projectedNewSequenceSize}) using the classification-based procedure; no sequence, counters, or emails were changed`
+            `[${userDisplayName} (${userIdShort})] Dry run would add ${result.generated} galaxies (${previousSize} → ${result.newSequenceSize}) using the classification-based procedure; no sequence, counters, or emails were changed`
           );
           appendAssignedGalaxyPreviewLogs(
             userDisplayName,
@@ -728,10 +731,10 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
             true
           );
         } else {
-        appendLog(
-          "success",
-          `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize}) using the classification-based procedure`
-        );
+          appendLog(
+            "success",
+            `[${userDisplayName} (${userIdShort})] Added ${result.generated} galaxies to sequence (${previousSize} → ${result.newSequenceSize}) using the classification-based procedure`
+          );
           appendAssignedGalaxyPreviewLogs(
             userDisplayName,
             userIdShort,
@@ -740,35 +743,35 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
             false
           );
 
-        if (sendExtendEmail && result.newSequenceSize) {
-          try {
-            appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
-            const emailResult = await sendSequenceExtendedEmail({
-              targetUserId: selectedUserId as any,
-              previousSize,
-              newSize: result.newSequenceSize,
-              galaxiesAdded: result.generated,
-              procedureType: "classificationBased",
-            });
+          if (sendExtendEmail && result.newSequenceSize) {
+            try {
+              appendLog("info", `[${userDisplayName} (${userIdShort})] Sending notification email...`);
+              const emailResult = await sendSequenceExtendedEmail({
+                targetUserId: selectedUserId as any,
+                previousSize,
+                newSize: result.newSequenceSize,
+                galaxiesAdded: result.generated,
+                procedureType: "classificationBased",
+              });
 
-            if (!emailResult.success) {
-              appendLog(
-                "warning",
-                emailResult.details
-                  ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
-                  : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
-              );
-            } else {
-              appendLog(
-                "success",
-                `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
-              );
+              if (!emailResult.success) {
+                appendLog(
+                  "warning",
+                  emailResult.details
+                    ? `[${userDisplayName} (${userIdShort})] ${emailResult.message}: ${emailResult.details}`
+                    : `[${userDisplayName} (${userIdShort})] ${emailResult.message}`
+                );
+              } else {
+                appendLog(
+                  "success",
+                  `[${userDisplayName} (${userIdShort})] Notification email sent${emailResult.to ? ` to ${emailResult.to}` : ""}`
+                );
+              }
+            } catch (emailError) {
+              const message = (emailError as Error)?.message || "Unknown error";
+              appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
             }
-          } catch (emailError) {
-            const message = (emailError as Error)?.message || "Unknown error";
-            appendLog("warning", `[${userDisplayName} (${userIdShort})] Failed to send notification email: ${message}`);
           }
-        }
         }
       } else if (assignmentProcedure === "balanced") {
         appendLog(
@@ -973,11 +976,23 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
                 Current Sequence Status
               </h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+              <div className="grid grid-cols-2 md:grid-cols-6 gap-3 text-sm">
                 <div>
-                  <span className="text-gray-500 dark:text-gray-400">Total galaxies:</span>
+                  <span className="text-gray-500 dark:text-gray-400">Stored galaxies:</span>
                   <span className="ml-2 font-medium text-gray-900 dark:text-white">
                     {currentSequenceInfo.totalGalaxies}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400">Effective galaxies:</span>
+                  <span className="ml-2 font-medium text-gray-900 dark:text-white">
+                    {currentSequenceInfo.effectiveTotalGalaxies ?? currentSequenceInfo.totalGalaxies}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400">Blacklisted:</span>
+                  <span className="ml-2 font-medium text-rose-600 dark:text-rose-400">
+                    {currentSequenceInfo.blacklistedGalaxies ?? 0}
                   </span>
                 </div>
                 <div>
@@ -996,6 +1011,12 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                   <span className="text-gray-500 dark:text-gray-400">Remaining:</span>
                   <span className="ml-2 font-medium text-blue-600 dark:text-blue-400">
                     {currentSequenceInfo.remaining}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-gray-500 dark:text-gray-400">Effective remaining:</span>
+                  <span className="ml-2 font-medium text-blue-600 dark:text-blue-400">
+                    {currentSequenceInfo.effectiveRemaining ?? currentSequenceInfo.remaining}
                   </span>
                 </div>
               </div>

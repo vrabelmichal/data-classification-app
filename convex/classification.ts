@@ -18,6 +18,13 @@ import {
   galaxiesByNumVisibleNucleus,
   galaxiesByNumFailedFitting,
 } from "./galaxies/aggregates";
+import {
+  computeSequenceBlacklistStats,
+  getSequenceBlacklistStatsVersion,
+  getStoredSequenceBlacklistStats,
+  listBlacklistedGalaxyExternalIds,
+  shouldUseStoredSequenceBlacklistStats,
+} from "./lib/sequenceBlacklistStats";
 
 /**
  * Safely replace an entry in a galaxy aggregate index.
@@ -120,6 +127,66 @@ async function markUserStatsSnapshotDirty(
   });
 }
 
+async function loadSequenceBlacklistStatsForUser(
+  ctx: any,
+  userId: Doc<"userProfiles">["userId"],
+  sequence: {
+    galaxyExternalIds?: string[];
+    numClassified: number;
+    numSkipped: number;
+    effectiveGalaxyCount?: number;
+    blacklistedGalaxyCount?: number;
+    blacklistedClassifiedCount?: number;
+    blacklistedSkippedCount?: number;
+    blacklistStatsVersion?: number;
+  }
+) {
+  const currentVersion = await getSequenceBlacklistStatsVersion(ctx);
+
+  if (shouldUseStoredSequenceBlacklistStats(sequence, currentVersion)) {
+    return getStoredSequenceBlacklistStats(sequence);
+  }
+
+  const [blacklistedIds, classifiedRecords, skippedRecords] = await Promise.all([
+    listBlacklistedGalaxyExternalIds(ctx),
+    ctx.db.query("classifications").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
+    ctx.db.query("skippedGalaxies").withIndex("by_user", (q: any) => q.eq("userId", userId)).collect(),
+  ]);
+
+  return computeSequenceBlacklistStats(sequence, {
+    blacklistedExternalIds: new Set(blacklistedIds),
+    classifiedExternalIds: new Set(classifiedRecords.map((record: { galaxyExternalId: string }) => record.galaxyExternalId)),
+    skippedExternalIds: new Set(skippedRecords.map((record: { galaxyExternalId: string }) => record.galaxyExternalId)),
+  });
+}
+
+async function buildSequenceClassificationPatch(
+  ctx: any,
+  userId: Doc<"userProfiles">["userId"],
+  sequence: Doc<"galaxySequences">,
+  galaxyExternalId: string
+) {
+  const patch: Record<string, number> = {
+    numClassified: (sequence.numClassified || 0) + 1,
+  };
+
+  const currentVersion = await getSequenceBlacklistStatsVersion(ctx);
+  if (!shouldUseStoredSequenceBlacklistStats(sequence, currentVersion)) {
+    return patch;
+  }
+
+  const blacklistEntry = await ctx.db
+    .query("galaxyBlacklist")
+    .withIndex("by_galaxy", (q: any) => q.eq("galaxyExternalId", galaxyExternalId))
+    .unique();
+
+  if (blacklistEntry) {
+    patch.blacklistedClassifiedCount = (sequence.blacklistedClassifiedCount ?? 0) + 1;
+  }
+
+  return patch;
+}
+
 
 // Get progress
 
@@ -156,6 +223,7 @@ export const getProgress = query({
     if (sequence.galaxyExternalIds && sequence.galaxyExternalIds.length > 0) {
       const total = sequence.galaxyExternalIds.length;
       const completed = classified + skipped;
+      const stats = await loadSequenceBlacklistStatsForUser(ctx, userId, sequence);
 
       return {
         classified,
@@ -164,6 +232,15 @@ export const getProgress = query({
         completed,
         remaining: total - completed,
         percentage: total > 0 ? Math.round((completed / total) * 100) : 0,
+        effectiveClassified: stats!.effectiveClassifiedCount,
+        effectiveSkipped: stats!.effectiveSkippedCount,
+        effectiveTotal: stats!.effectiveGalaxyCount,
+        effectiveCompleted: stats!.effectiveCompletedCount,
+        effectiveRemaining: stats!.effectiveRemainingCount,
+        effectivePercentage: stats!.effectiveCompletionPercent,
+        blacklistedTotal: stats!.blacklistedGalaxyCount,
+        blacklistedClassifiedCount: stats!.blacklistedClassifiedCount,
+        blacklistedSkippedCount: stats!.blacklistedSkippedCount,
       };
     }
 
@@ -438,10 +515,10 @@ export const submitClassification = mutation({
         .first();
 
       if (sequence && sequence.galaxyExternalIds && sequence.galaxyExternalIds.includes(args.galaxyExternalId)) {
-        // update numClassified counter in sequence
-        await ctx.db.patch(sequence._id, {
-          numClassified: (sequence.numClassified || 0) + 1,
-        });
+        await ctx.db.patch(
+          sequence._id,
+          await buildSequenceClassificationPatch(ctx, userId, sequence, args.galaxyExternalId)
+        );
       }
 
       await markUserStatsSnapshotDirty(ctx, userId);

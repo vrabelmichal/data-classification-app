@@ -184,6 +184,8 @@ export function ClassificationInterface() {
 
   // Display galaxy
   const displayGalaxy = currentGalaxy || galaxy;
+  const displayNavigationIndex = navigation?.effectiveCurrentIndex ?? navigation?.currentIndex ?? -1;
+  const displayNavigationTotal = navigation?.effectiveTotalGalaxies ?? navigation?.totalGalaxies ?? 0;
 
   // Existing classification query
   const existingClassification = useQuery(
@@ -1448,9 +1450,9 @@ export function ClassificationInterface() {
                 {isSkipped === true && <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">(in skipped table)</span>}
                 {isBlacklisted === true && <span className="ml-2 text-sm font-semibold text-red-600 dark:text-red-400">(blacklisted)</span>}
               </h1>
-              {navigation && navigation.currentIndex !== -1 ? (
+              {navigation && displayNavigationIndex !== -1 ? (
                 <div className="text-sm text-gray-500 dark:text-gray-400">
-                  Position: {navigation.currentIndex + 1} of {navigation.totalGalaxies}
+                  Position: {displayNavigationIndex + 1} of {displayNavigationTotal}
                 </div>
               ) : navigation ? (
                 <div className="text-sm text-gray-500 dark:text-gray-400">

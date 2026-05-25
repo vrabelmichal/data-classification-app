@@ -27,6 +27,7 @@ Top-level folders and what they contain:
 	- `convex/galaxies/` — Galaxy-related helper functions, queries, mutations and aggregates
 - `scripts/` — Utility scripts for data ingestion, local dev servers and helpers
 - `docs/` — Documentation and design notes (image config, backend refactor, quickstarts)
+	- `docs/SEQUENCE_BLACKLIST_EFFECTIVE_COUNTS.md` — implementation and rollout notes for blacklist-aware sequence totals
 - `static/` — Static assets and config examples (e.g. `/static/config/images.json.example`)
 - `local/` — Local-only utilities (local mock runners, test utilities)
 

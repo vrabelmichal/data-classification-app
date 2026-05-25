@@ -10,6 +10,12 @@ import { deserializeGalaxyIdList, serializeGalaxyIdList } from "./lib/classifica
 import { DEFAULT_SYSTEM_SETTINGS } from "./lib/defaults";
 import { Id } from "./_generated/dataModel";
 import { getSequenceProcedureCopy } from "./lib/sequenceProcedureMessaging";
+import {
+  buildSequenceBlacklistStatsPatch,
+  computeSequenceBlacklistStats,
+  getSequenceBlacklistStatsVersion,
+  listBlacklistedGalaxyExternalIds,
+} from "./lib/sequenceBlacklistStats";
 
 type SequenceEmailResult = {
   success: boolean;
@@ -23,6 +29,34 @@ const MAX_SEQUENCE = 8192;
 // Batch size for reading galaxies - can be larger for underK since most galaxies pass
 // Stay under 32k limit but use larger batches for efficiency
 const SELECTION_BATCH_SIZE = 15000;
+
+async function buildInitialSequenceBlacklistStatsPatch(
+  ctx: any,
+  targetUserId: Id<"users">,
+  galaxyExternalIds: string[]
+) {
+  const [currentVersion, blacklistedIds, classifiedRecords, skippedRecords] = await Promise.all([
+    getSequenceBlacklistStatsVersion(ctx),
+    listBlacklistedGalaxyExternalIds(ctx),
+    ctx.db.query("classifications").withIndex("by_user", (q: any) => q.eq("userId", targetUserId)).collect(),
+    ctx.db.query("skippedGalaxies").withIndex("by_user", (q: any) => q.eq("userId", targetUserId)).collect(),
+  ]);
+
+  const stats = computeSequenceBlacklistStats(
+    {
+      galaxyExternalIds,
+      numClassified: 0,
+      numSkipped: 0,
+    },
+    {
+      blacklistedExternalIds: new Set(blacklistedIds),
+      classifiedExternalIds: new Set(classifiedRecords.map((record: { galaxyExternalId: string }) => record.galaxyExternalId)),
+      skippedExternalIds: new Set(skippedRecords.map((record: { galaxyExternalId: string }) => record.galaxyExternalId)),
+    }
+  );
+
+  return buildSequenceBlacklistStatsPatch(stats, currentVersion);
+}
 
 // Helper to format paper filter for logging (handles empty strings)
 const formatPaperFilter = (papers: string[] | null | undefined): string => {
@@ -388,12 +422,19 @@ export const createUserSequence = internalMutation({
       return { success: false, sequenceId: null };
     }
 
+    const statsPatch = await buildInitialSequenceBlacklistStatsPatch(
+      ctx,
+      args.targetUserId,
+      args.galaxyExternalIds
+    );
+
     const sequenceId = await ctx.db.insert("galaxySequences", {
       userId: args.targetUserId,
       galaxyExternalIds: args.galaxyExternalIds,
       currentIndex: 0,
       numClassified: 0,
       numSkipped: 0,
+      ...statsPatch,
     });
 
     console.log(`Created new sequence ${sequenceId} for user ${args.targetUserId} with ${args.galaxyExternalIds.length} galaxies`);
