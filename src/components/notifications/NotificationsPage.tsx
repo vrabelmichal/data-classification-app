@@ -476,13 +476,19 @@ export function NotificationsPage() {
     setExpandedIds(new Set());
   };
 
-  const toggleCardExpanded = (id: string) => {
+  const toggleCardExpanded = (notificationId: Id<"notifications">, isRead: boolean) => {
+    const shouldExpand = !expandedIds.has(notificationId);
+
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(notificationId)) next.delete(notificationId);
+      else next.add(notificationId);
       return next;
     });
+
+    if (shouldExpand && !isRead) {
+      void handleMarkAsRead(notificationId);
+    }
   };
 
   const handleMarkAsRead = async (notificationId: Id<"notifications">) => {
@@ -635,7 +641,7 @@ export function NotificationsPage() {
                 key={notification._id}
                 onClick={() => {
                   if (showToggleButton && !isIndividuallyExpanded) {
-                    toggleCardExpanded(notification._id);
+                    toggleCardExpanded(notification._id, notification.isRead);
                   }
                 }}
                 className={cn(
@@ -690,7 +696,7 @@ export function NotificationsPage() {
                       {/* Expand / collapse per-card toggle */}
                       {showToggleButton && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); toggleCardExpanded(notification._id); }}
+                          onClick={(e) => { e.stopPropagation(); toggleCardExpanded(notification._id, notification.isRead); }}
                           title={isIndividuallyExpanded ? "Collapse" : "Expand"}
                           aria-label={isIndividuallyExpanded ? "Collapse notification" : "Expand notification"}
                           aria-expanded={isIndividuallyExpanded}
