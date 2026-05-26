@@ -4,12 +4,14 @@ import { ImageViewer } from "../classification/ImageViewer";
 import { cn } from "../../lib/utils";
 import { getImageUrl } from "../../images";
 import {SMALL_IMAGE_DEFAULT_ZOOM} from "../classification/GalaxyImages";
+import { getPaperLabel, type PaperMetadataEntry } from "../../lib/paperDisplay";
 
 interface GalaxyBrowserMobileCardsProps {
   galaxyData: any;
   userPrefs: any;
   effectiveImageQuality: "high" | "medium" | "low";
   previewImageName: string;
+  paperMetadata?: PaperMetadataEntry[];
   onOpenReviewAtIndex: (pageIndex: number, galaxyId: string) => void;
   /** Galaxy id last viewed in Quick Review — highlighted with a visual indicator */
   lastViewedGalaxyId?: string;
@@ -20,6 +22,7 @@ export function GalaxyBrowserMobileCards({
   userPrefs,
   effectiveImageQuality,
   previewImageName,
+  paperMetadata,
   onOpenReviewAtIndex,
   lastViewedGalaxyId,
 }: GalaxyBrowserMobileCardsProps) {
@@ -93,7 +96,7 @@ export function GalaxyBrowserMobileCards({
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Awesome Flags:</span> {galaxy.numAwesomeFlag || 0}</div>
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Failed Fittings:</span> {galaxy.numFailedFitting || 0}</div>
                 <div><span className="font-medium text-gray-800 dark:text-gray-100">Total Assigned:</span> {galaxy.totalAssigned || 0}</div>
-                <div><span className="font-medium text-gray-800 dark:text-gray-100">Paper:</span> {galaxy.misc?.paper || "—"}</div>
+                <div><span className="font-medium text-gray-800 dark:text-gray-100">Paper:</span> {galaxy.misc?.paper !== undefined && galaxy.misc?.paper !== null ? getPaperLabel(galaxy.misc.paper, paperMetadata) : "—"}</div>
                 <div>
                   <span
                     className="font-medium text-gray-800 dark:text-gray-100"

@@ -10,6 +10,7 @@ import { loadImageDisplaySettings } from "../../images/displaySettings";
 import { useAdminCloudflareCachePurgeAvailability } from "../../hooks/useAdminCloudflareCachePurgeAvailability";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import type { FilterType, SortField, SortOrder } from "./GalaxyBrowser";
+import { getPaperLabel, type PaperMetadataEntry } from "../../lib/paperDisplay";
 
 function shouldKeepQuickReviewOpenOnClick(event: React.MouseEvent<HTMLAnchorElement>): boolean {
   return event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
@@ -166,6 +167,7 @@ interface GalaxyQuickReviewProps {
   filters: GalaxyQuickReviewFilters;
   effectiveImageQuality: "high" | "medium" | "low";
   userPrefs: any;
+  paperMetadata?: PaperMetadataEntry[];
   /** Initial index to resume at (0-based in the ordered result set) */
   initialIndex: number;
   initialSelectedImageKey?: string;
@@ -248,6 +250,7 @@ export function GalaxyQuickReview({
   filters,
   effectiveImageQuality,
   userPrefs,
+  paperMetadata,
   initialIndex,
   initialSelectedImageKey,
   initialShowEllipse,
@@ -671,7 +674,7 @@ export function GalaxyQuickReview({
 
               {/* Info panel */}
               <div className="flex-shrink-0 w-full max-w-2xl px-3 pb-2">
-                <GalaxyInfoPanel galaxy={currentGalaxy} />
+                <GalaxyInfoPanel galaxy={currentGalaxy} paperMetadata={paperMetadata} />
               </div>
             </>
           ) : (
@@ -707,7 +710,13 @@ export function GalaxyQuickReview({
 // ─────────────────────────────────────────────────────────────
 // Info panel — compact dark layout, below the image
 // ─────────────────────────────────────────────────────────────
-function GalaxyInfoPanel({ galaxy }: { galaxy: any }) {
+function GalaxyInfoPanel({
+  galaxy,
+  paperMetadata,
+}: {
+  galaxy: any;
+  paperMetadata?: PaperMetadataEntry[];
+}) {
   const fields: [string, string][] = [
     ["#", galaxy.numericId?.toString() ?? "—"],
     ["RA", typeof galaxy.ra === "number" ? `${galaxy.ra.toFixed(4)}°` : "—"],
@@ -725,7 +734,9 @@ function GalaxyInfoPanel({ galaxy }: { galaxy: any }) {
     ["Awesome", String(galaxy.numAwesomeFlag ?? 0)],
     ["Failed", String(galaxy.numFailedFitting ?? 0)],
     ["Assigned", String(galaxy.totalAssigned ?? 0)],
-    ...(galaxy.misc?.paper ? [["Paper", galaxy.misc.paper] as [string, string]] : []),
+    ...(galaxy.misc?.paper !== undefined && galaxy.misc?.paper !== null
+      ? [["Paper", getPaperLabel(galaxy.misc.paper, paperMetadata)] as [string, string]]
+      : []),
   ];
 
   return (

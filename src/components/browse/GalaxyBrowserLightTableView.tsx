@@ -4,12 +4,14 @@ import { ImageViewer } from "../classification/ImageViewer";
 import { getImageUrl } from "../../images";
 import type { SortField } from "./GalaxyBrowser";
 import {SMALL_IMAGE_DEFAULT_ZOOM} from "../classification/GalaxyImages";
+import { getPaperLabel, type PaperMetadataEntry } from "../../lib/paperDisplay";
 
 interface GalaxyBrowserLightTableViewProps {
   galaxyData: any;
   userPrefs: any;
   effectiveImageQuality: "high" | "medium" | "low";
   previewImageName: string;
+  paperMetadata?: PaperMetadataEntry[];
   sortBy: SortField;
   sortOrder: 'asc' | 'desc';
   handleSort: (field: SortField) => void;
@@ -23,6 +25,7 @@ export function GalaxyBrowserLightTableView({
   userPrefs,
   effectiveImageQuality,
   previewImageName,
+  paperMetadata,
   sortBy,
   sortOrder,
   handleSort,
@@ -218,7 +221,7 @@ export function GalaxyBrowserLightTableView({
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numAwesomeFlag || 0}</td>
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.numFailedFitting || 0}</td>
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.totalAssigned || 0}</td>
-                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.paper || "—"}</td>
+                  <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.paper !== undefined && galaxy.misc?.paper !== null ? getPaperLabel(galaxy.misc.paper, paperMetadata) : "—"}</td>
                   <td className="border border-gray-300 px-3 py-2 whitespace-nowrap">{galaxy.misc?.thur_cls_n || "—"}</td>
                   <td
                     className={`galaxy-sticky-col border border-gray-300 px-3 py-2 whitespace-nowrap ${stickyCellBackgroundClass}`}

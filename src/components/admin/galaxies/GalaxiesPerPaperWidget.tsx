@@ -1,6 +1,7 @@
 import { useAction, useQuery } from "convex/react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { api } from "../../../../convex/_generated/api";
+import { getPaperLabel, type PaperMetadataEntry } from "../../../lib/paperDisplay";
 
 type PaperCounts = Record<string, number>;
 
@@ -26,7 +27,11 @@ function fmt(n: number): string {
   return n.toLocaleString();
 }
 
-export function GalaxiesPerPaperWidget() {
+export function GalaxiesPerPaperWidget({
+  paperMetadata,
+}: {
+  paperMetadata?: PaperMetadataEntry[];
+}) {
   const summary = useQuery(api.galaxies.paperStats.getPaperStatsSummary);
   const computePaperStatsBatch = useAction(api.galaxies.paperStats.computePaperStatsBatch);
 
@@ -228,7 +233,7 @@ export function GalaxiesPerPaperWidget() {
             <tbody>
               {rows.map((row) => (
                 <tr key={row.paper || "__no_paper__"} className="border-b border-gray-100 dark:border-gray-700/60">
-                  <td className="py-2 pr-4 text-gray-900 dark:text-white">{row.paper === "" ? "(no paper)" : row.paper}</td>
+                  <td className="py-2 pr-4 text-gray-900 dark:text-white">{getPaperLabel(row.paper, paperMetadata)}</td>
                   <td className="py-2 pr-4 text-right font-medium text-gray-800 dark:text-gray-200">{fmt(row.total)}</td>
                   <td className="py-2 text-right font-medium text-gray-800 dark:text-gray-200">{fmt(row.excludingBlacklisted)}</td>
                 </tr>

@@ -11,6 +11,7 @@ import { GalaxyBrowserMobileCards } from "./GalaxyBrowserMobileCards";
 import { GalaxyExport } from "./GalaxyExport";
 import { GalaxyQuickReview, type GalaxyQuickReviewFilters } from "./GalaxyQuickReview";
 import { parseGalaxyBrowserUrlState, parseGalaxyQuickReviewUrlState } from "./galaxyBrowserUrlState";
+import type { PaperMetadataEntry } from "../../lib/paperDisplay";
 // Cursor-based pagination handled in controls; standalone pagination removed
 
 export type SortField =
@@ -42,6 +43,7 @@ export function GalaxyBrowser() {
   const showAwesomeFlag = systemSettings?.showAwesomeFlag !== false;
   const showValidRedshift = systemSettings?.showValidRedshift !== false;
   const showVisibleNucleus = systemSettings?.showVisibleNucleus !== false;
+  const paperMetadata = systemSettings?.paperMetadata as PaperMetadataEntry[] | undefined;
 
   // Get user profile to resolve export permissions.
   const userProfile = useQuery(api.users.getUserProfile);
@@ -621,6 +623,7 @@ export function GalaxyBrowser() {
       filters={quickReviewFilters}
       effectiveImageQuality={effectiveImageQuality}
       userPrefs={userPrefs}
+      paperMetadata={paperMetadata}
       initialIndex={reviewInitialIndex}
       initialSelectedImageKey={reviewSelectedImageKey ?? undefined}
       initialShowEllipse={reviewShowEllipse}
@@ -891,6 +894,7 @@ export function GalaxyBrowser() {
               userPrefs={userPrefs}
               effectiveImageQuality={effectiveImageQuality}
               previewImageName={previewImageName}
+              paperMetadata={paperMetadata}
               sortBy={sortBy}
               sortOrder={sortOrder}
               handleSort={handleSort}
@@ -906,6 +910,7 @@ export function GalaxyBrowser() {
               userPrefs={userPrefs}
               effectiveImageQuality={effectiveImageQuality}
               previewImageName={previewImageName}
+              paperMetadata={paperMetadata}
               onOpenReviewAtIndex={handleOpenReviewAtIndex}
               lastViewedGalaxyId={lastViewedGalaxyId ?? undefined}
             />

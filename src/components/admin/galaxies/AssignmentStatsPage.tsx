@@ -3,6 +3,7 @@ import { useAction, useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { usePageTitle } from "../../../hooks/usePageTitle";
 import { GalaxiesPerPaperWidget } from "./GalaxiesPerPaperWidget";
+import { getPaperLabel, type PaperMetadataEntry } from "../../../lib/paperDisplay";
 
 const AssignmentDistributionChart = lazy(() => import("./AssignmentDistributionChart.tsx"));
 
@@ -99,7 +100,9 @@ export function AssignmentStatsPage() {
 
   // Convex hooks
   const summary = useQuery(api.galaxies.assignmentStats.getAssignmentStatsSummary);
+  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const computeBatch = useAction(api.galaxies.assignmentStats.computeHistogramBatch);
+  const paperMetadata = systemSettings?.paperMetadata as PaperMetadataEntry[] | undefined;
 
   // Computation state
   const [state, setState] = useState<ComputationState>({
@@ -308,7 +311,7 @@ export function AssignmentStatsPage() {
         </div>
       )}
 
-      <GalaxiesPerPaperWidget />
+      <GalaxiesPerPaperWidget paperMetadata={paperMetadata} />
 
       {/* Controls */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
@@ -327,7 +330,7 @@ export function AssignmentStatsPage() {
             <div className="flex flex-wrap gap-2">
               {summary.availablePapers.map((paper) => {
                 const checked = selectedPapers.has(paper);
-                const label = paper === "" ? "(no paper)" : paper;
+                const label = getPaperLabel(paper, paperMetadata);
                 return (
                   <label
                     key={paper}

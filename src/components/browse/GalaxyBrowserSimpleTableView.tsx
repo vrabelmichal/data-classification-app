@@ -3,12 +3,14 @@ import { Link } from "react-router";
 import { ImageViewer } from "../classification/ImageViewer";
 import { getImageUrl } from "../../images";
 import type { SortField } from "./GalaxyBrowser";
+import { getPaperLabel, type PaperMetadataEntry } from "../../lib/paperDisplay";
 
 interface GalaxyBrowserSimpleTableViewProps {
   galaxyData: any;
   userPrefs: any;
   effectiveImageQuality: "high" | "medium" | "low";
   previewImageName: string;
+  paperMetadata?: PaperMetadataEntry[];
   sortBy: SortField;
   sortOrder: 'asc' | 'desc';
   handleSort: (field: SortField) => void;
@@ -19,6 +21,7 @@ export function GalaxyBrowserSimpleTableView({
   userPrefs,
   effectiveImageQuality,
   previewImageName,
+  paperMetadata,
   sortBy,
   sortOrder,
   handleSort,
@@ -129,7 +132,7 @@ export function GalaxyBrowserSimpleTableView({
             <td>{galaxy.numAwesomeFlag || 0}</td>
             <td>{galaxy.numFailedFitting || 0}</td>
             <td>{galaxy.totalAssigned || 0}</td>
-            <td>{galaxy.misc?.paper || "—"}</td>
+            <td>{galaxy.misc?.paper !== undefined && galaxy.misc?.paper !== null ? getPaperLabel(galaxy.misc.paper, paperMetadata) : "—"}</td>
             <td>{galaxy.misc?.thur_cls_n || "—"}</td>
             <td>
               <Link to={`/classify/${galaxy.id}`}>Classify</Link>
