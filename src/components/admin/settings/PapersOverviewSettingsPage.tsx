@@ -1,6 +1,7 @@
 import { Link } from "react-router";
 import { usePageTitle } from "../../../hooks/usePageTitle";
 import type { PapersOverviewSettingsPageProps } from "./types";
+import type { PaperMetadataEntry } from "../../../lib/paperDisplay";
 
 const OVERVIEW_DEFAULT_NONE_SENTINEL = "__overview_default_none__";
 const PAPER_ASSIGNMENT_DEFAULT_NONE_SENTINEL = "__paper_assignment_default_none__";
@@ -13,6 +14,51 @@ export function PapersOverviewSettingsPage({
   setNewPaperInput,
 }: PapersOverviewSettingsPageProps) {
   usePageTitle("Admin – Settings – Papers & Overview");
+
+  const getMetadataForPaper = (paperId: string): PaperMetadataEntry | undefined =>
+    localSettings.paperMetadata.find((entry) => entry.id === paperId);
+
+  const upsertPaperMetadata = (
+    paperId: string,
+    patch: Partial<Pick<PaperMetadataEntry, "label" | "citation">>,
+  ) => {
+    setLocalSettings((prev) => {
+      const existingIndex = prev.paperMetadata.findIndex((entry) => entry.id === paperId);
+      const existing = existingIndex >= 0
+        ? prev.paperMetadata[existingIndex]
+        : { id: paperId };
+
+      const nextLabel = patch.label !== undefined ? patch.label : existing.label;
+      const nextCitation = patch.citation !== undefined ? patch.citation : existing.citation;
+      const normalized: PaperMetadataEntry = {
+        id: paperId,
+        label: nextLabel?.trim() || undefined,
+        citation: nextCitation?.trim() || undefined,
+      };
+
+      const shouldRemove = !normalized.label && !normalized.citation;
+      if (shouldRemove) {
+        return {
+          ...prev,
+          paperMetadata: prev.paperMetadata.filter((entry) => entry.id !== paperId),
+        };
+      }
+
+      if (existingIndex >= 0) {
+        const nextMetadata = [...prev.paperMetadata];
+        nextMetadata[existingIndex] = normalized;
+        return {
+          ...prev,
+          paperMetadata: nextMetadata,
+        };
+      }
+
+      return {
+        ...prev,
+        paperMetadata: [...prev.paperMetadata, normalized],
+      };
+    });
+  };
 
   const addPaper = (rawValue: string) => {
     const trimmed = rawValue.trim();
@@ -53,31 +99,84 @@ export function PapersOverviewSettingsPage({
           <code className="mx-1 rounded bg-gray-100 px-1 dark:bg-gray-700">
             misc.paper
           </code>
-          field in galaxy data.
+          field in galaxy data. Optionally define a display label and citation
+          for each paper value.
         </p>
 
         <div className="mt-4 space-y-3">
-          <div className="flex flex-wrap gap-2">
+          <div className="space-y-3">
             {localSettings.availablePapers.map((paper, index) => (
               <div
                 key={`${paper}-${index}`}
-                className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-3 py-1 text-sm text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900"
               >
-                <span>{paper === "" ? "(empty string)" : paper}</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setLocalSettings((prev) => ({
-                      ...prev,
-                      availablePapers: prev.availablePapers.filter(
-                        (_, paperIndex) => paperIndex !== index,
-                      ),
-                    }));
-                  }}
-                  className="ml-1 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
-                >
-                  ×
-                </button>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Paper identifier
+                    </p>
+                    <p className="font-mono text-sm text-gray-900 dark:text-white break-all">
+                      {paper === "" ? "(empty string)" : paper}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLocalSettings((prev) => ({
+                        ...prev,
+                        availablePapers: prev.availablePapers.filter(
+                          (_, paperIndex) => paperIndex !== index,
+                        ),
+                        paperMetadata: prev.paperMetadata.filter(
+                          (entry) => entry.id !== paper,
+                        ),
+                        overviewDefaultPaper:
+                          prev.overviewDefaultPaper === paper
+                            ? null
+                            : prev.overviewDefaultPaper,
+                        paperAssignmentCoverageDefaultPaper:
+                          prev.paperAssignmentCoverageDefaultPaper === paper
+                            ? null
+                            : prev.paperAssignmentCoverageDefaultPaper,
+                      }));
+                    }}
+                    className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 dark:border-red-800/70 dark:text-red-300 dark:hover:bg-red-950/20"
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+                      Display label (optional)
+                    </span>
+                    <input
+                      type="text"
+                      value={getMetadataForPaper(paper)?.label ?? ""}
+                      onChange={(e) =>
+                        upsertPaperMetadata(paper, { label: e.target.value })
+                      }
+                      placeholder={paper === "" ? "e.g. Unassigned" : `e.g. ${paper}`}
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    />
+                  </label>
+
+                  <label className="block">
+                    <span className="mb-1 block text-xs font-medium text-gray-700 dark:text-gray-300">
+                      Citation popup text (optional)
+                    </span>
+                    <input
+                      type="text"
+                      value={getMetadataForPaper(paper)?.citation ?? ""}
+                      onChange={(e) =>
+                        upsertPaperMetadata(paper, { citation: e.target.value })
+                      }
+                      placeholder="Full citation shown on hover/click"
+                      className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                    />
+                  </label>
+                </div>
               </div>
             ))}
           </div>
@@ -161,7 +260,7 @@ export function PapersOverviewSettingsPage({
             </option>
             {localSettings.availablePapers.map((paper, index) => (
               <option key={`${paper}-${index}`} value={paper}>
-                {paper === "" ? "(empty - unassigned galaxies)" : paper}
+                {(getMetadataForPaper(paper)?.label?.trim() || (paper === "" ? "(empty - unassigned galaxies)" : paper))}
               </option>
             ))}
           </select>
@@ -203,7 +302,7 @@ export function PapersOverviewSettingsPage({
             </option>
             {localSettings.availablePapers.map((paper, index) => (
               <option key={`${paper}-${index}`} value={paper}>
-                {paper === "" ? "(empty - unassigned galaxies)" : paper}
+                {(getMetadataForPaper(paper)?.label?.trim() || (paper === "" ? "(empty - unassigned galaxies)" : paper))}
               </option>
             ))}
           </select>

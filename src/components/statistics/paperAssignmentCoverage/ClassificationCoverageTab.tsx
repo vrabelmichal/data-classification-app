@@ -19,6 +19,8 @@ import type {
 } from "../overview/types";
 import { cn } from "../../../lib/utils";
 import { getExperienceLabel, getRoleLabel } from "../../../lib/permissions";
+import type { PaperMetadataEntry } from "../../../lib/paperDisplay";
+import { getPaperLabel } from "../../../lib/paperDisplay";
 
 const DEFAULT_TARGET_CLASSIFICATIONS = 3;
 const MAX_TARGET_CLASSIFICATIONS = 25;
@@ -27,6 +29,7 @@ const GLOBAL_SCOPE_KEY = "__all__";
 type ClassificationCoverageSystemSettings = {
   paperAssignmentCoverageDefaultPaper?: string | null;
   classificationCoverageDefaultPaper?: string | null;
+  paperMetadata?: PaperMetadataEntry[];
 };
 
 type UserDirectoryEntry = {
@@ -117,8 +120,8 @@ function sanitizeTargetClassifications(value: number | string | null | undefined
   return Math.min(MAX_TARGET_CLASSIFICATIONS, Math.max(1, Math.floor(parsed)));
 }
 
-function paperLabel(value: string) {
-  return value === "" ? "Unassigned" : value;
+function paperLabel(value: string, metadata?: PaperMetadataEntry[]) {
+  return getPaperLabel(value, metadata);
 }
 
 function obfuscateEmail(email: string) {
@@ -851,7 +854,7 @@ function ClassificationCoverageTableSection({
           <p className="text-xs text-gray-500 dark:text-gray-400">
             {selectedPaper === undefined
               ? `${underTargetGalaxies.toLocaleString()} galaxies are still below ${targetClassifications} classifications across the full effective catalog.`
-              : `${paperLabel(selectedPaper)} has ${underTargetGalaxies.toLocaleString()} galaxies below ${targetClassifications} classifications after blacklist filtering.`}
+              : `${paperLabel(selectedPaper, systemSettings.paperMetadata)} has ${underTargetGalaxies.toLocaleString()} galaxies below ${targetClassifications} classifications after blacklist filtering.`}
           </p>
         </div>
         <div className="rounded-2xl border border-blue-200 bg-blue-50/80 px-4 py-3 text-right dark:border-blue-800/70 dark:bg-blue-950/20">
@@ -969,7 +972,7 @@ function ClassificationCoverageTableSection({
         isOpen={selectedDetailRow !== null}
         onClose={() => setSelectedDetailRowKey(null)}
         rowLabel={selectedDetailRow?.label ?? ""}
-        scopeLabel={selectedPaper === undefined ? "All papers" : paperLabel(selectedPaper)}
+        scopeLabel={selectedPaper === undefined ? "All papers" : paperLabel(selectedPaper, systemSettings.paperMetadata)}
         galaxyExternalIds={selectedDetailGalaxyIds}
         targetClassifications={targetClassifications}
         isSpecial={selectedDetailRow?.isSpecial ?? false}
@@ -1120,7 +1123,7 @@ function ClassificationCoverageDashboard({
         <LoadingPanel>
           {selectedPaper === undefined
             ? "The global classification coverage snapshot is not available yet."
-            : `No snapshot is available for ${paperLabel(selectedPaper)} yet.`}
+            : `No snapshot is available for ${paperLabel(selectedPaper, systemSettings.paperMetadata)} yet.`}
         </LoadingPanel>
       </div>
     );
@@ -1132,6 +1135,7 @@ function ClassificationCoverageDashboard({
         availablePapers={sharedSnapshot.catalog.availablePapers}
         paperCounts={sharedSnapshot.catalog.paperCounts}
         paperFilter={paperFilter}
+        paperMetadata={systemSettings.paperMetadata}
         selectedPaper={selectedPaper}
         onSelectPaper={handleSelectPaper}
         mode={mode}

@@ -62,6 +62,8 @@ export const SEQUENCE_BLACKLIST_STATS_MAX_BATCH_SIZE = 10;
  */
 export const DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER = null as string | null;
 
+export const DEFAULT_PAPER_METADATA: Array<{ id: string; label?: string; citation?: string }> = [];
+
 export const DEFAULT_SYSTEM_SETTINGS = {
   allowAnonymous: false,
   emailFrom: "noreply@galaxies.michalvrabel.sk",
@@ -96,4 +98,5 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   rolePermissions: DEFAULT_ROLE_PERMISSIONS,
   // Maintenance mode flag
   maintenanceDisableClassifications: false,
+  paperMetadata: DEFAULT_PAPER_METADATA,
 };

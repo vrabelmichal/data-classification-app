@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { Id } from "../../../convex/_generated/dataModel";
+import {
+  SearchableUserChecklist,
+  type SearchableUserOption,
+} from "../shared/UserPickers";
 
 interface AdminNotificationsPanelProps {
   defaultIsCreating?: boolean;
@@ -79,13 +83,21 @@ export function AdminNotificationsPanel({
     }
   };
 
-  const toggleUserSelection = (userId: Id<"users">) => {
-    setSelectedUsers((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
-    );
-  };
+  const userOptions = useMemo<SearchableUserOption[]>(
+    () =>
+      users.map((user) => ({
+        id: String(user.id),
+        userId: String(user.id),
+        name: user.name,
+        email: user.email,
+        keywords: [String(user.id)],
+      })),
+    [users],
+  );
+  const selectedUsersSet = useMemo(
+    () => new Set(selectedUsers.map((userId) => String(userId))),
+    [selectedUsers],
+  );
 
   if (notifications === undefined || users === undefined) {
     return (
@@ -186,37 +198,16 @@ export function AdminNotificationsPanel({
               </div>
 
               {!sendToAll && (
-                <div className="mt-3 max-h-48 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg p-2">
-                  {users.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400 p-2">
-                      No users available
-                    </p>
-                  ) : (
-                    <div className="space-y-1">
-                      {users.map((user) => (
-                        <label
-                          key={user.id}
-                          className="flex items-center gap-2 p-2 rounded hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedUsers.includes(user.id)}
-                            onChange={() => toggleUserSelection(user.id)}
-                            className="text-blue-600 focus:ring-blue-500 rounded"
-                          />
-                          <span className="text-sm text-gray-700 dark:text-gray-300">
-                            {user.name}
-                          </span>
-                          {user.email !== user.name && (
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              ({user.email})
-                            </span>
-                          )}
-                        </label>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <SearchableUserChecklist
+                  className="mt-3"
+                  options={userOptions}
+                  selectedIds={selectedUsersSet}
+                  onSelectedIdsChange={(nextValue) =>
+                    setSelectedUsers(Array.from(nextValue) as Id<"users">[])
+                  }
+                  emptyMessage="No users available"
+                  listClassName="max-h-48 border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800"
+                />
               )}
             </div>
 

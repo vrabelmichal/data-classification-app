@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import {
@@ -12,6 +12,12 @@ import {
   getManualGalaxyIdInputState,
   parseGalaxyIds,
 } from "./ManualGalaxyIdSequenceAssignment";
+import {
+  SearchableUserSelect,
+  SearchableUserChecklist,
+  type SearchableUserOption,
+} from "../shared/UserPickers";
+import { getPaperCitation, getPaperLabel } from "../../lib/paperDisplay";
 
 interface GenerateBalancedUserSequenceProps {
   users: any[];
@@ -81,10 +87,34 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
   const usersWithSequences = useQuery(api.galaxies.sequence.getUsersWithSequences);
   const resolvedUsers = usersWithoutSequences ?? [];
   const defaultExpectedUsers = Math.max(DEFAULT_EXPECTED_USERS, users.length);
+
+  const userOptions = useMemo<SearchableUserOption[]>(
+    () =>
+      resolvedUsers.map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null }) => ({
+        id: user.userId,
+        userId: user.userId,
+        name: user.user?.name,
+        email: user.user?.email,
+      })),
+    [resolvedUsers],
+  );
+
+  const excludedSequenceUserOptions = useMemo<SearchableUserOption[]>(
+    () =>
+      (usersWithSequences ?? []).map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null; sequenceInfo: { galaxyCount: number } }) => ({
+        id: user.userId,
+        userId: user.userId,
+        name: user.user?.name,
+        email: user.user?.email,
+        description: `${user.sequenceInfo.galaxyCount} galaxies in sequence`,
+      })),
+    [usersWithSequences],
+  );
   const manualInputState = getManualGalaxyIdInputState(manualGalaxyIdsText, manualUploadedGalaxyIds);
   
   // Get available papers from system settings
   const availablePapers: string[] = systemSettings?.availablePapers || DEFAULT_AVAILABLE_PAPERS;
+  const paperMetadata = systemSettings?.paperMetadata;
 
   const appendLog = (level: "info" | "warning" | "error" | "success", message: string) => {
     const entry = { level, message, timestamp: Date.now() };
@@ -980,61 +1010,22 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
             </label>
 
             {batchMode ? (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
-                  <button
-                    type="button"
-                    onClick={handleBatchSelectAllUsers}
-                    disabled={generatingSequence || resolvedUsers.length === 0}
-                    className="px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleBatchDeselectAllUsers}
-                    disabled={generatingSequence || selectedBatchUserIds.size === 0}
-                    className="px-2 py-1 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 rounded disabled:opacity-50 text-gray-700 dark:text-gray-300"
-                  >
-                    Deselect All
-                  </button>
-                  <span className="ml-2">{selectedBatchUserIds.size} selected</span>
-                </div>
-                <div className="max-h-56 overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-md p-3 bg-gray-50 dark:bg-gray-900 space-y-2">
-                  {resolvedUsers.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">No users without sequences available.</p>
-                  ) : (
-                    resolvedUsers.map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null }) => (
-                      <label key={user.userId} className="flex items-center gap-2 text-sm text-gray-900 dark:text-gray-100">
-                        <input
-                          type="checkbox"
-                          checked={selectedBatchUserIds.has(user.userId)}
-                          onChange={() => handleBatchUserToggle(user.userId)}
-                          disabled={generatingSequence}
-                          className="h-4 w-4"
-                        />
-                        <span className="truncate" title={user.user?.name || user.user?.email || "Anonymous"}>
-                          {user.user?.name || user.user?.email || "Anonymous"} ({user.userId})
-                        </span>
-                      </label>
-                    ))
-                  )}
-                </div>
-              </div>
-            ) : (
-              <select
-                value={selectedUserId}
-                onChange={(e) => setSelectedUserId(e.target.value)}
-                className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              <SearchableUserChecklist
+                options={userOptions}
+                selectedIds={selectedBatchUserIds}
+                onSelectedIdsChange={setSelectedBatchUserIds}
                 disabled={generatingSequence}
-              >
-                <option value="">Select a user...</option>
-                {resolvedUsers.map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null }) => (
-                  <option key={user.userId} value={user.userId}>
-                    {user.user?.name || user.user?.email || "Anonymous"} ({user.userId})
-                  </option>
-                ))}
-              </select>
+                emptyMessage="No users without sequences available."
+              />
+            ) : (
+              <SearchableUserSelect
+                options={userOptions}
+                value={selectedUserId || null}
+                onChange={(v) => setSelectedUserId(v ?? "")}
+                placeholder="Select a user..."
+                disabled={generatingSequence}
+                emptyMessage="No users without sequences available."
+              />
             )}
           </div>
 
@@ -1236,45 +1227,14 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
                     Any galaxy already present in the selected users&apos; current sequences will be excluded for this run.
                   </span>
                 </label>
-                <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 mb-2">
-                  <button
-                    type="button"
-                    onClick={handleSelectAllExcludedSequences}
-                    disabled={generatingSequence || (usersWithSequences?.length ?? 0) === 0}
-                    className="px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50"
-                  >
-                    Select All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeselectAllExcludedSequences}
-                    disabled={generatingSequence || excludedSequenceUserIds.size === 0}
-                    className="px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50"
-                  >
-                    Deselect All
-                  </button>
-                  <span className="ml-1">{excludedSequenceUserIds.size} selected</span>
-                </div>
-                <div className="max-h-40 overflow-y-auto border border-amber-200 dark:border-amber-700 rounded-md p-3 bg-white dark:bg-gray-800 space-y-2">
-                  {(usersWithSequences?.length ?? 0) === 0 ? (
-                    <p className="text-sm text-amber-700 dark:text-amber-300">No existing user sequences are available to exclude.</p>
-                  ) : (
-                    usersWithSequences?.map((user: { userId: string; user?: { name?: string | null; email?: string | null } | null; sequenceInfo: { galaxyCount: number; numClassified: number } }) => (
-                      <label key={user.userId} className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100">
-                        <input
-                          type="checkbox"
-                          checked={excludedSequenceUserIds.has(user.userId)}
-                          onChange={() => handleExcludedSequenceToggle(user.userId)}
-                          disabled={generatingSequence}
-                          className="h-4 w-4"
-                        />
-                        <span className="truncate" title={user.user?.name || user.user?.email || "Anonymous"}>
-                          {user.user?.name || user.user?.email || "Anonymous"} ({user.sequenceInfo.galaxyCount} galaxies)
-                        </span>
-                      </label>
-                    ))
-                  )}
-                </div>
+                <SearchableUserChecklist
+                  options={excludedSequenceUserOptions}
+                  selectedIds={excludedSequenceUserIds}
+                  onSelectedIdsChange={setExcludedSequenceUserIds}
+                  disabled={generatingSequence}
+                  emptyMessage="No existing user sequences are available to exclude."
+                  listClassName="max-h-40"
+                />
               </div>
 
               {batchMode && (
@@ -1378,8 +1338,11 @@ export function GenerateBalancedUserSequence({ users, systemSettings }: Generate
                         className="mr-2"
                         disabled={generatingSequence}
                       />
-                      <span className="text-sm text-gray-700 dark:text-gray-300 truncate" title={paper || '(empty string)'}>
-                        {paper === "" ? '(empty string)' : paper}
+                      <span
+                        className="text-sm text-gray-700 dark:text-gray-300 truncate"
+                        title={`${getPaperLabel(paper, paperMetadata)}${getPaperCitation(paper, paperMetadata) ? `\n\nCitation: ${getPaperCitation(paper, paperMetadata)}` : ""}`}
+                      >
+                        {getPaperLabel(paper, paperMetadata)}
                       </span>
                     </label>
                   ))}

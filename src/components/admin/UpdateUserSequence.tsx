@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import {
@@ -12,6 +12,12 @@ import {
   getManualGalaxyIdInputState,
   parseGalaxyIds,
 } from "./ManualGalaxyIdSequenceAssignment";
+import {
+  SearchableUserSelect,
+  SearchableUserChecklist,
+  type SearchableUserOption,
+} from "../shared/UserPickers";
+import { getPaperCitation, getPaperLabel } from "../../lib/paperDisplay";
 
 interface UpdateUserSequenceProps {
   users: any[];
@@ -84,6 +90,32 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
   const sequenceInfo = useMutation(api.updateUserSequence.getUserSequenceInfo);
   const manualInputState = getManualGalaxyIdInputState(manualGalaxyIdsText, manualUploadedGalaxyIds);
 
+  const userOptions = useMemo<SearchableUserOption[]>(
+    () =>
+      (usersWithSequences ?? []).map((user) => ({
+        id: user.userId,
+        userId: user.userId,
+        name: user.user?.name,
+        email: user.user?.email,
+        description: `${user.sequenceInfo.galaxyCount} galaxies · ${user.sequenceInfo.numClassified} classified`,
+      })),
+    [usersWithSequences],
+  );
+
+  const excludedSequenceUserOptions = useMemo<SearchableUserOption[]>(
+    () =>
+      (usersWithSequences ?? [])
+        .filter((user) => user.userId !== selectedUserId)
+        .map((user) => ({
+          id: user.userId,
+          userId: user.userId,
+          name: user.user?.name,
+          email: user.user?.email,
+          description: `${user.sequenceInfo.galaxyCount} galaxies in sequence`,
+        })),
+    [usersWithSequences, selectedUserId],
+  );
+
   // Current sequence info for the selected user
   const [currentSequenceInfo, setCurrentSequenceInfo] = useState<{
     totalGalaxies: number;
@@ -113,6 +145,7 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
 
   // Get available papers from system settings
   const availablePapers: string[] = systemSettings?.availablePapers || DEFAULT_AVAILABLE_PAPERS;
+  const paperMetadata = systemSettings?.paperMetadata;
   const defaultExpectedUsers = Math.max(DEFAULT_EXPECTED_USERS, usersWithSequences?.length ?? 0);
 
   const appendLog = (level: "info" | "warning" | "error" | "success", message: string) => {
@@ -953,21 +986,14 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
             <label className="block text-sm font-medium text-gray-900 dark:text-white mb-2">
               Select User with Sequence
             </label>
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              className="w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+            <SearchableUserSelect
+              options={userOptions}
+              value={selectedUserId || null}
+              onChange={(v) => setSelectedUserId(v ?? "")}
+              placeholder="Select a user..."
               disabled={isProcessing}
-            >
-              <option value="">Select a user...</option>
-              {usersWithSequences?.map((user) => (
-                <option key={user.userId} value={user.userId}>
-                  {user.user?.name || user.user?.email || "Anonymous"} -{" "}
-                  {user.sequenceInfo.galaxyCount} galaxies (
-                  {user.sequenceInfo.numClassified} classified)
-                </option>
-              ))}
-            </select>
+              emptyMessage="No users with sequences found."
+            />
           </div>
 
           {/* Current Sequence Info */}
@@ -1405,49 +1431,14 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                           Any galaxy already present in the selected users&apos; current sequences will be excluded from the extension candidates.
                         </span>
                       </label>
-                      <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-300 mb-2">
-                        <button
-                          type="button"
-                          onClick={handleSelectAllExcludedSequences}
-                          disabled={isProcessing || (usersWithSequences?.length ?? 0) <= 1}
-                          className="px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50"
-                        >
-                          Select All
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleDeselectAllExcludedSequences}
-                          disabled={isProcessing || excludedSequenceUserIds.size === 0}
-                          className="px-2 py-1 bg-amber-200 dark:bg-amber-700 hover:bg-amber-300 dark:hover:bg-amber-600 rounded disabled:opacity-50"
-                        >
-                          Deselect All
-                        </button>
-                        <span className="ml-1">{excludedSequenceUserIds.size} selected</span>
-                      </div>
-                      <div className="max-h-40 overflow-y-auto border border-amber-200 dark:border-amber-700 rounded-md p-3 bg-white dark:bg-gray-800 space-y-2">
-                        {(usersWithSequences?.filter((user) => user.userId !== selectedUserId).length ?? 0) === 0 ? (
-                          <p className="text-sm text-amber-700 dark:text-amber-300">
-                            No other user sequences are available to exclude.
-                          </p>
-                        ) : (
-                          usersWithSequences
-                            ?.filter((user) => user.userId !== selectedUserId)
-                            .map((user) => (
-                              <label key={user.userId} className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100">
-                                <input
-                                  type="checkbox"
-                                  checked={excludedSequenceUserIds.has(user.userId)}
-                                  onChange={() => handleExcludedSequenceToggle(user.userId)}
-                                  disabled={isProcessing}
-                                  className="h-4 w-4"
-                                />
-                                <span className="truncate" title={user.user?.name || user.user?.email || "Anonymous"}>
-                                  {user.user?.name || user.user?.email || "Anonymous"} ({user.sequenceInfo.galaxyCount} galaxies)
-                                </span>
-                              </label>
-                            ))
-                        )}
-                      </div>
+                      <SearchableUserChecklist
+                        options={excludedSequenceUserOptions}
+                        selectedIds={excludedSequenceUserIds}
+                        onSelectedIdsChange={setExcludedSequenceUserIds}
+                        disabled={isProcessing}
+                        emptyMessage="No other user sequences are available to exclude."
+                        listClassName="max-h-40"
+                      />
                     </div>
                   </div>
                 )}
@@ -1497,8 +1488,11 @@ export function UpdateUserSequence({ users: _users, systemSettings }: UpdateUser
                               disabled={isProcessing}
                               className="mr-2"
                             />
-                            <span className="text-green-900 dark:text-green-100 truncate">
-                              {paper || "(empty)"}
+                            <span
+                              className="text-green-900 dark:text-green-100 truncate"
+                              title={`${getPaperLabel(paper, paperMetadata)}${getPaperCitation(paper, paperMetadata) ? `\n\nCitation: ${getPaperCitation(paper, paperMetadata)}` : ""}`}
+                            >
+                              {getPaperLabel(paper, paperMetadata)}
                             </span>
                           </label>
                         ))}

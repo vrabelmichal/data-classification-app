@@ -22,6 +22,8 @@ import {
   TotalsAndPapersPayload,
 } from "./types";
 import { usePaperClassificationStats } from "../../../hooks/usePaperClassificationStats";
+import type { PaperMetadataEntry } from "../../../lib/paperDisplay";
+import { getPaperLabel } from "../../../lib/paperDisplay";
 
 const DEFAULT_TARGET_CLASSIFICATIONS = 3;
 const MAX_TARGET_CLASSIFICATIONS = 25;
@@ -94,6 +96,7 @@ type OverviewSettings = {
   showValidRedshift?: boolean;
   showVisibleNucleus?: boolean;
   failedFittingMode?: "checkbox" | "legacy";
+  paperMetadata?: PaperMetadataEntry[];
 };
 
 type OverviewRouteProps = {
@@ -147,6 +150,7 @@ type DashboardProps = {
   morphologyItems: Array<{ label: string; value: number; color: string; icon: string }>;
   totalClassificationsForBreakdowns: number;
   breakdownLoading: boolean;
+  paperMetadata?: PaperMetadataEntry[];
 };
 
 function sanitizeTargetClassifications(value: number | string | null | undefined) {
@@ -159,8 +163,8 @@ function sanitizeTargetClassifications(value: number | string | null | undefined
   return Math.min(MAX_TARGET_CLASSIFICATIONS, Math.max(1, Math.floor(parsed)));
 }
 
-function paperLabel(value: string) {
-  return value === "" ? "Unassigned" : value;
+function paperLabel(value: string, metadata?: PaperMetadataEntry[]) {
+  return getPaperLabel(value, metadata);
 }
 
 function buildOverviewModeLink(path: string, searchParams: URLSearchParams) {
@@ -488,6 +492,7 @@ function OverviewDashboard({
   morphologyItems,
   totalClassificationsForBreakdowns,
   breakdownLoading,
+  paperMetadata,
 }: DashboardProps) {
   const dailySeries = useDailySeries(recency as RecencyPayload["recency"] | undefined);
   const throughputRecency = recency
@@ -527,6 +532,7 @@ function OverviewDashboard({
         availablePapers={availablePapers}
         paperCounts={paperCounts}
         paperFilter={paperFilter}
+        paperMetadata={paperMetadata}
         selectedPaper={selectedPaper}
         onSelectPaper={onSelectPaper}
         isLoading={isCatalogLoading}
@@ -667,7 +673,7 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
               ? "Loading cached overview data…"
               : selectedPaper === undefined
                 ? "Cached overview data is not available yet. Open the live overview as an admin or wait for the scheduled refresh to populate it."
-                : `Cached snapshot for ${paperLabel(selectedPaper)} is not available yet. Open the live overview as an admin or wait for the scheduled refresh to populate it.`}
+                : `Cached snapshot for ${paperLabel(selectedPaper, systemSettings.paperMetadata)} is not available yet. Open the live overview as an admin or wait for the scheduled refresh to populate it.`}
           </p>
           {liveSwitchTo && (
             <Link
@@ -687,7 +693,7 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
       <p className="text-sm text-amber-800 dark:text-amber-200">
         {selectedPaper === undefined
           ? "Cached overview totals are not available yet. Open the live overview as an admin or wait for the scheduled refresh to populate them."
-          : `Cached snapshot for ${paperLabel(selectedPaper)} is not available yet. Open the live overview as an admin or wait for the scheduled refresh to populate it.`}
+          : `Cached snapshot for ${paperLabel(selectedPaper, systemSettings.paperMetadata)} is not available yet. Open the live overview as an admin or wait for the scheduled refresh to populate it.`}
       </p>
       {liveSwitchTo && (
         <Link
@@ -730,6 +736,7 @@ export function CachedOverviewTab({ systemSettings, isAdmin }: OverviewRouteProp
       morphologyItems={morphologyItems}
       totalClassificationsForBreakdowns={totalClassificationsForBreakdowns}
       breakdownLoading={false}
+      paperMetadata={systemSettings.paperMetadata}
     />
   );
 }
@@ -976,7 +983,7 @@ export function LiveOverviewTab({ systemSettings, isAdmin }: OverviewRouteProps)
         toast.success(
           selectedPaper === undefined
             ? "Live overview loaded and cached overview updated."
-            : `Live overview loaded and cached snapshot for ${paperLabel(selectedPaper)} updated.`,
+            : `Live overview loaded and cached snapshot for ${paperLabel(selectedPaper, systemSettings.paperMetadata)} updated.`,
         );
       } catch (error) {
         if (cancelled) return;
@@ -1031,6 +1038,7 @@ export function LiveOverviewTab({ systemSettings, isAdmin }: OverviewRouteProps)
       morphologyItems={morphologyItems}
       totalClassificationsForBreakdowns={totalClassificationsForBreakdowns}
       breakdownLoading={classificationStats === undefined}
+      paperMetadata={systemSettings.paperMetadata}
     />
   );
 }

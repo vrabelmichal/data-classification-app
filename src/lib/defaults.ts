@@ -159,6 +159,11 @@ export const DEFAULT_CLOUDFLARE_ZONE_ID = "";
  */
 export const DEFAULT_CLOUDFLARE_API_TOKEN = "";
 
+/**
+ * Default paper metadata (empty - no custom labels or citations by default).
+ */
+export const DEFAULT_PAPER_METADATA: Array<{ id: string; label?: string; citation?: string }> = [];
+
 // ============================================================================
 // Combined Default System Settings
 // ============================================================================
@@ -198,4 +203,5 @@ export const DEFAULT_SYSTEM_SETTINGS = {
   cloudflareZoneId: DEFAULT_CLOUDFLARE_ZONE_ID,
   cloudflareApiToken: DEFAULT_CLOUDFLARE_API_TOKEN,
   rolePermissions: DEFAULT_ROLE_PERMISSIONS,
+  paperMetadata: DEFAULT_PAPER_METADATA,
 };

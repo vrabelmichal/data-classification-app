@@ -121,6 +121,7 @@ export function UserSettings() {
     top: 0,
     width: 0,
   });
+  const [mobileNavOpen, setMobileNavOpen] = useState(true);
 
   // Update state when data loads or changes
   useEffect(() => {
@@ -283,7 +284,9 @@ export function UserSettings() {
     >
       <div className={cn("mx-auto", contentWidthClass, pinned && "px-1") }>
         <div className="mx-auto max-w-4xl border-b border-gray-200 dark:border-gray-700">
-          <div className="flex min-h-[3.75rem] items-end justify-between gap-4">
+
+          {/* Desktop/tablet/landscape: horizontal tab bar */}
+          <div className="hidden sm:flex min-h-[3.75rem] items-end justify-between gap-4">
             <nav className="-mb-px flex flex-1 self-end space-x-8 overflow-x-auto">
               {settingsSubPages.map((page) => {
                 const isActive = location.pathname === page.path;
@@ -324,6 +327,77 @@ export function UserSettings() {
               </button>
             </div>
           </div>
+
+          {/* Mobile portrait: collapsible vertical nav */}
+          <div className="sm:hidden">
+            <div className="flex items-center gap-2 py-2">
+              {/* Save button on the left */}
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!isGeneralSubPage || !hasUnsavedChanges}
+                tabIndex={isGeneralSubPage ? 0 : -1}
+                aria-hidden={!isGeneralSubPage}
+                className={cn(
+                  "rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors",
+                  isGeneralSubPage ? "visible" : "invisible pointer-events-none",
+                  hasUnsavedChanges
+                    ? "bg-amber-500 text-white hover:bg-amber-600"
+                    : "cursor-not-allowed bg-gray-200 text-gray-500 shadow-none dark:bg-gray-700 dark:text-gray-400"
+                )}
+              >
+                Save
+              </button>
+
+              {/* Active page name */}
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-blue-600 dark:text-blue-400">
+                {activeSubPage.label}
+              </span>
+
+              {/* Toggle button on the far right */}
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen((o) => !o)}
+                aria-expanded={mobileNavOpen}
+                aria-label={mobileNavOpen ? "Collapse navigation" : "Expand navigation"}
+                className="ml-auto flex shrink-0 items-center gap-1 rounded-md px-2 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
+              >
+                <span>{mobileNavOpen ? "Hide" : "Menu"}</span>
+                <svg
+                  className={cn("h-3.5 w-3.5 transition-transform", mobileNavOpen && "rotate-180")}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+
+            {mobileNavOpen && (
+              <nav className="border-t border-gray-200 dark:border-gray-700" aria-label="Settings sections">
+                {settingsSubPages.map((page) => {
+                  const isActive = location.pathname === page.path;
+                  return (
+                    <Link
+                      key={page.id}
+                      to={page.path}
+                      onClick={() => setMobileNavOpen(false)}
+                      className={cn(
+                        "flex items-center border-l-2 px-3 py-2 text-sm font-medium transition-colors",
+                        isActive
+                          ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+                          : "border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                      )}
+                    >
+                      {page.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            )}
+          </div>
+
         </div>
       </div>
     </div>

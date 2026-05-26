@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getRoleLabel, type UserRole } from "../../lib/permissions";
+import { getUserDisplayLines, getUserPrimaryLabel } from "../../lib/userDisplay";
 
 export type UserStatisticsRow = {
   userId: string;
@@ -70,10 +71,10 @@ function formatDate(value: number | null) {
   return new Date(value).toLocaleString();
 }
 
-function getColumnValue(row: UserStatisticsRow, key: ColumnKey): string {
+function getColumnValue(row: UserStatisticsRow, key: ColumnKey, showEmails: boolean): string {
   switch (key) {
     case "user":
-      return getUserStatisticsDisplayName(row);
+      return getUserStatisticsDisplayName(row, showEmails);
     case "labels":
       return row.classificationsCount.toLocaleString();
     case "assigned":
@@ -107,10 +108,10 @@ function getColumnValue(row: UserStatisticsRow, key: ColumnKey): string {
   }
 }
 
-function getSortValue(row: UserStatisticsRow, key: ColumnKey): number | string {
+function getSortValue(row: UserStatisticsRow, key: ColumnKey, showEmails: boolean): number | string {
   switch (key) {
     case "user":
-      return getUserStatisticsDisplayName(row).toLowerCase();
+      return getUserStatisticsDisplayName(row, showEmails).toLowerCase();
     case "labels":
       return row.classificationsCount;
     case "assigned":
@@ -144,8 +145,19 @@ function getSortValue(row: UserStatisticsRow, key: ColumnKey): number | string {
   }
 }
 
-export function getUserStatisticsDisplayName(row: UserStatisticsRow) {
-  return row.name || row.email || row.userId;
+export function getUserStatisticsDisplayName(row: UserStatisticsRow, showEmails = false) {
+  return getUserPrimaryLabel(
+    {
+      userId: row.userId,
+      name: row.name,
+      email: row.email,
+    },
+    {
+      showEmails,
+      fallbackLabel: row.userId,
+      showIdentifierWhenEmailPrimary: false,
+    },
+  );
 }
 
 type UserStatisticsTableProps = {
@@ -157,6 +169,8 @@ type UserStatisticsTableProps = {
   toolbar?: ReactNode;
   renderActions?: (row: UserStatisticsRow) => ReactNode;
   emptyMessage?: string;
+  footer?: ReactNode;
+  showEmails?: boolean;
 };
 
 export function UserStatisticsTable({
@@ -168,6 +182,8 @@ export function UserStatisticsTable({
   toolbar,
   renderActions,
   emptyMessage = "No users found.",
+  footer,
+  showEmails = true,
 }: UserStatisticsTableProps) {
   const [visibleColumns, setVisibleColumns] = useState<Record<ColumnKey, boolean>>(defaultVisibility);
   const [sortKey, setSortKey] = useState<ColumnKey>("labels");
@@ -257,8 +273,8 @@ export function UserStatisticsTable({
   const sortedRows = useMemo(() => {
     const directionMultiplier = sortDirection === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
-      const aValue = getSortValue(a, sortKey);
-      const bValue = getSortValue(b, sortKey);
+      const aValue = getSortValue(a, sortKey, showEmails);
+      const bValue = getSortValue(b, sortKey, showEmails);
 
       if (typeof aValue === "string" && typeof bValue === "string") {
         const primary = aValue.localeCompare(bValue) * directionMultiplier;
@@ -273,7 +289,7 @@ export function UserStatisticsTable({
 
       return (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0);
     });
-  }, [rows, sortDirection, sortKey]);
+  }, [rows, showEmails, sortDirection, sortKey]);
 
   return (
     <div className="space-y-6">
@@ -396,8 +412,28 @@ export function UserStatisticsTable({
               className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 bg-gray-50 dark:bg-gray-900/30"
             >
               <div className="mb-3">
-                <div className="font-semibold text-gray-900 dark:text-white">{getUserStatisticsDisplayName(row)}</div>
-                {row.email && <div className="text-xs text-gray-500 dark:text-gray-400">{row.email}</div>}
+                {(() => {
+                  const display = getUserDisplayLines(
+                    {
+                      userId: row.userId,
+                      name: row.name,
+                      email: row.email,
+                    },
+                    {
+                      showEmails,
+                      fallbackLabel: row.userId,
+                    },
+                  );
+
+                  return (
+                    <>
+                      <div className="font-semibold text-gray-900 dark:text-white">{display.primary}</div>
+                      {display.secondary ? (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">{display.secondary}</div>
+                      ) : null}
+                    </>
+                  );
+                })()}
               </div>
 
               <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
@@ -407,7 +443,7 @@ export function UserStatisticsTable({
                     <div key={column.key} className="min-w-0">
                       <div className="text-xs text-gray-500 dark:text-gray-400">{column.label}</div>
                       <div className="font-medium text-gray-900 dark:text-white truncate">
-                        {getColumnValue(row, column.key)}
+                        {getColumnValue(row, column.key, showEmails)}
                       </div>
                     </div>
                   ))}
@@ -456,8 +492,28 @@ export function UserStatisticsTable({
                 >
                   {visibleColumns.user && (
                     <td className="py-3 pr-4">
-                      <div className="font-medium text-gray-900 dark:text-white">{getUserStatisticsDisplayName(row)}</div>
-                      {row.email && <div className="text-xs text-gray-500 dark:text-gray-400">{row.email}</div>}
+                      {(() => {
+                        const display = getUserDisplayLines(
+                          {
+                            userId: row.userId,
+                            name: row.name,
+                            email: row.email,
+                          },
+                          {
+                            showEmails,
+                            fallbackLabel: row.userId,
+                          },
+                        );
+
+                        return (
+                          <>
+                            <div className="font-medium text-gray-900 dark:text-white">{display.primary}</div>
+                            {display.secondary ? (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">{display.secondary}</div>
+                            ) : null}
+                          </>
+                        );
+                      })()}
                     </td>
                   )}
                   {visibleColumns.labels && <td className="py-3 pr-4">{row.classificationsCount.toLocaleString()}</td>}
@@ -490,6 +546,7 @@ export function UserStatisticsTable({
             <div className="py-8 text-center text-gray-500 dark:text-gray-400">{emptyMessage}</div>
           )}
         </div>
+        {footer ? <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">{footer}</div> : null}
       </div>
     </div>
   );

@@ -46,6 +46,11 @@ export const getPublicSystemSettings = query({
     maintenanceDisableClassifications: v.boolean(),
     overviewDefaultPaper: v.union(v.string(), v.null()),
     paperAssignmentCoverageDefaultPaper: v.union(v.string(), v.null()),
+    paperMetadata: v.array(v.object({
+      id: v.string(),
+      label: v.optional(v.string()),
+      citation: v.optional(v.string()),
+    })),
   }),
   handler: async (ctx) => {
     const mergedSettings = await loadMergedSystemSettings(ctx);
@@ -72,6 +77,7 @@ export const getPublicSystemSettings = query({
       overviewDefaultPaper: mergedSettings.overviewDefaultPaper,
       paperAssignmentCoverageDefaultPaper:
         mergedSettings.paperAssignmentCoverageDefaultPaper,
+      paperMetadata: mergedSettings.paperMetadata,
     };
   },
 });
@@ -110,6 +116,11 @@ export const updateSystemSettings = mutation({
     rolePermissions: v.optional(rolePermissionsValidator),
     // Maintenance mode flags
     maintenanceDisableClassifications: v.optional(v.boolean()),
+    paperMetadata: v.optional(v.array(v.object({
+      id: v.string(),
+      label: v.optional(v.string()),
+      citation: v.optional(v.string()),
+    }))),
   },
   handler: async (ctx, args) => {
     await requirePermission(ctx, "manageSettings", {
@@ -580,6 +591,22 @@ export const updateSystemSettings = mutation({
         await ctx.db.insert("systemSettings", {
           key: "overviewDefaultPaper",
           value: args.overviewDefaultPaper,
+        });
+      }
+    }
+
+    if (args.paperMetadata !== undefined) {
+      const existing = await ctx.db
+        .query("systemSettings")
+        .withIndex("by_key", (q) => q.eq("key", "paperMetadata"))
+        .unique();
+
+      if (existing) {
+        await ctx.db.patch(existing._id, { value: args.paperMetadata });
+      } else {
+        await ctx.db.insert("systemSettings", {
+          key: "paperMetadata",
+          value: args.paperMetadata,
         });
       }
     }

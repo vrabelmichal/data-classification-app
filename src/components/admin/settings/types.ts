@@ -1,5 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { RolePermissionsMatrix } from "../../../lib/permissions";
+import type { PaperMetadataEntry } from "../../../lib/paperDisplay";
 
 export interface SettingsFormState {
   allowAnonymous: boolean;
@@ -18,6 +19,7 @@ export interface SettingsFormState {
   defaultImageQuality: "high" | "low";
   galaxyBrowserImageQuality: "high" | "low";
   availablePapers: string[];
+  paperMetadata: PaperMetadataEntry[];
   userExportLimit: number;
   overviewDefaultPaper: string | null;
   paperAssignmentCoverageDefaultPaper: string | null;

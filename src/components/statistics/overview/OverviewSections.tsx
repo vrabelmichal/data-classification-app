@@ -1,6 +1,11 @@
 import { type CSSProperties, type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router";
 import { cn } from "../../../lib/utils";
+import {
+  getPaperCitation,
+  getPaperLabel,
+  type PaperMetadataEntry,
+} from "../../../lib/paperDisplay";
 import { BreakdownBar, CompositionBreakdown, LoadingBadge, LoadingPanel, ProgressBar, StatCard } from "./shared";
 import { PaperCount, PaperFilter, TargetProgressMetrics, Totals } from "./types";
 
@@ -55,8 +60,8 @@ const PAPER_COLORS = [
 const UNASSIGNED_PAPER_COLOR = "#64748b";
 const ALL_PAPERS_COLOR = "#1d4ed8";
 
-function paperLabel(p: string) {
-  return p === "" ? "Unassigned" : p;
+function paperLabel(p: string, metadata?: PaperMetadataEntry[]) {
+  return getPaperLabel(p, metadata);
 }
 
 function hexToRgba(hex: string, alpha: number) {
@@ -488,13 +493,23 @@ function TargetCountControl({
 }
 
 /** Blue pill shown on sections whose data is scoped to the selected paper. */
-function FilteredBadge({ paper }: { paper: string }) {
+function FilteredBadge({
+  paper,
+  paperMetadata,
+}: {
+  paper: string;
+  paperMetadata?: PaperMetadataEntry[];
+}) {
+  const citation = getPaperCitation(paper, paperMetadata);
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 whitespace-nowrap dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300">
+    <span
+      title={citation}
+      className="inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700 whitespace-nowrap dark:border-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+    >
       <svg className="h-3 w-3 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
         <path d="M1.5 2A.5.5 0 0 1 2 1.5h12a.5.5 0 0 1 .354.854L9.5 7.207V13.5a.5.5 0 0 1-.276.447l-3 1.5A.5.5 0 0 1 5.5 15V7.207L1.646 2.354A.5.5 0 0 1 1.5 2z" />
       </svg>
-      {paperLabel(paper)}
+      {paperLabel(paper, paperMetadata)}
     </span>
   );
 }
@@ -515,6 +530,7 @@ export function PaperCatalogSection({
   availablePapers,
   paperCounts,
   paperFilter,
+  paperMetadata,
   selectedPaper,
   onSelectPaper,
   isLoading = false,
@@ -525,6 +541,7 @@ export function PaperCatalogSection({
   availablePapers: string[];
   paperCounts: Record<string, PaperCount>;
   paperFilter: PaperFilter;
+  paperMetadata?: PaperMetadataEntry[];
   selectedPaper: string | undefined;
   onSelectPaper: (paper: string | undefined) => void;
   isLoading?: boolean;
@@ -587,7 +604,9 @@ export function PaperCatalogSection({
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-gray-900 dark:text-white">Galaxy catalog by paper</h3>
-            {selectedPaper !== undefined && <FilteredBadge paper={selectedPaper} />}
+            {selectedPaper !== undefined && (
+              <FilteredBadge paper={selectedPaper} paperMetadata={paperMetadata} />
+            )}
             <TimestampBadge timestamp={updatedAt} />
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -627,7 +646,7 @@ export function PaperCatalogSection({
                 type="button"
                 key={entry.paper === "" ? "__empty__" : entry.paper}
                 onClick={() => onSelectPaper(entry.isSelected ? undefined : entry.paper)}
-                title={`${paperLabel(entry.paper)} — ${entry.counts.total.toLocaleString()} galaxies (${formatPercentLabel(entry.share)})`}
+                title={`${paperLabel(entry.paper, paperMetadata)} — ${entry.counts.total.toLocaleString()} galaxies (${formatPercentLabel(entry.share)})${getPaperCitation(entry.paper, paperMetadata) ? `\n\nCitation: ${getPaperCitation(entry.paper, paperMetadata)}` : ""}`}
                 className={cn(
                   "relative h-full transition-opacity duration-200 focus:outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900",
                   selectedPaper !== undefined && !entry.isSelected ? "opacity-40 hover:opacity-70" : "opacity-100"
@@ -637,7 +656,7 @@ export function PaperCatalogSection({
                   backgroundColor: entry.color,
                   boxShadow: entry.isSelected ? "inset 0 0 0 2px rgba(255, 255, 255, 0.85)" : undefined,
                 }}
-                aria-label={`Filter by ${paperLabel(entry.paper)}`}
+                aria-label={`Filter by ${paperLabel(entry.paper, paperMetadata)}`}
               />
             ))}
           </div>
@@ -649,7 +668,7 @@ export function PaperCatalogSection({
           </span>
           {selectedEntry && (
             <span className="text-gray-600 dark:text-gray-300">
-              {paperLabel(selectedEntry.paper)}: {selectedEntry.counts.total.toLocaleString()} galaxies · {formatPercentLabel(selectedEntry.share)} of catalog
+              {paperLabel(selectedEntry.paper, paperMetadata)}: {selectedEntry.counts.total.toLocaleString()} galaxies · {formatPercentLabel(selectedEntry.share)} of catalog
             </span>
           )}
         </div>
@@ -698,7 +717,7 @@ export function PaperCatalogSection({
         {entriesWithShare.map((entry) => (
           <PaperCard
             key={entry.paper === "" ? "__empty__" : entry.paper}
-            label={paperLabel(entry.paper)}
+            label={paperLabel(entry.paper, paperMetadata)}
             share={entry.share}
             counts={entry.counts}
             accentColor={entry.color}

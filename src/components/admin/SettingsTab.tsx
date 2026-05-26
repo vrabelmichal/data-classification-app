@@ -113,6 +113,7 @@ export function SettingsTab({ systemSettings }: SettingsTabProps) {
         galaxyBrowserImageQuality: localSettings.galaxyBrowserImageQuality,
         availablePapers: localSettings.availablePapers,
         userExportLimit: localSettings.userExportLimit,
+        paperMetadata: localSettings.paperMetadata,
         overviewDefaultPaper: localSettings.overviewDefaultPaper,
         paperAssignmentCoverageDefaultPaper:
           localSettings.paperAssignmentCoverageDefaultPaper,

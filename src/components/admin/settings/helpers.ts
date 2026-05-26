@@ -25,6 +25,7 @@ import {
   DEFAULT_USER_EXPORT_LIMIT,
   DEFAULT_OVERVIEW_DEFAULT_PAPER,
   DEFAULT_PAPER_ASSIGNMENT_COVERAGE_DEFAULT_PAPER,
+  DEFAULT_PAPER_METADATA,
 } from "../../../lib/defaults";
 import { cloneRolePermissions, DEFAULT_ROLE_PERMISSIONS } from "../../../lib/permissions";
 import type { SettingsFormState } from "./types";
@@ -60,6 +61,7 @@ export function createSettingsFormState(systemSettings: any): SettingsFormState 
       systemSettings.galaxyBrowserImageQuality ??
       DEFAULT_GALAXY_BROWSER_IMAGE_QUALITY,
     availablePapers: systemSettings.availablePapers ?? DEFAULT_AVAILABLE_PAPERS,
+    paperMetadata: systemSettings.paperMetadata ?? DEFAULT_PAPER_METADATA,
     userExportLimit: systemSettings.userExportLimit ?? DEFAULT_USER_EXPORT_LIMIT,
     overviewDefaultPaper:
       systemSettings.overviewDefaultPaper ?? DEFAULT_OVERVIEW_DEFAULT_PAPER,
@@ -135,6 +137,8 @@ export function hasSettingsChanges(
     JSON.stringify(localSettings.rolePermissions) !==
       JSON.stringify(originalSettings.rolePermissions) ||
     JSON.stringify(localSettings.availablePapers) !==
-      JSON.stringify(originalSettings.availablePapers)
+      JSON.stringify(originalSettings.availablePapers) ||
+    JSON.stringify(localSettings.paperMetadata) !==
+      JSON.stringify(originalSettings.paperMetadata)
   );
 }

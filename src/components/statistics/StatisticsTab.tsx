@@ -4,6 +4,10 @@ import { api } from "../../../convex/_generated/api";
 import { Id } from "../../../convex/_generated/dataModel";
 import { toast } from "sonner";
 import { cn } from "../../lib/utils";
+import {
+  SearchableUserSelect,
+  type SearchableUserOption,
+} from "../shared/UserPickers";
 
 type UserStatisticsData = {
   total: number;
@@ -480,6 +484,18 @@ export function StatisticsTab() {
     if (!user) return null;
     return user.name || user.email || user.userId;
   }, [selectedUserId, usersList]);
+  const userOptions = useMemo<SearchableUserOption[]>(
+    () =>
+      (usersList ?? []).map((user) => ({
+        id: String(user.userId),
+        userId: String(user.userId),
+        name: user.name,
+        email: user.email,
+        description: `${user.classificationsCount.toLocaleString()} classifications`,
+        keywords: [String(user.userId)],
+      })),
+    [usersList],
+  );
 
   const displayStatsResponse =
     stats ??
@@ -698,23 +714,17 @@ export function StatisticsTab() {
       {/* Admin User Selector */}
       {canViewUserStatistics && usersList && (
         <div className="mb-6 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-          <div className="flex items-center gap-4">
-            <label htmlFor="user-select" className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
               View statistics for:
             </label>
-            <select
-              id="user-select"
+            <SearchableUserSelect
+              options={userOptions}
               value={selectedUserId ?? ""}
-              onChange={(e) => setSelectedUserId(e.target.value ? e.target.value as Id<"users"> : null)}
-              className="flex-1 max-w-md px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            >
-              <option value="">Myself</option>
-              {usersList.map((user) => (
-                <option key={user.userId} value={user.userId}>
-                  {user.name || user.email || user.userId} ({user.classificationsCount} classifications)
-                </option>
-              ))}
-            </select>
+              onChange={(nextValue) => setSelectedUserId(nextValue ? (nextValue as Id<"users">) : null)}
+              placeholder="Myself"
+              className="w-full max-w-xl"
+            />
           </div>
           {selectedUserId && selectedUserDisplay && (
             <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">

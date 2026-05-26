@@ -79,52 +79,48 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
     <>
       {/* Mobile Navigation */}
       <div className="custom-lg:hidden">
-        {/* Mobile Header */}
-        <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                {appName}
-              </h1>
-              {/* Mobile notification badge - shown next to app title */}
-              {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
-                <button
-                  onClick={() => navigate("/notifications")}
-                  className="relative"
-                  title="You have unread notifications"
-                >
-                  <NotificationBadge count={unreadNotificationCount} />
-                </button>
+        {/* Floating hamburger button – hidden on classify pages, fixed top-right everywhere else */}
+        {!location.pathname.startsWith("/classify") && (
+          <div className="fixed top-3 right-3 z-50">
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              aria-label="Open navigation menu"
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-lg shadow-md transition",
+                "bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700",
+                "border border-gray-200 dark:border-gray-600",
               )}
-            </div>
-            <div className="flex items-center space-x-1">
-              <button
-                onClick={() => setIsOpen(!isOpen)}
-                className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
-            </div>
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
           </div>
-        </div>
+        )}
 
         {/* Mobile Menu Overlay */}
         {isOpen && (
           <div className="fixed inset-0 z-50 custom-lg:hidden">
             <div className="fixed inset-0 bg-black bg-opacity-50" onClick={() => setIsOpen(false)} />
             <div className="fixed top-0 right-0 bottom-0 w-64 bg-white dark:bg-gray-800 shadow-xl flex flex-col">
+              {/* Close button – same position as hamburger button */}
+              <button
+                onClick={() => setIsOpen(false)}
+                aria-label="Close navigation menu"
+                className={cn(
+                  "fixed top-3 right-3 z-[60] flex h-10 w-10 items-center justify-center rounded-lg shadow-md transition",
+                  "bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700",
+                  "border border-gray-200 dark:border-gray-600",
+                )}
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
                 <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Menu</h2>
-                <button
-                  onClick={() => setIsOpen(false)}
-                  className="p-2 rounded-lg text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
+                {/* Spacer to preserve header layout with invisible placeholder where close button was */}
+                <div className="h-10 w-10" aria-hidden="true" />
               </div>
               <nav className="flex-1 min-h-0 overflow-y-auto p-4">
                 <ul className="space-y-2">

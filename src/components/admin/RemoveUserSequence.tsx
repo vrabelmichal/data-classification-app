@@ -1,7 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
+import {
+  SearchableUserSelect,
+  type SearchableUserOption,
+} from "../shared/UserPickers";
 
 interface RemoveUserSequenceProps {
   users: any[];
@@ -19,6 +23,18 @@ export function RemoveUserSequence({ users }: RemoveUserSequenceProps) {
   } | null>(null);
 
   const usersWithSequences = useQuery(api.galaxies.sequence.getUsersWithSequences);
+  const userOptions = useMemo<SearchableUserOption[]>(
+    () =>
+      (usersWithSequences ?? []).map((user) => ({
+        id: String(user.userId),
+        userId: String(user.userId),
+        name: user.user?.name,
+        email: user.user?.email,
+        description: `${user.classificationsCount.toLocaleString()} classifications · ${user.sequenceInfo.galaxyCount.toLocaleString()} galaxies in sequence`,
+        keywords: [String(user.userId)],
+      })),
+    [usersWithSequences],
+  );
 
   const removeUserSequence = useMutation(api.galaxies.sequence.removeUserSequence);
 
@@ -91,19 +107,13 @@ export function RemoveUserSequence({ users }: RemoveUserSequenceProps) {
           <label className="block text-sm font-medium text-red-900 dark:text-red-100 mb-2">
             Select User
           </label>
-          <select
+          <SearchableUserSelect
+            options={userOptions}
             value={selectedUserId}
-            onChange={(e) => setSelectedUserId(e.target.value)}
-            className="w-full border border-red-300 dark:border-red-600 rounded-md px-3 py-2 bg-white dark:bg-gray-700 text-red-900 dark:text-red-100"
+            onChange={(nextValue) => setSelectedUserId(nextValue ?? "")}
+            placeholder="Select a user..."
             disabled={removingSequence}
-          >
-            <option value="">Select a user...</option>
-            {usersWithSequences?.map((user) => (
-              <option key={user.userId} value={user.userId}>
-                {user.user?.name || user.user?.email || "Anonymous"} ({user.classificationsCount} classifications) - {user.sequenceInfo.galaxyCount} galaxies in sequence
-              </option>
-            ))}
-          </select>
+          />
         </div>
 
         <button
