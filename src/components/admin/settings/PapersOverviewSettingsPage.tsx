@@ -30,19 +30,22 @@ export function PapersOverviewSettingsPage({
 
       const nextLabel = patch.label !== undefined ? patch.label : existing.label;
       const nextCitation = patch.citation !== undefined ? patch.citation : existing.citation;
-      const normalized: PaperMetadataEntry = {
-        id: paperId,
-        label: nextLabel?.trim() || undefined,
-        citation: nextCitation?.trim() || undefined,
-      };
+      const hasLabel = Boolean(nextLabel?.trim());
+      const hasCitation = Boolean(nextCitation?.trim());
 
-      const shouldRemove = !normalized.label && !normalized.citation;
+      const shouldRemove = !hasLabel && !hasCitation;
       if (shouldRemove) {
         return {
           ...prev,
           paperMetadata: prev.paperMetadata.filter((entry) => entry.id !== paperId),
         };
       }
+
+      const normalized: PaperMetadataEntry = {
+        id: paperId,
+        label: hasLabel ? nextLabel : undefined,
+        citation: hasCitation ? nextCitation : undefined,
+      };
 
       if (existingIndex >= 0) {
         const nextMetadata = [...prev.paperMetadata];
