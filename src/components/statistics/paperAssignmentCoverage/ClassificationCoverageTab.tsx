@@ -92,6 +92,7 @@ type DashboardProps = {
   defaultPaper: string | null | undefined;
   alternateModeLink?: string;
   alternateModeLabel?: string;
+  systemSettings: ClassificationCoverageSystemSettings;
 };
 
 type AssignmentRow = {
@@ -1057,6 +1058,7 @@ function ClassificationCoverageDashboard({
   defaultPaper,
   alternateModeLink,
   alternateModeLabel,
+  systemSettings,
 }: DashboardProps) {
   const loadCurrentUserDirectory = useAction(
     api.statistics.paperAssignmentCoverage.cache.getCurrentUserDirectory,
@@ -1230,6 +1232,7 @@ export function CachedClassificationCoverageTab({
         defaultPaper={classificationCoverageDefaultPaper}
         alternateModeLink={liveLink}
         alternateModeLabel={canAccessLiveVariant ? "Open live calculation" : undefined}
+        systemSettings={systemSettings}
       />
     </div>
   );
@@ -1285,6 +1288,7 @@ export function LiveClassificationCoverageTab({ systemSettings }: Classification
           defaultPaper={classificationCoverageDefaultPaper}
           alternateModeLink={cachedLink}
           alternateModeLabel="Open cached snapshot"
+          systemSettings={systemSettings}
         />
       )}
     </div>
