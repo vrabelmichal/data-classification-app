@@ -791,11 +791,13 @@ function ClassificationCoverageTableSection({
   scopeSnapshot,
   userDirectory,
   targetClassifications,
+  systemSettings,
 }: {
   selectedPaper: string | undefined;
   scopeSnapshot: ScopeSnapshot;
   userDirectory: UserDirectoryEntry[];
   targetClassifications: number;
+  systemSettings: ClassificationCoverageSystemSettings;
 }) {
   const [showEmails, setShowEmails] = useState(false);
   const [selectedDetailRowKey, setSelectedDetailRowKey] = useState<string | null>(null);
@@ -1167,6 +1169,7 @@ function ClassificationCoverageDashboard({
         scopeSnapshot={currentScope}
         userDirectory={effectiveUserDirectory}
         targetClassifications={targetClassifications}
+        systemSettings={systemSettings}
       />
     </div>
   );
