@@ -100,37 +100,35 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
     <>
       {/* Mobile Navigation */}
       <div className="custom-lg:hidden">
-        {!location.pathname.startsWith("/classify") && (
-          <div className="border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0 flex items-center gap-3">
-                <h1 className="truncate text-xl font-bold text-gray-900 dark:text-white">
-                  {appName}
-                </h1>
-                {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
-                  <button
-                    onClick={() => navigate("/notifications")}
-                    className="relative shrink-0"
-                    title="You have unread notifications"
-                  >
-                    <NotificationBadge count={unreadNotificationCount} />
-                  </button>
-                )}
-              </div>
-              <button
-                onClick={() => setIsOpen(true)}
-                aria-label="Open navigation menu"
-                className={cn(
-                  "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700",
-                )}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </button>
+        <div className="border-b border-gray-200 bg-white px-4 py-3 dark:border-gray-700 dark:bg-gray-800">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 flex items-center gap-3">
+              <h1 className="truncate text-xl font-bold text-gray-900 dark:text-white">
+                {appName}
+              </h1>
+              {unreadNotificationCount !== undefined && unreadNotificationCount > 0 && (
+                <button
+                  onClick={() => navigate("/notifications")}
+                  className="relative shrink-0"
+                  title="You have unread notifications"
+                >
+                  <NotificationBadge count={unreadNotificationCount} />
+                </button>
+              )}
             </div>
+            <button
+              onClick={() => setIsOpen(true)}
+              aria-label="Open navigation menu"
+              className={cn(
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm transition hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700",
+              )}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
           </div>
-        )}
+        </div>
 
         {/* Floating hamburger button after scrolling past the header */}
         {!location.pathname.startsWith("/classify") && showFloatingMenuButton && !isOpen && (
