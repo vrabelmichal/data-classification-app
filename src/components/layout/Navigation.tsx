@@ -12,7 +12,7 @@ import { useTheme } from "../../hooks/useTheme";
 const MIN_VIEWPORT_HEIGHT_SHOW_CLASSIFICATION_PROGRESS = 580;
 const MIN_VIEWPORT_HEIGHT_SHOW_USER_INFO = 480;
 const MIN_VIEWPORT_HEIGHT_SHOW_THEME_BUTTON = 400;
-const MIN_VIEWPORT_HEIGHT_SHOW_REPORT_ISSUE_BUTTON = 300;
+const MIN_VIEWPORT_HEIGHT_SHOW_REPORT_ISSUE_BUTTON = 350;
 
 function getViewportHeight() {
   if (typeof window === "undefined") {
