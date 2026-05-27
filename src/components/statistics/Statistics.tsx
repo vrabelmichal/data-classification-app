@@ -199,7 +199,7 @@ export function Statistics() {
       {tabs.length > 1 && (
         <>
           <div ref={navBarRef} className="mb-8">
-            <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+            <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
               <nav className="hidden -mb-px space-x-8 overflow-x-auto sm:flex" aria-label="Statistics sections">
                 {tabs.map((tab) => (
                   <Link
@@ -219,7 +219,7 @@ export function Statistics() {
               </nav>
 
               <div className="sm:hidden">
-                <div className="flex items-center gap-3 px-1 py-3">
+                <div className="flex items-center gap-3 px-1 py-[0.85rem]">
                   <button
                     type="button"
                     onClick={() => setMobileNavOpen((open) => !open)}
@@ -252,8 +252,9 @@ export function Statistics() {
                             ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
                             : "border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                         )}
-                      >
-                        {tab.label}
+                        >
+                          <span className="mr-2">{tab.icon}</span>
+                          {tab.label}
                       </Link>
                     ))}
                   </nav>
@@ -267,7 +268,7 @@ export function Statistics() {
               className="fixed z-40"
               style={{ left: metrics.left, top: metrics.top, width: metrics.width }}
             >
-              <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+              <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
                 <nav className="hidden -mb-px space-x-8 overflow-x-auto sm:flex" aria-label="Statistics sections">
                   {tabs.map((tab) => (
                     <Link
@@ -287,7 +288,7 @@ export function Statistics() {
                 </nav>
 
                 <div className="sm:hidden">
-                  <div className="flex items-center gap-3 px-1 py-3">
+                  <div className="flex items-center gap-3 px-1 py-[0.85rem]">
                     <button
                       type="button"
                       onClick={() => setMobileNavOpen((open) => !open)}
@@ -321,6 +322,7 @@ export function Statistics() {
                               : "border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                           )}
                         >
+                          <span className="mr-2">{tab.icon}</span>
                           {tab.label}
                         </Link>
                       ))}

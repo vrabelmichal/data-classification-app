@@ -104,7 +104,7 @@ export function HelpTabs() {
 
       {/* Mobile portrait: collapsible vertical nav */}
       <div className="sm:hidden">
-        <div className="flex items-center gap-3 px-1 py-3">
+        <div className="flex items-center gap-3 px-1 py-[0.85rem]">
           <button
             type="button"
             onClick={() => setMobileNavOpen((o) => !o)}
