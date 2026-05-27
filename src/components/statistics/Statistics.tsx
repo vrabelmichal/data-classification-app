@@ -3,8 +3,10 @@ import { useQuery } from "convex/react";
 import { Routes, Route, Link, useLocation, Navigate } from "react-router";
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
+import { useIsBelowViewportWidth } from "../../hooks/useIsBelowViewportWidth";
 import { CachedOverviewTab, LiveOverviewTab } from "./overview/OverviewTab";
 import { cn } from "../../lib/utils";
+import { HELP_AND_STATS_MOBILE_NAV_BREAKPOINT_PX } from "../../lib/responsiveBreakpoints";
 import { StatisticsTab } from "./StatisticsTab";
 import { UsersStatisticsTab } from "./UsersStatisticsTab";
 import type { ClassificationCoverageTabProps } from "./paperAssignmentCoverage/ClassificationCoverageTab";
@@ -49,6 +51,7 @@ export function Statistics() {
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   const [metrics, setMetrics] = useState({ isPinned: false, left: 0, top: 0, width: 0 });
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const isMobileNav = useIsBelowViewportWidth(HELP_AND_STATS_MOBILE_NAV_BREAKPOINT_PX);
   const isLiveOverview = location.pathname.startsWith("/statistics/overview-live");
   const isOverview = location.pathname.startsWith("/statistics/overview");
   const isUsersStatistics = location.pathname.startsWith("/statistics/users");
@@ -181,6 +184,76 @@ export function Statistics() {
     };
   }, [location.pathname]);
 
+  useEffect(() => {
+    if (!isMobileNav) {
+      setMobileNavOpen(false);
+    }
+  }, [isMobileNav]);
+
+  const renderTabsNavigation = () =>
+    isMobileNav ? (
+      <div>
+        <div className="flex items-center gap-3 px-1 py-[0.85rem]">
+          <button
+            type="button"
+            onClick={() => setMobileNavOpen((open) => !open)}
+            aria-expanded={mobileNavOpen}
+            aria-label={mobileNavOpen ? "Collapse navigation" : "Expand navigation"}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 shadow-sm transition-colors hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60"
+          >
+            <svg
+              className={cn("h-4 w-4 transition-transform", mobileNavOpen && "rotate-180")}
+              viewBox="0 0 20 20"
+              fill="currentColor"
+              aria-hidden="true"
+            >
+              <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" />
+            </svg>
+          </button>
+          <span className="min-w-0 flex-1 text-sm font-medium text-blue-600 dark:text-blue-400">
+            {tabs.find((tab) => isTabActive(tab.path))?.label ?? "Statistics"}
+          </span>
+        </div>
+        {mobileNavOpen && (
+          <nav className="border-t border-gray-200 dark:border-gray-700" aria-label="Statistics sections">
+            {tabs.map((tab) => (
+              <Link
+                key={tab.id}
+                to={tab.path}
+                className={cn(
+                  "flex items-center border-l-2 px-3 py-2 text-sm font-medium transition-colors",
+                  isTabActive(tab.path)
+                    ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+                    : "border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                )}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+              </Link>
+            ))}
+          </nav>
+        )}
+      </div>
+    ) : (
+      <nav className="-mb-px flex space-x-8 overflow-x-auto" aria-label="Statistics sections">
+        {tabs.map((tab) => (
+          <Link
+            key={tab.id}
+            to={tab.path}
+            className={cn(
+              "flex items-center space-x-2 whitespace-nowrap border-b-2 px-1 py-2 text-sm font-medium transition-colors",
+              isTabActive(tab.path)
+                ? "border-blue-500 text-blue-600 dark:text-blue-400"
+                : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
+            )}
+          >
+            <span>{tab.icon}</span>
+            <span>{tab.label}</span>
+          </Link>
+        ))}
+      </nav>
+    );
+
   if (systemSettings === undefined || userProfile === undefined) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
@@ -200,66 +273,7 @@ export function Statistics() {
         <>
           <div ref={navBarRef} className="mb-8">
             <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-              <nav className="hidden -mb-px space-x-8 overflow-x-auto sm:flex" aria-label="Statistics sections">
-                {tabs.map((tab) => (
-                  <Link
-                    key={tab.id}
-                    to={tab.path}
-                    className={cn(
-                      "flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap",
-                      isTabActive(tab.path)
-                        ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                        : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-                    )}
-                  >
-                    <span>{tab.icon}</span>
-                    <span>{tab.label}</span>
-                  </Link>
-                ))}
-              </nav>
-
-              <div className="sm:hidden">
-                <div className="flex items-center gap-3 px-1 py-[0.85rem]">
-                  <button
-                    type="button"
-                    onClick={() => setMobileNavOpen((open) => !open)}
-                    aria-expanded={mobileNavOpen}
-                    aria-label={mobileNavOpen ? "Collapse navigation" : "Expand navigation"}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 shadow-sm transition-colors hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60"
-                  >
-                    <svg
-                      className={cn("h-4 w-4 transition-transform", mobileNavOpen && "rotate-180")}
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                      aria-hidden="true"
-                    >
-                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" />
-                    </svg>
-                  </button>
-                  <span className="min-w-0 flex-1 text-sm font-medium text-blue-600 dark:text-blue-400">
-                    {tabs.find((tab) => isTabActive(tab.path))?.label ?? "Statistics"}
-                  </span>
-                </div>
-                {mobileNavOpen && (
-                  <nav className="border-t border-gray-200 dark:border-gray-700" aria-label="Statistics sections">
-                    {tabs.map((tab) => (
-                      <Link
-                        key={tab.id}
-                        to={tab.path}
-                        className={cn(
-                          "flex items-center border-l-2 px-3 py-2 text-sm font-medium transition-colors",
-                          isTabActive(tab.path)
-                            ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                            : "border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                        )}
-                        >
-                          <span className="mr-2">{tab.icon}</span>
-                          {tab.label}
-                      </Link>
-                    ))}
-                  </nav>
-                )}
-              </div>
+              {renderTabsNavigation()}
             </div>
           </div>
 
@@ -269,66 +283,7 @@ export function Statistics() {
               style={{ left: metrics.left, top: metrics.top, width: metrics.width }}
             >
               <div className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                <nav className="hidden -mb-px space-x-8 overflow-x-auto sm:flex" aria-label="Statistics sections">
-                  {tabs.map((tab) => (
-                    <Link
-                      key={tab.id}
-                      to={tab.path}
-                      className={cn(
-                        "flex items-center space-x-2 py-2 px-1 border-b-2 font-medium text-sm transition-colors whitespace-nowrap",
-                        isTabActive(tab.path)
-                          ? "border-blue-500 text-blue-600 dark:text-blue-400"
-                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300"
-                      )}
-                    >
-                      <span>{tab.icon}</span>
-                      <span>{tab.label}</span>
-                    </Link>
-                  ))}
-                </nav>
-
-                <div className="sm:hidden">
-                  <div className="flex items-center gap-3 px-1 py-[0.85rem]">
-                    <button
-                      type="button"
-                      onClick={() => setMobileNavOpen((open) => !open)}
-                      aria-expanded={mobileNavOpen}
-                      aria-label={mobileNavOpen ? "Collapse navigation" : "Expand navigation"}
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 shadow-sm transition-colors hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60"
-                    >
-                      <svg
-                        className={cn("h-4 w-4 transition-transform", mobileNavOpen && "rotate-180")}
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                    <span className="min-w-0 flex-1 text-sm font-medium text-blue-600 dark:text-blue-400">
-                      {tabs.find((tab) => isTabActive(tab.path))?.label ?? "Statistics"}
-                    </span>
-                  </div>
-                  {mobileNavOpen && (
-                    <nav className="border-t border-gray-200 dark:border-gray-700" aria-label="Statistics sections">
-                      {tabs.map((tab) => (
-                        <Link
-                          key={tab.id}
-                          to={tab.path}
-                          className={cn(
-                            "flex items-center border-l-2 px-3 py-2 text-sm font-medium transition-colors",
-                            isTabActive(tab.path)
-                              ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
-                              : "border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
-                          )}
-                        >
-                          <span className="mr-2">{tab.icon}</span>
-                          {tab.label}
-                        </Link>
-                      ))}
-                    </nav>
-                  )}
-                </div>
+                {renderTabsNavigation()}
               </div>
             </div>
           )}
