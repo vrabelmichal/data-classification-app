@@ -33,6 +33,23 @@ export type SortField =
 export type SortOrder = "asc" | "desc";
 export type FilterType = "all" | "my_sequence" | "classified" | "unclassified" | "skipped";
 
+function isPaperMetadataEntry(value: unknown): value is PaperMetadataEntry {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const entry = value as Record<string, unknown>;
+  const hasValidId = typeof entry.id === "string";
+  const hasValidLabel = entry.label === undefined || typeof entry.label === "string";
+  const hasValidCitation = entry.citation === undefined || typeof entry.citation === "string";
+
+  return hasValidId && hasValidLabel && hasValidCitation;
+}
+
+function isPaperMetadataArray(value: unknown): value is PaperMetadataEntry[] {
+  return Array.isArray(value) && value.every(isPaperMetadataEntry);
+}
+
 export function GalaxyBrowser() {
   usePageTitle("Browse Galaxies");
   const [searchParams, setSearchParams] = useSearchParams();
@@ -43,7 +60,21 @@ export function GalaxyBrowser() {
   const showAwesomeFlag = systemSettings?.showAwesomeFlag !== false;
   const showValidRedshift = systemSettings?.showValidRedshift !== false;
   const showVisibleNucleus = systemSettings?.showVisibleNucleus !== false;
-  const paperMetadata = systemSettings?.paperMetadata as PaperMetadataEntry[] | undefined;
+  const rawPaperMetadata = systemSettings?.paperMetadata;
+  const paperMetadata = useMemo(() => {
+    if (rawPaperMetadata === undefined) {
+      return undefined;
+    }
+
+    if (isPaperMetadataArray(rawPaperMetadata)) {
+      return rawPaperMetadata;
+    }
+
+    console.warn("Invalid system settings paperMetadata; ignoring malformed value.", {
+      paperMetadata: rawPaperMetadata,
+    });
+    return undefined;
+  }, [rawPaperMetadata]);
 
   // Get user profile to resolve export permissions.
   const userProfile = useQuery(api.users.getUserProfile);
