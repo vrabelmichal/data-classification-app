@@ -2,12 +2,12 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 import { HelpTab } from "./types";
 
-const tabs: Array<{ key: HelpTab; label: string; path: string }> = [
-  { key: "getting-started", label: "Getting Started", path: "/help" },
-  { key: "app-guide", label: "App Guide", path: "/help/app-guide" },
-  { key: "classification", label: "Categories & Flags", path: "/help/classification" },
-  { key: "shortcuts", label: "Keyboard", path: "/help/shortcuts" },
-  { key: "image-docs", label: "Image Documentation", path: "/help/image-docs" },
+const tabs: Array<{ key: HelpTab; label: string; icon: string; path: string }> = [
+  { key: "getting-started", label: "Getting Started", icon: "🚀", path: "/help" },
+  { key: "app-guide", label: "App Guide", icon: "📘", path: "/help/app-guide" },
+  { key: "classification", label: "Categories & Flags", icon: "🏷️", path: "/help/classification" },
+  { key: "shortcuts", label: "Keyboard", icon: "⌨️", path: "/help/shortcuts" },
+  { key: "image-docs", label: "Image Documentation", icon: "🖼️", path: "/help/image-docs" },
 ];
 
 interface FixedBarMetrics {
@@ -96,6 +96,7 @@ export function HelpTabs() {
                   : "border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
               }`}
             >
+              <span className="mr-2">{tab.icon}</span>
               {tab.label}
             </Link>
           );
@@ -139,6 +140,7 @@ export function HelpTabs() {
                       : "border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
                   }`}
                 >
+                  <span className="mr-2">{tab.icon}</span>
                   {tab.label}
                 </Link>
               );
