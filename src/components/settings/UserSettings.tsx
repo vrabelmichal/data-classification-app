@@ -122,6 +122,9 @@ export function UserSettings() {
     width: 0,
   });
   const [mobileNavOpen, setMobileNavOpen] = useState(true);
+  const [windowWidth, setWindowWidth] = useState(
+    typeof window === "undefined" ? 1024 : window.innerWidth,
+  );
 
   // Update state when data loads or changes
   useEffect(() => {
@@ -258,7 +261,10 @@ export function UserSettings() {
     }
 
     const handleWindowScroll = () => updateFixedBarMetrics();
-    const handleWindowResize = () => updateFixedBarMetrics();
+    const handleWindowResize = () => {
+      setWindowWidth(window.innerWidth);
+      updateFixedBarMetrics();
+    };
 
     window.addEventListener("scroll", handleWindowScroll, { passive: true });
     window.addEventListener("resize", handleWindowResize);
@@ -273,7 +279,10 @@ export function UserSettings() {
     };
   }, [location.pathname]);
 
-  const renderSettingsNavigationBar = (barRef?: Ref<HTMLDivElement>, hidden = false, pinned = false) => (
+  const renderSettingsNavigationBar = (barRef?: Ref<HTMLDivElement>, hidden = false, pinned = false) => {
+    const needsHamburgerOffset = pinned && windowWidth < 1024;
+
+    return (
     <div
       ref={barRef}
       className={cn(
@@ -286,7 +295,12 @@ export function UserSettings() {
         <div className="mx-auto max-w-4xl border-b border-gray-200 dark:border-gray-700">
 
           {/* Desktop/tablet/landscape: horizontal tab bar */}
-          <div className="hidden min-h-[3.75rem] items-end justify-between gap-4 pr-20 sm:flex custom-lg:pr-0">
+          <div
+            className={cn(
+              "hidden min-h-[3.75rem] items-end justify-between gap-4 sm:flex",
+              needsHamburgerOffset && "pr-12",
+            )}
+          >
             <nav className="-mb-px flex flex-1 self-end space-x-8 overflow-x-auto">
               {settingsSubPages.map((page) => {
                 const isActive = location.pathname === page.path;
@@ -330,7 +344,12 @@ export function UserSettings() {
 
           {/* Mobile portrait: collapsible vertical nav */}
           <div className="sm:hidden">
-            <div className="flex items-center gap-2 py-3 pr-16">
+            <div
+              className={cn(
+                "flex items-center gap-2 py-[0.85rem]",
+                needsHamburgerOffset && "pr-12",
+              )}
+            >
               <button
                 type="button"
                 onClick={() => setMobileNavOpen((o) => !o)}
@@ -398,7 +417,8 @@ export function UserSettings() {
         </div>
       </div>
     </div>
-  );
+    );
+  };
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 pb-20 md:pb-6">
