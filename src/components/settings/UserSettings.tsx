@@ -121,7 +121,7 @@ export function UserSettings() {
     top: 0,
     width: 0,
   });
-  const [mobileNavOpen, setMobileNavOpen] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [windowWidth, setWindowWidth] = useState(
     typeof window === "undefined" ? 1024 : window.innerWidth,
   );

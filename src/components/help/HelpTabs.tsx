@@ -33,7 +33,7 @@ export function HelpTabs() {
   const navBarRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLElement | null>(null);
   const [metrics, setMetrics] = useState<FixedBarMetrics>({ isPinned: false, left: 0, top: 0, width: 0 });
-  const [mobileNavOpen, setMobileNavOpen] = useState(true);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
 
   useEffect(() => {
     const navBarElement = navBarRef.current;
