@@ -104,20 +104,16 @@ export function HelpTabs() {
 
       {/* Mobile portrait: collapsible vertical nav */}
       <div className="sm:hidden">
-        <div className="flex items-center justify-between px-1 py-2">
-          <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-            {activeTab.label}
-          </span>
+        <div className="flex items-center gap-3 px-1 py-3">
           <button
             type="button"
             onClick={() => setMobileNavOpen((o) => !o)}
             aria-expanded={mobileNavOpen}
             aria-label={mobileNavOpen ? "Collapse navigation" : "Expand navigation"}
-            className="flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800 transition-colors"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 shadow-sm transition-colors hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60"
           >
-            <span>{mobileNavOpen ? "Hide" : "Show"} menu</span>
             <svg
-              className={`h-3.5 w-3.5 transition-transform ${mobileNavOpen ? "rotate-180" : ""}`}
+              className={`h-4 w-4 transition-transform ${mobileNavOpen ? "rotate-180" : ""}`}
               viewBox="0 0 20 20"
               fill="currentColor"
               aria-hidden="true"
@@ -125,6 +121,9 @@ export function HelpTabs() {
               <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" />
             </svg>
           </button>
+          <span className="min-w-0 flex-1 text-sm font-medium text-blue-600 dark:text-blue-400">
+            {activeTab.label}
+          </span>
         </div>
         {mobileNavOpen && (
           <nav className="border-t border-gray-200 dark:border-gray-700" aria-label="Help sections">
@@ -134,7 +133,6 @@ export function HelpTabs() {
                 <Link
                   key={tab.key}
                   to={tab.path}
-                  onClick={() => setMobileNavOpen(false)}
                   className={`flex items-center border-l-2 px-3 py-2 text-sm font-medium transition-colors ${
                     selected
                       ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"

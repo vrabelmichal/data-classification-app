@@ -132,7 +132,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
 
         {/* Floating hamburger button after scrolling past the header */}
         {!location.pathname.startsWith("/classify") && showFloatingMenuButton && !isOpen && (
-          <div className="fixed top-3 right-3 z-50">
+          <div className="fixed top-3 right-4 z-50">
             <button
               onClick={() => setIsOpen(true)}
               aria-label="Open navigation menu"
@@ -159,7 +159,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                 onClick={() => setIsOpen(false)}
                 aria-label="Close navigation menu"
                 className={cn(
-                  "fixed top-3 right-3 z-[60] flex h-10 w-10 items-center justify-center rounded-lg shadow-md transition",
+                  "fixed top-3 right-4 z-[60] flex h-10 w-10 items-center justify-center rounded-lg shadow-md transition",
                   "bg-white text-gray-700 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700",
                   "border border-gray-200 dark:border-gray-600",
                 )}
