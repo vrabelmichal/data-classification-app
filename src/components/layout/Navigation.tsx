@@ -9,6 +9,19 @@ import { DarkModeToggle } from "../navigation/DarkModeToggle";
 import { useReportIssueModal } from "../../lib/reportIssueModalContext";
 import { useTheme } from "../../hooks/useTheme";
 
+const MIN_VIEWPORT_HEIGHT_SHOW_CLASSIFICATION_PROGRESS = 580;
+const MIN_VIEWPORT_HEIGHT_SHOW_USER_INFO = 480;
+const MIN_VIEWPORT_HEIGHT_SHOW_THEME_BUTTON = 400;
+const MIN_VIEWPORT_HEIGHT_SHOW_REPORT_ISSUE_BUTTON = 300;
+
+function getViewportHeight() {
+  if (typeof window === "undefined") {
+    return 0;
+  }
+
+  return Math.round(window.visualViewport?.height ?? window.innerHeight);
+}
+
 interface NavigationItem {
   id: string;
   label: string;
@@ -42,6 +55,7 @@ function NotificationBadge({ count, className }: { count?: number; className?: s
 export function Navigation({ navigationItems, appName }: NavigationProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [showFloatingMenuButton, setShowFloatingMenuButton] = useState(false);
+  const [viewportHeight, setViewportHeight] = useState(() => getViewportHeight());
   const { open: openReportModal } = useReportIssueModal();
   const userProfile = useQuery(api.users.getUserProfile);
   const progress = useQuery(api.classification.getProgress, {});
@@ -51,6 +65,11 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
   const location = useLocation();
   const userDisplayName = userProfile?.user?.name ?? userProfile?.user?.email;
   const { theme, effectiveTheme, toggleTheme } = useTheme();
+  const showClassificationProgress =
+    viewportHeight >= MIN_VIEWPORT_HEIGHT_SHOW_CLASSIFICATION_PROGRESS;
+  const showUserInfo = viewportHeight >= MIN_VIEWPORT_HEIGHT_SHOW_USER_INFO;
+  const showThemeButton = viewportHeight >= MIN_VIEWPORT_HEIGHT_SHOW_THEME_BUTTON;
+  const showReportIssueButton = viewportHeight >= MIN_VIEWPORT_HEIGHT_SHOW_REPORT_ISSUE_BUTTON;
   const progressDisplay = progress
     ? {
         completed: progress.effectiveCompleted ?? progress.completed,
@@ -95,6 +114,21 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
       window.removeEventListener("scroll", updateFloatingButtonVisibility);
     };
   }, [location.pathname]);
+
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      setViewportHeight(getViewportHeight());
+    };
+
+    updateViewportHeight();
+    window.addEventListener("resize", updateViewportHeight);
+    window.visualViewport?.addEventListener("resize", updateViewportHeight);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportHeight);
+      window.visualViewport?.removeEventListener("resize", updateViewportHeight);
+    };
+  }, []);
 
   return (
     <>
@@ -285,7 +319,7 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
           </div>
 
           {/* Progress */}
-          {progressDisplay && (
+          {progressDisplay && showClassificationProgress && (
             <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
               <div className="text-sm text-gray-600 dark:text-gray-300 mb-2">
                 Progress: {progressDisplay.completed}/{progressDisplay.total} ({progressDisplay.percentage}%)
@@ -331,46 +365,50 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
 
           <div className="flex-shrink-0 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="w-full space-y-1">
-              <button
-                onClick={() => openReportModal()}
-                title="Report Issue"
-                className="w-full rounded-lg px-3 py-2 text-left text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2" />
-                    <path d="M15 3v5h5" />
-                    <path d="M9 10h6" />
-                    <path d="M9 13h6" />
-                    <path d="M9 16h6" />
-                  </svg>
-                  <span className="flex flex-col leading-tight">
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Report Issue</span>
-                  </span>
-                </div>
-              </button>
-
-              <button
-                onClick={() => toggleTheme()}
-                title={theme === "light" ? "Switch to dark" : theme === "dark" ? "Switch to auto" : "Switch to light"}
-                className="w-full rounded-lg px-3 py-2 flex items-center justify-between text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  {effectiveTheme === "dark" ? (
+              {showReportIssueButton && (
+                <button
+                  onClick={() => openReportModal()}
+                  title="Report Issue"
+                  className="w-full rounded-lg px-3 py-2 text-left text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
                     <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      <path d="M7 3h8l5 5v11a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2" />
+                      <path d="M15 3v5h5" />
+                      <path d="M9 10h6" />
+                      <path d="M9 13h6" />
+                      <path d="M9 16h6" />
                     </svg>
-                  ) : (
-                    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                    </svg>
-                  )}
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Theme</span>
-                </div>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{theme === "auto" ? "Auto" : theme === "dark" ? "Dark" : "Light"}</span>
-              </button>
+                    <span className="flex flex-col leading-tight">
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Report Issue</span>
+                    </span>
+                  </div>
+                </button>
+              )}
 
-              {userProfile && userDisplayName && (
+              {showThemeButton && (
+                <button
+                  onClick={() => toggleTheme()}
+                  title={theme === "light" ? "Switch to dark" : theme === "dark" ? "Switch to auto" : "Switch to light"}
+                  className="w-full rounded-lg px-3 py-2 flex items-center justify-between text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    {effectiveTheme === "dark" ? (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                      </svg>
+                    )}
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Theme</span>
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{theme === "auto" ? "Auto" : theme === "dark" ? "Dark" : "Light"}</span>
+                </button>
+              )}
+
+              {userProfile && userDisplayName && showUserInfo && (
                 <div className="flex items-center gap-3 px-3 pt-1 pb-3 text-xs text-gray-500 dark:text-gray-400">
                   {userProfile.role === "admin" ? (
                     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -383,8 +421,6 @@ export function Navigation({ navigationItems, appName }: NavigationProps) {
                       <path d="M5 19c1.5-3.5 12.5-3.5 14 0" />
                     </svg>
                   )}
-                  {/* <span>{userProfile.role === "admin" ? "Administrator" : "User"}</span> */}
-                  {/* <span className="text-gray-300 dark:text-gray-600">•</span> */}
                   <span className="truncate">{userDisplayName}</span>
                 </div>
               )}
