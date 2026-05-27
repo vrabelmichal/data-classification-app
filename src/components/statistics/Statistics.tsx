@@ -1,4 +1,4 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import { useQuery } from "convex/react";
 import { Routes, Route, Link, useLocation, Navigate } from "react-router";
 import { api } from "../../../convex/_generated/api";
@@ -45,6 +45,7 @@ export function Statistics() {
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
   const userProfile = useQuery(api.users.getUserProfile);
   const location = useLocation();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isLiveOverview = location.pathname.startsWith("/statistics/overview-live");
   const isOverview = location.pathname.startsWith("/statistics/overview");
   const isUsersStatistics = location.pathname.startsWith("/statistics/users");
@@ -143,7 +144,7 @@ export function Statistics() {
 
       {tabs.length > 1 && (
         <div className="border-b border-gray-200 dark:border-gray-700 mb-8">
-          <nav className="-mb-px flex space-x-8 overflow-x-auto">
+          <nav className="hidden -mb-px space-x-8 overflow-x-auto sm:flex" aria-label="Statistics sections">
             {tabs.map((tab) => (
               <Link
                 key={tab.id}
@@ -160,6 +161,50 @@ export function Statistics() {
               </Link>
             ))}
           </nav>
+
+          <div className="sm:hidden">
+            <div className="flex items-center gap-3 px-1 py-3">
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen((open) => !open)}
+                aria-expanded={mobileNavOpen}
+                aria-label={mobileNavOpen ? "Collapse navigation" : "Expand navigation"}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-100 text-blue-700 shadow-sm transition-colors hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60"
+              >
+                <svg
+                  className={cn("h-4 w-4 transition-transform", mobileNavOpen && "rotate-180")}
+                  viewBox="0 0 20 20"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.168l3.71-3.938a.75.75 0 1 1 1.08 1.04l-4.25 4.51a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" clipRule="evenodd" />
+                </svg>
+              </button>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-blue-600 dark:text-blue-400">
+                {tabs.find((tab) => isTabActive(tab.path))?.label ?? "Statistics"}
+              </span>
+            </div>
+
+            {mobileNavOpen && (
+              <nav className="border-t border-gray-200 dark:border-gray-700" aria-label="Statistics sections">
+                {tabs.map((tab) => (
+                  <Link
+                    key={tab.id}
+                    to={tab.path}
+                    className={cn(
+                      "flex items-center border-l-2 px-3 py-2 text-sm font-medium transition-colors",
+                      isTabActive(tab.path)
+                        ? "border-blue-500 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400"
+                        : "border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                    )}
+                  >
+                    <span className="mr-2">{tab.icon}</span>
+                    {tab.label}
+                  </Link>
+                ))}
+              </nav>
+            )}
+          </div>
         </div>
       )}
 
