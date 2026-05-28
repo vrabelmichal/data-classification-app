@@ -134,6 +134,24 @@ function buildDefaultAnalysisSetupName(
   return `${DEFAULT_ANALYSIS_SETUP_NAME_PREFIX} ${suffix}`;
 }
 
+function buildSavedAnalysisFrameworkOverride(
+  config: {
+    configKey: string;
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+  },
+  state: AnalysisFrameworkState
+): SavedAnalysisFrameworkConfig {
+  return {
+    configKey: config.configKey,
+    name: config.name,
+    state: cloneAnalysisFrameworkState(state),
+    createdAt: config.createdAt,
+    updatedAt: config.updatedAt,
+  };
+}
+
 function moveItemById<T extends { id: string }>(
   items: T[],
   itemId: string,
@@ -584,10 +602,18 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         name: setupName,
         state: cloneAnalysisFrameworkState(currentAnalysisFrameworkState),
       });
-      setSavedAnalysisFrameworkOverrides((currentOverrides) => ({
-        ...currentOverrides,
-        [savedConfig.configKey]: savedConfig,
-      }));
+      const savedConfigOverride = buildSavedAnalysisFrameworkOverride(
+        savedConfig,
+        currentAnalysisFrameworkState
+      );
+      setSavedAnalysisFrameworkOverrides(
+        (
+          currentOverrides
+        ): Record<string, SavedAnalysisFrameworkConfig> => ({
+          ...currentOverrides,
+          [savedConfigOverride.configKey]: savedConfigOverride,
+        })
+      );
       setSelectedAnalysisSetupKey(savedConfig.configKey);
       setAnalysisSetupDraftName(savedConfig.name);
       toast.success(
@@ -628,10 +654,18 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         name: setupName,
         state: cloneAnalysisFrameworkState(currentAnalysisFrameworkState),
       });
-      setSavedAnalysisFrameworkOverrides((currentOverrides) => ({
-        ...currentOverrides,
-        [savedConfig.configKey]: savedConfig,
-      }));
+      const savedConfigOverride = buildSavedAnalysisFrameworkOverride(
+        savedConfig,
+        currentAnalysisFrameworkState
+      );
+      setSavedAnalysisFrameworkOverrides(
+        (
+          currentOverrides
+        ): Record<string, SavedAnalysisFrameworkConfig> => ({
+          ...currentOverrides,
+          [savedConfigOverride.configKey]: savedConfigOverride,
+        })
+      );
       setSelectedAnalysisSetupKey(savedConfig.configKey);
       setAnalysisSetupDraftName(savedConfig.name);
       toast.success(`Created ${savedConfig.name} on the server.`);
@@ -1051,6 +1085,7 @@ export function DataAnalysisTab({ systemSettings }: { systemSettings: PublicSyst
         canImportDatasetArchive={loadState.status !== "loading"}
         canExportReport={hasDataset && loadState.status !== "loading"}
         analysisSetupName={currentAnalysisSetupName}
+        analysisSetupDraftName={analysisSetupDraftName}
         analysisSetupOptions={savedAnalysisFrameworks.map((config) => ({
           configKey: config.configKey,
           name: config.name,

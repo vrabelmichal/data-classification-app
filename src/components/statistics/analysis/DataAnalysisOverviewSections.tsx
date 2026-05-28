@@ -269,6 +269,7 @@ export function AnalysisLoadSection({
   canImportDatasetArchive,
   canExportReport,
   analysisSetupName,
+  analysisSetupDraftName,
   analysisSetupOptions,
   selectedAnalysisSetupKey,
   hasSavedAnalysisSetup,
@@ -307,6 +308,7 @@ export function AnalysisLoadSection({
   canImportDatasetArchive: boolean;
   canExportReport: boolean;
   analysisSetupName: string;
+  analysisSetupDraftName: string;
   analysisSetupOptions: Array<{
     configKey: string;
     name: string;
@@ -613,7 +615,7 @@ export function AnalysisLoadSection({
                   </span>
                   <input
                     type="text"
-                    value={analysisSetupName}
+                    value={analysisSetupDraftName}
                     onChange={(event) => onChangeAnalysisSetupName(event.target.value)}
                     placeholder="Analysis 1"
                     disabled={isAnalysisSetupSaving}
