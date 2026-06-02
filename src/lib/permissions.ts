@@ -27,6 +27,7 @@ export const APP_PERMISSION_KEYS = [
   "viewDataAnalysis",
   "viewIssueReports",
   "manageIssueReports",
+  "viewGalaxyResults",
 ] as const;
 
 export type AppPermissionKey = (typeof APP_PERMISSION_KEYS)[number];
@@ -69,6 +70,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     viewAssignmentCoverageUserEmails: true,
     viewDataAnalysis: true,
     viewIssueReports: true,
+    viewGalaxyResults: true,
   }),
   maintainer: buildPermissionRecord({
     manageGalaxyAssignments: true,
@@ -213,6 +215,11 @@ export const PERMISSION_METADATA: Record<
     label: "Manage issue reports",
     description: "Change issue report status, notes, and delete reports.",
     group: "reports",
+  },
+  viewGalaxyResults: {
+    label: "View Galaxy Results",
+    description: "Access the galaxy classification results detail page showing all classifications and stats for a specific galaxy.",
+    group: "statistics",
   },
 };
 

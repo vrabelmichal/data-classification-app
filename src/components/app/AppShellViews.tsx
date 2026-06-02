@@ -5,6 +5,7 @@ import { Navigation } from "../layout/Navigation";
 import { ClassificationInterface } from "../classification/ClassificationInterface";
 import { SignInForm } from "../../SignInForm";
 import type { AppNavigationItem } from "./appRoutes";
+import { galaxyResultsRoute } from "./appRoutes";
 
 function GlobalReportIssueModal() {
   const { isOpen, close } = useReportIssueModal();
@@ -87,6 +88,7 @@ export function AuthenticatedAppView({
               <Route index element={<ClassificationInterface />} />
               <Route path="/reset" element={<Navigate to="/settings" replace />} />
               <Route path="/classify/:galaxyId" element={<ClassificationInterface />} />
+              <Route path="/galaxy/:galaxyId" element={galaxyResultsRoute} />
               {navigationItems.filter((item) => !item.isExternallyRouted).map((item) => (
                 <Route
                   key={item.id}

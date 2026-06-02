@@ -29,6 +29,7 @@ export const APP_PERMISSION_KEYS = [
   "viewDataAnalysis",
   "viewIssueReports",
   "manageIssueReports",
+  "viewGalaxyResults",
 ] as const;
 
 export type AppPermissionKey = (typeof APP_PERMISSION_KEYS)[number];
@@ -70,6 +71,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     viewAssignmentCoverageUserEmails: true,
     viewDataAnalysis: true,
     viewIssueReports: true,
+    viewGalaxyResults: true,
   }),
   maintainer: buildPermissionRecord({
     manageGalaxyAssignments: true,
@@ -116,6 +118,7 @@ export const permissionRecordValidator = v.object({
   viewDataAnalysis: v.boolean(),
   viewIssueReports: v.boolean(),
   manageIssueReports: v.boolean(),
+  viewGalaxyResults: v.boolean(),
 });
 
 export const rolePermissionsValidator = v.object({

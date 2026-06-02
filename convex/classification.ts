@@ -773,3 +773,173 @@ export const getGalaxyAssignmentDetails = query({
   },
 });
 
+export const getGalaxyResults = query({
+  args: { galaxyExternalId: v.string() },
+  returns: v.object({
+    galaxy: v.union(v.null(), v.any()),
+    classifications: v.array(v.object({
+      userId: v.string(),
+      userName: v.union(v.null(), v.string()),
+      userEmail: v.union(v.null(), v.string()),
+      userRole: v.string(),
+      lsb_class: v.number(),
+      morphology: v.number(),
+      awesome_flag: v.boolean(),
+      valid_redshift: v.boolean(),
+      visible_nucleus: v.union(v.null(), v.boolean()),
+      failed_fitting: v.boolean(),
+      comments: v.union(v.null(), v.string()),
+      timeSpent: v.number(),
+      createdAt: v.number(),
+    })),
+    summary: v.object({
+      totalClassifications: v.number(),
+      totalClassifiers: v.number(),
+      nonLsbCount: v.number(),
+      lsbCount: v.number(),
+      failedFittingCount: v.number(),
+      featurelessCount: v.number(),
+      irregularCount: v.number(),
+      spiralCount: v.number(),
+      ellipticalCount: v.number(),
+      awesomeCount: v.number(),
+      validRedshiftCount: v.number(),
+      visibleNucleusCount: v.number(),
+    }),
+  }),
+  handler: async (ctx, { galaxyExternalId }) => {
+    await requirePermission(ctx, "viewGalaxyResults", {
+      notAuthorizedMessage: "You do not have permission to view galaxy classification results.",
+    });
+
+    const trimmedId = galaxyExternalId.trim();
+    if (!trimmedId) {
+      return {
+        galaxy: null,
+        classifications: [],
+        summary: {
+          totalClassifications: 0,
+          totalClassifiers: 0,
+          nonLsbCount: 0,
+          lsbCount: 0,
+          failedFittingCount: 0,
+          featurelessCount: 0,
+          irregularCount: 0,
+          spiralCount: 0,
+          ellipticalCount: 0,
+          awesomeCount: 0,
+          validRedshiftCount: 0,
+          visibleNucleusCount: 0,
+        },
+      };
+    }
+
+    const galaxy = await ctx.db
+      .query("galaxies")
+      .withIndex("by_external_id", (q) => q.eq("id", trimmedId))
+      .unique();
+
+    const classificationDocs = await ctx.db
+      .query("classifications")
+      .withIndex("by_galaxy", (q) => q.eq("galaxyExternalId", trimmedId))
+      .order("desc")
+      .collect();
+
+    const userIds = new Set(classificationDocs.map((c) => c.userId));
+
+    const userDetailsEntries = await Promise.all(
+      Array.from(userIds).map(async (userId) => {
+        const [user, profile] = await Promise.all([
+          ctx.db.get(userId),
+          ctx.db
+            .query("userProfiles")
+            .withIndex("by_user", (q) => q.eq("userId", userId))
+            .unique(),
+        ]);
+
+        return [
+          userId,
+          {
+            name: user?.name ?? null,
+            email: user?.email ?? null,
+            role: profile?.role ?? "user",
+          },
+        ] as const;
+      })
+    );
+
+    const userDetailsById = new Map(userDetailsEntries);
+
+    const classifications = classificationDocs.map((c) => {
+      const userDetails = userDetailsById.get(c.userId);
+      return {
+        userId: c.userId,
+        userName: userDetails?.name ?? null,
+        userEmail: userDetails?.email ?? null,
+        userRole: userDetails?.role ?? "user",
+        lsb_class: c.lsb_class,
+        morphology: c.morphology,
+        awesome_flag: c.awesome_flag,
+        valid_redshift: c.valid_redshift,
+        visible_nucleus: c.visible_nucleus ?? null,
+        failed_fitting: c.failed_fitting ?? false,
+        comments: c.comments ?? null,
+        timeSpent: c.timeSpent,
+        createdAt: c._creationTime,
+      };
+    });
+
+    const totalClassifications = classifications.length;
+    const totalClassifiers = userIds.size;
+
+    let nonLsbCount = 0;
+    let lsbCount = 0;
+    let failedFittingCount = 0;
+    let featurelessCount = 0;
+    let irregularCount = 0;
+    let spiralCount = 0;
+    let ellipticalCount = 0;
+    let awesomeCount = 0;
+    let validRedshiftCount = 0;
+    let visibleNucleusCount = 0;
+
+    for (const c of classifications) {
+      if (c.failed_fitting) {
+        failedFittingCount++;
+      } else if (c.lsb_class === 1) {
+        lsbCount++;
+      } else {
+        nonLsbCount++;
+      }
+
+      if (c.morphology === -1) featurelessCount++;
+      else if (c.morphology === 0) irregularCount++;
+      else if (c.morphology === 1) spiralCount++;
+      else if (c.morphology === 2) ellipticalCount++;
+
+      if (c.awesome_flag) awesomeCount++;
+      if (c.valid_redshift) validRedshiftCount++;
+      if (c.visible_nucleus) visibleNucleusCount++;
+    }
+
+    return {
+      galaxy,
+      classifications,
+      summary: {
+        totalClassifications,
+        totalClassifiers,
+        nonLsbCount,
+        lsbCount,
+        failedFittingCount,
+        featurelessCount,
+        irregularCount,
+        spiralCount,
+        ellipticalCount,
+        awesomeCount,
+        validRedshiftCount,
+        visibleNucleusCount,
+      },
+    };
+  },
+});
+

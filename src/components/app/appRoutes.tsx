@@ -62,6 +62,10 @@ const LazyIssueReportsPage = lazy(() =>
 const LazyNotificationsPage = lazy(() =>
   import("../notifications/NotificationsPage").then((module) => ({ default: module.NotificationsPage }))
 );
+const LazyGalaxyResults = lazy(() =>
+  import("../galaxyResults/GalaxyResults").then((module) => ({ default: module.GalaxyResults }))
+);
+
 const LazyNotFound = lazy(() =>
   import("../NotFound").then((module) => ({ default: module.NotFound }))
 );
@@ -126,6 +130,12 @@ const notFoundRoute = (
   </LazyPage>
 );
 
+const galaxyResultsRoute = (
+  <LazyPage>
+    <LazyGalaxyResults />
+  </LazyPage>
+);
+
 export function getAppNavigationItems(
   userProfile: UserProfile | null | undefined
 ): AppNavigationItem[] {
@@ -179,4 +189,4 @@ export function getAppNavigationItems(
   ];
 }
 
-export { adminPanelRoute, notFoundRoute, passwordResetRoute };
+export { adminPanelRoute, notFoundRoute, passwordResetRoute, galaxyResultsRoute };

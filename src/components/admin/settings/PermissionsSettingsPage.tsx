@@ -25,6 +25,7 @@ const editablePermissionKeys = [
   "viewAssignmentCoverageAllRows",
   "viewAssignmentCoverageUserEmails",
   "viewDataAnalysis",
+  "viewGalaxyResults",
   "viewIssueReports",
   "manageIssueReports",
 ] as const;
