@@ -33,7 +33,7 @@ The following backend endpoints may disclose other users' emails and are now gat
 - `getGalaxyResults`
 
 2. `convex/statistics/paperAssignmentCoverage/cache.ts`
-- coverage access filtering for user directory / rows
+- user-directory filtering in cached/live coverage responses
 
 3. `convex/users.ts`
 - `getUsersForSelection`
@@ -48,8 +48,11 @@ The following backend endpoints may disclose other users' emails and are now gat
 - `getAllBlacklistedGalaxies`
 - `searchBlacklistedGalaxies`
 
-6. `convex/statistics/paperAssignmentCoverage/cache.ts`
-- user-directory filtering in cached/live coverage responses
+6. `convex/generateBalancedUserSequence.ts`
+- `generateBalancedUserSequence`
+
+7. `convex/updateUserSequence.ts`
+- `updateUserSequence`
 
 ## Frontend Handling
 
