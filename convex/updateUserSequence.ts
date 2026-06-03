@@ -893,7 +893,7 @@ export const sendSequenceExtendedEmail = action({
       throw new Error("Galaxy-assignment access required");
     }
 
-    const target = await ctx.runQuery(api.users.getUserBasicInfo, {
+    const target = await ctx.runQuery(internal.users.getUserContactInfoInternal, {
       userId: args.targetUserId,
     });
 
@@ -1020,7 +1020,7 @@ export const sendSequenceShortenedEmail = action({
       throw new Error("Galaxy-assignment access required");
     }
 
-    const target = await ctx.runQuery(api.users.getUserBasicInfo, {
+    const target = await ctx.runQuery(internal.users.getUserContactInfoInternal, {
       userId: args.targetUserId,
     });
 

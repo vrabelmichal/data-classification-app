@@ -7,6 +7,10 @@ import {
   galaxyBlacklistByExternalId,
 } from "./galaxies/aggregates";
 import { bumpSequenceBlacklistStatsVersion } from "./lib/sequenceBlacklistStats";
+import {
+  resolveDisplayNameOrObfuscatedEmail,
+  resolveEmailForViewer,
+} from "./lib/userEmailVisibility";
 
 const BLACKLIST_COUNT_PAGE_SIZE = 500;
 
@@ -97,9 +101,10 @@ export const getAllBlacklistedGalaxies = query({
     cursor: v.optional(v.string()),
   },
   async handler(ctx, args) {
-    await requirePermission(ctx, "manageGalaxyAssignments", {
+    const { permissions } = await requirePermission(ctx, "manageGalaxyAssignments", {
       notAuthorizedMessage: "Only users with galaxy-assignment access can view blacklist entries",
     });
+    const showUserEmails = permissions.viewUserEmails;
 
     const limit = args.limit ?? 100;
 
@@ -116,8 +121,16 @@ export const getAllBlacklistedGalaxies = query({
         const addedByUser = await ctx.db.get(item.addedBy);
         return {
           ...item,
-          addedByEmail: addedByUser?.email || "Unknown",
-          addedByName: addedByUser?.name || addedByUser?.email || "Unknown",
+          addedByEmail: resolveEmailForViewer({
+            name: addedByUser?.name,
+            email: addedByUser?.email,
+            canViewRawEmail: showUserEmails,
+          }),
+          addedByName:
+            resolveDisplayNameOrObfuscatedEmail({
+              name: addedByUser?.name,
+              email: addedByUser?.email,
+            }) ?? "Unknown",
         };
       })
     );
@@ -136,9 +149,10 @@ export const searchBlacklistedGalaxies = query({
     limit: v.optional(v.number()),
   },
   async handler(ctx, args) {
-    await requirePermission(ctx, "manageGalaxyAssignments", {
+    const { permissions } = await requirePermission(ctx, "manageGalaxyAssignments", {
       notAuthorizedMessage: "Only users with galaxy-assignment access can search blacklist entries",
     });
+    const showUserEmails = permissions.viewUserEmails;
 
     const searchTerm = args.searchTerm.trim().toLowerCase();
     const limit = args.limit ?? 50;
@@ -164,8 +178,16 @@ export const searchBlacklistedGalaxies = query({
         const addedByUser = await ctx.db.get(item.addedBy);
         return {
           ...item,
-          addedByEmail: addedByUser?.email || "Unknown",
-          addedByName: addedByUser?.name || addedByUser?.email || "Unknown",
+          addedByEmail: resolveEmailForViewer({
+            name: addedByUser?.name,
+            email: addedByUser?.email,
+            canViewRawEmail: showUserEmails,
+          }),
+          addedByName:
+            resolveDisplayNameOrObfuscatedEmail({
+              name: addedByUser?.name,
+              email: addedByUser?.email,
+            }) ?? "Unknown",
         };
       })
     );

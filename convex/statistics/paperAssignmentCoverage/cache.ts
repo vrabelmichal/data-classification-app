@@ -19,6 +19,10 @@ import {
 import { loadMergedSystemSettings } from "../../lib/systemSettings";
 import { hasPermissionForRole, normalizeUserExperience } from "../../lib/permissions";
 import {
+  resolveDisplayNameOrObfuscatedEmail,
+  resolveEmailForViewer,
+} from "../../lib/userEmailVisibility";
+import {
   PAPER_ASSIGNMENT_COVERAGE_BUCKET_COUNT,
   PAPER_ASSIGNMENT_COVERAGE_GLOBAL_SCOPE_KEY,
   PAPER_ASSIGNMENT_COVERAGE_SHARED_SNAPSHOT_KEY,
@@ -498,7 +502,7 @@ function resolveCoverageAccess(args: {
   const canViewEmails = hasPermissionForRole(
     args.callerRole,
     args.settings,
-    "viewAssignmentCoverageUserEmails",
+    "viewUserEmails",
   );
 
   return {
@@ -536,13 +540,17 @@ function filterUserDirectoryForAccess(
     ? userDirectory
     : userDirectory.filter((entry) => entry.userId === access.callerUserId);
 
-  if (access.canViewEmails) {
-    return filteredDirectory;
-  }
-
   return filteredDirectory.map((entry) => ({
     ...entry,
-    email: null,
+    name: resolveDisplayNameOrObfuscatedEmail({
+      name: entry.name,
+      email: entry.email,
+    }),
+    email: resolveEmailForViewer({
+      name: entry.name,
+      email: entry.email,
+      canViewRawEmail: access.canViewEmails,
+    }),
   }));
 }
 

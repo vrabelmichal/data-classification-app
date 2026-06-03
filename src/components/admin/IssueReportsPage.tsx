@@ -19,7 +19,7 @@ type EnrichedReport = {
   resolvedAt?: number;
   adminNotes?: string;
   url?: string;
-  userEmail?: string;
+  userEmail?: string | null;
   userName?: string;
 };
 
@@ -294,6 +294,7 @@ export function IssueReportsPage() {
             const showResolvedTimestamp = Boolean(
               report.resolvedAt && currentStatus === "resolved"
             );
+            const displayEmail = report.userEmail?.trim() || "Email hidden";
 
             return (
               <div
@@ -305,7 +306,7 @@ export function IssueReportsPage() {
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2 flex-wrap">
                         <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                          {report.userName || "Unknown"} ({report.userEmail || "Unknown"})
+                          {report.userName || "Unknown"} ({displayEmail})
                         </h3>
                         <span
                           className={`px-3 py-1 rounded-full text-sm font-medium ${

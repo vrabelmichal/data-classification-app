@@ -25,6 +25,10 @@ import {
   listBlacklistedGalaxyExternalIds,
   shouldUseStoredSequenceBlacklistStats,
 } from "./lib/sequenceBlacklistStats";
+import {
+  resolveDisplayNameOrObfuscatedEmail,
+  resolveEmailForViewer,
+} from "./lib/userEmailVisibility";
 
 /**
  * Safely replace an entry in a galaxy aggregate index.
@@ -632,9 +636,10 @@ export const getGalaxyAssignmentDetails = query({
   args: { galaxyExternalId: v.string() },
   returns: galaxyAssignmentDetailsValidator,
   handler: async (ctx, { galaxyExternalId }) => {
-    await requirePermission(ctx, "viewGalaxyAssignmentDetails", {
+    const { permissions } = await requirePermission(ctx, "viewGalaxyAssignmentDetails", {
       notAuthorizedMessage: "Galaxy assignment details are not available for this account",
     });
+    const showUserEmails = permissions.viewUserEmails;
 
     const [sequences, classifications, skippedRows] = await Promise.all([
       ctx.db.query("galaxySequences").collect(),
@@ -702,8 +707,15 @@ export const getGalaxyAssignmentDetails = query({
         return [
           userId,
           {
-            name: user?.name ?? null,
-            email: user?.email ?? null,
+            name: resolveDisplayNameOrObfuscatedEmail({
+              name: user?.name,
+              email: user?.email,
+            }),
+            email: resolveEmailForViewer({
+              name: user?.name,
+              email: user?.email,
+              canViewRawEmail: showUserEmails,
+            }),
             role: profile?.role ?? "user",
             experience: normalizeUserExperience(profile?.experience),
             isActive: profile?.isActive ?? null,
@@ -808,10 +820,11 @@ export const getGalaxyResults = query({
     }),
   }),
   handler: async (ctx, { galaxyExternalId }) => {
-    await requirePermission(ctx, "viewGalaxyResults", {
+    const { permissions } = await requirePermission(ctx, "viewGalaxyResults", {
       notAuthorizedMessage: "You do not have permission to view galaxy classification results.",
     });
 
+    const showUserEmails = permissions.viewUserEmails;
     const trimmedId = galaxyExternalId.trim();
     if (!trimmedId) {
       return {
@@ -860,8 +873,15 @@ export const getGalaxyResults = query({
         return [
           userId,
           {
-            name: user?.name ?? null,
-            email: user?.email ?? null,
+            name: resolveDisplayNameOrObfuscatedEmail({
+              name: user?.name,
+              email: user?.email,
+            }),
+            email: resolveEmailForViewer({
+              name: user?.name,
+              email: user?.email,
+              canViewRawEmail: showUserEmails,
+            }),
             role: profile?.role ?? "user",
           },
         ] as const;

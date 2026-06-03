@@ -154,6 +154,11 @@ function getNumberInputByLabelText(labelText: RegExp): HTMLInputElement {
   return input;
 }
 
+async function chooseUser(optionLabel: RegExp) {
+  await userEvent.click(screen.getByRole("button", { name: /Select a user/i }));
+  await userEvent.click(screen.getByRole("option", { name: optionLabel }));
+}
+
 describe("GenerateBalancedUserSequence", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -270,9 +275,9 @@ describe("GenerateBalancedUserSequence", () => {
     await userEvent.click(screen.getByLabelText(/Classification-based assignment/i));
     await userEvent.click(screen.getByLabelText(/Batch mode/i));
     await userEvent.click(screen.getByLabelText(/Allow Over-Assign/i));
-    await userEvent.click(screen.getByLabelText(/User A \(user-a\)/i));
-    await userEvent.click(screen.getByLabelText(/User B \(user-b\)/i));
-    await userEvent.click(screen.getByLabelText(/Existing User \(3 galaxies\)/i));
+    await userEvent.click(screen.getByLabelText(/User A/i));
+    await userEvent.click(screen.getByLabelText(/User B/i));
+    await userEvent.click(screen.getByLabelText(/Existing User/i));
     await userEvent.click(screen.getByLabelText(/Send email notification to user/i));
 
     const fileInput = container.querySelector("input[type='file']");
@@ -331,7 +336,7 @@ describe("GenerateBalancedUserSequence", () => {
     );
 
     await userEvent.click(screen.getByLabelText(/Classification-based assignment/i));
-    await userEvent.selectOptions(screen.getByRole("combobox"), "user-a");
+    await chooseUser(/User A/i);
     await userEvent.click(screen.getByLabelText(/Send email notification to user/i));
     await userEvent.click(screen.getByLabelText(/Dry run only/i));
     await userEvent.click(screen.getByRole("button", { name: /Dry Run Classification-Based Sequence/i }));
@@ -380,7 +385,7 @@ describe("GenerateBalancedUserSequence", () => {
     );
 
     await userEvent.click(screen.getByLabelText(/Manual galaxy ID list/i));
-    await userEvent.selectOptions(screen.getByRole("combobox"), "user-a");
+    await chooseUser(/User A/i);
     await userEvent.type(screen.getByRole("textbox"), "gal-1\ngal-2");
     await userEvent.click(screen.getByLabelText(/Send email notification to user/i));
 

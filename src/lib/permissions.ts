@@ -23,7 +23,7 @@ export const APP_PERMISSION_KEYS = [
   "viewAssignmentCoverage",
   "viewLiveAssignmentCoverage",
   "viewAssignmentCoverageAllRows",
-  "viewAssignmentCoverageUserEmails",
+  "viewUserEmails",
   "viewDataAnalysis",
   "viewIssueReports",
   "manageIssueReports",
@@ -48,8 +48,17 @@ function normalizePermissionRecord(
   fallback: PermissionRecord
 ): PermissionRecord {
   const source = value ?? {};
+  const legacyEmailPermission =
+    typeof (source as Partial<Record<string, boolean>>).viewAssignmentCoverageUserEmails === "boolean"
+      ? (source as Partial<Record<string, boolean>>).viewAssignmentCoverageUserEmails
+      : undefined;
 
   return APP_PERMISSION_KEYS.reduce((record, key) => {
+    if (key === "viewUserEmails" && typeof source[key] !== "boolean" && legacyEmailPermission !== undefined) {
+      record[key] = legacyEmailPermission;
+      return record;
+    }
+
     record[key] = typeof source[key] === "boolean" ? source[key] : fallback[key];
     return record;
   }, {} as PermissionRecord);
@@ -67,7 +76,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     viewAssignmentCoverage: true,
     viewLiveAssignmentCoverage: true,
     viewAssignmentCoverageAllRows: true,
-    viewAssignmentCoverageUserEmails: true,
+    viewUserEmails: true,
     viewDataAnalysis: true,
     viewIssueReports: true,
     viewGalaxyResults: true,
@@ -81,7 +90,6 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     viewAssignmentCoverage: true,
     viewLiveAssignmentCoverage: true,
     viewAssignmentCoverageAllRows: true,
-    viewAssignmentCoverageUserEmails: true,
     viewIssueReports: true,
   }),
   admin: buildPermissionRecord(
@@ -196,9 +204,9 @@ export const PERMISSION_METADATA: Record<
     description: "Receive the full under-target table and shared user directory instead of only the caller's own row. This only takes effect when Classification Coverage is allowed.",
     group: "statistics",
   },
-  viewAssignmentCoverageUserEmails: {
-    label: "See Classification Coverage user emails",
-    description: "Receive email addresses in the Classification Coverage under-target table. Without this permission, emails are removed from the server response.",
+  viewUserEmails: {
+    label: "See other users' emails",
+    description: "Receive other users' email addresses in server responses. Without this permission, email fields are removed or returned as null.",
     group: "statistics",
   },
   viewDataAnalysis: {

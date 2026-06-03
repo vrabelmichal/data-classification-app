@@ -36,6 +36,10 @@ import {
   userClassificationCounterSnapshotValidator,
   type UserClassificationCounterSnapshot,
 } from "./classifications/userCounterStats";
+import {
+  resolveDisplayNameOrObfuscatedEmail,
+  resolveEmailForViewer,
+} from "./lib/userEmailVisibility";
 
 async function insertUserProfileAggregates(ctx: any, profile: any) {
   await userProfilesByClassificationsCount.insertIfDoesNotExist(ctx, profile);
@@ -830,9 +834,10 @@ export const getUserStats = query({
 export const getUsersForSelection = query({
   args: {},
   handler: async (ctx) => {
-    await requirePermission(ctx, "viewUserStatistics", {
+    const { permissions } = await requirePermission(ctx, "viewUserStatistics", {
       notAuthorizedMessage: "Only users with per-user statistics access can access the user list",
     });
+    const showUserEmails = permissions.viewUserEmails;
 
     const allUsers = await ctx.db.query("users").collect();
 
@@ -845,8 +850,15 @@ export const getUsersForSelection = query({
 
         return {
           userId: user._id,
-          email: (user as any).email ?? null,
-          name: (user as any).name ?? null,
+          email: resolveEmailForViewer({
+            name: (user as any).name ?? null,
+            email: (user as any).email ?? null,
+            canViewRawEmail: showUserEmails,
+          }),
+          name: resolveDisplayNameOrObfuscatedEmail({
+            name: (user as any).name ?? null,
+            email: (user as any).email ?? null,
+          }),
           classificationsCount: profile?.classificationsCount ?? 0,
           role: profile?.role ?? "user",
         };
@@ -858,8 +870,8 @@ export const getUsersForSelection = query({
       if (b.classificationsCount !== a.classificationsCount) {
         return b.classificationsCount - a.classificationsCount;
       }
-      const aName = a.name || a.email || "";
-      const bName = b.name || b.email || "";
+      const aName = a.name || "";
+      const bName = b.name || "";
       return aName.localeCompare(bName);
     });
   },
@@ -869,9 +881,10 @@ export const getUsersForSelection = query({
 export const getUsersStatisticsOverview = query({
   args: {},
   handler: async (ctx) => {
-    await requirePermission(ctx, "viewUserStatistics", {
+    const { permissions } = await requirePermission(ctx, "viewUserStatistics", {
       notAuthorizedMessage: "Only users with per-user statistics access can access per-user statistics",
     });
+    const showUserEmails = permissions.viewUserEmails;
 
     const [allUsers, allProfiles, allSequences] = await Promise.all([
       ctx.db.query("users").collect(),
@@ -903,8 +916,15 @@ export const getUsersStatisticsOverview = query({
 
       return {
         userId: user._id,
-        name: (user as any).name ?? null,
-        email: (user as any).email ?? null,
+        name: resolveDisplayNameOrObfuscatedEmail({
+          name: (user as any).name ?? null,
+          email: (user as any).email ?? null,
+        }),
+        email: resolveEmailForViewer({
+          name: (user as any).name ?? null,
+          email: (user as any).email ?? null,
+          canViewRawEmail: showUserEmails,
+        }),
         role: profile?.role ?? "user",
         isActive: profile?.isActive ?? false,
         isConfirmed: profile?.isConfirmed ?? null,
@@ -933,8 +953,8 @@ export const getUsersStatisticsOverview = query({
       if ((b.lastActiveAt ?? 0) !== (a.lastActiveAt ?? 0)) {
         return (b.lastActiveAt ?? 0) - (a.lastActiveAt ?? 0);
       }
-      const aName = a.name || a.email || "";
-      const bName = b.name || b.email || "";
+      const aName = a.name || "";
+      const bName = b.name || "";
       return aName.localeCompare(bName);
     });
 
@@ -983,9 +1003,10 @@ export const getUserBasicInfo = query({
     email: string | null;
     profile: Doc<"userProfiles"> | null;
   } | null> => {
-    await requireAnyPermission(ctx, ["manageUsers", "manageGalaxyAssignments"], {
+    const { userId, permissions } = await requireAnyPermission(ctx, ["manageUsers", "manageGalaxyAssignments"], {
       notAuthorizedMessage: "You do not have permission to view user contact details",
     });
+    const showUserEmails = permissions.viewUserEmails || args.userId === userId;
 
     const user = await ctx.db.get(args.userId);
     if (!user) {
@@ -999,9 +1020,40 @@ export const getUserBasicInfo = query({
 
     return {
       userId: args.userId,
+      name: resolveDisplayNameOrObfuscatedEmail({
+        name: user.name ?? null,
+        email: user.email ?? null,
+      }),
+      email: resolveEmailForViewer({
+        name: user.name ?? null,
+        email: user.email ?? null,
+        canViewRawEmail: showUserEmails,
+      }),
+      profile: profile ?? null,
+    };
+  },
+});
+
+export const getUserContactInfoInternal = internalQuery({
+  args: { userId: v.id("users") },
+  returns: v.union(
+    v.null(),
+    v.object({
+      userId: v.id("users"),
+      name: v.union(v.null(), v.string()),
+      email: v.union(v.null(), v.string()),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      return null;
+    }
+
+    return {
+      userId: args.userId,
       name: user.name ?? null,
       email: user.email ?? null,
-      profile: profile ?? null,
     };
   },
 });
@@ -1010,9 +1062,10 @@ export const getUserBasicInfo = query({
 export const getAllUsers = query({
   args: {},
   handler: async (ctx) => {
-    await requirePermission(ctx, "manageUsers", {
+    const { permissions } = await requirePermission(ctx, "manageUsers", {
       notAuthorizedMessage: "Only users with user-management access can view all users",
     });
+    const showUserEmails = permissions.viewUserEmails;
 
     // Get all users from the users table
     const allUsers = await ctx.db.query("users").collect();
@@ -1034,6 +1087,16 @@ export const getAllUsers = query({
 
         // If no profile exists, create a temporary one for display
         if (!profile) {
+          const sanitizedUser = showUserEmails
+            ? user
+            : {
+                ...user,
+                email: resolveEmailForViewer({
+                  name: user.name ?? null,
+                  email: user.email ?? null,
+                  canViewRawEmail: false,
+                }),
+              };
           return {
             _id: `temp_${user._id}` as any,
             userId: user._id,
@@ -1046,14 +1109,24 @@ export const getAllUsers = query({
             joinedAt: user._creationTime,
             lastActiveAt: user._creationTime,
             sequenceGenerated: false,
-            user,
+            user: sanitizedUser,
           };
         }
 
+        const sanitizedUser = showUserEmails
+          ? user
+          : {
+              ...user,
+              email: resolveEmailForViewer({
+                name: user.name ?? null,
+                email: user.email ?? null,
+                canViewRawEmail: false,
+              }),
+            };
         return {
           ...profile,
           assignedGalaxiesCount,
-          user,
+          user: sanitizedUser,
         };
       })
     );

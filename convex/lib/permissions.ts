@@ -25,7 +25,7 @@ export const APP_PERMISSION_KEYS = [
   "viewAssignmentCoverage",
   "viewLiveAssignmentCoverage",
   "viewAssignmentCoverageAllRows",
-  "viewAssignmentCoverageUserEmails",
+  "viewUserEmails",
   "viewDataAnalysis",
   "viewIssueReports",
   "manageIssueReports",
@@ -68,7 +68,7 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     viewAssignmentCoverage: true,
     viewLiveAssignmentCoverage: true,
     viewAssignmentCoverageAllRows: true,
-    viewAssignmentCoverageUserEmails: true,
+    viewUserEmails: true,
     viewDataAnalysis: true,
     viewIssueReports: true,
     viewGalaxyResults: true,
@@ -82,7 +82,6 @@ export const DEFAULT_ROLE_PERMISSIONS: RolePermissionsMatrix = {
     viewAssignmentCoverage: true,
     viewLiveAssignmentCoverage: true,
     viewAssignmentCoverageAllRows: true,
-    viewAssignmentCoverageUserEmails: true,
     viewIssueReports: true,
   }),
   admin: FULL_PERMISSION_RECORD,
@@ -114,7 +113,7 @@ export const permissionRecordValidator = v.object({
   viewAssignmentCoverage: v.boolean(),
   viewLiveAssignmentCoverage: v.boolean(),
   viewAssignmentCoverageAllRows: v.boolean(),
-  viewAssignmentCoverageUserEmails: v.boolean(),
+  viewUserEmails: v.boolean(),
   viewDataAnalysis: v.boolean(),
   viewIssueReports: v.boolean(),
   manageIssueReports: v.boolean(),
@@ -137,10 +136,18 @@ function normalizePermissionRecord(
   fallback: PermissionRecord
 ): PermissionRecord {
   const source = isPlainObject(value) ? value : {};
+  const legacyEmailPermission =
+    typeof source.viewAssignmentCoverageUserEmails === "boolean"
+      ? (source.viewAssignmentCoverageUserEmails as boolean)
+      : undefined;
 
   return APP_PERMISSION_KEYS.reduce((record, key) => {
-    record[key] =
-      typeof source[key] === "boolean" ? (source[key] as boolean) : fallback[key];
+    if (key === "viewUserEmails" && typeof source[key] !== "boolean" && legacyEmailPermission !== undefined) {
+      record[key] = legacyEmailPermission;
+      return record;
+    }
+
+    record[key] = typeof source[key] === "boolean" ? (source[key] as boolean) : fallback[key];
     return record;
   }, {} as PermissionRecord);
 }

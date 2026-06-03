@@ -23,7 +23,7 @@ const editablePermissionKeys = [
   "viewAssignmentCoverage",
   "viewLiveAssignmentCoverage",
   "viewAssignmentCoverageAllRows",
-  "viewAssignmentCoverageUserEmails",
+  "viewUserEmails",
   "viewDataAnalysis",
   "viewGalaxyResults",
   "viewIssueReports",

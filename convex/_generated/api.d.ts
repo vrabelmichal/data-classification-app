@@ -60,6 +60,7 @@ import type * as lib_sequenceBlacklistStats from "../lib/sequenceBlacklistStats.
 import type * as lib_sequenceProcedureMessaging from "../lib/sequenceProcedureMessaging.js";
 import type * as lib_settings from "../lib/settings.js";
 import type * as lib_systemSettings from "../lib/systemSettings.js";
+import type * as lib_userEmailVisibility from "../lib/userEmailVisibility.js";
 import type * as notifications from "../notifications.js";
 import type * as router from "../router.js";
 import type * as seedGalaxyAssignmentStats from "../seedGalaxyAssignmentStats.js";
@@ -140,6 +141,7 @@ declare const fullApi: ApiFromModules<{
   "lib/sequenceProcedureMessaging": typeof lib_sequenceProcedureMessaging;
   "lib/settings": typeof lib_settings;
   "lib/systemSettings": typeof lib_systemSettings;
+  "lib/userEmailVisibility": typeof lib_userEmailVisibility;
   notifications: typeof notifications;
   router: typeof router;
   seedGalaxyAssignmentStats: typeof seedGalaxyAssignmentStats;

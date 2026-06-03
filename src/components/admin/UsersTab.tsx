@@ -50,18 +50,21 @@ function SmallInfoButton({ label }: { label: string }) {
 function EmailVisibilityToggle({
   showEmails,
   onToggle,
+  disabled = false,
 }: {
   showEmails: boolean;
   onToggle: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onToggle}
       aria-pressed={showEmails}
+      disabled={disabled}
       title={showEmails ? "Hide emails" : "Show emails"}
       className={cn(
-        "inline-flex w-[9rem] items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm font-medium transition",
+        "inline-flex w-[9rem] items-center justify-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60",
         showEmails
           ? "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-200 dark:hover:bg-amber-950/60"
           : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
@@ -80,6 +83,7 @@ function EmailVisibilityToggle({
 export function UsersTab({ users }: UsersTabProps) {
   const [showEmails, setShowEmails] = useState(false);
   const currentUserProfile = useQuery(api.users.getUserProfile);
+  const canViewUserEmails = Boolean(currentUserProfile?.permissions?.viewUserEmails);
   const updateUserStatus = useMutation(api.users.updateUserStatus);
   const confirmUser = useMutation(api.users.confirmUser);
   const updateUserRole = useMutation(api.users.updateUserRole);
@@ -240,7 +244,13 @@ export function UsersTab({ users }: UsersTabProps) {
           <div className="flex flex-wrap items-center gap-2 min-[680px]:shrink-0 min-[680px]:justify-end">
             <EmailVisibilityToggle
               showEmails={showEmails}
-              onToggle={() => setShowEmails((current) => !current)}
+              onToggle={() => {
+                if (!canViewUserEmails) {
+                  return;
+                }
+                setShowEmails((current) => !current);
+              }}
+              disabled={!canViewUserEmails}
             />
             <button
               title={"Download CSV of users (Name, Email, Role, Experience, Classifications, Assigned Galaxies, Joined At, Active, Confirmed)"}

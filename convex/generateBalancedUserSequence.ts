@@ -867,7 +867,7 @@ export const sendSequenceGeneratedEmail = action({
       throw new Error("Galaxy-assignment access required");
     }
 
-    const target = await ctx.runQuery(api.users.getUserBasicInfo, {
+    const target = await ctx.runQuery(internal.users.getUserContactInfoInternal, {
       userId: args.targetUserId,
     });
 

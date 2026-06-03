@@ -1,6 +1,10 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { requirePermission, requireUserId } from "./lib/auth";
+import {
+  resolveDisplayNameOrObfuscatedEmail,
+  resolveEmailForViewer,
+} from "./lib/userEmailVisibility";
 
 // Submit a new issue report
 export const submitReport = mutation({
@@ -83,9 +87,10 @@ export const getAllReports = query({
     filterCategory: v.optional(v.union(v.literal("general"), v.literal("quick_tap"), v.literal("all"))),
   },
   async handler(ctx, args) {
-    await requirePermission(ctx, "viewIssueReports", {
+    const { permissions } = await requirePermission(ctx, "viewIssueReports", {
       notAuthorizedMessage: "Only users with issue-report access can view all reports",
     });
+    const showUserEmails = permissions.viewUserEmails;
 
     const reports = await ctx.db.query("issueReports").collect();
 
@@ -95,8 +100,15 @@ export const getAllReports = query({
         const reportUser = await ctx.db.get(report.userId);
         return {
           ...report,
-          userEmail: reportUser?.email || "Unknown",
-          userName: reportUser?.name || reportUser?.email || "Unknown",
+          userEmail: resolveEmailForViewer({
+            name: reportUser?.name,
+            email: reportUser?.email,
+            canViewRawEmail: showUserEmails,
+          }),
+          userName: resolveDisplayNameOrObfuscatedEmail({
+            name: reportUser?.name,
+            email: reportUser?.email,
+          }) ?? "Unknown",
         };
       })
     );

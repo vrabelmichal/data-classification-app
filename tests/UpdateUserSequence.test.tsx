@@ -151,6 +151,11 @@ function getNumberInputByLabelText(labelText: RegExp): HTMLInputElement {
   return input;
 }
 
+async function chooseUser(optionLabel: RegExp) {
+  await userEvent.click(screen.getByRole("button", { name: /Select a user/i }));
+  await userEvent.click(screen.getByRole("option", { name: optionLabel }));
+}
+
 describe("UpdateUserSequence", () => {
   const usersWithSequences = [
     {
@@ -186,7 +191,7 @@ describe("UpdateUserSequence", () => {
       />
     );
 
-    await userEvent.selectOptions(screen.getByRole("combobox"), "user-0");
+    await chooseUser(/User 0/i);
     await waitFor(() => expect(screen.getByText(/Current Sequence Status/i)).toBeTruthy());
     await userEvent.click(screen.getByLabelText(/Classification-based assignment/i));
     expect(getNumberInputByLabelText(/Expected Users \(N\)/i).value).toBe("12");
@@ -214,7 +219,7 @@ describe("UpdateUserSequence", () => {
       />
     );
 
-    await userEvent.selectOptions(screen.getByRole("combobox"), "target-user");
+    await chooseUser(/Target User/i);
     await waitFor(() => expect(screen.getByText(/Current Sequence Status/i)).toBeTruthy());
 
     await userEvent.click(screen.getByLabelText(/Classification-based assignment/i));
@@ -265,12 +270,12 @@ describe("UpdateUserSequence", () => {
       />
     );
 
-    await userEvent.selectOptions(screen.getByRole("combobox"), "target-user");
+    await chooseUser(/Target User/i);
     await waitFor(() => expect(screen.getByText(/Current Sequence Status/i)).toBeTruthy());
 
     await userEvent.click(screen.getByLabelText(/Classification-based assignment/i));
     await userEvent.click(screen.getByLabelText(/Allow Over-Assign/i));
-    await userEvent.click(screen.getByLabelText(/Other User \(7 galaxies\)/i));
+    await userEvent.click(screen.getByLabelText(/Other User/i));
     await userEvent.click(screen.getByLabelText(/Send email notification to user/i));
 
     const fileInput = container.querySelector("input[type='file']");
@@ -331,7 +336,7 @@ describe("UpdateUserSequence", () => {
       />
     );
 
-    await userEvent.selectOptions(screen.getByRole("combobox"), "target-user");
+    await chooseUser(/Target User/i);
     await waitFor(() => expect(screen.getByText(/Current Sequence Status/i)).toBeTruthy());
 
     await userEvent.click(screen.getByLabelText(/Send email notification to user/i));
@@ -381,7 +386,7 @@ describe("UpdateUserSequence", () => {
       />
     );
 
-    await userEvent.selectOptions(screen.getByRole("combobox"), "target-user");
+    await chooseUser(/Target User/i);
     await waitFor(() => expect(screen.getByText(/Current Sequence Status/i)).toBeTruthy());
 
     await userEvent.click(screen.getByLabelText(/Manual galaxy ID list/i));

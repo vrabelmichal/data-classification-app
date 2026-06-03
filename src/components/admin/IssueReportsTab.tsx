@@ -140,7 +140,7 @@ export function IssueReportsTab() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                        {report.userName} ({report.userEmail})
+                        {report.userName} ({report.userEmail?.trim() || "Email hidden"})
                       </h3>
                       <span
                         className={`px-3 py-1 rounded-full text-sm font-medium ${
