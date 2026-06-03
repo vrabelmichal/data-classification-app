@@ -201,6 +201,8 @@ function GalaxyResultsKeyboardHelp({ onClose }: { onClose: () => void }) {
   );
 }
 
+type ImageMode = "single" | "double" | "grid";
+
 export function GalaxyResults() {
   const { galaxyId } = useParams<{ galaxyId: string }>();
   const navigate = useNavigate();
@@ -219,6 +221,7 @@ export function GalaxyResults() {
   const [showReportIssueModal, setShowReportIssueModal] = useState(false);
   const [showKeyboardHelp, setShowKeyboardHelp] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [imageMode, setImageMode] = useState<ImageMode>("grid");
   const [mobileImagesExpanded, setMobileImagesExpanded] = useState(false);
 
   const userProfile = useQuery(api.users.getUserProfile);
@@ -298,10 +301,13 @@ export function GalaxyResults() {
       .map((idx) => imageTypes[idx])
     : imageTypes;
 
-  // On mobile, show first image by default; expand shows all
-  const visibleMobileImages = mobileImagesExpanded
-    ? mobileImageTypes
-    : mobileImageTypes.slice(0, 1);
+  // On small screens, show limited images by default; expand shows all.
+  // Single mode: 1 image default. Double mode: 2 images default.
+  const visibleMobileImages = (() => {
+    if (mobileImagesExpanded) return mobileImageTypes;
+    if (imageMode === "double") return mobileImageTypes.slice(0, 2);
+    return mobileImageTypes.slice(0, 1);
+  })();
 
   // Build image URL groups for the ImageUrlsModal
   const allContrastGroupImageUrls: ImageUrlGroup[] = displayGalaxy?.id
@@ -323,7 +329,15 @@ export function GalaxyResults() {
   // Track screen size changes
   useEffect(() => {
     const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 1024);
+      const w = window.innerWidth;
+      setIsMobile(w < 1024);
+      if (w < 480) {
+        setImageMode("single");
+      } else if (w < 768) {
+        setImageMode("double");
+      } else {
+        setImageMode("grid");
+      }
     };
     checkScreenSize();
     window.addEventListener("resize", checkScreenSize);
@@ -794,12 +808,12 @@ export function GalaxyResults() {
       </div>
 
       {/* Images */}
-      {isMobile ? (
+      {imageMode !== "grid" ? (
         <div className="space-y-3">
-          <div className="flex flex-col items-center gap-4">
+          <div className={imageMode === "double" ? "grid grid-cols-2 gap-4" : "flex flex-col items-center gap-4"}>
             {visibleMobileImages.map(renderImageCard)}
           </div>
-          {mobileImageTypes.length > 1 && (
+          {(imageMode === "single" ? mobileImageTypes.length > 1 : mobileImageTypes.length > 2) && (
             <div className="flex justify-center">
               <button
                 onClick={() => setMobileImagesExpanded((prev) => !prev)}
