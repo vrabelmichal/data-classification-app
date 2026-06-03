@@ -12,6 +12,7 @@ import { useOnlineStatus } from "../../hooks/useOnlineStatus";
 import { GalaxyInfo } from "../classification/GalaxyInfo";
 import { ImageViewer, type DefaultZoomOptions } from "../classification/ImageViewer";
 import { ReportIssueModal } from "../ReportIssueModal";
+import { ImageUrlsModal, type ImageUrlGroup } from "../classification/ImageUrlsModal";
 
 import {
   EyeIcon,
@@ -71,6 +72,10 @@ function appendCacheBustParam(url: string, cacheBustToken: number): string {
   if (!url || cacheBustToken <= 0) return url;
   const separator = url.includes("?") ? "&" : "?";
   return `${url}${separator}reload=${cacheBustToken}`;
+}
+
+function flattenImageLabel(label: string): string {
+  return label.replace(/\s*\n\s*/g, " ").replace(/\s+/g, " ").trim();
 }
 
 const LSB_LABELS = new Map(
@@ -297,6 +302,23 @@ export function GalaxyResults() {
   const visibleMobileImages = mobileImagesExpanded
     ? mobileImageTypes
     : mobileImageTypes.slice(0, 1);
+
+  // Build image URL groups for the ImageUrlsModal
+  const allContrastGroupImageUrls: ImageUrlGroup[] = displayGalaxy?.id
+    ? imageContrastGroups.map((group, groupIndex) => ({
+      label: classificationImageSettings.groupLabels?.[groupIndex] || `Contrast Group ${groupIndex + 1}`,
+      entries: group.map((entry) => {
+        const resolvedEntry = resolveContrastGroupEntry(entry, showMasks);
+        return {
+          key: resolvedEntry.key,
+          label: flattenImageLabel(resolvedEntry.label),
+          url: getImageUrl(displayGalaxy.id, resolvedEntry.key, {
+            quality: effectiveImageQuality,
+          }),
+        };
+      }),
+    }))
+    : [];
 
   // Track screen size changes
   useEffect(() => {
@@ -710,15 +732,24 @@ export function GalaxyResults() {
   );
 
   return (
-    <div className="p-4 space-y-6 max-w-[1600px] mx-auto">
+    <>
       {showReportIssueModal && (
         <ReportIssueModal isOpen={showReportIssueModal} onClose={() => setShowReportIssueModal(false)} />
       )}
       {showKeyboardHelp && (
         <GalaxyResultsKeyboardHelp onClose={() => setShowKeyboardHelp(false)} />
       )}
-
-      {/* Header */}
+      {displayGalaxy?.id && (
+        <ImageUrlsModal
+          isOpen={showImageUrlsModal}
+          onClose={() => setShowImageUrlsModal(false)}
+          galaxyId={displayGalaxy.id}
+          groups={allContrastGroupImageUrls}
+          maskSummary={showMasks ? "Masked variants when available" : "Default image variants"}
+        />
+      )}
+      <div className="p-4 space-y-6 max-w-[1600px] mx-auto">
+        {/* Header */}
       <div className={cn("flex items-center gap-2", isMobile && "flex-col items-stretch")}>
         <div className="text-sm text-gray-600 dark:text-gray-300 mr-auto">
           <span className="font-medium">Galaxy:</span> {displayGalaxy.id}
@@ -1072,5 +1103,6 @@ export function GalaxyResults() {
         )}
       </div>
     </div>
+    </>
   );
 }
