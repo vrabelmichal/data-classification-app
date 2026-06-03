@@ -309,13 +309,21 @@ export function GalaxyResults() {
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem("showEllipseOverlay");
-    if (saved !== null) setShowEllipseOverlay(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem("showEllipseOverlay");
+      if (saved !== null) setShowEllipseOverlay(JSON.parse(saved));
+    } catch {
+      // Ignore malformed localStorage data
+    }
   }, []);
 
   useEffect(() => {
-    const saved = localStorage.getItem("showMasks");
-    if (saved !== null) setShowMasks(JSON.parse(saved));
+    try {
+      const saved = localStorage.getItem("showMasks");
+      if (saved !== null) setShowMasks(JSON.parse(saved));
+    } catch {
+      // Ignore malformed localStorage data
+    }
   }, []);
 
   useEffect(() => {
