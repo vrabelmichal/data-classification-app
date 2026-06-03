@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { cn } from "../../lib/utils";
-import { useParams, useNavigate } from "react-router";
+import { useParams, Link } from "react-router";
 import { getImageUrl } from "../../images";
 import { loadImageDisplaySettings } from "../../images/displaySettings";
 import { usePageTitle } from "../../hooks/usePageTitle";
@@ -205,7 +205,6 @@ type ImageMode = "single" | "double" | "grid";
 
 export function GalaxyResults() {
   const { galaxyId } = useParams<{ galaxyId: string }>();
-  const navigate = useNavigate();
   const isOnline = useOnlineStatus();
 
   const [showMasks, setShowMasks] = useState(true);
@@ -223,14 +222,18 @@ export function GalaxyResults() {
   const [isMobile, setIsMobile] = useState(false);
   const [imageMode, setImageMode] = useState<ImageMode>("grid");
   const [mobileImagesExpanded, setMobileImagesExpanded] = useState(false);
+  const [showEmails, setShowEmails] = useState(false);
 
   const userProfile = useQuery(api.users.getUserProfile);
   const userPrefs = useQuery(api.users.getUserPreferences);
   const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
 
+  const canViewResults =
+    userProfile?.permissions?.viewGalaxyResults === true;
+
   const galaxyResults = useQuery(
     api.classification.getGalaxyResults,
-    galaxyId ? { galaxyExternalId: galaxyId } : "skip"
+    galaxyId && canViewResults ? { galaxyExternalId: galaxyId } : "skip"
   );
 
   const loadAdditionalDetailsMutation = useMutation(
@@ -247,9 +250,6 @@ export function GalaxyResults() {
   const summary = (galaxyResults?.summary ?? null) as GalaxySummary | null;
 
   const resolvedGalaxyId = displayGalaxy?.id ?? galaxyId ?? null;
-
-  const canViewResults =
-    userProfile?.permissions?.viewGalaxyResults === true;
 
   usePageTitle(() => (displayGalaxy?.id ? `Results for ${displayGalaxy.id}` : "Galaxy Results"));
 
@@ -525,7 +525,7 @@ export function GalaxyResults() {
     );
   }
 
-  if (userProfile === undefined || galaxyResults === undefined) {
+  if (userProfile === undefined) {
     return (
       <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -544,6 +544,14 @@ export function GalaxyResults() {
             </p>
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (galaxyResults === undefined) {
+    return (
+      <div className="flex justify-center items-center min-h-[calc(100vh-4rem)]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -697,18 +705,18 @@ export function GalaxyResults() {
   );
 
   const renderClassifyButton = () => (
-    <div className="inline-flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0.5">
-      <button
-        onClick={() => navigate(`/classify/${displayGalaxy.id}`)}
-        className="flex items-center justify-center gap-1.5 rounded-md transition-colors p-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60"
-        title="Open in classification interface"
-      >
+    <Link
+      to={`/classify/${displayGalaxy.id}`}
+      className="inline-flex items-center bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-0.5"
+      title="Open in classification interface"
+    >
+      <span className="flex items-center justify-center gap-1.5 rounded-md transition-colors p-1.5 bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/40 dark:text-blue-300 dark:hover:bg-blue-900/60">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
         </svg>
         {!isMobile && <span className="text-sm font-medium">Classify</span>}
-      </button>
-    </div>
+      </span>
+    </Link>
   );
 
   const renderImageCard = (imageType: ImageType) => (
@@ -1027,9 +1035,20 @@ export function GalaxyResults() {
 
       {/* Classification List */}
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-          All Classifications ({classifications.length})
-        </h2>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+            All Classifications ({classifications.length})
+          </h2>
+          {classifications.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowEmails((prev) => !prev)}
+              className="inline-flex items-center justify-center rounded border border-gray-300 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              {showEmails ? "Hide emails" : "Show emails"}
+            </button>
+          )}
+        </div>
 
         {classifications.length === 0 ? (
           <div className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">
@@ -1038,7 +1057,11 @@ export function GalaxyResults() {
         ) : (
           <div className="space-y-3">
             {classifications.map((c, idx) => {
-              const displayName = c.userName || c.userEmail || c.userId;
+              const displayName = c.userName?.trim() || (showEmails ? c.userEmail?.trim() : "") || c.userId;
+              const secondaryEmail =
+                showEmails && c.userEmail?.trim() && c.userEmail.trim() !== displayName
+                  ? c.userEmail.trim()
+                  : null;
               const flags: string[] = [];
               if (c.awesome_flag) flags.push("Awesome");
               if (c.valid_redshift) flags.push("Valid Redshift");
@@ -1061,6 +1084,11 @@ export function GalaxyResults() {
                       <div className="text-sm font-medium text-gray-900 dark:text-white">
                         {displayName}
                       </div>
+                      {secondaryEmail && (
+                        <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                          {secondaryEmail}
+                        </div>
+                      )}
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {c.userRole}
                       </div>
