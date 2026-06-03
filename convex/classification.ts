@@ -794,6 +794,8 @@ export const getGalaxyResults = query({
       userName: v.union(v.null(), v.string()),
       userEmail: v.union(v.null(), v.string()),
       userRole: v.string(),
+      userExperience: v.string(),
+      userIsActive: v.union(v.null(), v.boolean()),
       lsb_class: v.number(),
       morphology: v.number(),
       awesome_flag: v.boolean(),
@@ -883,6 +885,8 @@ export const getGalaxyResults = query({
               canViewRawEmail: showUserEmails,
             }),
             role: profile?.role ?? "user",
+            experience: normalizeUserExperience(profile?.experience),
+            isActive: profile?.isActive ?? null,
           },
         ] as const;
       })
@@ -897,6 +901,8 @@ export const getGalaxyResults = query({
         userName: userDetails?.name ?? null,
         userEmail: userDetails?.email ?? null,
         userRole: userDetails?.role ?? "user",
+        userExperience: userDetails?.experience ?? "normal",
+        userIsActive: userDetails?.isActive ?? null,
         lsb_class: c.lsb_class,
         morphology: c.morphology,
         awesome_flag: c.awesome_flag,

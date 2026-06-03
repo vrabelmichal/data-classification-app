@@ -38,6 +38,7 @@ import {
   LSB_OPTIONS_LEGACY,
   MORPHOLOGY_OPTIONS,
 } from "../classification/constants";
+import { getExperienceLabel, getRoleLabel } from "../../lib/permissions";
 
 const imageDisplaySettings = loadImageDisplaySettings();
 const classificationImageSettings = imageDisplaySettings.classification;
@@ -97,6 +98,8 @@ interface ClassificationRow {
   userName: string | null;
   userEmail: string | null;
   userRole: string;
+  userExperience: string;
+  userIsActive: boolean | null;
   lsb_class: number;
   morphology: number;
   awesome_flag: boolean;
@@ -1089,8 +1092,10 @@ export function GalaxyResults() {
                           {secondaryEmail}
                         </div>
                       )}
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {c.userRole}
+                      <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                        {getRoleLabel(c.userRole)}
+                        {c.userExperience ? ` · ${getExperienceLabel(c.userExperience)}` : ""}
+                        {c.userIsActive === false ? " · Inactive" : ""}
                       </div>
                     </div>
                     <div className="flex flex-wrap gap-1.5">
