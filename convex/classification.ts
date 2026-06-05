@@ -930,12 +930,13 @@ export const getGalaxyResults = query({
     let visibleNucleusCount = 0;
 
     for (const c of classifications) {
-      if (c.failed_fitting) {
-        failedFittingCount++;
-      } else if (c.lsb_class === 1) {
+      if (c.lsb_class === 1) {
         lsbCount++;
       } else {
         nonLsbCount++;
+      }
+      if (c.failed_fitting) {
+        failedFittingCount++;
       }
 
       if (c.morphology === -1) featurelessCount++;

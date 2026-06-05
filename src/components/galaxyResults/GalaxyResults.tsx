@@ -1073,9 +1073,7 @@ export function GalaxyResults() {
               if (c.visible_nucleus) flags.push("Visible Nucleus");
               if (c.failed_fitting) flags.push("Failed Fitting");
 
-              const lsbLabel = c.failed_fitting
-                ? "Failed fitting"
-                : (LSB_LABELS.get(c.lsb_class) ?? `LSB ${c.lsb_class}`);
+              const lsbLabel = LSB_LABELS.get(c.lsb_class) ?? `LSB ${c.lsb_class}`;
               const morphLabel =
                 MORPHOLOGY_LABELS.get(c.morphology) ?? `Morphology ${c.morphology}`;
 
