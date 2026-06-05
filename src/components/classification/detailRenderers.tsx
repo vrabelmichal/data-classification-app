@@ -2,6 +2,9 @@
  * Helper functions for rendering additional galaxy details
  */
 
+import type { PaperMetadataEntry } from "../../lib/paperDisplay";
+import { getPaperCitation, getPaperLabel } from "../../lib/paperDisplay";
+
 const shouldIncludeKey = (key: string) => 
   !key.startsWith("_") && key !== "band" && key !== "galaxyRef";
 
@@ -10,9 +13,12 @@ const formatNumber = (val: number) => {
   return val.toFixed(4).replace(/0+$/,'').replace(/\.$/,'');
 };
 
-const renderKeyVal = (label: string, value: any, idx?: number) => {
+const renderKeyVal = (label: string, value: any, idx?: number, paperMetadata?: PaperMetadataEntry[]) => {
   if (value === null || value === undefined) return null;
   const stripeClass = idx !== undefined ? (idx % 2 === 0 ? 'bg-white dark:bg-gray-900/60' : 'bg-gray-50 dark:bg-gray-800/40') : '';
+  const keyLower = label.toLowerCase();
+  const isPaper = keyLower === 'paper';
+
   // Normalize display for special cases
   let displayValue: string;
   if (typeof value === 'number') {
@@ -21,7 +27,7 @@ const renderKeyVal = (label: string, value: any, idx?: number) => {
     displayValue = value ? 'Yes' : 'No';
   } else if (typeof value === 'string') {
     // Remove leading b'' or b"" wrapper for tilename & similar values coming from buffer stringifications
-    if (label.toLowerCase() === 'tilename') {
+    if (keyLower === 'tilename') {
       const m = value.match(/^b['"](.*)['"]$/s);
       if (m) value = m[1];
     }
@@ -30,7 +36,41 @@ const renderKeyVal = (label: string, value: any, idx?: number) => {
     displayValue = String(value);
   }
 
-  const isDataset = label.toLowerCase() === 'dataset';
+  const isDataset = keyLower === 'dataset';
+
+  // Paper-specific rendering: show label as primary, raw as secondary, citation on hover
+  if (isPaper && typeof value === 'string') {
+    const paperLabel = getPaperLabel(value, paperMetadata);
+    const paperCitation = getPaperCitation(value, paperMetadata);
+    const hasLabel = paperLabel !== value && paperLabel !== 'Unassigned';
+    const tooltip = paperCitation
+      ? `Citation: ${paperCitation}`
+      : hasLabel
+        ? `Raw: ${value}`
+        : undefined;
+
+    const valueContent = hasLabel ? (
+      <span className="flex flex-col items-end leading-tight">
+        <span className="font-medium text-gray-900 dark:text-gray-100">{paperLabel}</span>
+        <span className="text-[10px] text-gray-400 dark:text-gray-500">{value}</span>
+      </span>
+    ) : (
+      <span className="font-medium text-gray-900 dark:text-gray-100">{displayValue}</span>
+    );
+
+    return (
+      <div
+        key={label}
+        className={`flex justify-between items-center text-[11px] py-1 px-2 ${stripeClass} border-b border-gray-200 dark:border-gray-700 last:border-b-0 hover:bg-gray-100 dark:hover:bg-gray-900/50 transition-colors`}
+      >
+        <span className="text-gray-500 dark:text-gray-400 mr-2">{label}</span>
+        <span title={tooltip} className="cursor-help">
+          {valueContent}
+        </span>
+      </div>
+    );
+  }
+
   const valueSpanClass = isDataset
     ? 'font-medium text-gray-900 dark:text-gray-100 truncate max-w-[12rem] md:max-w-[18rem] lg:max-w-[24rem]'
     : 'font-medium text-gray-900 dark:text-gray-100';
@@ -127,7 +167,7 @@ export const renderThuruthipilly = (doc: any) => {
   );
 };
 
-export const renderMisc = (misc: any) => {
+export const renderMisc = (misc: any, paperMetadata?: PaperMetadataEntry[]) => {
   // if (!misc) return null;
   if (!misc) {
     return (
@@ -155,7 +195,7 @@ export const renderMisc = (misc: any) => {
         Misc
       </div>
       <div className="rounded border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-2">
-        {entries.map(([k, v], i) => renderKeyVal(k, v, i))}
+        {entries.map(([k, v], i) => renderKeyVal(k, v, i, paperMetadata))}
       </div>
     </div>
   );
@@ -164,7 +204,8 @@ export const renderMisc = (misc: any) => {
 export const renderAdditionalDetails = (
   additionalDetails: any,
   showAdditionalDetails: boolean,
-  showPsf: boolean = true
+  showPsf: boolean = true,
+  paperMetadata?: PaperMetadataEntry[],
 ) => {
   if (!additionalDetails || !showAdditionalDetails) return null;
   return (
@@ -186,7 +227,7 @@ export const renderAdditionalDetails = (
       {renderThuruthipilly(additionalDetails.thuruthipilly)}
       {/* Misc – 1/3 width */}
       <div className="flex gap-3">
-        {renderMisc(additionalDetails.misc)}
+        {renderMisc(additionalDetails.misc, paperMetadata)}
       </div>
     </div>
   );

@@ -8,6 +8,7 @@ import { getImageUrl } from "../../images";
 import { loadImageDisplaySettings } from "../../images/displaySettings";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { useOnlineStatus } from "../../hooks/useOnlineStatus";
+import type { PaperMetadataEntry } from "../../lib/paperDisplay";
 
 // Components
 import { ProgressBar } from "./ProgressBar";
@@ -1338,6 +1339,7 @@ export function ClassificationInterface() {
         showGalaxyHeader={true}
         navigation={navigation}
         detailsExtraContent={detailsExtraContent}
+        paperMetadata={systemSettings?.paperMetadata as PaperMetadataEntry[] | undefined}
       />
     </div>
   );
@@ -1378,6 +1380,7 @@ export function ClassificationInterface() {
           onToggleDetails={handleToggleDetails}
           onOpenImageUrls={() => setShowImageUrlsModal(true)}
           detailsExtraContent={detailsExtraContent}
+          paperMetadata={systemSettings?.paperMetadata as PaperMetadataEntry[] | undefined}
         />
       </div>
 

@@ -17,6 +17,11 @@ import {
   sanitizeFilenameSegment,
   type CsvColumn,
 } from "../../../lib/csv";
+import {
+  getPaperCitation,
+  getPaperLabel,
+  type PaperMetadataEntry,
+} from "../../../lib/paperDisplay";
 
 const ITEMS_PER_PAGE = 10;
 const EXPORT_BATCH_SIZE = 100;
@@ -45,6 +50,7 @@ type RemainingGalaxyDetailsModalProps = {
   galaxyExternalIds: string[];
   targetClassifications: number;
   isSpecial: boolean;
+  paperMetadata?: PaperMetadataEntry[];
 };
 
 function buildExportColumns(targetClassifications: number): CsvColumn<RemainingGalaxyDetail>[] {
@@ -73,6 +79,37 @@ function formatScopeLabel(scopeLabel: string) {
   return scopeLabel.trim() || "all-papers";
 }
 
+function renderPaperCell(paper: string | null, paperMetadata?: PaperMetadataEntry[]) {
+  const raw = paper || "";
+  const label = getPaperLabel(raw, paperMetadata);
+  const citation = getPaperCitation(raw, paperMetadata);
+  const hasLabel = label !== raw && label !== "Unassigned";
+  const tooltip = citation
+    ? `Citation: ${citation}`
+    : hasLabel
+      ? `Raw: ${raw || "Unassigned"}`
+      : undefined;
+
+  if (!raw && !hasLabel) {
+    return <span className="whitespace-nowrap">{label}</span>;
+  }
+
+  if (hasLabel) {
+    return (
+      <span className="whitespace-nowrap cursor-help" title={tooltip}>
+        <span className="font-medium text-gray-900 dark:text-white">{label}</span>
+        <span className="ml-1.5 text-xs text-gray-400 dark:text-gray-500">({raw})</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="whitespace-nowrap cursor-help" title={tooltip || undefined}>
+      {label}
+    </span>
+  );
+}
+
 export function RemainingGalaxyDetailsModal({
   isOpen,
   onClose,
@@ -81,6 +118,7 @@ export function RemainingGalaxyDetailsModal({
   galaxyExternalIds,
   targetClassifications,
   isSpecial,
+  paperMetadata,
 }: RemainingGalaxyDetailsModalProps) {
   const convex = useConvex();
   const previewImageName = useMemo(() => getPreviewImageName(), []);
@@ -411,7 +449,7 @@ export function RemainingGalaxyDetailsModal({
                         <td className="px-3 py-3 text-right font-semibold text-amber-800 dark:text-amber-200">
                           +{remainingToTarget.toLocaleString()}
                         </td>
-                        <td className="px-3 py-3">{galaxy.paper || "Unassigned"}</td>
+                        <td className="px-3 py-3">{renderPaperCell(galaxy.paper, paperMetadata)}</td>
                         <td className="px-3 py-3">{galaxy.ra.toFixed(4)}°</td>
                         <td className="px-3 py-3">{galaxy.dec.toFixed(4)}°</td>
                         <td className="px-3 py-3">{galaxy.reff.toFixed(2)}</td>
@@ -469,9 +507,9 @@ export function RemainingGalaxyDetailsModal({
                                 #{galaxy.numericId}
                               </span>
                             ) : null}
-                            <span className="rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700 dark:bg-blue-950/30 dark:text-blue-200">
-                              {galaxy.paper || "Unassigned"}
-                            </span>
+                            <div>
+                              {renderPaperCell(galaxy.paper, paperMetadata)}
+                            </div>
                           </div>
                         </div>
 

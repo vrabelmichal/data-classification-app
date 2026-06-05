@@ -28,6 +28,7 @@ import { useAdminCloudflareCachePurgeAvailability } from "../../hooks/useAdminCl
 
 import type { ImageType } from "../classification/types";
 import type { ContrastGroupEntry } from "../../images/types";
+import type { PaperMetadataEntry } from "../../lib/paperDisplay";
 import {
   getImagePriority,
   processImageLabel,
@@ -876,6 +877,7 @@ export function GalaxyResults() {
         onToggleDetails={handleToggleDetails}
         onOpenImageUrls={() => setShowImageUrlsModal(true)}
         showGalaxyHeader={false}
+        paperMetadata={systemSettings?.paperMetadata as PaperMetadataEntry[] | undefined}
       />
 
       {/* Summary Statistics */}

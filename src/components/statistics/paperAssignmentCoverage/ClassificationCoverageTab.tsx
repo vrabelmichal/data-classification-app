@@ -979,6 +979,7 @@ function ClassificationCoverageTableSection({
         galaxyExternalIds={selectedDetailGalaxyIds}
         targetClassifications={targetClassifications}
         isSpecial={selectedDetailRow?.isSpecial ?? false}
+        paperMetadata={systemSettings.paperMetadata}
       />
     </div>
   );

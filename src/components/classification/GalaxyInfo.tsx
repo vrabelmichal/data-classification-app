@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { renderAdditionalDetails } from "./detailRenderers";
 import type { GalaxyData, NavigationState } from "./types";
+import type { PaperMetadataEntry } from "../../lib/paperDisplay";
 
 interface GalaxyInfoProps {
   displayGalaxy: GalaxyData;
@@ -12,6 +13,7 @@ interface GalaxyInfoProps {
   showGalaxyHeader?: boolean;
   navigation?: NavigationState | null;
   detailsExtraContent?: ReactNode;
+  paperMetadata?: PaperMetadataEntry[];
 }
 
 export function GalaxyInfo({
@@ -24,6 +26,7 @@ export function GalaxyInfo({
   showGalaxyHeader = false,
   navigation,
   detailsExtraContent,
+  paperMetadata,
 }: GalaxyInfoProps) {
   const displayNavigationIndex = navigation?.effectiveCurrentIndex ?? navigation?.currentIndex ?? -1;
   const displayNavigationTotal = navigation?.effectiveTotalGalaxies ?? navigation?.totalGalaxies ?? 0;
@@ -88,7 +91,7 @@ export function GalaxyInfo({
           {loadingDetails ? 'Loading...' : (showAdditionalDetails ? 'Hide details' : 'Show details')}
         </button>
       </div>
-      {renderAdditionalDetails(additionalDetails, showAdditionalDetails, displayGalaxy.nucleus)}
+      {renderAdditionalDetails(additionalDetails, showAdditionalDetails, displayGalaxy.nucleus, paperMetadata)}
       {showAdditionalDetails ? detailsExtraContent : null}
     </div>
   );
