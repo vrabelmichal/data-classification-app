@@ -71,7 +71,7 @@ export async function browseClassificationFilteredBatch(ctx: QueryCtx, options: 
   const candidateQuery = buildGalaxyBrowseQuery(ctx, requestedSort, sortOrder, filters);
   const batch: { page: Doc<"galaxies">[]; isDone: boolean; continueCursor: string } = await candidateQuery.paginate({
     cursor: position.galaxyCursor,
-    numItems: Math.min(Math.floor(numItems), CLASSIFICATION_SEARCH_BATCH_SIZE),
+    numItems: CLASSIFICATION_SEARCH_BATCH_SIZE,
     maximumRowsRead: MAX_GALAXY_ROWS_READ,
     maximumBytesRead: MAX_GALAXY_BYTES_READ,
   });
@@ -82,7 +82,8 @@ export async function browseClassificationFilteredBatch(ctx: QueryCtx, options: 
     : null;
   const sequenceIds = new Set(sequence?.galaxyExternalIds ?? []);
   const galaxies: BrowseGalaxy[] = [];
-  for (const galaxy of batch.page) {
+  let stoppedEarly = false;
+  for (const [candidateIndex, galaxy] of batch.page.entries()) {
     const result: BrowseGalaxy = { ...galaxy };
     if (filter === "my_sequence" && !sequenceIds.has(galaxy.id)) continue;
     if (filter === "classified" || filter === "unclassified") {
@@ -109,16 +110,26 @@ export async function browseClassificationFilteredBatch(ctx: QueryCtx, options: 
     }
     cursorBeforeLastMatch = CURSOR_PREFIX + JSON.stringify({ galaxyCursor: position.galaxyCursor, skip: initialSkip + galaxies.length });
     galaxies.push(result);
+    if (galaxies.length >= numItems) {
+      stoppedEarly = candidateIndex < batch.page.length - 1;
+      break;
+    }
   }
+  // A small requested remainder (especially the one-item lookahead) must still
+  // scan a full candidate batch. Resume within this batch if it filled early.
+  const isDone = batch.isDone && !stoppedEarly;
+  const nextPosition = stoppedEarly
+    ? { galaxyCursor: position.galaxyCursor, skip: initialSkip + galaxies.length }
+    : { galaxyCursor: batch.continueCursor, skip: position.skip };
   return {
     galaxies,
     cursorBeforeLastMatch,
-    hasNext: !batch.isDone,
+    hasNext: !isDone,
     hasPrevious: offset > 0 || !!cursor,
     aggregatesPopulated: false,
-    cursor: batch.isDone ? null : CURSOR_PREFIX + JSON.stringify({ galaxyCursor: batch.continueCursor, skip: position.skip }),
-    isDone: batch.isDone,
-    scanIncomplete: !batch.isDone && galaxies.length < numItems,
+    cursor: isDone ? null : CURSOR_PREFIX + JSON.stringify(nextPosition),
+    isDone,
+    scanIncomplete: !isDone && galaxies.length < numItems,
     currentBounds: computeBounds(galaxies),
   };
 }

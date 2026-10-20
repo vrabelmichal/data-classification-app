@@ -98,17 +98,20 @@ describe("reviewer classification search", () => {
       return user;
     });
     const client = t.withIdentity({ subject: userId });
-    const first = await client.query(api.galaxies.browse.browseGalaxies, { ...base, numItems: CLASSIFICATION_SEARCH_BATCH_SIZE, searchLsbClass: "1" });
+    const first = await client.query(api.galaxies.browse.browseGalaxies, { ...base, numItems: 1, searchLsbClass: "1" });
     expect(first.galaxies).toEqual([]);
     expect(first.scanIncomplete).toBe(true);
     let cursor = first.cursor;
+    let batches = 1;
     const ids: string[] = [];
     while (cursor) {
-      const next = await client.query(api.galaxies.browse.browseGalaxies, { ...base, numItems: CLASSIFICATION_SEARCH_BATCH_SIZE, cursor, searchLsbClass: "1" });
+      const next = await client.query(api.galaxies.browse.browseGalaxies, { ...base, numItems: 1, cursor, searchLsbClass: "1" });
       ids.push(...next.galaxies.map((g) => g.id));
       cursor = next.cursor;
+      batches++;
     }
     expect(ids).toEqual([`gal-${lastId}`]);
+    expect(batches).toBe(Math.ceil((lastId + 1) / CLASSIFICATION_SEARCH_BATCH_SIZE));
   });
 
   it("uses the same matching semantics for counts, exports, and saved views", async () => {
