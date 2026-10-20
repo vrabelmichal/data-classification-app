@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, type Dispatch, type SetStateAction } from "react";
 import { useMutation } from "convex/react";
 import { useSearchParams } from "react-router";
+import { useGalaxyBrowsePage } from "../../hooks/useGalaxyBrowsePage";
 import { useQueryResult } from "../../hooks/useQueryResult";
 import { api } from "../../../convex/_generated/api";
 import type { SortField, SortOrder, FilterType } from "./GalaxyBrowser";
@@ -47,7 +48,11 @@ export interface UseGalaxyBrowserReturn {
 
   // Search state
   searchId: string;
+  searchLsbClass: string;
+  searchMorphology: string;
   setSearchId: (value: string) => void;
+  setSearchLsbClass: (value: string) => void;
+  setSearchMorphology: (value: string) => void;
   searchRaMin: string;
   setSearchRaMin: (value: string) => void;
   searchRaMax: string;
@@ -151,6 +156,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
   // Search fields
   const [searchId, setSearchId] = useState("");
+  const [searchLsbClass, setSearchLsbClass] = useState("");
+  const [searchMorphology, setSearchMorphology] = useState("");
   const [searchRaMin, setSearchRaMin] = useState("");
   const [searchRaMax, setSearchRaMax] = useState("");
   const [searchDecMin, setSearchDecMin] = useState("");
@@ -188,6 +195,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
   // Applied search values
   const [appliedSearchId, setAppliedSearchId] = useState("");
+  const [appliedSearchLsbClass, setAppliedSearchLsbClass] = useState("");
+  const [appliedSearchMorphology, setAppliedSearchMorphology] = useState("");
   const [appliedSearchRaMin, setAppliedSearchRaMin] = useState("");
   const [appliedSearchRaMax, setAppliedSearchRaMax] = useState("");
   const [appliedSearchDecMin, setAppliedSearchDecMin] = useState("");
@@ -251,6 +260,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
   const currentDraftSearchValues = useMemo<AppliedGalaxySearchValues>(() => ({
     searchId,
+    searchLsbClass,
+    searchMorphology,
     searchRaMin,
     searchRaMax,
     searchDecMin,
@@ -281,6 +292,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     searchVisibleNucleus,
   }), [
     searchId,
+    searchLsbClass,
+    searchMorphology,
     searchRaMin,
     searchRaMax,
     searchDecMin,
@@ -313,6 +326,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
   const currentAppliedSearchValues = useMemo<AppliedGalaxySearchValues>(() => ({
     searchId: appliedSearchId,
+    searchLsbClass: appliedSearchLsbClass,
+    searchMorphology: appliedSearchMorphology,
     searchRaMin: appliedSearchRaMin,
     searchRaMax: appliedSearchRaMax,
     searchDecMin: appliedSearchDecMin,
@@ -343,6 +358,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     searchVisibleNucleus: appliedSearchVisibleNucleus,
   }), [
     appliedSearchId,
+    appliedSearchLsbClass,
+    appliedSearchMorphology,
     appliedSearchRaMin,
     appliedSearchRaMax,
     appliedSearchDecMin,
@@ -395,6 +412,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
   const createAppliedSearchValuesFromUnknown = (source: Record<string, unknown>): AppliedGalaxySearchValues => ({
     searchId: readStoredString(source, "searchId"),
+    searchLsbClass: readStoredString(source, "searchLsbClass"),
+    searchMorphology: readStoredString(source, "searchMorphology"),
     searchRaMin: readStoredString(source, "searchRaMin"),
     searchRaMax: readStoredString(source, "searchRaMax"),
     searchDecMin: readStoredString(source, "searchDecMin"),
@@ -430,6 +449,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     options: { updateDraft: boolean; updateApplied: boolean },
   ) => {
     const nextSearchId = viewState.searchId ?? "";
+    const nextSearchLsbClass = viewState.searchLsbClass ?? "";
+    const nextSearchMorphology = viewState.searchMorphology ?? "";
     const nextSearchRaMin = viewState.searchRaMin ?? "";
     const nextSearchRaMax = viewState.searchRaMax ?? "";
     const nextSearchDecMin = viewState.searchDecMin ?? "";
@@ -463,6 +484,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
     if (options.updateDraft) {
       setSearchId(nextSearchId);
+      setSearchLsbClass(nextSearchLsbClass);
+      setSearchMorphology(nextSearchMorphology);
       setSearchRaMin(nextSearchRaMin);
       setSearchRaMax(nextSearchRaMax);
       setSearchDecMin(nextSearchDecMin);
@@ -495,6 +518,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
     if (options.updateApplied) {
       setAppliedSearchId(nextSearchId);
+      setAppliedSearchLsbClass(nextSearchLsbClass);
+      setAppliedSearchMorphology(nextSearchMorphology);
       setAppliedSearchRaMin(nextSearchRaMin);
       setAppliedSearchRaMax(nextSearchRaMax);
       setAppliedSearchDecMin(nextSearchDecMin);
@@ -702,6 +727,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
       sortOrder,
       filter,
       searchId: currentAppliedSearchValues.searchId,
+      searchLsbClass: currentAppliedSearchValues.searchLsbClass,
+      searchMorphology: currentAppliedSearchValues.searchMorphology,
       searchRaMin: currentAppliedSearchValues.searchRaMin,
       searchRaMax: currentAppliedSearchValues.searchRaMax,
       searchDecMin: currentAppliedSearchValues.searchDecMin,
@@ -860,7 +887,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   }, [browserSearchParamsSignature]);
 
   const shouldSkipGalaxyQuery = !isUrlStateReady || (parsedBrowserUrlState.viewKey !== null && !resolvedBrowserView) || isViewUnavailable;
-  const { data: rawGalaxyData, error: galaxyQueryError } = useQueryResult(api.galaxies.browse.browseGalaxies, shouldSkipGalaxyQuery ? "skip" : {
+  const { data: rawGalaxyData, error: galaxyQueryError } = useGalaxyBrowsePage(shouldSkipGalaxyQuery ? "skip" : {
     offset: Math.max(0, (page - 1) * pageSize),
     numItems: pageSize,
     cursor: undefined,
@@ -868,6 +895,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     sortOrder,
     filter,
     searchId: isSearchActive ? (currentAppliedSearchValues.searchId || undefined) : undefined,
+    searchLsbClass: isSearchActive ? (currentAppliedSearchValues.searchLsbClass || undefined) : undefined,
+    searchMorphology: isSearchActive ? (currentAppliedSearchValues.searchMorphology || undefined) : undefined,
     searchRaMin: isSearchActive ? (currentAppliedSearchValues.searchRaMin || undefined) : undefined,
     searchRaMax: isSearchActive ? (currentAppliedSearchValues.searchRaMax || undefined) : undefined,
     searchDecMin: isSearchActive ? (currentAppliedSearchValues.searchDecMin || undefined) : undefined,
@@ -980,6 +1009,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
   const hasPendingChanges = isSearchActive && (
     currentDraftSearchValues.searchId !== currentAppliedSearchValues.searchId ||
+    currentDraftSearchValues.searchLsbClass !== currentAppliedSearchValues.searchLsbClass ||
+    currentDraftSearchValues.searchMorphology !== currentAppliedSearchValues.searchMorphology ||
     currentDraftSearchValues.searchRaMin !== currentAppliedSearchValues.searchRaMin ||
     currentDraftSearchValues.searchRaMax !== currentAppliedSearchValues.searchRaMax ||
     currentDraftSearchValues.searchDecMin !== currentAppliedSearchValues.searchDecMin ||
@@ -1109,7 +1140,11 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
     // Search state
     searchId,
+    searchLsbClass,
+    searchMorphology,
     setSearchId,
+    setSearchLsbClass,
+    setSearchMorphology,
     searchRaMin,
     setSearchRaMin,
     searchRaMax,

@@ -6,6 +6,8 @@ export interface GalaxyBrowserViewState {
   sortOrder: SortOrder;
   isSearchActive: boolean;
   searchId?: string;
+  searchLsbClass?: string;
+  searchMorphology?: string;
   searchRaMin?: string;
   searchRaMax?: string;
   searchDecMin?: string;
@@ -38,6 +40,8 @@ export interface GalaxyBrowserViewState {
 
 export interface GalaxyBrowserAppliedSearchValues {
   searchId: string;
+  searchLsbClass: string;
+  searchMorphology: string;
   searchRaMin: string;
   searchRaMax: string;
   searchDecMin: string;
@@ -87,6 +91,8 @@ export interface ParsedGalaxyQuickReviewUrlState {
 
 const SEARCH_STRING_FIELDS: Array<keyof GalaxyBrowserAppliedSearchValues> = [
   "searchId",
+  "searchLsbClass",
+  "searchMorphology",
   "searchRaMin",
   "searchRaMax",
   "searchDecMin",

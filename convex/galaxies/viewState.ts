@@ -92,6 +92,8 @@ export const resolveBrowserView = query({
       sortOrder: "asc" | "desc";
       isSearchActive: boolean;
       searchId?: string;
+      searchLsbClass?: string;
+      searchMorphology?: string;
       searchRaMin?: string;
       searchRaMax?: string;
       searchDecMin?: string;

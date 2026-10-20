@@ -1,4 +1,5 @@
 import React from "react";
+import { LSB_OPTIONS_LEGACY, MORPHOLOGY_OPTIONS } from "../classification/constants";
 import { cn } from "../../lib/utils";
 
 type BoundsField = 'ra' | 'dec' | 'reff' | 'q' | 'pa' | 'mag' | 'mean_mue' | 'totalClassifications' | 'numVisibleNucleus' | 'numAwesomeFlag' | 'numFailedFitting' | 'totalAssigned';
@@ -11,7 +12,11 @@ interface GalaxyBrowserSearchFormProps {
 
   // Search state
   searchId: string;
+  searchLsbClass: string;
+  searchMorphology: string;
   setSearchId: (value: string) => void;
+  setSearchLsbClass: (value: string) => void;
+  setSearchMorphology: (value: string) => void;
   searchRaMin: string;
   setSearchRaMin: (value: string) => void;
   searchRaMax: string;
@@ -88,7 +93,11 @@ export function GalaxyBrowserSearchForm({
   showValidRedshift = true,
   showVisibleNucleus = true,
   searchId,
+  searchLsbClass,
+  searchMorphology,
   setSearchId,
+  setSearchLsbClass,
+  setSearchMorphology,
   searchRaMin,
   setSearchRaMin,
   searchRaMax,
@@ -580,6 +589,31 @@ export function GalaxyBrowserSearchForm({
             </div>
           </div>
         </div>
+
+        <section className="p-4 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+          <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100 uppercase tracking-wide">Reviewer classifications</h3>
+          <p className="mt-1 mb-3 text-xs text-gray-500 dark:text-gray-400">
+            Match at least one reviewer. When both filters are set, the same classification must match both.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              { field: 'searchLsbClass', label: 'LSB classification', value: searchLsbClass, set: setSearchLsbClass, options: LSB_OPTIONS_LEGACY },
+              { field: 'searchMorphology', label: 'Morphology', value: searchMorphology, set: setSearchMorphology, options: MORPHOLOGY_OPTIONS },
+            ].map((control) => (
+              <label key={control.field} className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                {control.label}
+                <select
+                  value={control.value}
+                  onChange={(event) => control.set(event.target.value)}
+                  className={getInputClass(control.field, "mt-1 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 dark:text-white")}
+                >
+                  <option value="">Any</option>
+                  {control.options.map((option) => <option key={option.value} value={String(option.value)}>{option.label}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+        </section>
 
         {/* SECTION 2: User-Assigned Flags (with counts) - Only show if at least one flag is enabled */}
         {userFlagFilters.length > 0 && (

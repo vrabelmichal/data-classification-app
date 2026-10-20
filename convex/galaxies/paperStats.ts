@@ -17,6 +17,14 @@ type PaperStatsBatchResult = {
   blacklistedIds?: string[];
 };
 
+// Aggregate reads use a query context. Keep the action caller compatible with
+// Convex versions where query-only runQuery options differ from action options.
+export const getGalaxyTotal = internalQuery({
+  args: {},
+  returns: v.number(),
+  handler: (ctx) => galaxyIdsAggregate.count(ctx),
+});
+
 /** Loads all blacklisted galaxy external IDs in one shot (blacklist is small). */
 export const loadBlacklistedIds = internalQuery({
   args: {},
@@ -138,7 +146,7 @@ export const computePaperStatsBatch = action({
 
     let totalGalaxies: number | null = null;
     try {
-      totalGalaxies = await galaxyIdsAggregate.count(ctx);
+      totalGalaxies = await ctx.runQuery(internal.galaxies.paperStats.getGalaxyTotal, {});
     } catch {
       /* aggregate may not be built yet */
     }

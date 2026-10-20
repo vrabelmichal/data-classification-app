@@ -16,7 +16,7 @@ export function useQueryResult<Query extends FunctionReference<"query">>(
   // including skipped requests. Match useQuery's value-based memoization so
   // inline argument objects (and Convex values such as bigint) work correctly.
   const requests = useMemo<RequestForQueries>(
-    () => skip ? {} : { result: { query, args: queryArgs } },
+    () => skip ? ({} as RequestForQueries) : { result: { query, args: queryArgs } },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [queryName, JSON.stringify(convexToJson(queryArgs)), skip],
   );

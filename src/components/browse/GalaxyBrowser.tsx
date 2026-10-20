@@ -116,7 +116,11 @@ function GalaxyBrowserContent() {
 
     // Search form props
     searchId,
+    searchLsbClass,
+    searchMorphology,
     setSearchId,
+    setSearchLsbClass,
+    setSearchMorphology,
     searchRaMin,
     setSearchRaMin,
     searchRaMax,
@@ -466,6 +470,8 @@ function GalaxyBrowserContent() {
     sortOrder,
     filter,
     searchId: isSearchActive ? (appliedSearchValues.searchId || undefined) : undefined,
+    searchLsbClass: isSearchActive ? (appliedSearchValues.searchLsbClass || undefined) : undefined,
+    searchMorphology: isSearchActive ? (appliedSearchValues.searchMorphology || undefined) : undefined,
     searchRaMin: isSearchActive ? (appliedSearchValues.searchRaMin || undefined) : undefined,
     searchRaMax: isSearchActive ? (appliedSearchValues.searchRaMax || undefined) : undefined,
     searchDecMin: isSearchActive ? (appliedSearchValues.searchDecMin || undefined) : undefined,
@@ -731,7 +737,11 @@ function GalaxyBrowserContent() {
             showValidRedshift={showValidRedshift}
             showVisibleNucleus={showVisibleNucleus}
             searchId={searchId}
+            searchLsbClass={searchLsbClass}
+            searchMorphology={searchMorphology}
             setSearchId={setSearchId}
+            setSearchLsbClass={setSearchLsbClass}
+            setSearchMorphology={setSearchMorphology}
             searchRaMin={searchRaMin}
             setSearchRaMin={setSearchRaMin}
             searchRaMax={searchRaMax}
@@ -858,7 +868,11 @@ function GalaxyBrowserContent() {
           showValidRedshift={showValidRedshift}
           showVisibleNucleus={showVisibleNucleus}
           searchId={searchId}
+          searchLsbClass={searchLsbClass}
+          searchMorphology={searchMorphology}
           setSearchId={setSearchId}
+          setSearchLsbClass={setSearchLsbClass}
+          setSearchMorphology={setSearchMorphology}
           searchRaMin={searchRaMin}
           setSearchRaMin={setSearchRaMin}
           searchRaMax={searchRaMax}

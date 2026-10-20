@@ -14,6 +14,8 @@ export const browseGalaxiesArgs = {
   filter: v.optional(galaxyBrowserFilterValidator),
   searchTerm: v.optional(v.string()),
   searchId: v.optional(v.string()),
+  searchLsbClass: v.optional(v.string()),
+  searchMorphology: v.optional(v.string()),
   searchRaMin: v.optional(v.string()),
   searchRaMax: v.optional(v.string()),
   searchDecMin: v.optional(v.string()),

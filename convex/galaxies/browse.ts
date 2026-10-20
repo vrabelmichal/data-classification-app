@@ -1,4 +1,4 @@
-import { v } from "convex/values";
+import { v, type Infer } from "convex/values";
 import { query } from "../_generated/server";
 import { galaxySchemaDefinition } from "../schema";
 import { browseGalaxiesArgs } from "./browser/args";
@@ -61,6 +61,8 @@ const browseGalaxyValidator = v.object({
 
 const browseGalaxiesResultValidator = v.object({
   galaxies: v.array(browseGalaxyValidator),
+  scanIncomplete: v.optional(v.boolean()),
+  cursorBeforeLastMatch: v.optional(v.string()),
   total: v.optional(v.number()),
   hasNext: v.boolean(),
   hasPrevious: v.boolean(),
@@ -79,7 +81,7 @@ const classificationSearchOptionsValidator = v.object({
 export const browseGalaxies = query({
   args: browseGalaxiesArgs,
   returns: browseGalaxiesResultValidator,
-  handler: browseGalaxiesHandler,
+  handler: async (ctx, args): Promise<Infer<typeof browseGalaxiesResultValidator>> => browseGalaxiesHandler(ctx, args),
 });
 
 export const getGalaxySearchBounds = query({

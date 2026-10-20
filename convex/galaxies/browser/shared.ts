@@ -17,6 +17,8 @@ export type Sortable =
 
 export type GalaxySearchFilters = {
   searchId?: string;
+  searchLsbClass?: string;
+  searchMorphology?: string;
   searchRaMin?: string;
   searchRaMax?: string;
   searchDecMin?: string;

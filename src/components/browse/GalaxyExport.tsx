@@ -45,6 +45,8 @@ interface GalaxyExportProps {
   sortOrder: SortOrder;
   isSearchActive: boolean;
   searchId?: string;
+  searchLsbClass?: string;
+  searchMorphology?: string;
   searchRaMin?: string;
   searchRaMax?: string;
   searchDecMin?: string;
@@ -146,6 +148,8 @@ export function GalaxyExport({
   sortOrder,
   isSearchActive,
   searchId,
+  searchLsbClass,
+  searchMorphology,
   searchRaMin,
   searchRaMax,
   searchDecMin,
@@ -211,6 +215,8 @@ export function GalaxyExport({
           sortOrder,
           filter,
           searchId: isSearchActive ? searchId : undefined,
+          searchLsbClass: isSearchActive ? searchLsbClass : undefined,
+          searchMorphology: isSearchActive ? searchMorphology : undefined,
           searchRaMin: isSearchActive ? searchRaMin : undefined,
           searchRaMax: isSearchActive ? searchRaMax : undefined,
           searchDecMin: isSearchActive ? searchDecMin : undefined,

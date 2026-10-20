@@ -1,3 +1,4 @@
+import { browseClassificationFilteredBatch, hasClassificationFilters } from "./classificationFilters";
 import { getOptionalUserId } from "../../lib/auth";
 import {
   galaxiesByDec,
@@ -66,6 +67,8 @@ const CLASSIFICATION_SEARCH_OPTIONS = {
 
 const pickGalaxySearchFilters = (source: any): GalaxySearchFilters => ({
   searchId: source.searchId,
+  searchLsbClass: source.searchLsbClass,
+  searchMorphology: source.searchMorphology,
   searchRaMin: source.searchRaMin,
   searchRaMax: source.searchRaMax,
   searchDecMin: source.searchDecMin,
@@ -113,6 +116,13 @@ export const browseGalaxiesHandler = async (ctx: any, args: any) => {
     ? (sortBy as Sortable)
     : "numericId";
   const filters = pickGalaxySearchFilters(args);
+
+  if (hasClassificationFilters(filters)) {
+    return browseClassificationFilteredBatch(ctx, {
+      userId, filters, filter, cursor, offset, numItems,
+      requestedSort, sortOrder: normalizedSortOrder,
+    });
+  }
 
   if (filter === "skipped") {
     return handleSkippedGalaxies({

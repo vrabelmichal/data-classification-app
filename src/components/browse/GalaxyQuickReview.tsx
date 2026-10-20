@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router";
 import { useAction } from "convex/react";
-import { useQueryResult } from "../../hooks/useQueryResult";
+import { useGalaxyBrowsePage } from "../../hooks/useGalaxyBrowsePage";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { ImageViewer, type DefaultZoomOptions } from "../classification/ImageViewer";
@@ -134,6 +134,8 @@ export interface GalaxyQuickReviewFilters {
   filter: FilterType;
   isSearchActive: boolean;
   searchId?: string;
+  searchLsbClass?: string;
+  searchMorphology?: string;
   searchRaMin?: string;
   searchRaMax?: string;
   searchDecMin?: string;
@@ -204,6 +206,8 @@ function buildQueryArgs(filters: GalaxyQuickReviewFilters, cursor: string | unde
     sortOrder: filters.sortOrder,
     filter: filters.filter,
     searchId: s ? filters.searchId : undefined,
+    searchLsbClass: s ? filters.searchLsbClass : undefined,
+    searchMorphology: s ? filters.searchMorphology : undefined,
     searchRaMin: s ? (filters.searchRaMin || undefined) : undefined,
     searchRaMax: s ? (filters.searchRaMax || undefined) : undefined,
     searchDecMin: s ? (filters.searchDecMin || undefined) : undefined,
@@ -312,7 +316,7 @@ export function GalaxyQuickReview({
 
   // Query
   const queryArgs = buildQueryArgs(filters, fetchCursor);
-  const { data: batchResult, error: batchError } = useQueryResult(api.galaxies.browse.browseGalaxies, queryArgs);
+  const { data: batchResult, error: batchError } = useGalaxyBrowsePage(queryArgs);
 
   // Accumulate batch results
   useEffect(() => {

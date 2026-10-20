@@ -1,3 +1,4 @@
+import { browseClassificationFilteredBatch, hasClassificationFilters } from "./browser/classificationFilters";
 import { v } from "convex/values";
 import { query } from "../_generated/server";
 import { getOptionalUserId } from "../lib/auth";
@@ -67,6 +68,8 @@ export const countFilteredGalaxiesBatch = query({
       v.literal("skipped")
     )),
     searchId: v.optional(v.string()),
+    searchLsbClass: v.optional(v.string()),
+    searchMorphology: v.optional(v.string()),
     searchRaMin: v.optional(v.string()),
     searchRaMax: v.optional(v.string()),
     searchDecMin: v.optional(v.string()),
@@ -133,6 +136,14 @@ export const countFilteredGalaxiesBatch = query({
       searchTotalAssignedMin,
       searchTotalAssignedMax,
     } = args;
+
+    if (hasClassificationFilters(args)) {
+      const result = await browseClassificationFilteredBatch(ctx, {
+        userId, filters: args, filter, cursor: paginationCursor,
+        numItems: batchSize, requestedSort: args.sortBy ?? "numericId", sortOrder: args.sortOrder ?? "asc",
+      });
+      return { count: result.galaxies.length, cursor: result.cursor, isDone: result.isDone };
+    }
 
     const specialFilterBatchSize = 1000;
     const effectiveBatchSize =

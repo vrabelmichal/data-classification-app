@@ -1,3 +1,4 @@
+import { browseClassificationFilteredBatch, hasClassificationFilters } from "./browser/classificationFilters";
 import { v } from "convex/values";
 import { query } from "../_generated/server";
 import { getOptionalUserId } from "../lib/auth";
@@ -38,6 +39,8 @@ export const exportGalaxiesBatch = query({
       v.literal("skipped")
     )),
     searchId: v.optional(v.string()),
+    searchLsbClass: v.optional(v.string()),
+    searchMorphology: v.optional(v.string()),
     searchRaMin: v.optional(v.string()),
     searchRaMax: v.optional(v.string()),
     searchDecMin: v.optional(v.string()),
@@ -205,6 +208,20 @@ export const exportGalaxiesBatch = query({
     const requestedSort = (Object.keys(allowedSort) as Sortable[]).includes(sortBy as Sortable)
       ? (sortBy as Sortable)
       : "numericId";
+
+    if (hasClassificationFilters(args)) {
+      const result = await browseClassificationFilteredBatch(ctx, {
+        userId, filters: args, filter, cursor, offset: args.offset,
+        numItems: remainingToFetch, requestedSort, sortOrder: normalizedSortOrder,
+      });
+      const limitReached = effectiveMaxLimit !== undefined && totalExportedSoFar + result.galaxies.length >= effectiveMaxLimit;
+      return {
+        galaxies: result.galaxies.map(formatGalaxyForExport),
+        cursor: limitReached ? null : result.cursor,
+        isDone: result.isDone || limitReached,
+        limitReached,
+      };
+    }
 
     // Handle special filter cases - for export, we simplify and do post-filtering
     if (filter === "skipped" || filter === "my_sequence" || filter === "classified" || filter === "unclassified") {

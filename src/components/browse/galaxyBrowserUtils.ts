@@ -118,6 +118,8 @@ export const hasFieldChanged = (
     // When search is not active, highlight fields that have values
     switch (field) {
       case 'searchId': return currentValues.searchId !== "";
+      case 'searchLsbClass': return currentValues.searchLsbClass !== "";
+      case 'searchMorphology': return currentValues.searchMorphology !== "";
       case 'searchRaMin': return currentValues.searchRaMin !== "";
       case 'searchRaMax': return currentValues.searchRaMax !== "";
       case 'searchDecMin': return currentValues.searchDecMin !== "";
@@ -155,6 +157,8 @@ export const hasFieldChanged = (
 export const hasAnySearchValues = (values: Record<string, any>): boolean => {
   return (
     values.searchId !== "" ||
+    (values.searchLsbClass ?? "") !== "" ||
+    (values.searchMorphology ?? "") !== "" ||
     values.searchRaMin !== "" ||
     values.searchRaMax !== "" ||
     values.searchDecMin !== "" ||

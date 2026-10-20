@@ -36,6 +36,8 @@ export const galaxyBrowserViewStateValidator = v.object({
   sortOrder: galaxyBrowserSortOrderValidator,
   isSearchActive: v.boolean(),
   searchId: v.optional(v.string()),
+  searchLsbClass: v.optional(v.string()),
+  searchMorphology: v.optional(v.string()),
   searchRaMin: v.optional(v.string()),
   searchRaMax: v.optional(v.string()),
   searchDecMin: v.optional(v.string()),
@@ -76,6 +78,8 @@ export const galaxyBrowserResolvedViewValidator = v.object({
 
 const SEARCH_STRING_FIELDS = [
   "searchId",
+  "searchLsbClass",
+  "searchMorphology",
   "searchRaMin",
   "searchRaMax",
   "searchDecMin",
@@ -132,6 +136,8 @@ export type GalaxyBrowserViewState = {
   sortOrder: "asc" | "desc";
   isSearchActive: boolean;
   searchId?: string;
+  searchLsbClass?: string;
+  searchMorphology?: string;
   searchRaMin?: string;
   searchRaMax?: string;
   searchDecMin?: string;
@@ -202,6 +208,8 @@ export function buildGalaxyBrowserViewHash(state: GalaxyBrowserViewState, ownerS
     sortOrder: state.sortOrder,
     isSearchActive: state.isSearchActive,
     searchId: state.searchId,
+    searchLsbClass: state.searchLsbClass,
+    searchMorphology: state.searchMorphology,
     searchRaMin: state.searchRaMin,
     searchRaMax: state.searchRaMax,
     searchDecMin: state.searchDecMin,
