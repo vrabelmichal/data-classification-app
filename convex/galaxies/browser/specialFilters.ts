@@ -54,7 +54,7 @@ const parseSequenceCursor = (cursor: string | null) => {
 const serializeSequenceCursor = (offset: number) => `${SEQUENCE_CURSOR_PREFIX}${offset}`;
 
 type MembershipLookup = {
-  has: (galaxyId: string) => boolean;
+  has: (galaxyId: string) => boolean | Promise<boolean>;
   getMeta?: (galaxyId: string) => any;
 };
 
@@ -105,7 +105,7 @@ const scanMembershipFilteredGalaxies = async (options: ScanMembershipFilteredOpt
   let matchedBeforePage = 0;
   let hasMore = false;
   for await (const galaxy of q) {
-    const isMember = lookup.has(galaxy.id);
+    const isMember = await lookup.has(galaxy.id);
     if (includeMembers ? !isMember : isMember) continue;
 
     if (matchedBeforePage < initialOffset) {
@@ -118,7 +118,7 @@ const scanMembershipFilteredGalaxies = async (options: ScanMembershipFilteredOpt
       break;
     }
 
-    const metadata = lookup.getMeta ? lookup.getMeta(galaxy.id) : undefined;
+    const metadata = lookup.getMeta ? await lookup.getMeta(galaxy.id) : undefined;
     collected.push(augmentGalaxy ? augmentGalaxy(galaxy, metadata) : galaxy);
   }
 
@@ -141,18 +141,60 @@ export const handleClassifiedGalaxies = async (options: ClassifiedFilterOptions)
   const { ctx, userId, cursor, offset = 0, numItems, sortOrder, requestedSort, filterType, filters } = options;
   const parsedCursor = cursor ? parseClassifiedCursor(cursor) : { offset: Math.max(offset, 0), galaxyCursor: null };
 
-  const classifiedRecords = await ctx.db
-    .query("userGalaxyClassifications")
-    .withIndex("by_user", (q: any) => q.eq("userId", userId))
-    .collect();
-
-  if (filterType === "classified" && classifiedRecords.length === 0) {
-    return createEmptyBrowseResult({ hasPrevious: parsedCursor.offset > 0 });
+  // Start with the user's indexed classifications for numeric ordering. Scanning
+  // all galaxies is particularly expensive when the user has only a few matches.
+  if (filterType === "classified" && requestedSort === "numericId") {
+    const records = ctx.db
+      .query("userGalaxyClassifications")
+      .withIndex("by_user_numericId", (q: any) => q.eq("userId", userId))
+      .order(sortOrder);
+    const galaxies: any[] = [];
+    let matched = 0;
+    let hasNext = false;
+    for await (const record of records) {
+      if (filters.searchId && filters.searchId.trim() !== record.galaxyExternalId) continue;
+      // Exact ID lookup bounds the galaxy read; all remaining predicates run on
+      // the server using the same filter semantics as the other browse paths.
+      const galaxy = await buildGalaxyBrowseQuery(ctx, "id", sortOrder, {
+        ...filters,
+        searchId: record.galaxyExternalId,
+      }).first();
+      if (!galaxy) continue;
+      if (matched++ < parsedCursor.offset) continue;
+      if (galaxies.length >= numItems) {
+        hasNext = true;
+        break;
+      }
+      galaxies.push({ ...galaxy, classificationId: record.classificationId, classifiedAt: record.classifiedAt });
+    }
+    const nextOffset = parsedCursor.offset + galaxies.length;
+    return {
+      galaxies,
+      hasNext,
+      hasPrevious: parsedCursor.offset > 0,
+      aggregatesPopulated: false,
+      cursor: hasNext ? serializeClassifiedCursor(nextOffset) : null,
+      isDone: !hasNext,
+      currentBounds: computeBounds(galaxies),
+    };
   }
 
-  const classifiedByGalaxyId = new Map<string, any>(
-    classifiedRecords.map((record: any) => [record.galaxyExternalId, record])
-  );
+  if (filterType === "classified") {
+    const firstClassification = await ctx.db
+      .query("userGalaxyClassifications")
+      .withIndex("by_user", (q: any) => q.eq("userId", userId))
+      .first();
+    if (!firstClassification) {
+      return createEmptyBrowseResult({ hasPrevious: parsedCursor.offset > 0 });
+    }
+  }
+
+  // Other sort orders and the complement use indexed membership checks rather
+  // than loading the user's entire classification history into this transaction.
+  const findRecord = (galaxyId: string) => ctx.db
+    .query("userGalaxyClassifications")
+    .withIndex("by_user_galaxy", (q: any) => q.eq("userId", userId).eq("galaxyExternalId", galaxyId))
+    .first();
 
   return scanMembershipFilteredGalaxies({
     ctx,
@@ -162,8 +204,8 @@ export const handleClassifiedGalaxies = async (options: ClassifiedFilterOptions)
     filters,
     initialOffset: parsedCursor.offset,
     lookup: {
-      has: (galaxyId) => classifiedByGalaxyId.has(galaxyId),
-      getMeta: (galaxyId) => classifiedByGalaxyId.get(galaxyId),
+      has: async (galaxyId) => Boolean(await findRecord(galaxyId)),
+      getMeta: findRecord,
     },
     includeMembers: filterType === "classified",
     serializeCursor: serializeClassifiedCursor,

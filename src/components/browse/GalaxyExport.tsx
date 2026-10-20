@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useQuery } from "convex/react";
+import { useQueryResult } from "../../hooks/useQueryResult";
 import { api } from "../../../convex/_generated/api";
 import type { SortField, SortOrder, FilterType } from "./GalaxyBrowser";
 import { DEFAULT_USER_EXPORT_LIMIT } from "../../lib/defaults";
@@ -200,7 +201,7 @@ export function GalaxyExport({
   const effectiveLimit = canExportAll ? undefined : userExportLimit;
 
   // Query for batch export - only active when exporting and not current page mode
-  const exportBatchResult = useQuery(
+  const { data: exportBatchResult, error: exportBatchError } = useQueryResult(
     api.galaxies.export.exportGalaxiesBatch,
     exportState.isExporting && exportState.exportMode !== "current_page"
       ? {
@@ -244,6 +245,17 @@ export function GalaxyExport({
         }
       : "skip"
   );
+
+  useEffect(() => {
+    if (!exportBatchError) return;
+    setExportState((prev) => ({
+      ...prev,
+      isExporting: false,
+      error: "The server could not complete the export. Change the filters or export fewer galaxies and try again.",
+      galaxiesCollected: [],
+      cursor: null,
+    }));
+  }, [exportBatchError]);
 
   // Process batch results
   useEffect(() => {
@@ -486,7 +498,7 @@ export function GalaxyExport({
 
           {/* Error message */}
           {exportState.error && (
-            <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-md">
+            <div role="alert" className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 px-3 py-2 rounded-md">
               {exportState.error}
             </div>
           )}

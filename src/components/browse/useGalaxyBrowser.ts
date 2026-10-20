@@ -1,6 +1,7 @@
 import { useState, useEffect, useLayoutEffect, useMemo, useRef, type Dispatch, type SetStateAction } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
 import { useSearchParams } from "react-router";
+import { useQueryResult } from "../../hooks/useQueryResult";
 import { api } from "../../../convex/_generated/api";
 import type { SortField, SortOrder, FilterType } from "./GalaxyBrowser";
 import {
@@ -114,6 +115,8 @@ export interface UseGalaxyBrowserReturn {
 
   // Queries
   galaxyData: any;
+  galaxyQueryError: Error | undefined;
+  browserQueryWarning: string | undefined;
   searchBounds: any;
   userPrefs: any;
   effectiveImageQuality: "high" | "medium" | "low";
@@ -219,10 +222,13 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   const previewImageName = getPreviewImageName();
   const parsedBrowserUrlState = useMemo(() => parseGalaxyBrowserUrlState(searchParams), [searchParams]);
   const browserSearchParamsSignature = searchParams.toString();
-  const resolvedBrowserView = useQuery(
+  const { data: resolvedViewData, error: resolvedViewError } = useQueryResult(
     api.galaxies.viewState.resolveBrowserView,
     parsedBrowserUrlState.viewKey ? { viewKey: parsedBrowserUrlState.viewKey } : "skip",
   );
+  const resolvedBrowserView = resolvedViewData ?? (resolvedViewError
+    ? { status: "error" as const, message: "The server could not load this saved view. Change the filters to start a new view, or reload the page to try again." }
+    : undefined);
   const lastAppliedBrowserUrlSignatureRef = useRef<string | null>(null);
   const lastWrittenBrowserUrlSignatureRef = useRef<string | null>(null);
   const pendingBrowserUrlSyncSignatureRef = useRef<string | null>(null);
@@ -608,7 +614,16 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
     setIsSearchFormCollapsed(fallbackSearchFormCollapsed);
 
-    if (parsedBrowserUrlState.viewKey && resolvedBrowserView?.status === "ok" && resolvedBrowserView.state) {
+    if (parsedBrowserUrlState.viewKey && resolvedBrowserView?.status === "error") {
+      applyHydratedBrowserState({
+        viewState: fallbackStoredViewState,
+        page: 1,
+        pageSizeValue: parsedBrowserUrlState.pageSize ?? fallbackPageSize,
+        viewKey: null,
+        issue: { kind: "unavailable", message: resolvedBrowserView.message },
+        unavailable: true,
+      });
+    } else if (parsedBrowserUrlState.viewKey && resolvedBrowserView?.status === "ok" && resolvedBrowserView.state) {
       applyHydratedBrowserState({
         viewState: resolvedBrowserView.state as GalaxyBrowserViewState,
         page: parsedBrowserUrlState.page,
@@ -845,7 +860,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
   }, [browserSearchParamsSignature]);
 
   const shouldSkipGalaxyQuery = !isUrlStateReady || (parsedBrowserUrlState.viewKey !== null && !resolvedBrowserView) || isViewUnavailable;
-  const rawGalaxyData = useQuery(api.galaxies.browse.browseGalaxies, shouldSkipGalaxyQuery ? "skip" : {
+  const { data: rawGalaxyData, error: galaxyQueryError } = useQueryResult(api.galaxies.browse.browseGalaxies, shouldSkipGalaxyQuery ? "skip" : {
     offset: Math.max(0, (page - 1) * pageSize),
     numItems: pageSize,
     cursor: undefined,
@@ -936,7 +951,7 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
     });
   }, [page, pageSize, rawGalaxyData]);
 
-  const galaxyData = isViewUnavailable
+  const galaxyData = isViewUnavailable || galaxyQueryError
     ? {
         galaxies: [],
         total: 0,
@@ -950,9 +965,12 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
       }
     : rawGalaxyData;
 
-  const searchBounds = useQuery(api.galaxies.browse.getGalaxySearchBounds);
-  const userPrefs = useQuery(api.users.getUserPreferences);
-  const systemSettings = useQuery(api.system_settings.getPublicSystemSettings);
+  const { data: searchBounds, error: searchBoundsError } = useQueryResult(api.galaxies.browse.getGalaxySearchBounds, {});
+  const { data: userPrefs, error: userPrefsError } = useQueryResult(api.users.getUserPreferences, {});
+  const { data: systemSettings, error: settingsError } = useQueryResult(api.system_settings.getPublicSystemSettings, {});
+  const browserQueryWarning = searchBoundsError || userPrefsError || settingsError
+    ? "Some search ranges or display preferences could not be loaded. You can continue browsing with the available settings."
+    : undefined;
 
   const effectiveImageQuality = (systemSettings?.galaxyBrowserImageQuality as "high" | "low") || "low";
 
@@ -1159,6 +1177,8 @@ export function useGalaxyBrowser(): UseGalaxyBrowserReturn {
 
     // Queries
     galaxyData,
+    galaxyQueryError,
+    browserQueryWarning,
     searchBounds,
     userPrefs,
     effectiveImageQuality,

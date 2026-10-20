@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "react-router";
-import { useAction, useQuery } from "convex/react";
+import { useAction } from "convex/react";
+import { useQueryResult } from "../../hooks/useQueryResult";
 import { api } from "../../../convex/_generated/api";
 import { toast } from "sonner";
 import { ImageViewer, type DefaultZoomOptions } from "../classification/ImageViewer";
@@ -311,7 +312,7 @@ export function GalaxyQuickReview({
 
   // Query
   const queryArgs = buildQueryArgs(filters, fetchCursor);
-  const batchResult = useQuery(api.galaxies.browse.browseGalaxies, queryArgs);
+  const { data: batchResult, error: batchError } = useQueryResult(api.galaxies.browse.browseGalaxies, queryArgs);
 
   // Accumulate batch results
   useEffect(() => {
@@ -334,14 +335,14 @@ export function GalaxyQuickReview({
   // Prefetch next batch when approaching the end of the current buffer
   const PREFETCH_THRESHOLD = 10;
   useEffect(() => {
-    if (isAtEnd) return;
+    if (isAtEnd || batchError) return;
     if (nextCursor === null || nextCursor === undefined) return;
     if (currentIndex >= galaxies.length - PREFETCH_THRESHOLD) {
       if (!processedCursors.current.has(nextCursor)) {
         setFetchCursor(nextCursor);
       }
     }
-  }, [currentIndex, galaxies.length, isAtEnd, nextCursor]);
+  }, [currentIndex, galaxies.length, isAtEnd, nextCursor, batchError]);
 
   // Notify parent of current galaxy.
   const currentGalaxy = galaxies[currentIndex] ?? null;
@@ -382,7 +383,7 @@ export function GalaxyQuickReview({
   }, [currentGalaxy?.id, currentIndex, selectedImageKey, showEllipse]);
 
   // Navigation
-  const canGoNext = currentIndex < galaxies.length - 1 || (!isAtEnd && nextCursor !== null);
+  const canGoNext = currentIndex < galaxies.length - 1 || (!batchError && !isAtEnd && nextCursor !== null);
   const canGoPrev = currentIndex > 0;
 
   // Track whether the user pressed Next while at the buffer edge
@@ -391,14 +392,14 @@ export function GalaxyQuickReview({
   const goNext = useCallback(() => {
     if (currentIndex < galaxies.length - 1) {
       setCurrentIndex((i) => i + 1);
-    } else if (!isAtEnd && nextCursor !== null && nextCursor !== undefined) {
+    } else if (!batchError && !isAtEnd && nextCursor !== null && nextCursor !== undefined) {
       // At the end of current buffer but more data available — trigger fetch
       pendingAdvance.current = true;
       if (!processedCursors.current.has(nextCursor)) {
         setFetchCursor(nextCursor);
       }
     }
-  }, [currentIndex, galaxies.length, isAtEnd, nextCursor]);
+  }, [currentIndex, galaxies.length, isAtEnd, nextCursor, batchError]);
 
   // Auto-advance once new data arrives after the user pressed Next at boundary
   useEffect(() => {
@@ -513,7 +514,7 @@ export function GalaxyQuickReview({
     return () => document.removeEventListener("keydown", handleKey);
   }, [goNext, goPrev, onClose, toggleEllipse]);
 
-  const isLoading = !batchResult && galaxies.length === 0;
+  const isLoading = !batchError && !batchResult && galaxies.length === 0;
 
   // ── Render ──
   return (
@@ -632,6 +633,13 @@ export function GalaxyQuickReview({
         </button>
       </div>
 
+      {batchError && (
+        <div role="alert" className="bg-amber-950 px-4 py-3 text-sm text-amber-100">
+          Unable to load more galaxies. You can review galaxies already loaded or close quick review and change the search.
+          <button className="ml-4 underline" onClick={handleClose}>Close quick review</button>
+        </div>
+      )}
+
       {/* ── Body ── */}
       <div className="flex-1 flex items-stretch overflow-hidden min-h-0">
         {/* Prev arrow */}
@@ -648,7 +656,9 @@ export function GalaxyQuickReview({
 
         {/* Central content: image, then info stacked below */}
         <div className="flex-1 flex flex-col items-center overflow-y-auto min-w-0 py-3 gap-3">
-          {isLoading ? (
+          {batchError && !currentGalaxy ? (
+            <p className="text-gray-300 text-sm">Quick review could not load results.</p>
+          ) : isLoading ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500" />
               <p className="text-gray-400 text-sm">Loading galaxies…</p>

@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "convex/react";
-import { useSearchParams } from "react-router";
+import { useLocation, useSearchParams } from "react-router";
+import { RenderErrorBoundary } from "../RenderErrorBoundary";
+import { useQueryResult } from "../../hooks/useQueryResult";
 import { api } from "../../../convex/_generated/api";
 import { usePageTitle } from "../../hooks/usePageTitle";
 import { useGalaxyBrowser } from "./useGalaxyBrowser";
@@ -51,6 +53,15 @@ function isPaperMetadataArray(value: unknown): value is PaperMetadataEntry[] {
 }
 
 export function GalaxyBrowser() {
+  const location = useLocation();
+  return (
+    <RenderErrorBoundary resetKey={location.key} message="The galaxy browser could not load. Try again, reload the page, or use the navigation to open another section.">
+      <GalaxyBrowserContent />
+    </RenderErrorBoundary>
+  );
+}
+
+function GalaxyBrowserContent() {
   usePageTitle("Browse Galaxies");
   const [searchParams, setSearchParams] = useSearchParams();
   const retainedGalaxyDataRef = useRef<any | null>(null);
@@ -88,6 +99,8 @@ export function GalaxyBrowser() {
 
     // Queries
     galaxyData,
+    galaxyQueryError,
+    browserQueryWarning,
     userPrefs,
     effectiveImageQuality,
 
@@ -222,7 +235,9 @@ export function GalaxyBrowser() {
   const endIndex = hasResults && displayGalaxyData?.galaxies
     ? ((page - 1) * pageSize) + displayGalaxyData.galaxies.length
     : 0;
-  const statusText = viewStateIssue?.kind === "unavailable"
+  const statusText = galaxyQueryError
+    ? "Results could not be loaded."
+    : viewStateIssue?.kind === "unavailable"
     ? viewStateIssue.message
     : isRefreshingResults
     ? "Updating results..."
@@ -589,24 +604,40 @@ export function GalaxyBrowser() {
   };
 
   // Computed total state
+  const [countRequestKey, setCountRequestKey] = useState<string | null>(null);
+  const [countFailure, setCountFailure] = useState<Error | undefined>();
   const [computedTotal, setComputedTotal] = useState<number | null>(null);
   const [isComputingTotal, setIsComputingTotal] = useState(false);
   const [countCursor, setCountCursor] = useState<string | null>(null);
   const [accumulatedCount, setAccumulatedCount] = useState<number>(0);
 
   // Query for counting - only runs when counting is active
-  const countBatchResult = useQuery(
+  const { data: countBatchResult, error: countQueryError } = useQueryResult(
     api.galaxies.count.countFilteredGalaxiesBatch,
-    isComputingTotal ? {
+    isComputingTotal && countRequestKey === quickReviewResetKey ? {
       cursor: countCursor || undefined,
       batchSize: 5000,
       ...appliedSearchQueryFilters,
     } : "skip"
   );
 
+  useEffect(() => {
+    if (countQueryError) {
+      setCountFailure(countQueryError);
+      setIsComputingTotal(false);
+    }
+  }, [countQueryError]);
+
+  useEffect(() => {
+    if (galaxyQueryError) {
+      setIsSyncingPage(false);
+      console.error("Galaxy browse query failed", galaxyQueryError);
+    }
+  }, [galaxyQueryError]);
+
   // Process count batch results
   useEffect(() => {
-    if (!isComputingTotal || !countBatchResult) return;
+    if (!isComputingTotal || countRequestKey !== quickReviewResetKey || !countBatchResult) return;
     
     const newCount = accumulatedCount + countBatchResult.count;
     setAccumulatedCount(newCount);
@@ -619,9 +650,11 @@ export function GalaxyBrowser() {
     } else if (countBatchResult.cursor) {
       setCountCursor(countBatchResult.cursor);
     }
-  }, [countBatchResult, isComputingTotal, accumulatedCount]);
+  }, [countBatchResult, isComputingTotal, accumulatedCount, countRequestKey, quickReviewResetKey]);
 
   const handleComputeTotal = () => {
+    setCountRequestKey(quickReviewResetKey);
+    setCountFailure(undefined);
     setIsComputingTotal(true);
     setComputedTotal(null);
     setCountCursor(null);
@@ -631,9 +664,19 @@ export function GalaxyBrowser() {
   // Reset computed total when filters/search change
   useEffect(() => {
     setComputedTotal(null);
+    setCountFailure(undefined);
+    setIsComputingTotal(false);
+    setCountCursor(null);
+    setAccumulatedCount(0);
   }, [quickReviewResetKey]);
 
-  const viewStateBanner = viewStateIssue ? (
+  const viewStateBanner = galaxyQueryError || countFailure ? (
+    <div role="alert" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100">
+      {galaxyQueryError
+        ? "Unable to load galaxies for this search. The server could not complete the request. Change the filters or reduce the page size and try again."
+        : "Unable to count galaxies for this search. Change the filters and try again."}
+    </div>
+  ) : viewStateIssue ? (
     <div
       className={`mb-4 rounded-lg border px-4 py-3 text-sm ${
         viewStateIssue.kind === "unavailable"
@@ -644,12 +687,16 @@ export function GalaxyBrowser() {
     >
       {viewStateIssue.message}
     </div>
+  ) : browserQueryWarning ? (
+    <div role="alert" className="mb-4 rounded-lg border border-amber-300 px-4 py-3 text-sm text-amber-900 dark:text-amber-100">
+      {browserQueryWarning}
+    </div>
   ) : null;
 
   // ── QR overlay ──
   // Rendered BEFORE the if (!galaxyData) early returns so it stays mounted
   // during background page transitions (galaxyData temporarily undefined).
-  const quickReviewOverlay = isReviewMode && !isViewUnavailable ? (
+  const quickReviewOverlay = isReviewMode && !isViewUnavailable && !galaxyQueryError ? (
     <GalaxyQuickReview
       filters={quickReviewFilters}
       effectiveImageQuality={effectiveImageQuality}
@@ -774,7 +821,7 @@ export function GalaxyBrowser() {
             isComputingTotal={isComputingTotal}
             computedTotal={computedTotal}
             accumulatedCount={accumulatedCount}
-            onEnterReviewMode={handleOpenReview}
+            onEnterReviewMode={galaxyQueryError ? undefined : handleOpenReview}
           />
         </div>
 
@@ -901,7 +948,7 @@ export function GalaxyBrowser() {
           isComputingTotal={isComputingTotal}
           computedTotal={computedTotal}
             accumulatedCount={accumulatedCount}
-          onEnterReviewMode={handleOpenReview}
+          onEnterReviewMode={galaxyQueryError ? undefined : handleOpenReview}
         />
       </div>
 
@@ -910,7 +957,7 @@ export function GalaxyBrowser() {
       {quickReviewOverlay}
 
       {/* Desktop Table View */}
-      {isSyncingPage ? (
+      {galaxyQueryError ? null : isSyncingPage ? (
         <div className="flex justify-center items-center py-16">
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto mb-3" />
@@ -950,13 +997,16 @@ export function GalaxyBrowser() {
       )}
 
       {/* Export Section */}
-      <GalaxyExport
-        {...quickReviewFilters}
-        currentPageGalaxies={galaxyData?.galaxies}
-        pageSize={pageSize}
-        page={page}
-        canExportAll={canExportAll}
-      />
+      {!galaxyQueryError && (
+        <GalaxyExport
+          key={quickReviewResetKey}
+          {...quickReviewFilters}
+          currentPageGalaxies={galaxyData?.galaxies}
+          pageSize={pageSize}
+          page={page}
+          canExportAll={canExportAll}
+        />
+      )}
 
       {/* Cursor-based pagination is managed in controls */}
     </div>

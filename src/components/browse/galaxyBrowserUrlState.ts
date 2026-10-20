@@ -128,7 +128,8 @@ function parseBooleanParam(value: string | null): boolean {
   return value === "1" || value === "true";
 }
 
-function normalizeSearchString(value: string): string | undefined {
+function normalizeSearchString(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
   return trimmed ? trimmed : undefined;
 }
